@@ -1,7 +1,7 @@
 # Sync Clear Signing (ERC-7730) Registry
 # - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond deployments AND the `display.formats` proposal at `config/clearSigningProposal.json`. The deprecated `context.contract.abi` block is stripped on every sync (the v2 registry infers the ABI from the format keys).
 # - Triggers: push-to-main on deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run). Facet changes are covered transitively: `verifyClearSigning.yml` forces `config/clearSigningProposal.json` to be regenerated in the same PR, so a facet change that alters any format shows up as a change to that file.
-# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats` and only the deployments Sourcify fully verifies (diamond and every facet; testnets and zkEVM chains excluded), normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), runs the registry's `erc7730 lint --require-verified` and stops if it fails, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
+# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats` and every active mainnet deployment (testnets and zkEVM chains excluded), normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), lints it with the registry's `erc7730 lint --require-verified` and regenerates without the deployments that lint reports as not verified on Sourcify (diamond and every facet) or on an unsupported chain, lints again and stops if it fails, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Test fixtures: the reviewed testsv2 fixture is `config/clearSigningTests.json` in THIS repo, and the registry copy is an output of it. The sync never reads the registry's own copy, so the sync branch — recreated from upstream and force-pushed on every run — carries no state, and an upstream edit to the fixture is replaced rather than merged (visible as a diff in the sync PR; the repo copy is the thing to change).
 # - Failure mode "N format(s) have no expectation yet": the descriptor gained a format `config/clearSigningTests.json` does not cover, and the generator refuses to invent an expectation for it — a fabricated one would fail the registry's own runners. The sync is meant to stop here; it is NOT fixed by re-running. Remedy: run the render loop in docs/ClearSigningProposal.md ("Test fixtures"), read what the reference runner produced, and commit the reviewed fixture to `config/clearSigningTests.json` in a normal PR to this repo. The next sync then finds every format covered and proceeds. For a format WE propose this is now caught at PR time by `verifyClearSigning.yml`, so reaching it here means the format came from upstream.
@@ -32,7 +32,6 @@ on:
       - 'config/clearSigningProposal.json' # the display.formats source of truth
       - 'config/clearSigningTests.json' # the reviewed testsv2 fixture
       - 'tasks/generateLedgerClearSigning.ts'
-      - 'script/utils/sourcifyVerification.ts' # decides which deployments are published
       - 'tasks/buildClearSigningProposal.ts'
       # Changes what the registry fixture contains, so a merged generator fix
       # has to resync rather than wait for an unrelated path to trigger a run.
@@ -49,8 +48,8 @@ jobs:
       # they never force-push sync/lifi-clear-signing or update the upstream PR
       # concurrently — a second concurrent run would break the
       # `--force-with-lease` push or send a duplicate Slack ping.
-      # A production run is never cancelled: it takes up to ~50 minutes per
-      # Sourcify sweep, and deploy-log merges land closer together than that on
+      # A production run is never cancelled: its rate-limited Sourcify lookups
+      # take ~15 minutes or more, and deploy-log merges land closer together on
       # a busy day, so cancelling would keep any run from reaching the push.
       # Instead a newer run waits, and GitHub keeps only the newest pending one,
       # which reads main at its own commit. Manual workflow_dispatch keeps its
@@ -60,10 +59,10 @@ jobs:
       cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
-    # Sourcify lookups are anonymous and rate-limited. The generator's sweep
-    # waits out repeated rate-limit blocks and has taken up to ~50 minutes, and
-    # `erc7730 lint --require-verified` then repeats the lookups on its own.
-    timeout-minutes: 120
+    # Sourcify lookups are anonymous and rate-limited, so the lint repeats until
+    # every deployment resolves: up to 8 passes of ~4 minutes plus pauses (see
+    # the sync step), then one lint from cache before the push.
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         # No submodules: the sync reads only `deployments/`, `config/` and the
@@ -187,6 +186,39 @@ jobs:
           echo -e "\033[32mFormatting ${LEDGER_FILE_PATH} with erc7730 (registry canonical formatter)...\033[0m"
           erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
 
+          # `lint --require-verified` rejects a deployment unless Sourcify
+          # verifies its diamond and every facet. The descriptor above carries
+          # every eligible deployment; lint it and regenerate without the ones
+          # reported as unverified or on an unsupported chain (the generator logs
+          # each with the contract to verify). The generator fails on any other
+          # lint error, so a rate limit or Sourcify outage ("Could not fetch ABI")
+          # stops the sync instead of removing a live chain. The diff printed
+          # above therefore lists every eligible deployment.
+          #
+          # Anonymous Sourcify lookups are rate-limited, and erc7730 retries a
+          # 429 without backing off, so one lint from a cold cache reports most
+          # chains as "Could not fetch ABI" (measured: 40 of 62). erc7730 caches
+          # every successful lookup on disk for an hour, so each pass resumes
+          # where the last was blocked: lint again after a pause, up to 8 passes
+          # (a cold run measured 40 -> 26 -> 16 -> 5 -> 0, about 15 minutes).
+          # The lint before the push re-reads the same cache.
+          echo -e "\033[32mLinting ${LEDGER_FILE_PATH} to find deployments Sourcify does not verify...\033[0m"
+          LINT_STATUS=0
+          for LINT_PASS in 1 2 3 4 5 6 7 8; do
+            LINT_STATUS=0
+            erc7730 lint --require-verified --gha "ledger-registry/${LEDGER_FILE_PATH}" > erc7730-lint.txt 2>&1 || LINT_STATUS=$?
+            RATE_LIMITED="$(grep -c '^::error .*title=Could not fetch ABI::' erc7730-lint.txt || true)"
+            if [ "${RATE_LIMITED}" -eq 0 ]; then
+              break
+            fi
+            echo -e "\033[33mLint pass ${LINT_PASS}: ${RATE_LIMITED} deployment(s) could not be fetched from Sourcify; retrying in 60s...\033[0m"
+            sleep 60
+          done
+          if [ "${LINT_STATUS}" -ne 0 ]; then
+            bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --lintOutputFilePath erc7730-lint.txt
+            erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
+          fi
+
           # The registry fails a descriptor whose display.formats entries are not
           # each exercised by a test case, so the fixture has to travel with the
           # descriptor. The reviewed fixture lives in THIS repo, not in the
@@ -230,7 +262,7 @@ jobs:
           # generator is validated before a real sync.
           echo -e "\033[32mLinting ${LEDGER_FILE_PATH} with erc7730 lint --require-verified...\033[0m"
           if ! erc7730 lint --require-verified "${LEDGER_FILE_PATH}"; then
-            echo -e "\033[31mError: ${LEDGER_FILE_PATH} fails erc7730 lint --require-verified. Not pushing. Fix the errors above (usually a facet to verify on Sourcify) and re-run.\033[0m"
+            echo -e "\033[31mError: ${LEDGER_FILE_PATH} fails erc7730 lint --require-verified. Not pushing. Fix the errors above and re-run.\033[0m"
             exit 1
           fi
 

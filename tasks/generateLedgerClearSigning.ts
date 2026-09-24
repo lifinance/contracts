@@ -5,12 +5,8 @@ import { defineCommand, runMain } from 'citty'
 
 import { flagIsOn } from '../script/deploy/safe/cli-flags'
 import { isEntrypoint } from '../script/utils/is-entrypoint'
-import { mapWithConcurrency } from '../script/utils/mapWithConcurrency'
-import { checkSourcifyVerification } from '../script/utils/sourcifyVerification'
 
 type Json = Record<string, unknown>
-
-const SOURCIFY_CHAIN_CONCURRENCY = 4
 
 function installEpipeHandler(): void {
   const onError = (err: unknown) => {
@@ -153,23 +149,28 @@ function readProposalFormats(
   return proposal.formats
 }
 
-// Merges `display.formats` entries from the local proposal into the registry's
-// existing display block.
-//
-// Rules:
-//  - Selectors present in the proposal: REPLACE in the registry. The proposal
-//    is the source of truth for our diamond's UX (CI-validated current).
-//  - Selectors present in the registry but not in the proposal: PRESERVE.
-//    These may be registry-only entries the EF working group adds, or stale
-//    entries for selectors we deprecated but older deployments still expose.
-//    The exceptions are our own title-only `*Packed` / `*Min` residue (see
-//    `isResidualTitleOnlyEntry`) and entries for retired LI.FI functions (see
-//    `RETIRED_LIFI_FUNCTIONS`), dropped even when no proposal is merged: the
-//    registry lint rejects both.
-//  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
-//
-// Returns the next `display` object. Pass `proposalFilePath = null` to skip
-// the proposal merge.
+/**
+ * Merges `display.formats` entries from the local proposal into the registry's
+ * existing display block.
+ *
+ * Rules:
+ *  - Selectors present in the proposal: REPLACE in the registry. The proposal
+ *    is the source of truth for our diamond's UX (CI-validated current).
+ *  - Selectors present in the registry but not in the proposal: PRESERVE.
+ *    These may be registry-only entries the EF working group adds, or stale
+ *    entries for selectors we deprecated but older deployments still expose.
+ *    The exceptions are our own title-only `*Packed` / `*Min` residue (see
+ *    `isResidualTitleOnlyEntry`) and entries for retired LI.FI functions (see
+ *    `RETIRED_LIFI_FUNCTIONS`), dropped even when no proposal is merged: the
+ *    registry lint rejects both.
+ *  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
+ *
+ * @param existing - The registry's current `display` block
+ * @param proposalFilePath - Proposal JSON path inside the working directory, or
+ *   `null` to skip the proposal merge
+ * @returns The next `display` object
+ * @throws If `proposalFilePath` resolves outside the working directory
+ */
 export function mergeDisplayFormats(
   existing: ILedgerDisplay | undefined,
   proposalFilePath: string | null
@@ -213,6 +214,13 @@ export function mergeDisplayFormats(
   return next
 }
 
+/**
+ * Lists the LiFiDiamond deployment of every active mainnet network that is not
+ * a zkEVM chain: the set the registry descriptor can carry.
+ * @param deploymentsDir - Directory of per-network deployment logs
+ * @param networksJsonPath - Path to `config/networks.json`
+ * @returns One deployment per chain ID, sorted by chain ID
+ */
 export function buildDeploymentsFromRepo(
   deploymentsDir: string,
   networksJsonPath: string
@@ -258,43 +266,110 @@ export function buildDeploymentsFromRepo(
   return Array.from(byChainId.values()).sort((a, b) => a.chainId - b.chainId)
 }
 
-// Keeps only the deployments the registry's `erc7730 lint --require-verified`
-// accepts: Sourcify supports the chain and verifies the diamond and every facet.
-// A dropped deployment is logged with the contracts to verify to bring it back.
-// Inconclusive Sourcify responses throw (see `checkSourcifyVerification`), so a
-// transient fault fails the sync instead of proposing to remove a live chain.
-export async function keepSourcifyVerified(
-  deployments: IRepoDeployment[]
-): Promise<IDeployment[]> {
-  const results = await mapWithConcurrency(
-    deployments,
-    SOURCIFY_CHAIN_CONCURRENCY,
-    (d) => checkSourcifyVerification(d.chainId, d.address)
-  )
+// The titles `erc7730 lint --require-verified` gives a deployment Sourcify does
+// not verify (the diamond, or any facet behind it) or a chain it does not
+// support (python-erc7730, `lint/v2/lint_validate_display_fields.py`). Only
+// these drop a deployment. Every other lint error fails the run, including
+// "Could not fetch ABI", which is how a rate limit or Sourcify outage surfaces:
+// reading it as "unverified" would propose removing a live chain.
+const LINT_UNVERIFIED_TITLES = new Set([
+  'Contract not verified',
+  'Proxy implementation not verified',
+  'Chain not supported',
+])
+
+interface ILintError {
+  title: string
+  message: string
+}
+
+// Parses the `::error file=…,title=…::message` lines of `erc7730 lint --gha`.
+function parseLintErrors(lintOutput: string): ILintError[] {
+  const errors: ILintError[] = []
+  for (const line of lintOutput.split('\n')) {
+    const match = /^::error (?<params>.*?)::(?<message>.*)$/u.exec(line.trim())
+    if (!match?.groups) continue
+    const title = /(?:^|,)title=(?<title>[^,]*)$/u.exec(
+      match.groups.params ?? ''
+    )
+    errors.push({
+      title: title?.groups?.title ?? '',
+      message: (match.groups.message ?? '').replace(/%0A/gu, '\n'),
+    })
+  }
+  return errors
+}
+
+/**
+ * Leaves out the deployments a lint of this descriptor, run with every
+ * deployment in it, reports as not verifiable on Sourcify. Logs each one with
+ * the lint's reason, which names the contract to verify to bring it back.
+ * @param deployments - Every deployment the descriptor was linted with
+ * @param lintOutput - Output of `erc7730 lint --require-verified --gha`
+ * @returns The deployments the lint did not report, in input order
+ * @throws If the output has no errors, has any error other than the
+ *   `LINT_UNVERIFIED_TITLES`, or names a chain none of `deployments` is on
+ */
+export function excludeLintUnverified(
+  deployments: IRepoDeployment[],
+  lintOutput: string
+): IDeployment[] {
+  const errors = parseLintErrors(lintOutput)
+  if (errors.length === 0)
+    throw new Error(
+      'The erc7730 lint output has no `::error` lines; run the lint with --gha and pass its output.'
+    )
+
+  const other = errors.filter((e) => !LINT_UNVERIFIED_TITLES.has(e.title))
+  if (other.length > 0)
+    throw new Error(
+      `erc7730 lint reported errors that Sourcify verification does not explain, so no deployment is dropped:\n${other
+        .map((e) => `  ${e.title || '(no title)'}: ${e.message}`)
+        .join('\n')}`
+    )
+
+  const reasons = new Map<number, string>()
+  for (const e of errors) {
+    const chainId = Number(/\bchain (?<id>\d+)\b/u.exec(e.message)?.groups?.id)
+    if (!deployments.some((d) => d.chainId === chainId))
+      throw new Error(
+        `erc7730 lint reported "${e.title}" for no deployment in this descriptor: ${e.message}`
+      )
+    reasons.set(chainId, `${e.title}: ${e.message}`)
+  }
 
   const kept: IDeployment[] = []
-  results.forEach((result, i) => {
-    const d = deployments[i] as IRepoDeployment
-    const label = `${d.network} (${d.chainId}) ${d.address}`
-    if (result.status === 'verified') {
+  for (const d of deployments) {
+    const reason = reasons.get(d.chainId)
+    if (reason === undefined)
       kept.push({ chainId: d.chainId, address: d.address })
-      return
-    }
-    if (result.status === 'unsupported_chain') {
-      console.warn(`Sourcify: excluding ${label}: chain not supported`)
-      return
-    }
-    console.warn(
-      `Sourcify: excluding ${label}: ${result.contracts.length} contract(s) not verified`
-    )
-    for (const c of result.contracts)
-      console.warn(`  unverified: ${c.name ?? 'contract'} ${c.address}`)
-  })
-
+    else
+      console.warn(
+        `Excluding ${d.network} (${d.chainId}) ${d.address}: ${reason}`
+      )
+  }
   console.log(
     `Sourcify: ${kept.length}/${deployments.length} deployments fully verified`
   )
   return kept
+}
+
+function resolveDeployments(
+  deploymentsDir: string,
+  networksJson: string,
+  lintOutputFilePath: string | undefined
+): IDeployment[] {
+  const deployments = buildDeploymentsFromRepo(
+    resolveWithinCwd(deploymentsDir),
+    resolveWithinCwd(networksJson)
+  )
+  if (!lintOutputFilePath)
+    return deployments.map(({ chainId, address }) => ({ chainId, address }))
+  const lintOutput = fs.readFileSync(
+    resolveWithinCwd(lintOutputFilePath),
+    'utf8'
+  )
+  return excludeLintUnverified(deployments, lintOutput)
 }
 
 function normalizeLedgerFile(input: unknown): ILedgerRegistryFile {
@@ -380,7 +455,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains, only where Sourcify verifies the diamond and every facet), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains and, with --lintOutputFilePath, the deployments that lint reports as not verified on Sourcify), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {
@@ -434,6 +509,11 @@ const main = defineCommand({
       description:
         'Only compute/print diffs (and/or derived counts); do not write any output file.',
     },
+    lintOutputFilePath: {
+      type: 'string',
+      description:
+        'Output of `erc7730 lint --require-verified --gha` run on this descriptor with every deployment in it. Deployments it reports as not verified on Sourcify, or on a chain Sourcify does not support, are left out; any other lint error fails the run.',
+    },
   },
   async run({ args }) {
     installEpipeHandler()
@@ -463,11 +543,10 @@ const main = defineCommand({
 
     const nextDeployments = skipDeployments
       ? undefined
-      : await keepSourcifyVerified(
-          buildDeploymentsFromRepo(
-            resolveWithinCwd(deploymentsDir),
-            resolveWithinCwd(networksJson)
-          )
+      : resolveDeployments(
+          deploymentsDir,
+          networksJson,
+          args.lintOutputFilePath
         )
 
     if (printDiff && nextDeployments) {

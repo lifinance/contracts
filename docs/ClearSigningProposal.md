@@ -238,15 +238,17 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
     - strips the deprecated context.contract.abi (the v2 registry infers
       the ABI from the display.formats keys)
     - regenerates context.contract.deployments from deployments/* (active
-      mainnets, zkEVM chains excluded), keeping only chains where Sourcify
-      verifies the diamond and every facet — the registry lints with
-      `erc7730 lint --require-verified`; excluded chains are logged with
-      the contracts to verify
+      mainnets, zkEVM chains excluded)
     - merges display.formats from config/clearSigningProposal.json,
       scrubbing our own title-only Packed/Min residue and entries for
       retired LI.FI functions (RETIRED_LIFI_FUNCTIONS)
-  - runs the registry's `erc7730 lint --require-verified`; stops without
-    pushing on any error
+  - runs the registry's `erc7730 lint --require-verified --gha`, then reruns
+    the generator with `--lintOutputFilePath`: deployments the lint reports
+    as not verified on Sourcify (the diamond or any facet) or on an
+    unsupported chain are left out and logged with the contract to verify;
+    any other lint error fails the run
+  - runs `erc7730 lint --require-verified` again; stops without pushing on
+    any error
   - pushes PR to ethereum/clear-signing-erc7730-registry
   - pings #sc-general via SLACK_WEBHOOK_SC_GENERAL on new upstream PRs
 ```

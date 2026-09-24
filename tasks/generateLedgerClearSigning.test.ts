@@ -1,9 +1,9 @@
 /**
  * Tests for the parts of the ERC-7730 sync generator that decide what gets
- * published: which networks become deployments, which of those Sourcify
- * verification keeps, and how the registry's `display.formats` are merged.
- * Sourcify is stubbed at `fetch`; network and proposal fixtures live in a
- * temporary directory.
+ * published: which networks become deployments, which of those a lint of the
+ * descriptor leaves out, and how the registry's `display.formats` are merged.
+ * Network and proposal fixtures live in a temporary directory; lint output is
+ * inlined in the `erc7730 lint --gha` format.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
@@ -20,15 +20,16 @@ import {
 
 import {
   buildDeploymentsFromRepo,
-  keepSourcifyVerified,
+  excludeLintUnverified,
   mergeDisplayFormats,
   type IRepoDeployment,
 } from './generateLedgerClearSigning'
 
 const DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const FACET = '0x00000000000000000000000000000000000000a1'
+const FILE = 'registry/lifi/calldata-LIFIDiamond.json'
+const SKIPPED = 'display fields will not be validated against ABI'
 
-const originalFetch = globalThis.fetch
 const originalCwd = process.cwd()
 let dir = ''
 
@@ -37,7 +38,6 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  globalThis.fetch = originalFetch
   process.chdir(originalCwd)
   rmSync(dir, { recursive: true, force: true })
 })
@@ -46,25 +46,23 @@ function writeJson(path: string, data: unknown): void {
   writeFileSync(path, JSON.stringify(data))
 }
 
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status })
-}
-
-const plain = (): Response =>
-  json(200, { proxyResolution: { isProxy: false, implementations: [] } })
-
-/** Serves Sourcify lookups by `${chainId}/${address}`. */
-function stubSourcify(routes: Record<string, () => Response>): void {
-  globalThis.fetch = ((url: string) => {
-    const [chainId, address] = new URL(url).pathname.split('/').slice(-2)
-    const route = routes[`${chainId}/${address}`]
-    if (!route) throw new Error(`unexpected request: ${url}`)
-    return Promise.resolve(route())
-  }) as unknown as typeof globalThis.fetch
-}
-
 function deployment(network: string, chainId: number): IRepoDeployment {
   return { network, chainId, address: DIAMOND }
+}
+
+function lintError(title: string, message: string): string {
+  return `::error file=${FILE},title=${title}::${message}`
+}
+
+function expectThrows(fn: () => unknown, match: string): void {
+  let error: Error | undefined
+  try {
+    fn()
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  expect(error?.message).toContain(match)
 }
 
 describe('buildDeploymentsFromRepo', () => {
@@ -121,69 +119,86 @@ describe('buildDeploymentsFromRepo', () => {
   })
 })
 
-describe('keepSourcifyVerified', () => {
-  it('keeps verified deployments and drops unverified or unsupported ones', async () => {
-    stubSourcify({
-      [`1/${DIAMOND}`]: () =>
-        json(200, {
-          proxyResolution: {
-            isProxy: true,
-            implementations: [{ address: FACET, name: 'DiamondCutFacet' }],
-            proxyResolutionError: null,
-          },
-        }),
-      [`1/${FACET}`]: plain,
-      [`10/${DIAMOND}`]: () => json(404, { customCode: 'not_found' }),
-      [`50312/${DIAMOND}`]: () =>
-        json(400, { customCode: 'unsupported_chain', message: 'nope' }),
-      [`8453/${DIAMOND}`]: () =>
-        json(200, {
-          proxyResolution: {
-            isProxy: true,
-            implementations: [{ address: FACET, name: 'DiamondCutFacet' }],
-            proxyResolutionError: null,
-          },
-        }),
-      [`8453/${FACET}`]: () => json(404, { customCode: 'not_found' }),
-    })
+describe('excludeLintUnverified', () => {
+  const DEPLOYMENTS = [
+    deployment('mainnet', 1),
+    deployment('optimism', 10),
+    deployment('somnia', 50312),
+    deployment('base', 8453),
+  ]
 
-    const result = await keepSourcifyVerified([
-      deployment('mainnet', 1),
-      deployment('optimism', 10),
-      deployment('somnia', 50312),
-      deployment('base', 8453),
+  it('drops the deployments the lint reports as unverified or unsupported', () => {
+    const lintOutput = [
+      '➡️ checking registry/lifi/calldata-LIFIDiamond.json…',
+      lintError(
+        'Contract not verified',
+        `contract ${DIAMOND} on chain 10 is not verified on Sourcify, ${SKIPPED}`
+      ),
+      lintError(
+        'Chain not supported',
+        `chain 50312 is not supported by Sourcify, ${SKIPPED}`
+      ),
+      lintError(
+        'Proxy implementation not verified',
+        `contract ${DIAMOND} on chain 8453 is a proxy, and its implementation ${FACET} is not verified on Sourcify, ${SKIPPED}`
+      ),
+      `::warning file=${FILE},title=Deployment ABIs differ::1:${DIAMOND}`,
+      'checked 1 descriptor files, some errors found ❌',
+    ].join('\n')
+
+    expect(excludeLintUnverified(DEPLOYMENTS, lintOutput)).toEqual([
+      { chainId: 1, address: DIAMOND },
     ])
-
-    expect(result).toEqual([{ chainId: 1, address: DIAMOND }])
   })
 
-  it('fails the run instead of returning a partial list', async () => {
-    stubSourcify({
-      [`1/${DIAMOND}`]: plain,
-      [`10/${DIAMOND}`]: () =>
-        json(200, {
-          proxyResolution: {
-            isProxy: false,
-            implementations: [],
-            proxyResolutionError: { message: 'rpc unavailable' },
-          },
-        }),
-    })
+  it('fails on a lint error that Sourcify verification does not explain', () => {
+    const lintOutput = [
+      lintError(
+        'Contract not verified',
+        `contract ${DIAMOND} on chain 10 is not verified on Sourcify, ${SKIPPED}`
+      ),
+      lintError(
+        'Could not fetch ABI',
+        `Fetching reference ABI for chain id 8453 failed, ${SKIPPED}: Sourcify rate limit exceeded, please retry`
+      ),
+    ].join('\n')
 
-    let error: Error | undefined
-    try {
-      await keepSourcifyVerified([
-        deployment('mainnet', 1),
-        deployment('optimism', 10),
-      ])
-    } catch (caught) {
-      error = caught as Error
-    }
+    expectThrows(
+      () => excludeLintUnverified(DEPLOYMENTS, lintOutput),
+      'Could not fetch ABI: Fetching reference ABI for chain id 8453 failed'
+    )
+  })
 
-    expect(error?.message).toContain('could not resolve whether')
+  it('fails on an error with no title', () => {
+    expectThrows(
+      () => excludeLintUnverified(DEPLOYMENTS, `::error file=${FILE}::boom`),
+      '(no title): boom'
+    )
+  })
+
+  it('fails when the lint output has no errors', () => {
+    expectThrows(
+      () =>
+        excludeLintUnverified(
+          DEPLOYMENTS,
+          'checked 1 descriptor files, no errors found ✅'
+        ),
+      'no `::error` lines'
+    )
+  })
+
+  it('fails when the lint names a chain the descriptor does not have', () => {
+    const lintOutput = lintError(
+      'Contract not verified',
+      `contract ${DIAMOND} on chain 137 is not verified on Sourcify, ${SKIPPED}`
+    )
+
+    expectThrows(
+      () => excludeLintUnverified(DEPLOYMENTS, lintOutput),
+      'for no deployment in this descriptor'
+    )
   })
 })
-
 describe('mergeDisplayFormats', () => {
   const RETIRED =
     'swapTokensGeneric(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool)[])'
