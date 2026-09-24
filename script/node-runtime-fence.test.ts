@@ -83,6 +83,7 @@ const REFUSED: Array<[string, string]> = [
   ['import.meta passed around', 'export const s = String(import.meta)\n'],
   ['the Bun global', "export const f = Bun.file('x')\n"],
   ['globalThis.Bun', 'export const b = globalThis.Bun\n'],
+  ["globalThis['Bun']", "export const b = globalThis['Bun']\n"],
   ['a static bun import', "import { file } from 'bun'\nexport { file }\n"],
   [
     'a bun: import',
