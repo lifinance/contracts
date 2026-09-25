@@ -19,6 +19,8 @@ import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 /// @title M0Facet
 /// @author LI.FI (https://li.fi)
 /// @notice Bridges and swaps tokens by opening escrowed limit orders on the M0 OrderBook
+/// @notice This contract is not intended to custody user funds; any balance held is
+///         incidental (transient during execution) and should not persist.
 /// @dev    The OrderBook is not a bridge in the usual sense: `openOrder` escrows the
 ///         sending asset and returns, and a solver settles the order later on the
 ///         destination chain. Same-chain orders (`destinationChainId == block.chainid`)

@@ -1580,7 +1580,7 @@
         "contractName": "M0Facet",
         "sourceId": "src/Facets/M0Facet.sol",
         "version": "1.0.0",
-        "closureHash": "0xd8885a52214b8feb6d1dd20212e9d31424b616209e45d6d635764407cd3d3b69",
+        "closureHash": "0x75cbed1d32a5fb6ad77d2a5e8c1ad7690bae50be4ba4148b3e56ba78ee61b4fa",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
