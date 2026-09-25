@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 
 /**
  * Read-only audit of the constructor arguments recorded for Tron deployments.

@@ -66,14 +66,14 @@ Present: contract + version, target network(s) (`tron` and/or `tronshasta`), and
 export NETWORK=tron            # or tron-shasta for testnet
 export PRIVATE_KEY=<64-char hex, no 0x>   # deployerWallet — see config/global.json tronWallets
 
-bun script/deploy/tron/deploy-core-facets.ts
-bun script/deploy/tron/register-facets-to-diamond.ts
+bunx tsx script/deploy/tron/deploy-core-facets.ts
+bunx tsx script/deploy/tron/register-facets-to-diamond.ts
 # only the ones relevant to <Contract>'s type:
-bun script/deploy/tron/deploy-and-register-periphery.ts
-bun script/deploy/tron/deploy-and-register-symbiosis-facet.ts
-bun script/deploy/tron/deploy-and-register-allbridge-facet.ts
-bun script/deploy/tron/deploy-and-register-near-intents-facet.ts
-bun script/deploy/tron/deploy-and-register-eco-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
+bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-allbridge-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-near-intents-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-eco-facet.ts
 ```
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with a safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.

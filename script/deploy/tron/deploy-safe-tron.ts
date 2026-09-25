@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 /**
  * Deploy a Safe (Gnosis Safe–style) multisig contract on Tron.
  *

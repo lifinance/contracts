@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 import * as fs from 'fs'
 import * as path from 'path'
 

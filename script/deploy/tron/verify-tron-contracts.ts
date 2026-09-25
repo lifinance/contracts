@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 /**
  * Verify deployed Tron contracts on TronScan via its (undocumented) HTTP
  * verification endpoint, replacing the manual browser upload at

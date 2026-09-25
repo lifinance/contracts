@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 
 /**
  * Deploys LayerSwapFacet to the Tron Diamond and proposes its diamondCut to the
