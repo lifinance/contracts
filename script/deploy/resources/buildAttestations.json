@@ -1580,7 +1580,7 @@
         "contractName": "M0Facet",
         "sourceId": "src/Facets/M0Facet.sol",
         "version": "1.0.0",
-        "closureHash": "0x8ccb0538c6b30c8eed381030fe36d7f49162b3078ba9c817e30241657ddd18aa",
+        "closureHash": "0xb4923e4620ea0e4278fe75617a98f169767029cf743c183b92e92dbad7ba6787",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -1600,20 +1600,20 @@
           }
         }
       },
-      "maskedHash": "0x8773d4d812afa433d7c979f9ff6e38d5499ed6b488d1c41c6b9e6014764fa0ee",
+      "maskedHash": "0x08bf2d745419158a84ff612441213d6e5c18048b1f89a2c5814f2a8e373d0398",
       "lineage": "M0Facet@1.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 8940,
+      "rawByteLength": 8954,
       "immutableOffsets": [
         {
           "start": 124,
           "length": 32
         },
         {
-          "start": 2486,
+          "start": 2500,
           "length": 32
         },
         {
-          "start": 2546,
+          "start": 2560,
           "length": 32
         }
       ]

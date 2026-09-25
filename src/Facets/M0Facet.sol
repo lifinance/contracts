@@ -301,11 +301,14 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             ) {
                 revert InformationMismatch();
             }
-            // tokenOut is only resolved on the destination chain, where the OrderBook
-            // narrows it with TypeConverter.toAddress. A value with non-zero high bytes
+            // tokenOut and solver are only resolved on the destination chain, where the
+            // OrderBook narrows both with TypeConverter.toAddress — solver unconditionally,
+            // before it checks the open-to-all bytes32(0). A value with non-zero high bytes
             // opens and escrows here, then reverts every fill attempt, stranding the
-            // deposit until fillDeadline. Reverts NotAnAddress.
+            // deposit until fillDeadline. Both revert NotAnAddress; bytes32(0) passes, so
+            // an open-to-all order still works.
             LibBytes.toAddress(_m0Data.tokenOut);
+            LibBytes.toAddress(_m0Data.solver);
         }
     }
 

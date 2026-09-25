@@ -78,6 +78,11 @@ contract M0FacetTest is TestBaseFacet {
     ///      destination — on an EVM one the facet rejects it as not an address.
     bytes32 internal constant SOLANA_TOKEN_OUT =
         0x9f1b3a0d7c25e48af6b1d0c39e7a2b5148d6c03f21aeb97d4e5c8f60a3b7d219;
+    /// @dev A 32-byte Solana solver pubkey. Same story as SOLANA_TOKEN_OUT: legal only on a
+    ///      non-EVM destination, because the OrderBook narrows solver to an address to
+    ///      authorize the filler.
+    bytes32 internal constant SOLANA_SOLVER =
+        0x2d7e4a1b8c05f93e6a4d12b7c8e0f35a9b6d4c2e17f80a3b5c9d6e4f2a801b73;
 
     uint128 internal constant DEFAULT_AMOUNT_OUT = 99 * 1e6;
 
@@ -770,6 +775,93 @@ contract M0FacetTest is TestBaseFacet {
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
+    }
+
+    /// @dev Same reasoning as tokenOut, one step later: the OrderBook narrows solver with
+    ///      TypeConverter.toAddress in fillOrder — unconditionally, ahead of the bytes32(0)
+    ///      open-to-all case — so a value with non-zero high bytes opens and escrows fine
+    ///      and then reverts every fill.
+    function testRevert_WhenEVMSolverIsNotAnAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        validM0Data.solver = SOLANA_SOLVER;
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibBytes.NotAnAddress.selector,
+                SOLANA_SOLVER
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenEVMSolverIsNotAnAddressOnSwapPath() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        validM0Data.solver = SOLANA_SOLVER;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibBytes.NotAnAddress.selector,
+                SOLANA_SOLVER
+            )
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// @dev bytes32(0) means open to all solvers and must survive the guard above. Every
+    ///      other test here already relies on it, but nothing pinned it explicitly.
+    function test_CanOpenOrderWithOpenToAllSolver() public {
+        vm.startPrank(USER_SENDER);
+
+        validM0Data.solver = bytes32(0);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.recordLogs();
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+
+        OpenedOrder memory opened = _lastOpenedOrder();
+        assertEq(opened.solver, bytes32(0));
+    }
+
+    /// @dev The solver guard must not reach non-EVM destinations either: a Solana solver is
+    ///      a full-width pubkey, and it is Solana that authorizes the filler, not this chain.
+    function test_CanOpenOrderToSolanaWithFullWidthSolver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validM0Data.receiverAddress = SOLANA_RECEIVER;
+        validM0Data.tokenOut = SOLANA_TOKEN_OUT;
+        validM0Data.solver = SOLANA_SOLVER;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.recordLogs();
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+
+        OpenedOrder memory opened = _lastOpenedOrder();
+        assertEq(opened.solver, SOLANA_SOLVER);
+
+        IM0OrderBookState.Order memory order = IM0OrderBookState(
+            address(ORDER_BOOK)
+        ).getOrder(opened.orderId);
+        assertEq(order.solver, SOLANA_SOLVER);
     }
 
     /// @dev The guard above must not reach non-EVM destinations: an SPL mint legitimately
