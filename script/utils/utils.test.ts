@@ -53,6 +53,7 @@ const {
   getFacetSelectors,
   getFoundryDefaultOptimizerRuns,
   node_url,
+  saveContractAddress,
 } = await import('./utils')
 
 type NetworkArg = Parameters<typeof getContractAddress>[0]
@@ -78,7 +79,7 @@ afterEach(() => {
 })
 
 describe('getFoundryDefaultOptimizerRuns', () => {
-  it('returns optimizer_runs from [profile.default] via the TOML parser', () => {
+  it('returns optimizer_runs from [profile.default]', () => {
     mockedFoundryToml = `
 [profile.default]
 solc_version = '0.8.17'
@@ -88,9 +89,7 @@ optimizer_runs = 250
     expect(getFoundryDefaultOptimizerRuns()).toBe(250)
   })
 
-  it('returns underscore-separated optimizer_runs via the regex fallback', () => {
-    // The digit-leading key makes Bun.TOML.parse throw, forcing the regex
-    // fallback path that must normalise `1_000_000` to 1000000.
+  it('normalises underscore-separated optimizer_runs and ignores later sections', () => {
     mockedFoundryToml = `
 [profile.default]
 optimizer_runs = 1_000_000
@@ -424,5 +423,84 @@ describe('getFacetAddressFromDiamondLog', () => {
       process.chdir(previousCwd)
       realFs.rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('saveContractAddress', () => {
+  /**
+   * Runs `assertions` from `<base>/ws`, so every deployment root the helper
+   * considers (`ws`, `ws/contracts`, `base`) is a throwaway directory.
+   */
+  const withWorkspace = async (
+    assertions: (workspace: string) => Promise<void>
+  ) => {
+    const base = realFs.mkdtempSync(join(tmpdir(), 'save-address-'))
+    const workspace = join(base, 'ws')
+    realFs.mkdirSync(workspace)
+    const previousCwd = process.cwd()
+    const previousProduction = process.env.PRODUCTION
+    try {
+      process.env.PRODUCTION = 'false'
+      process.chdir(workspace)
+      await assertions(workspace)
+    } finally {
+      process.chdir(previousCwd)
+      if (previousProduction === undefined) {
+        delete process.env.PRODUCTION
+      } else {
+        process.env.PRODUCTION = previousProduction
+      }
+      realFs.rmSync(base, { recursive: true, force: true })
+    }
+  }
+
+  const readLog = (workspace: string): unknown =>
+    JSON.parse(
+      realFs.readFileSync(
+        join(workspace, 'deployments', 'tron.staging.json'),
+        'utf8'
+      )
+    )
+
+  it('creates deployments/ when no deployment root has one', async () => {
+    await withWorkspace(async (workspace) => {
+      await saveContractAddress('tron', 'EcoFacet', 'TAddr1')
+
+      expect(readLog(workspace)).toEqual({ EcoFacet: 'TAddr1' })
+    })
+  })
+
+  it('keeps the addresses already recorded', async () => {
+    await withWorkspace(async (workspace) => {
+      realFs.mkdirSync(join(workspace, 'deployments'))
+      realFs.writeFileSync(
+        join(workspace, 'deployments', 'tron.staging.json'),
+        JSON.stringify({ AllBridgeFacet: 'TAddr0' })
+      )
+
+      await saveContractAddress('tron', 'EcoFacet', 'TAddr1')
+
+      expect(readLog(workspace)).toEqual({
+        AllBridgeFacet: 'TAddr0',
+        EcoFacet: 'TAddr1',
+      })
+    })
+  })
+
+  // Starting fresh here would rewrite the file with one entry and drop every
+  // other address it recorded.
+  it('refuses to rewrite a log it cannot parse', async () => {
+    await withWorkspace(async (workspace) => {
+      const logPath = join(workspace, 'deployments', 'tron.staging.json')
+      const corrupt = '{\n<<<<<<< HEAD\n  "AllBridgeFacet": "TAddr0"\n'
+      realFs.mkdirSync(join(workspace, 'deployments'))
+      realFs.writeFileSync(logPath, corrupt)
+
+      await expectRejects(
+        saveContractAddress('tron', 'EcoFacet', 'TAddr1'),
+        /Cannot parse .*tron\.staging\.json; fix it, then record EcoFacet at TAddr1/
+      )
+      expect(realFs.readFileSync(logPath, 'utf8')).toBe(corrupt)
+    })
   })
 })

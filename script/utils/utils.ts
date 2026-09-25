@@ -6,7 +6,7 @@
 import 'dotenv/config'
 
 import { existsSync, readFileSync } from 'fs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -267,10 +267,10 @@ export function getDeploymentRoots(): string[] {
  * Pick where to write `deployments/*.json` so parent-workspace cwd matches reads in
  * {@link getContractAddress} (existing file or `deployments/`), not only candidate order.
  */
-async function pickDeploymentRootForWrites(
+function pickDeploymentRootForWrites(
   network: SupportedChain,
   fileSuffix: string
-): Promise<string> {
+): string {
   const roots = getDeploymentRoots()
   const envDeploymentPath = `deployments/${network}.${fileSuffix}json`
 
@@ -376,17 +376,30 @@ export async function saveContractAddress(
   const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
-  const root = await pickDeploymentRootForWrites(network, fileSuffix)
+  const root = pickDeploymentRootForWrites(network, fileSuffix)
   const deploymentFile = resolve(
     root,
     `deployments/${network}.${fileSuffix}json`
   )
 
-  const deployments =
-    (await readJsonFile<Record<string, string>>(deploymentFile)) ?? {}
+  // Only a missing file starts fresh: one that fails to parse (e.g. merge
+  // conflict markers) would otherwise be rewritten with this single entry,
+  // dropping every other recorded address.
+  let deployments: Record<string, string> = {}
+  if (existsSync(deploymentFile))
+    try {
+      deployments = JSON.parse(await readFile(deploymentFile, 'utf8'))
+    } catch (error) {
+      throw new Error(
+        `Cannot parse ${deploymentFile}; fix it, then record ${contract} at ${address} by hand`,
+        { cause: error }
+      )
+    }
 
   deployments[contract] = address
 
+  // pickDeploymentRootForWrites falls back to a root without `deployments/`.
+  await mkdir(dirname(deploymentFile), { recursive: true })
   await writeFile(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
 }
 
