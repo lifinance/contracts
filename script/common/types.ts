@@ -122,7 +122,10 @@ export interface INetwork {
   feeManagerAddress?: string
 }
 
-/** `[profile.default]` settings of `foundry.toml` read by script helpers for default compiler/EVM settings. */
+/**
+ * `[profile.default]` settings of `foundry.toml` read by script helpers for
+ * default compiler/EVM settings.
+ */
 export interface IFoundryProfileDefaultConfig {
   solc_version?: string
   evm_version?: string
