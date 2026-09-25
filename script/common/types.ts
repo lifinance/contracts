@@ -132,14 +132,11 @@ export interface IFoundryProfileDefaultConfig {
   optimizer_runs?: number
 }
 
-/**
- * `deployments/<network>.diamond.json`, as read back before an update. Either
- * section can be absent from a hand-edited file, so readers add what is missing.
- */
+/** `deployments/<network>.diamond.json`: facets keyed by address, periphery by name. */
 export interface IDiamondDeploymentLog {
-  LiFiDiamond?: {
-    Facets?: Record<string, { Name: string; Version: string }>
-    Periphery?: Record<string, string>
+  LiFiDiamond: {
+    Facets: Record<string, { Name: string; Version: string }>
+    Periphery: Record<string, string>
   }
 }
 

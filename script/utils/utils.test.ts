@@ -731,6 +731,120 @@ describe('diamond log writers', () => {
   )
 })
 
+// An array or null parses, so only a shape check stops the writer: the entry
+// it adds to an array is a string key that JSON.stringify drops.
+describe('deployment-log writers refuse a log of the wrong shape', () => {
+  /** Runs `write` from a throwaway cwd whose log at `name` holds `contents`. */
+  const withLog = async (
+    name: string,
+    contents: string,
+    write: () => Promise<void>
+  ) => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'log-shape-'))
+    const previousCwd = process.cwd()
+    const previousProduction = process.env.PRODUCTION
+    const realError = consola.error
+    const errors: string[] = []
+    try {
+      process.env.PRODUCTION = 'true'
+      realFs.mkdirSync(join(root, 'deployments'))
+      realFs.writeFileSync(join(root, 'deployments', name), contents)
+      process.chdir(root)
+      consola.error = ((...args: unknown[]) => {
+        errors.push(args.map(String).join(' '))
+      }) as typeof consola.error
+      let thrown = ''
+      try {
+        await write()
+      } catch (error) {
+        thrown = (error as Error).message
+      }
+      return {
+        after: realFs.readFileSync(join(root, 'deployments', name), 'utf8'),
+        message: [thrown, ...errors].join('\n'),
+      }
+    } finally {
+      consola.error = realError
+      process.chdir(previousCwd)
+      if (previousProduction === undefined) {
+        delete process.env.PRODUCTION
+      } else {
+        process.env.PRODUCTION = previousProduction
+      }
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  const saveAddress = () => saveContractAddress('tron', 'EcoFacet', 'TAddr1')
+  const updateFacet = () => updateDiamondJson('TAddr1', 'EcoFacet', '1.0.0')
+  const updateBatch = () =>
+    updateDiamondJsonBatch([
+      { address: 'TAddr1', name: 'EcoFacet', version: '1.0.0' },
+    ])
+  const updatePeriphery = () => updateDiamondJsonPeriphery('TExec', 'Executor')
+
+  it.each([
+    [
+      'saveContractAddress',
+      'tron.json',
+      '[]',
+      saveAddress,
+      /is not a JSON object/,
+    ],
+    [
+      'saveContractAddress',
+      'tron.json',
+      'null',
+      saveAddress,
+      /is not a JSON object/,
+    ],
+    [
+      'updateDiamondJson',
+      'tron.diamond.json',
+      '[]',
+      updateFacet,
+      /is not a JSON object/,
+    ],
+    [
+      'updateDiamondJson',
+      'tron.diamond.json',
+      '{"LiFiDiamond":[]}',
+      updateFacet,
+      /LiFiDiamond is not an object/,
+    ],
+    [
+      'updateDiamondJson',
+      'tron.diamond.json',
+      '{"LiFiDiamond":{"Facets":[]}}',
+      updateFacet,
+      /LiFiDiamond\.Facets is not an object/,
+    ],
+    [
+      'updateDiamondJsonBatch',
+      'tron.diamond.json',
+      '{"LiFiDiamond":{"Facets":null}}',
+      updateBatch,
+      /LiFiDiamond\.Facets is not an object/,
+    ],
+    [
+      'updateDiamondJsonPeriphery',
+      'tron.diamond.json',
+      '{"LiFiDiamond":{"Facets":{},"Periphery":[]}}',
+      updatePeriphery,
+      /LiFiDiamond\.Periphery is not an object/,
+    ],
+  ] as Array<[string, string, string, () => Promise<void>, RegExp]>)(
+    '%s leaves %s holding %s untouched',
+    async (_writer, name, contents, write, reason) => {
+      const { after, message } = await withLog(name, contents, write)
+
+      expect(after).toBe(contents)
+      expect(message).toMatch(reason)
+      expect(message).toMatch(/fix it, then record .* by hand/)
+    }
+  )
+})
+
 describe('getFacetSelectors artifact lookup', () => {
   it('names forge build as the fix when the artifact is missing', async () => {
     await expectRejects(

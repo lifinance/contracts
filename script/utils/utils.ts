@@ -383,9 +383,8 @@ export async function saveContractAddress(
     `deployments/${network}.${fileSuffix}json`
   )
 
-  const deployments = await readDeploymentLogForUpdate<Record<string, string>>(
+  const deployments = await readDeploymentLogForUpdate(
     deploymentFile,
-    {},
     `record ${contract} at ${address} by hand`
   )
 
@@ -395,36 +394,70 @@ export async function saveContractAddress(
   await writeDeploymentLog(deploymentFile, deployments)
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * Reads a deployment log that is about to be rewritten.
  *
- * Only a missing file yields `empty`: one that fails to parse (e.g. merge
- * conflict markers) would otherwise be rewritten from `empty`, dropping every
- * entry it recorded.
+ * Only a missing file yields an empty log. One that fails to parse (e.g.
+ * merge conflict markers) or is not a JSON object would otherwise be
+ * rewritten from empty, dropping every entry it recorded; an array root would
+ * also drop the new entry, since `JSON.stringify` omits string keys on arrays.
  *
  * @param path - absolute path of the log
- * @param empty - the contents to start from when the file does not exist
  * @param recovery - what the operator does by hand once the file is fixed
- * @returns the parsed log, or `empty`
+ * @returns the parsed log, or `{}`
+ * @throws when the file exists but does not hold a JSON object
  */
-async function readDeploymentLogForUpdate<T>(
+async function readDeploymentLogForUpdate(
   path: string,
-  empty: T,
   recovery: string
-): Promise<T> {
-  if (!existsSync(path)) return empty
+): Promise<Record<string, unknown>> {
+  if (!existsSync(path)) return {}
+  let parsed: unknown
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as T
+    parsed = JSON.parse(await readFile(path, 'utf8'))
   } catch (error) {
     throw new Error(`Cannot parse ${path}; fix it, then ${recovery}`, {
       cause: error,
     })
   }
+  if (!isRecord(parsed))
+    throw new Error(`${path} is not a JSON object; fix it, then ${recovery}`)
+  return parsed
 }
 
-/** The contents of a `<network>.diamond.json` that records nothing yet. */
-function emptyDiamondLog(): IDiamondDeploymentLog {
-  return { LiFiDiamond: { Facets: {}, Periphery: {} } }
+/**
+ * Reads `<network>.diamond.json` for an update, adding whichever of
+ * `LiFiDiamond`, `Facets` and `Periphery` is absent.
+ *
+ * @param path - absolute path of the log
+ * @param recovery - what the operator does by hand once the file is fixed
+ * @returns the log with every section present
+ * @throws when the file cannot be read as a log, or a section is not an object
+ */
+async function readDiamondLogForUpdate(
+  path: string,
+  recovery: string
+): Promise<IDiamondDeploymentLog> {
+  const log = await readDeploymentLogForUpdate(path, recovery)
+  const diamond = log.LiFiDiamond ?? {}
+  if (!isRecord(diamond))
+    throw new Error(
+      `${path}: LiFiDiamond is not an object; fix it, then ${recovery}`
+    )
+  const { Facets = {}, Periphery = {} } = diamond
+  for (const [name, section] of Object.entries({ Facets, Periphery }))
+    if (!isRecord(section))
+      throw new Error(
+        `${path}: LiFiDiamond.${name} is not an object; fix it, then ${recovery}`
+      )
+  return {
+    ...log,
+    LiFiDiamond: { ...diamond, Facets, Periphery },
+  } as IDiamondDeploymentLog
 }
 
 /**
@@ -500,11 +533,8 @@ export async function saveDiamondDeployment(
     `deployments/${network}.diamond.${fileSuffix}json`
   )
 
-  const diamondData = {
-    LiFiDiamond: {
-      Facets: {} as Record<string, { Name: string; Version: string }>,
-      Periphery: {} as Record<string, string>,
-    },
+  const diamondData: IDiamondDeploymentLog = {
+    LiFiDiamond: { Facets: {}, Periphery: {} },
   }
 
   // Add facets with address as key
@@ -634,20 +664,10 @@ export async function updateDiamondJson(
       `${network}.diamond.json`
     )
 
-    const diamondData = await readDeploymentLogForUpdate<IDiamondDeploymentLog>(
+    const diamondData = await readDiamondLogForUpdate(
       diamondJsonPath,
-      emptyDiamondLog(),
       `record ${facetName} at ${facetAddress} by hand`
     )
-
-    // Ensure structure exists
-    if (!diamondData.LiFiDiamond)
-      diamondData.LiFiDiamond = {
-        Facets: {},
-        Periphery: {},
-      }
-
-    if (!diamondData.LiFiDiamond.Facets) diamondData.LiFiDiamond.Facets = {}
 
     // Check if facet already exists (by name to avoid duplicates)
     const facets = diamondData.LiFiDiamond.Facets
@@ -805,20 +825,10 @@ export async function updateDiamondJsonBatch(
       `${network}.diamond.json`
     )
 
-    const diamondData = await readDeploymentLogForUpdate<IDiamondDeploymentLog>(
+    const diamondData = await readDiamondLogForUpdate(
       diamondJsonPath,
-      emptyDiamondLog(),
       `record ${facetEntries.map((entry) => entry.name).join(', ')} by hand`
     )
-
-    // Ensure structure exists
-    if (!diamondData.LiFiDiamond)
-      diamondData.LiFiDiamond = {
-        Facets: {},
-        Periphery: {},
-      }
-
-    if (!diamondData.LiFiDiamond.Facets) diamondData.LiFiDiamond.Facets = {}
 
     const facets = diamondData.LiFiDiamond.Facets
     let updatedCount = 0
@@ -903,21 +913,10 @@ export async function updateDiamondJsonPeriphery(
       `${network}.diamond.json`
     )
 
-    const diamondData = await readDeploymentLogForUpdate<IDiamondDeploymentLog>(
+    const diamondData = await readDiamondLogForUpdate(
       diamondJsonPath,
-      emptyDiamondLog(),
       `record ${contractName} at ${contractAddress} by hand`
     )
-
-    // Ensure structure exists
-    if (!diamondData.LiFiDiamond)
-      diamondData.LiFiDiamond = {
-        Facets: {},
-        Periphery: {},
-      }
-
-    if (!diamondData.LiFiDiamond.Periphery)
-      diamondData.LiFiDiamond.Periphery = {}
 
     // Update or add periphery contract (simple key-value format)
     const periphery = diamondData.LiFiDiamond.Periphery
