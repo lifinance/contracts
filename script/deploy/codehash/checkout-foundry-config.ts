@@ -14,8 +14,9 @@
  * `solc` key after it.
  *
  * Both key sets are allowlists taken from every version of `foundry.toml` on
- * `main`. A key outside them refuses the rebuild until it is added here, which
- * is loud; a denylist would pass the executable-selecting key nobody listed.
+ * `main`, plus `src`. A key outside them refuses the rebuild until it is added
+ * here, which is loud; a denylist would pass the executable-selecting key
+ * nobody listed.
  * `ffi` is allowed: it gates cheatcodes in tests and scripts, and `forge build`
  * runs neither.
  */
@@ -83,7 +84,7 @@ const vetVersion = (
 }
 
 /**
- * The history holds `zksync = { zksolc = … }`, and once that same table nested
+ * The history holds `zksync = { zksolc = … }`, and the same table nested
  * inside itself, so both shapes are accepted and nothing else is.
  */
 const vetZksyncTable = (

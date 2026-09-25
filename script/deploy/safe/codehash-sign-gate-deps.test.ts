@@ -1043,8 +1043,8 @@ describe('createForgeRebuildRunner', () => {
     })
 
     it('does not admit the zk profile as a cancun lineage for a non-zk request', () => {
-      // [profile.zksync] pins the default pair too; without the zksolc pin it
-      // would read as a plain cancun profile and make the match ambiguous.
+      // [profile.zksync] pins the default pair too, and is excluded by name: a
+      // checkout with no zksolc pin must not see it as a second cancun profile.
       const unpinnedZk = CHECKOUT_TOML.replace(/^zksolc = .*$/m, '')
       expect(unpinnedZk).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(unpinnedZk, request.profile)
