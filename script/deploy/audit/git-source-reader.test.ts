@@ -24,6 +24,7 @@ const CWD = process.cwd()
 
 /** A commit that exists but is not reachable from any local branch. */
 const SQUASHED_AUDIT_COMMIT = 'a2bb57edd89f3c89f593994e3242cff3d1d93a93'
+const SQUASHED_AUDIT_PARENT = '7f1f01e9d5edee83f7c1aff635a7d118757ca18d'
 const ABSENT_COMMIT = 'dead1234dead1234dead1234dead1234dead1234'
 const KNOWN_CONTRACT = 'src/Periphery/ERC20Proxy.sol'
 
@@ -51,15 +52,20 @@ describe('ensureCommitAvailable', () => {
   })
 })
 
+// Pinned SHAs, not `HEAD~1`: CI checks out at depth 1, where HEAD has no parent.
 describe('isAncestor', () => {
   it('holds for a parent and its child, and for a commit and itself', () => {
-    expect(isAncestor('HEAD~1', 'HEAD', CWD)).toBe(true)
+    expect(isAncestor(SQUASHED_AUDIT_PARENT, SQUASHED_AUDIT_COMMIT, CWD)).toBe(
+      true
+    )
     expect(isAncestor('HEAD', 'HEAD', CWD)).toBe(true)
-  })
+  }, 30_000)
 
   it('does not hold in the other direction', () => {
-    expect(isAncestor('HEAD', 'HEAD~1', CWD)).toBe(false)
-  })
+    expect(isAncestor(SQUASHED_AUDIT_COMMIT, SQUASHED_AUDIT_PARENT, CWD)).toBe(
+      false
+    )
+  }, 30_000)
 
   it('does not hold when a commit cannot be had', () => {
     expect(isAncestor(ABSENT_COMMIT, 'HEAD', CWD)).toBe(false)
