@@ -367,9 +367,37 @@ Both outcomes, same route and same price, one hour apart on mainnet:
 | `0x00…00`                     | `CREATED` — never filled | `0`               |
 | `0x…12e9b6c5…827b` (Farsight) | `COMPLETED` in ~60s      | `1000000`         |
 
-At the time of writing every same-chain `limit-order` quote comes back `exclusive: true`,
-so in practice the backend must always carry the solver through. Reading `exclusive` rather
-than assuming it keeps this correct if M0 adds open-fill liquidity later.
+At the time of writing every `limit-order` quote, same-chain and cross-chain, comes back
+`exclusive: true`, so in practice the backend must always carry the solver through. Reading
+`exclusive` rather than assuming it keeps this correct if M0 adds open-fill liquidity later.
+
+### Route coverage
+
+Which routes quote is a solver allowlist M0 maintains, not a property of the OrderBook, so
+it moves without a contract change and is worth re-probing rather than inferring. As of
+2026-09-25:
+
+| Route                     | `destChainId` | Quotes? | Notes                                    |
+| ------------------------- | ------------- | ------- | ---------------------------------------- |
+| Same-chain (many pairs)   | source chain  | yes     | fee `max(3_000_000, 3bps)`, min `4e6` in |
+| USDC.eth ↔ ctUSD.citrea   | `4114`        | yes     | `feeBps: 0`, min `1e6` in                |
+| USDC.eth ↔ USDR.rise      | `4153`        | yes     | `feeBps: 0`; return leg costs `5e6`      |
+| USDC.arb ↔ USDR.rise      | `4153`        | yes     | `feeBps: 0`; return leg costs `5e6`      |
+| USDC.eth → XO.sol         | `1399811149`  | yes     | `feeBps: 0`; **no** return leg           |
+| Anything else cross-chain | —             | no      | `404 NoQuotesAvailable`                  |
+
+Two consequences for the backend:
+
+- Coverage is **directional**. A quote for A→B does not imply B→A, and the covered
+  direction may have a different minimum (the legs out of RISE 404 below `1e7`).
+- An uncovered route is not rejected by the contract. `isDestinationSupported` returns
+  `true` for every chain above, so an order on an uncovered route opens and escrows
+  normally and then never fills — the same silent failure as a dropped solver. Treat a
+  `404` from `/quote` as "do not open this order", not as a reason to fall back to a
+  self-computed price.
+
+Cross-chain needs nothing from the facet that same-chain does not already do: the quote's
+payload is the same approve + single `openOrder` against the same OrderBook.
 
 ## Native Source Asset
 

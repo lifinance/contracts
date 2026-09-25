@@ -1,8 +1,10 @@
 /**
  * Demo for the M0Facet. Select a scenario with `--scenario <name>`:
- *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-base
- *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-base-w-swap
  *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-samechain
+ *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-citrea
+ *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-citrea-w-swap
+ *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-rise
+ *   bunx tsx script/demoScripts/demoM0.ts --scenario arbitrum-to-rise
  *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-solana
  *
  * The M0 OrderBook escrows the sending asset and returns — a solver settles the order
@@ -13,29 +15,37 @@
  * `amountOut` is a limit price, not a slippage floor. It is taken from M0's Orchestration
  * API (`POST /quote`, provider `limit-order`), which needs `M0_API_KEY` in `.env`.
  *
- * COVERAGE, as probed on 2026-09-24 against `GET /orders` and `POST /quote`:
+ * COVERAGE. Solver coverage is a per-route allowlist, not a property of the protocol,
+ * so it is worth re-probing rather than inferring. As confirmed by M0 and re-probed on
+ * 2026-09-25 against `POST /quote`:
  *
- *   - `limit-order` quotes SAME-CHAIN routes only, and its payload targets the OrderBook
- *     this facet calls. Live pairs seen: Ethereum USDC<->USDat, wM->USDC; Arbitrum
- *     CUSD<->USDC and CUSD<->PYUSD; Base mrUSD/AUSD/wM<->USDC.
- *   - CROSS-CHAIN returns 404 `NoQuotesAvailable` on every pair and size tried (wM, USDC
- *     and USDat out of Ethereum/Base/Arbitrum, at 5e6 / 1e8 / 5e9). The OrderBook itself
- *     supports it — `/orders` still holds Base->Ethereum orders from May and August —
- *     but no solver quotes it today.
- *   - Pricing is fee = max(3_000_000, 3bps), so it is flat below 10_000 units and
- *     proportional above. The minimum is exactly 4e6: 3_999_999 is refused and 4e6
+ *   - SAME-CHAIN quotes broadly. Live pairs seen: Ethereum USDC<->USDat, wM->USDC;
+ *     Arbitrum CUSD<->USDC and CUSD<->PYUSD; Base mrUSD/AUSD/wM<->USDC.
+ *   - CROSS-CHAIN quotes on exactly four pairs today — the ones the scenarios below use:
+ *     USDC.eth<->ctUSD.citrea, USDC.eth<->USDR.rise, USDC.arb<->USDR.rise and
+ *     USDC.eth->XO.sol. Anything else 404s `NoQuotesAvailable`, including the
+ *     USDC.eth->USDC.base and USDC.eth->USDC.sol routes this demo used to try.
+ *     Coverage is also DIRECTIONAL: the return legs out of Rise price 5e6 below par and
+ *     404 below a 1e7 input, and XO.sol->USDC.eth does not quote at any size.
+ *   - Every cross-chain payload is approve + a single `openOrder` on the same OrderBook
+ *     the same-chain payload targets, with `feeBps: 0` on the four pairs above, so
+ *     cross-chain needs nothing from the facet that same-chain does not already do.
+ *   - `destChainId` is simply the destination's EVM chain id (Citrea 4114, Rise 4153),
+ *     except Solana, which is 1399811149 — matching `M0_CHAIN_ID_SOLANA` in the facet.
+ *   - SAME-CHAIN pricing is fee = max(3_000_000, 3bps), so it is flat below 10_000 units
+ *     and proportional above. The minimum is exactly 4e6: 3_999_999 is refused and 4e6
  *     quotes 1e6 out, i.e. the fee must leave at least 1e6. Because the fee is flat in
  *     that range, a run costs 3 units whether you send 4 or 10_000 — size only changes
  *     the balance you have to hold, not what you lose.
  *
- * A quote also names its solver, and a same-chain quote comes back `exclusive: true` —
- * that solver priced the leg for itself and is the only one obliged to fill it, so it
- * has to become the order's `designatedSolver`. Opening with bytes32(0) instead leaves
- * an open-fill order at an exclusive quote's price, which nobody picks up: it just sits
- * at CREATED until fillDeadline. Every order in `/orders` names a solver.
+ * A quote also names its solver, and these quotes come back `exclusive: true` — that
+ * solver priced the leg for itself and is the only one obliged to fill it, so it has to
+ * become the order's `designatedSolver`. Opening with bytes32(0) instead leaves an
+ * open-fill order at an exclusive quote's price, which nobody picks up: it just sits at
+ * CREATED until fillDeadline. Every order in `/orders` names a solver.
  *
- * So the same-chain scenario prices off a real quote, and the cross-chain ones fall back
- * to an arbitrary limit price and are unlikely to be filled by anyone.
+ * So every scenario below prices off a real quote. The arbitrary-limit-price fallback in
+ * `resolveLimitPrice` now only fires if coverage is withdrawn from a route.
  *
  * Verified staging run (2026-09-24), `mainnet-samechain`: 4 USDC -> 1 wM on Ethereum,
  * filled by Farsight Solver two blocks (~24s) after the order opened. The 3 USDC spread is
@@ -75,9 +85,8 @@ import { EnvironmentEnum, type SupportedChain } from '../common/types'
 
 import {
   ADDRESS_UNISWAP_ETH,
-  ADDRESS_USDC_BASE,
+  ADDRESS_USDC_ARB,
   ADDRESS_USDC_ETH,
-  ADDRESS_USDC_SOL,
   ADDRESS_USDT_ETH,
   LIFI_CHAIN_ID_SOLANA,
   NON_EVM_ADDRESS,
@@ -107,20 +116,35 @@ const FILL_DEADLINE_SECONDS = 3600
 // WrappedM by M0 on Ethereum (6 decimals) — the same-chain scenario's tokenOut.
 const ADDRESS_WM_ETH = '0x437cc33344a0B27A429f795ff6B469C72698B291'
 
+// The cross-chain destination tokens M0 currently has solver coverage for. All 6
+// decimals, like the USDC that funds every scenario.
+const ADDRESS_CTUSD_CITREA = '0x8D82c4E3c936C7B5724A382a9c5a4E6Eb7aB6d5D'
+const ADDRESS_USDR_RISE = '0x62b7f5A5Be488ea58f660C5aff465647213Bc6e9'
+const ADDRESS_XO_SOL = 'xoUSDq85Rjsb6SbUwJyreFgeWQvxdkT7R3c3g7s6p5Y'
+
+// Neither chain is in config/networks.json — LI.FI does not deploy there. They appear
+// only as M0 destinations, which never needs more than the chain id.
+const CHAIN_ID_CITREA = 4114n
+const CHAIN_ID_RISE = 4153n
+
 // M0's Orchestration API. Needs M0_API_KEY in .env; see the coverage note above.
 const M0_API_URL =
   process.env.M0_API_URL || 'https://gateway.m0.xyz/v1/orchestration'
 
 type Scenario =
-  | 'mainnet-to-base'
-  | 'mainnet-to-base-w-swap'
   | 'mainnet-samechain'
+  | 'mainnet-to-citrea'
+  | 'mainnet-to-citrea-w-swap'
+  | 'mainnet-to-rise'
+  | 'arbitrum-to-rise'
   | 'mainnet-to-solana'
 
 const SCENARIO_NAMES = [
-  'mainnet-to-base',
-  'mainnet-to-base-w-swap',
   'mainnet-samechain',
+  'mainnet-to-citrea',
+  'mainnet-to-citrea-w-swap',
+  'mainnet-to-rise',
+  'arbitrum-to-rise',
   'mainnet-to-solana',
 ] as const
 
@@ -132,7 +156,7 @@ interface IPreSwap {
 }
 
 /// Chain names as M0's Orchestration API spells them, which is not our chain ids.
-type M0Chain = 'Ethereum' | 'Base' | 'Arbitrum' | 'Solana'
+type M0Chain = 'Ethereum' | 'Base' | 'Arbitrum' | 'Citrea' | 'Rise' | 'Solana'
 
 /// The route as `/quote` wants it: the escrowed token on the source chain, and the
 /// destination token in its native text form (hex for EVM, base58 for Solana).
@@ -186,49 +210,6 @@ interface IScenarioConfig {
 }
 
 const SCENARIOS: Record<Scenario, IScenarioConfig> = {
-  'mainnet-to-base': {
-    description: 'Ethereum → Base · 1 USDC → USDC (cross-chain order)',
-    sourceChain: 'mainnet',
-    sourceChainId: 1,
-    destinationChainId: 8453n,
-    sendingAssetId: getAddress(ADDRESS_USDC_ETH),
-    amount: '1',
-    tokenOut: zeroPadAddressToBytes32(ADDRESS_USDC_BASE),
-    destinationIsSolana: false,
-    quoteRoute: {
-      sourceChain: 'Ethereum',
-      destinationChain: 'Base',
-      destinationAsset: ADDRESS_USDC_BASE,
-    },
-    fallbackLimitPriceBps: 10,
-  },
-
-  'mainnet-to-base-w-swap': {
-    description:
-      'Ethereum → Base · USDT→USDC pre-swap on Ethereum, then bridge USDC → USDC',
-    sourceChain: 'mainnet',
-    sourceChainId: 1,
-    destinationChainId: 8453n,
-    sendingAssetId: getAddress(ADDRESS_USDC_ETH), // post-swap token
-    amount: '1', // ignored: the pre-swap output decides amountIn
-    tokenOut: zeroPadAddressToBytes32(ADDRESS_USDC_BASE),
-    destinationIsSolana: false,
-    quoteRoute: {
-      sourceChain: 'Ethereum',
-      destinationChain: 'Base',
-      destinationAsset: ADDRESS_USDC_BASE,
-    },
-    fallbackLimitPriceBps: 10,
-    preSwap: {
-      fromToken: getAddress(ADDRESS_USDT_ETH),
-      fromAmount: 1_000_000n, // 1 USDT
-      // Exact-input swap: the realized output exceeds the declared floor by roughly
-      // slippageBps, which is what exercises the facet's amountOut scaling.
-      slippageBps: 300,
-      uniswapRouter: getAddress(ADDRESS_UNISWAP_ETH),
-    },
-  },
-
   'mainnet-samechain': {
     description:
       'Ethereum → Ethereum · 4 USDC → WrappedM (same-chain order, asynchronous escrow)',
@@ -251,19 +232,104 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     fallbackLimitPriceBps: 10,
   },
 
+  // The cross-chain scenarios below all run at 1 USDC, which is the floor: 100_000 is
+  // refused and 1_000_000 quotes 1_000_000 out. Unlike same-chain, these price at
+  // feeBps 0 — amountOut equals amountIn, so the whole spread here is gas, not fee.
+
+  'mainnet-to-citrea': {
+    description: 'Ethereum → Citrea · 1 USDC → ctUSD (cross-chain order)',
+    sourceChain: 'mainnet',
+    sourceChainId: 1,
+    destinationChainId: CHAIN_ID_CITREA,
+    sendingAssetId: getAddress(ADDRESS_USDC_ETH),
+    amount: '1',
+    tokenOut: zeroPadAddressToBytes32(ADDRESS_CTUSD_CITREA),
+    destinationIsSolana: false,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Citrea',
+      destinationAsset: ADDRESS_CTUSD_CITREA,
+    },
+    fallbackLimitPriceBps: 10,
+  },
+
+  'mainnet-to-citrea-w-swap': {
+    description:
+      'Ethereum → Citrea · USDT→USDC pre-swap on Ethereum, then bridge USDC → ctUSD',
+    sourceChain: 'mainnet',
+    sourceChainId: 1,
+    destinationChainId: CHAIN_ID_CITREA,
+    sendingAssetId: getAddress(ADDRESS_USDC_ETH), // post-swap token
+    amount: '1', // ignored: the pre-swap output decides amountIn
+    tokenOut: zeroPadAddressToBytes32(ADDRESS_CTUSD_CITREA),
+    destinationIsSolana: false,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Citrea',
+      destinationAsset: ADDRESS_CTUSD_CITREA,
+    },
+    fallbackLimitPriceBps: 10,
+    preSwap: {
+      fromToken: getAddress(ADDRESS_USDT_ETH),
+      // 2 USDT, not 1: amountOut is quoted against the declared floor, and at 1 USDT the
+      // floor lands under M0's 1e6 minimum and the quote 404s.
+      fromAmount: 2_000_000n,
+      // Exact-input swap: the realized output exceeds the declared floor by roughly
+      // slippageBps, which is what exercises the facet's amountOut scaling.
+      slippageBps: 300,
+      uniswapRouter: getAddress(ADDRESS_UNISWAP_ETH),
+    },
+  },
+
+  'mainnet-to-rise': {
+    description: 'Ethereum → RISE · 1 USDC → USDR (cross-chain order)',
+    sourceChain: 'mainnet',
+    sourceChainId: 1,
+    destinationChainId: CHAIN_ID_RISE,
+    sendingAssetId: getAddress(ADDRESS_USDC_ETH),
+    amount: '1',
+    tokenOut: zeroPadAddressToBytes32(ADDRESS_USDR_RISE),
+    destinationIsSolana: false,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Rise',
+      destinationAsset: ADDRESS_USDR_RISE,
+    },
+    fallbackLimitPriceBps: 10,
+  },
+
+  'arbitrum-to-rise': {
+    description: 'Arbitrum → RISE · 1 USDC → USDR (cross-chain order)',
+    sourceChain: 'arbitrum',
+    sourceChainId: 42161,
+    destinationChainId: CHAIN_ID_RISE,
+    sendingAssetId: getAddress(ADDRESS_USDC_ARB),
+    amount: '1',
+    tokenOut: zeroPadAddressToBytes32(ADDRESS_USDR_RISE),
+    destinationIsSolana: false,
+    quoteRoute: {
+      sourceChain: 'Arbitrum',
+      destinationChain: 'Rise',
+      destinationAsset: ADDRESS_USDR_RISE,
+    },
+    fallbackLimitPriceBps: 10,
+  },
+
   'mainnet-to-solana': {
-    description: 'Ethereum → Solana · 1 USDC → USDC (non-EVM receiver)',
+    // XO Cash, not USDC: USDC on Solana is not one of the pairs M0 has solver coverage
+    // for, so it opens an order nobody fills. This is the covered Solana route.
+    description: 'Ethereum → Solana · 1 USDC → XO (non-EVM receiver)',
     sourceChain: 'mainnet',
     sourceChainId: 1,
     destinationChainId: LIFI_CHAIN_ID_SOLANA,
     sendingAssetId: getAddress(ADDRESS_USDC_ETH),
     amount: '1',
-    tokenOut: solanaAddressToBytes32(ADDRESS_USDC_SOL),
+    tokenOut: solanaAddressToBytes32(ADDRESS_XO_SOL),
     destinationIsSolana: true,
     quoteRoute: {
       sourceChain: 'Ethereum',
       destinationChain: 'Solana',
-      destinationAsset: ADDRESS_USDC_SOL,
+      destinationAsset: ADDRESS_XO_SOL,
     },
     fallbackLimitPriceBps: 10,
   },
@@ -275,8 +341,9 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
  * this facet calls. Every other provider (portals, wormhole-cctp) is a different
  * contract entirely, so its quote would not describe the order we open.
  *
- * Returns null when M0 cannot quote the route — today that means any cross-chain route,
- * or an amountIn too small to clear the flat fee. See the coverage note in the header.
+ * Returns null when M0 cannot quote the route — a route outside the solver allowlist, a
+ * covered route in its uncovered direction, or an amountIn below the route's minimum.
+ * See the coverage note in the header.
  */
 const fetchM0LimitOrderQuote = async (
   route: IQuoteRoute,
@@ -345,12 +412,13 @@ const fetchM0LimitOrderQuote = async (
 
 /**
  * The limit price the order asks for. Prefers M0's own quote; falls back to a made-up
- * spread on the routes no solver quotes, so the demo still exercises the facet.
+ * spread so the demo still exercises the facet if a route loses coverage.
  * The fallback is only a faithful exchange rate because every pair here is 6-decimals
  * to 6-decimals — a production caller always takes both sides from the quote.
  *
- * Note the fallback under-prices badly against live behaviour: solvers charge a flat
- * 3e6, so a bps spread on a small order asks for far more than any solver would pay.
+ * Every scenario quotes today, so the fallback should not fire. When it does it also
+ * under-prices badly against same-chain behaviour: solvers charge a flat 3e6 there, so a
+ * bps spread on a small order asks for far more than any solver would pay.
  */
 const resolveLimitPrice = async (
   scenario: IScenarioConfig,
