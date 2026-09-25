@@ -13,7 +13,12 @@
  * inside a `'''` string that forge treats as text, while forge follows the
  * `solc` key after it.
  *
- * Both key sets are allowlists taken from every version of `foundry.toml` on
+ * Forge also reads any top-level table as a legacy profile of the same name,
+ * so `[external]` beside a `[profile.external]` can name a `vyper.path` that
+ * `FOUNDRY_SOLC` does not cover. A profile may not share a top-level name, and
+ * every top-level section's contents are held to the shapes `main` has used.
+ *
+ * Every key set is an allowlist taken from every version of `foundry.toml` on
  * `main`, plus `src`. A key outside them refuses the rebuild until it is added
  * here, which is loud; a denylist would pass the executable-selecting key
  * nobody listed.
@@ -23,7 +28,6 @@
 
 import { parse } from 'smol-toml'
 
-/** Sections forge reads without treating them as a profile. */
 const ALLOWED_TOP_LEVEL = new Set([
   'profile',
   'rpc_endpoints',
@@ -31,6 +35,8 @@ const ALLOWED_TOP_LEVEL = new Set([
   'lint',
   'external',
 ])
+
+const ALLOWED_ETHERSCAN_KEYS = new Set(['key', 'url', 'chain', 'verifier'])
 
 const ALLOWED_PROFILE_KEYS = new Set([
   'auto_detect_solc',
@@ -105,6 +111,69 @@ const vetZksyncTable = (
 }
 
 /**
+ * Holds each non-profile section to what it has carried on `main`, because
+ * forge would read any of them as a profile's keys.
+ */
+const vetSections = (
+  doc: Record<string, unknown>,
+  problems: string[]
+): void => {
+  const refuse = (where: string): void => {
+    problems.push(`${where} is not a value the rebuild allows`)
+  }
+  const { lint, external, rpc_endpoints: rpc, etherscan } = doc
+
+  if (lint !== undefined) {
+    if (!isTable(lint)) refuse('lint')
+    else
+      for (const [key, value] of Object.entries(lint))
+        if (key !== 'lint_on_build' || typeof value !== 'boolean')
+          refuse(`lint.${key}`)
+  }
+
+  if (external !== undefined) {
+    if (!isTable(external)) refuse('external')
+    else
+      for (const [key, value] of Object.entries(external)) {
+        if (key !== 'zksync' || !isTable(value)) {
+          refuse(`external.${key}`)
+          continue
+        }
+        for (const [pin, version] of Object.entries(value)) {
+          if (pin === 'zksolc')
+            vetVersion('external.zksync.zksolc', version, problems)
+          else if (pin !== 'foundry_zksync' || typeof version !== 'string')
+            refuse(`external.zksync.${pin}`)
+        }
+      }
+  }
+
+  if (rpc !== undefined) {
+    if (!isTable(rpc)) refuse('rpc_endpoints')
+    else
+      for (const [key, value] of Object.entries(rpc))
+        if (typeof value !== 'string') refuse(`rpc_endpoints.${key}`)
+  }
+
+  if (etherscan !== undefined) {
+    if (!isTable(etherscan)) refuse('etherscan')
+    else
+      for (const [key, value] of Object.entries(etherscan)) {
+        if (!isTable(value)) {
+          refuse(`etherscan.${key}`)
+          continue
+        }
+        for (const [field, inner] of Object.entries(value))
+          if (
+            !ALLOWED_ETHERSCAN_KEYS.has(field) ||
+            (typeof inner !== 'string' && typeof inner !== 'number')
+          )
+            refuse(`etherscan.${key}.${field}`)
+      }
+  }
+}
+
+/**
  * The profiles in a checkout's `foundry.toml` that pin both a solc and an EVM
  * version, after refusing the file if it could select a compiler binary.
  *
@@ -131,6 +200,8 @@ export const readCheckoutProfiles = (
     if (!ALLOWED_TOP_LEVEL.has(key))
       problems.push(`top-level "${key}" is not a section the rebuild allows`)
 
+  vetSections(doc, problems)
+
   const profiles = isTable(doc.profile) ? doc.profile : {}
   if (doc.profile !== undefined && !isTable(doc.profile))
     problems.push('"profile" is not a table')
@@ -138,6 +209,10 @@ export const readCheckoutProfiles = (
   const found: Record<string, ICheckoutProfile> = {}
   for (const [name, body] of Object.entries(profiles)) {
     const where = `profile.${name}`
+    if (name in doc)
+      problems.push(
+        `${where} shares its name with a top-level section forge would merge into it`
+      )
     if (!isTable(body)) {
       problems.push(`${where} is not a table`)
       continue

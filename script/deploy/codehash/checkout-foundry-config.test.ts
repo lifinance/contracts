@@ -172,4 +172,109 @@ solc = './fake-solc'
       readCheckoutProfiles(`${HONEST}solc_version = '0.8.29'\n`)
     ).toThrow(/not valid TOML/)
   })
+
+  it.each([
+    [
+      'a profile that is not a table',
+      `${HONEST}[profile]\nx = 1\n`,
+      /profile\.x is not a table/,
+    ],
+    [
+      'a "profile" that is not a table',
+      "profile = 'x'\n",
+      /"profile" is not a table/,
+    ],
+  ])('refuses %s', (_what, toml, pattern) => {
+    expect(() => readCheckoutProfiles(toml)).toThrow(pattern)
+  })
+})
+
+describe('readCheckoutProfiles refuses what forge would merge in as a legacy profile', () => {
+  /**
+   * The reproduction: forge reads a top-level table as the profile of the same
+   * name, so the section's `vyper.path` reaches the profile the rebuild selects.
+   */
+  const MERGED = `[profile.external]
+src = 'src'
+solc_version = '0.8.29'
+evm_version = 'cancun'
+[external]
+vyper = { path = './fakevy' }
+`
+
+  it('refuses a profile sharing a top-level section name, and the section contents', () => {
+    let message = ''
+    try {
+      readCheckoutProfiles(MERGED)
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toContain(
+      'profile.external shares its name with a top-level section'
+    )
+    expect(message).toContain('external.vyper is not a value')
+  })
+
+  it('refuses the collision even when the section holds only what main carries', () => {
+    expect(() =>
+      readCheckoutProfiles(
+        `${HONEST}[profile.lint]\nsolc_version = '0.8.29'\nevm_version = 'cancun'\n[lint]\nlint_on_build = false\n`
+      )
+    ).toThrow(/profile\.lint shares its name/)
+  })
+
+  it.each([
+    [
+      'lint',
+      "[lint]\nlint_on_build = false\nvyper = { path = './fakevy' }\n",
+      /lint\.vyper is not/,
+    ],
+    [
+      'lint_on_build as a string',
+      "[lint]\nlint_on_build = 'no'\n",
+      /lint\.lint_on_build is not/,
+    ],
+    [
+      'external',
+      "[external]\nvyper = { path = './fakevy' }\n",
+      /external\.vyper is not/,
+    ],
+    [
+      'an external.zksync path',
+      "[external.zksync]\nzksolc = '1.5.15'\nsolc_path = './fake-solc'\n",
+      /external\.zksync\.solc_path is not/,
+    ],
+    [
+      'an external.zksync.zksolc path',
+      "[external.zksync]\nzksolc = './fake-zksolc'\n",
+      /external\.zksync\.zksolc = "\.\/fake-zksolc" is not a plain/,
+    ],
+    [
+      'rpc_endpoints',
+      "[rpc_endpoints]\nmainnet = 'x'\nvyper = { path = './fakevy' }\n",
+      /rpc_endpoints\.vyper is not/,
+    ],
+    [
+      'etherscan',
+      "[etherscan]\nmainnet = { key = 'k', url = 'u', path = './fakevy' }\n",
+      /etherscan\.mainnet\.path is not/,
+    ],
+    [
+      'an etherscan entry that is a string',
+      "[etherscan]\nmainnet = 'k'\n",
+      /etherscan\.mainnet is not/,
+    ],
+  ])(
+    'refuses a %s key outside what main has carried',
+    (_what, section, pattern) => {
+      expect(() => readCheckoutProfiles(`${HONEST}${section}`)).toThrow(pattern)
+    }
+  )
+
+  it('accepts the sections as main spells them, a numeric chain included', () => {
+    const profiles = readCheckoutProfiles(
+      `${HONEST}[lint]\nlint_on_build = false\n[external.zksync]\nzksolc = "1.5.15"\nfoundry_zksync = "v0.0.32"\n[rpc_endpoints]\nmainnet = "\${ETH_NODE_URI_MAINNET}"\n[etherscan]\nzksync = { key = "k", url = "u", chain = 324, verifier = "zksync" }\n`
+    )
+    expect(profiles.default?.solcVersion).toBe('0.8.29')
+  })
 })
