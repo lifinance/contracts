@@ -49,7 +49,8 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ThorSwapFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "CentrifugeFacet": "latest"
       }
     }
   },
@@ -266,7 +267,8 @@
         "SymbiosisFacet": "latest",
         "SupersetFacet": "latest",
         "ThorSwapFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "CentrifugeFacet": "latest"
       }
     }
   },
