@@ -69,8 +69,8 @@ jobs:
         with:
           filters: |
             scripts:
-              - 'script/**/*.ts'
-              - 'tasks/**/*.ts'
+              - 'script/**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
+              - 'tasks/**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
               - 'script/utils/typecheck-files.sh'
               - 'package.json'
               - 'bun.lock'
