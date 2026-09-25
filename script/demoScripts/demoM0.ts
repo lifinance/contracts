@@ -47,6 +47,24 @@
  * So every scenario below prices off a real quote. The arbitrary-limit-price fallback in
  * `resolveLimitPrice` now only fires if coverage is withdrawn from a route.
  *
+ * Verified staging run (2026-09-25), `mainnet-to-citrea-w-swap`: 2 USDT pre-swapped to
+ * USDC on Ethereum, then bridged to ctUSD on Citrea. This is the run that covers
+ * swapAndStartBridgeTokensViaM0 and, with it, the amountOut scaling:
+ *   declared floor (bridgeData.minAmount)  1_931_234   <- 3% under the expected output
+ *   amountOut quoted against that floor    1_931_234
+ *   realized swap output                   1_990_963
+ *   amountOut actually escrowed            1_990_963   <- scaled on-chain
+ * Without the scaling amountOut would have stayed at the floor and the ~59_729 units of
+ * positive slippage would have gone to the solver as a better rate. It went to the user.
+ *
+ * It also needed the Uniswap V2 router whitelisted on the staging diamond first — the
+ * pair (0x7a250d56...F2488D, 0x38ed1739) was not set, so the swap reverted
+ * ContractCallNotAllowed. The gate is per contract+selector in WhitelistManagerFacet, not
+ * the legacy approvedDexs list, so check it with isContractSelectorWhitelisted.
+ *   open: https://etherscan.io/tx/0xba41e70776291e268c05dcec2d59b34e606b0640527197e888cbec1c3950d2ab
+ *   fill (Citrea): 0xe13ab036471bc3250d86d498b909088d5869766b52207f4f6ad49ae42d9f47f5
+ *   order 0x745eb8aac8ce457bde753fed0fa9fe4396d75d4ae9a15c52f03f0e9e86857f72
+ *
  * Verified staging run (2026-09-25), `mainnet-to-solana`: 1 USDC on Ethereum -> 1 XO on
  * Solana, filled by M0 Solver 23s after the order opened, at feeBps 0. This is the run
  * that covers the non-EVM path, which the EVM scenarios cannot reach, so it is worth
@@ -86,9 +104,6 @@
  * refund (order 0x719c928678c9073f20339342f1adb290a00f85f2f14cd9c48f53000aac50a239).
  *
  * STILL UNVERIFIED on-chain, so do not read the runs above as covering it:
- *   - `swapAndStartBridgeTokensViaM0`. Every run so far used the plain entrypoint, so the
- *     amountOut scaling has only ever executed in tests. `mainnet-to-citrea-w-swap` is
- *     the scenario for it.
  *   - Cancellation of a cross-chain order. Every cross-chain order filled, so the
  *     destination-chain cancel with msg.value for the Portal message is untested; only
  *     the same-chain cancel above has actually run.
