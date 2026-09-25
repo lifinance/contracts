@@ -887,5 +887,15 @@
         "allowToDeployWithZeroAddress": "false"
       }
     }
+  },
+  "M0Facet": {
+    "configData": {
+      "_orderBook": {
+        "configFileName": "m0.json",
+        "keyInConfigFile": ".<NETWORK>.orderBook",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "M0_ORDER_BOOK"
+      }
+    }
   }
 }

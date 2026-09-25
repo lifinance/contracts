@@ -1577,6 +1577,49 @@
     },
     {
       "key": {
+        "contractName": "M0Facet",
+        "sourceId": "src/Facets/M0Facet.sol",
+        "version": "1.0.0",
+        "closureHash": "0x75cbed1d32a5fb6ad77d2a5e8c1ad7690bae50be4ba4148b3e56ba78ee61b4fa",
+        "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
+        "settingsSource": "artifact",
+        "solcVersion": "0.8.29+commit.ab55807c"
+      },
+      "build": {
+        "repo": "contracts",
+        "profile": "default",
+        "hashedSettings": {
+          "evmVersion": "cancun",
+          "libraries": {},
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "optimizer": {
+            "enabled": true,
+            "runs": 1000000
+          }
+        }
+      },
+      "maskedHash": "0x08bf2d745419158a84ff612441213d6e5c18048b1f89a2c5814f2a8e373d0398",
+      "lineage": "M0Facet@1.0.0 (default: solc 0.8.29, cancun)",
+      "rawByteLength": 8954,
+      "immutableOffsets": [
+        {
+          "start": 124,
+          "length": 32
+        },
+        {
+          "start": 2500,
+          "length": 32
+        },
+        {
+          "start": 2560,
+          "length": 32
+        }
+      ]
+    },
+    {
+      "key": {
         "contractName": "MayanFacet",
         "sourceId": "src/Facets/MayanFacet.sol",
         "version": "2.0.0",

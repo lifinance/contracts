@@ -124,6 +124,10 @@
       "0x2C5F02b087F719c74D715a2771Fb908ec08F9D72": {
         "Name": "CentrifugeFacet",
         "Version": "1.0.0"
+      },
+      "0x8c5D446ac08eF25Fbe168b759f9b23A59e1d0f0b": {
+        "Name": "M0Facet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -29,6 +29,7 @@
 - [Gnosis Bridge Facet](./GnosisBridgeFacet.md)
 - [LayerSwap Facet](./LayerSwapFacet.md)
 - [LiFi Intent Escrow Facet V2](./LiFiIntentEscrowFacetV2.md)
+- [M0 Facet](./M0Facet.md)
 - [Mayan Facet](./MayanFacet.md)
 - [MegaETH Bridge Facet](./MegaETHBridgeFacet.md)
 - [NEAR Intents Facet](./NEARIntentsFacet.md)
