@@ -419,11 +419,24 @@ const fetchM0LimitOrderQuote = async (
   return {
     amountOut: BigInt(best.amountOut),
     solver: exclusive
-      ? zeroPadAddressToBytes32(getAddress(exclusive.address))
+      ? solverToBytes32(exclusive.address, route.destinationChain)
       : ANY_SOLVER,
     solverName: exclusive?.name ?? null,
   }
 }
+
+/**
+ * Encodes a quote's solver into `OrderParams.solver`.
+ *
+ * The solver is identified on the chain it fills on, so a Solana destination names it by
+ * base58 pubkey, not by an EVM address — left-padding is only right for EVM. M0's own
+ * reference calldata puts the base58-decoded 32 bytes in this slot, the same way it
+ * encodes `recipient` and `tokenOut` for non-EVM.
+ */
+const solverToBytes32 = (address: string, destination: M0Chain): Hex =>
+  destination === 'Solana'
+    ? solanaAddressToBytes32(address)
+    : zeroPadAddressToBytes32(getAddress(address))
 
 /**
  * The limit price the order asks for. Prefers M0's own quote; falls back to a made-up

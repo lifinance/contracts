@@ -360,6 +360,18 @@ reverts, and the order simply never fills. It is an open-fill order priced at an
 quote's rate, which no solver has a reason to take. It sits at `CREATED` until
 `fillDeadline`, after which anyone can cancel it (see [Cancellation](#cancellation)).
 
+A solver is identified **on the chain it fills on**, so the encoding follows the
+destination, not the origin:
+
+| Destination | `solver.address` in the quote       | `M0Data.solver`                 |
+| ----------- | ----------------------------------- | ------------------------------- |
+| EVM         | `0x…` 20-byte address               | left-padded to `bytes32`        |
+| Solana      | base58 pubkey (e.g. `CLBFpZhM6gv…`) | the base58-**decoded** 32 bytes |
+
+Left-padding is only correct for EVM. A Solana solver's pubkey is already 32 bytes and
+must be decoded, exactly as `recipient` and `tokenOut` are for non-EVM destinations —
+the same rule M0's own reference calldata follows.
+
 Both outcomes, same route and same price, one hour apart on mainnet:
 
 | `designatedSolver`            | Status                   | `amountOutFilled` |
