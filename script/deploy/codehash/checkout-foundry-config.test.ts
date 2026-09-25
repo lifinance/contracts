@@ -223,6 +223,24 @@ vyper = { path = './fakevy' }
     ).toThrow(/profile\.lint shares its name/)
   })
 
+  it.each(['EXTERNAL', 'Rpc_Endpoints'])(
+    'refuses the collision in any case, as forge matches [profile.%s] to its section',
+    (name) => {
+      expect(() =>
+        readCheckoutProfiles(
+          `${HONEST}[profile.${name}]\nsolc_version = '0.8.29'\nevm_version = 'cancun'\n[rpc_endpoints]\nmainnet = 'x'\n[external.zksync]\nzksolc = '1.5.15'\n`
+        )
+      ).toThrow(new RegExp(`profile\\.${name} shares its name`))
+    }
+  )
+
+  it('does not read a prototype property as a section', () => {
+    const profiles = readCheckoutProfiles(
+      `${HONEST}[profile.constructor]\nsolc_version = '0.8.29'\nevm_version = 'london'\n`
+    )
+    expect(Object.keys(profiles)).toEqual(['default', 'constructor'])
+  })
+
   it.each([
     [
       'lint',
@@ -248,6 +266,11 @@ vyper = { path = './fakevy' }
       'an external.zksync.zksolc path',
       "[external.zksync]\nzksolc = './fake-zksolc'\n",
       /external\.zksync\.zksolc = "\.\/fake-zksolc" is not a plain/,
+    ],
+    [
+      'an external.zksync.foundry_zksync that is not a string',
+      '[external.zksync]\nfoundry_zksync = { path = "./fake-forge" }\n',
+      /external\.zksync\.foundry_zksync is not/,
     ],
     [
       'rpc_endpoints',

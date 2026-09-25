@@ -206,10 +206,13 @@ export const readCheckoutProfiles = (
   if (doc.profile !== undefined && !isTable(doc.profile))
     problems.push('"profile" is not a table')
 
+  // Forge selects a profile by name without regard to case, so `[profile.EXTERNAL]`
+  // takes in `[external]` as surely as `[profile.external]` does.
+  const sections = new Set(Object.keys(doc).map((key) => key.toLowerCase()))
   const found: Record<string, ICheckoutProfile> = {}
   for (const [name, body] of Object.entries(profiles)) {
     const where = `profile.${name}`
-    if (name in doc)
+    if (sections.has(name.toLowerCase()))
       problems.push(
         `${where} shares its name with a top-level section forge would merge into it`
       )
