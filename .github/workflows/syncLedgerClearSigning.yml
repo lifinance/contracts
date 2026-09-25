@@ -1,7 +1,7 @@
 # Sync Clear Signing (ERC-7730) Registry
 # - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond deployments AND the `display.formats` proposal at `config/clearSigningProposal.json`. The deprecated `context.contract.abi` block is stripped on every sync (the v2 registry infers the ABI from the format keys).
 # - Triggers: push-to-main on deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run). Facet changes are covered transitively: `verifyClearSigning.yml` forces `config/clearSigningProposal.json` to be regenerated in the same PR, so a facet change that alters any format shows up as a change to that file.
-# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
+# - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats` and every active mainnet deployment (testnets and zkEVM chains excluded), normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), lints it with the registry's `erc7730 lint --require-verified` and regenerates without the deployments that lint reports as not verified on Sourcify (diamond and every facet) or on an unsupported chain, lints again and stops if it fails, pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Test fixtures: the reviewed testsv2 fixture is `config/clearSigningTests.json` in THIS repo, and the registry copy is an output of it. The sync never reads the registry's own copy, so the sync branch — recreated from upstream and force-pushed on every run — carries no state, and an upstream edit to the fixture is replaced rather than merged (visible as a diff in the sync PR; the repo copy is the thing to change).
 # - Failure mode "N format(s) have no expectation yet": the descriptor gained a format `config/clearSigningTests.json` does not cover, and the generator refuses to invent an expectation for it — a fabricated one would fail the registry's own runners. The sync is meant to stop here; it is NOT fixed by re-running. Remedy: run the render loop in docs/ClearSigningProposal.md ("Test fixtures"), read what the reference runner produced, and commit the reviewed fixture to `config/clearSigningTests.json` in a normal PR to this repo. The next sync then finds every format covered and proceeds. For a format WE propose this is now caught at PR time by `verifyClearSigning.yml`, so reaching it here means the format came from upstream.
@@ -48,16 +48,21 @@ jobs:
       # they never force-push sync/lifi-clear-signing or update the upstream PR
       # concurrently — a second concurrent run would break the
       # `--force-with-lease` push or send a duplicate Slack ping.
-      # cancel-in-progress lets a newer production run supersede an in-flight
-      # one; force-push is atomic, so whichever wins leaves a consistent branch
-      # + PR. Manual workflow_dispatch keeps its own group so a dry_run can
-      # neither cancel nor be cancelled by a production sync (and repeated
-      # dispatches still cancel each other).
+      # A production run is never cancelled: its rate-limited Sourcify lookups
+      # take ~15 minutes or more, and deploy-log merges land closer together on
+      # a busy day, so cancelling would keep any run from reaching the push.
+      # Instead a newer run waits, and GitHub keeps only the newest pending one,
+      # which reads main at its own commit. Manual workflow_dispatch keeps its
+      # own group so a dry_run can neither cancel nor be cancelled by a
+      # production sync, and repeated dispatches still cancel each other.
       group: sync-ledger-clear-signing-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'production' }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Sourcify lookups are anonymous and rate-limited, so the lint repeats until
+    # every deployment resolves: up to 8 passes of ~4 minutes plus pauses (see
+    # the sync step), then one lint from cache before the push.
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         # No submodules: the sync reads only `deployments/`, `config/` and the
@@ -83,13 +88,20 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install ERC-7730 formatter
-        # `erc7730 format` is the exact formatter the registry runs in its own
-        # `format.yml` bot. We apply it to our generated descriptor (see the sync
-        # step) so our output already matches the registry's canonical shape.
-        # Left unpinned so we track whatever formatter version the registry uses;
-        # pinning would reintroduce drift the moment they upgrade theirs.
-        run: pip install erc7730
+      - name: Install ERC-7730 CLI (registry's pinned version)
+        # The registry's CI installs erc7730 from `.github/requirements.txt`,
+        # which pins a Sourcify fork by commit (PyPI's `erc7730` lacks
+        # `lint --require-verified`). `erc7730 format` makes our output match the
+        # registry's canonical shape and `erc7730 lint --require-verified` is the
+        # check the registry runs, so both must be that version. The commit is
+        # pinned here rather than read from the registry at run time: this code
+        # later runs in the sync step next to LEDGER_SYNC_TOKEN and the fork
+        # checkout's credentials, so only reviewed code may reach it. When the
+        # registry bumps its pin, bump this one to match. Its dependencies are
+        # resolved unpinned, as in the registry's CI.
+        env:
+          ERC7730_REQUIREMENT: 'erc7730 @ git+https://github.com/sourcifyeth/python-erc7730@e823abc2f69b87db902464b8d204912831e8969e'
+        run: pip install "${ERC7730_REQUIREMENT}"
 
       - name: Checkout fork (clear-signing-erc7730-registry) with sync token
         # Use `actions/checkout` rather than a manual `git clone` token-in-URL.
@@ -174,6 +186,42 @@ jobs:
           echo -e "\033[32mFormatting ${LEDGER_FILE_PATH} with erc7730 (registry canonical formatter)...\033[0m"
           erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
 
+          # `lint --require-verified` rejects a deployment unless Sourcify
+          # verifies its diamond and every facet. The descriptor above carries
+          # every eligible deployment; lint it and regenerate without the ones
+          # reported as unverified or on an unsupported chain (the generator logs
+          # each with the contract to verify). The generator fails on any other
+          # lint error, so a rate limit or Sourcify outage ("Could not fetch ABI")
+          # stops the sync instead of removing a live chain. The diff printed
+          # above therefore lists every eligible deployment.
+          #
+          # Anonymous Sourcify lookups are rate-limited, and erc7730 retries a
+          # 429 without backing off, so one lint from a cold cache reports many
+          # chains as "Could not fetch ABI". erc7730 caches every successful
+          # lookup on disk for an hour, so each pass resumes where the last was
+          # blocked: lint again after a pause, up to 8 passes. The lint before
+          # the push re-reads the same cache.
+          echo -e "\033[32mLinting ${LEDGER_FILE_PATH} to find deployments Sourcify does not verify...\033[0m"
+          LINT_STATUS=0
+          for LINT_PASS in 1 2 3 4 5 6 7 8; do
+            LINT_STATUS=0
+            erc7730 lint --require-verified --gha "ledger-registry/${LEDGER_FILE_PATH}" > erc7730-lint.txt 2>&1 || LINT_STATUS=$?
+            RATE_LIMITED="$(grep -c '^::error .*title=Could not fetch ABI::' erc7730-lint.txt || true)"
+            if [ "${RATE_LIMITED}" -eq 0 ]; then
+              break
+            fi
+            echo -e "\033[33mLint pass ${LINT_PASS}: ${RATE_LIMITED} deployment(s) could not be fetched from Sourcify.\033[0m"
+            if [ "${LINT_PASS}" -lt 8 ]; then
+              echo "Retrying in 60s..."
+              sleep 60
+            fi
+          done
+          if [ "${LINT_STATUS}" -ne 0 ]; then
+            cat erc7730-lint.txt
+            bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --lintOutputFilePath erc7730-lint.txt
+            erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
+          fi
+
           # The registry fails a descriptor whose display.formats entries are not
           # each exercised by a test case, so the fixture has to travel with the
           # descriptor. The reviewed fixture lives in THIS repo, not in the
@@ -209,6 +257,16 @@ jobs:
           if [ -z "$(git status --porcelain)" ]; then
             echo -e "\033[32mNo changes detected. Nothing to sync.\033[0m"
             exit 0
+          fi
+
+          # The registry's CI rejects the PR on any lint error, so an unlintable
+          # descriptor is not pushed, and an already-open sync PR keeps its last
+          # passing commit. Runs in dry-run too: that is how a change to the
+          # generator is validated before a real sync.
+          echo -e "\033[32mLinting ${LEDGER_FILE_PATH} with erc7730 lint --require-verified...\033[0m"
+          if ! erc7730 lint --require-verified "${LEDGER_FILE_PATH}"; then
+            echo -e "\033[31mError: ${LEDGER_FILE_PATH} fails erc7730 lint --require-verified. Not pushing. Fix the errors above and re-run.\033[0m"
+            exit 1
           fi
 
           if [ "${DRY_RUN:-}" = "true" ]; then
@@ -257,11 +315,13 @@ jobs:
               echo -e "\033[33mWarning: unable to update PR title (insufficient permissions). Continuing.\033[0m"
             fi
           else
+            # shellcheck disable=SC2016 # backticks are literal Markdown in the PR body
             PR_BODY="$(printf '%s\n' \
               '## Summary' \
               '- Auto-sync `registry/lifi/calldata-LIFIDiamond.json` from the LI.FI contracts repo (https://github.com/lifinance/contracts).' \
               '- Strips the deprecated `context.contract.abi`, updates `context.contract.deployments`, and merges `display.formats` from the LI.FI source-of-truth proposal (`config/clearSigningProposal.json`).' \
-              '- Merge policy: selectors LI.FI owns are replaced from the proposal; registry-only entries (e.g. EF working-group additions for non-LI.FI selectors) are preserved; entries for selectors no longer in the LI.FI diamond are also preserved (older deployments may still expose them).' \
+              '- Deployments: active mainnet LI.FI diamonds, excluding zkEVM chains, and only where Sourcify verifies the diamond and every facet (`erc7730 lint --require-verified`). A chain that fails this is left out until its contracts are verified.' \
+              '- Merge policy: selectors LI.FI owns are replaced from the proposal; registry-only entries (e.g. EF working-group additions for non-LI.FI selectors) are preserved; entries for selectors no longer in the LI.FI diamond are also preserved (older deployments may still expose them), except entries for retired LI.FI functions (currently `swapTokensGeneric`) and title-only `*Packed` / `*Min` entries, which fail lint.' \
               '- `metadata.*` and other `display.*` keys (e.g. `definitions`, `screens`) are preserved verbatim.' \
               '' \
               '## Notes' \

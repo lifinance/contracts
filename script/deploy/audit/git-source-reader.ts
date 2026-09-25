@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process'
 import { consola } from 'consola'
 
 import type { ClosureAtResult } from './audit-gate'
+import { withAuditedPatches, type IPatchSubstitution } from './audited-patches'
 import {
   collectSourceClosure,
   computeClosureDetail,
@@ -66,6 +67,31 @@ export const ensureCommitAvailable = (
 }
 
 /**
+ * @param ancestor - commit that should be in `descendant`'s history.
+ * @param descendant - commit whose history is searched.
+ * @param cwd - repo directory.
+ * @returns whether both commits are available and `ancestor` is an ancestor of
+ *   (or equal to) `descendant`.
+ */
+export const isAncestor = (
+  ancestor: string,
+  descendant: string,
+  cwd: string
+): boolean => {
+  if (
+    !ensureCommitAvailable(ancestor, cwd) ||
+    !ensureCommitAvailable(descendant, cwd)
+  )
+    return false
+  try {
+    run(['merge-base', '--is-ancestor', ancestor, descendant], cwd)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Creates a reader over one tree-ish, memoising every lookup — the closure walk
  * revisits shared imports (LibAsset, ILiFi) many times per contract.
  *
@@ -118,15 +144,25 @@ export const createGitSourceReader = (
  *
  * @param cwd - repo directory.
  * @param headTreeish - the tree-ish that is already checked out and needs no fetch.
+ * @param patchSubstitutions - audited patches to read as upstream, from
+ *   `resolveAuditedPatches`.
  * @returns a `closureAt` implementation for the gate.
  */
 export const createClosureReader =
-  (cwd: string, headTreeish: string) =>
+  (
+    cwd: string,
+    headTreeish: string,
+    patchSubstitutions: Map<string, IPatchSubstitution> = new Map()
+  ) =>
   (treeish: string, contractPath: string): ClosureAtResult => {
     if (treeish !== headTreeish && !ensureCommitAvailable(treeish, cwd))
       return 'unfetchable'
 
-    const reader = createGitSourceReader(treeish, cwd)
+    const reader = withAuditedPatches(
+      createGitSourceReader(treeish, cwd),
+      patchSubstitutions,
+      contractPath
+    )
     if (reader.readFile(contractPath) === undefined) return 'contract-absent'
 
     const remappings = parseRemappings(reader.readFile('remappings.txt') ?? '')

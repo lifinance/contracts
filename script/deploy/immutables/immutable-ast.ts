@@ -156,6 +156,8 @@ const VISIBILITIES = new Set(['public', 'private', 'internal'])
  * @returns The declarations, the set of source files an AST was actually found for, and the
  * contracts those ASTs define. The last is what lets a caller tell a contract that was read and
  * declares no immutables from one the enumeration never covered: both contribute no declarations.
+ * `definitions` maps every contract name to the files defining it across all artifacts, `lib/`
+ * included, because a name defined twice cannot say which definition another build's artifact is.
  */
 export const readImmutableDeclarations = (
   outDir: string = AST_OUT_DIR,
@@ -164,10 +166,12 @@ export const readImmutableDeclarations = (
   declarations: IImmutableDeclaration[]
   sourceFiles: Set<string>
   contracts: Set<string>
+  definitions: Map<string, Set<string>>
 } => {
   const byPosition = new Map<string, IImmutableDeclaration>()
   const sourceFiles = new Set<string>()
   const contracts = new Set<string>()
+  const definitions = new Map<string, Set<string>>()
   const offsetsByFile = new Map<string, number[]>()
 
   for (const artifactPath of artifactFiles(outDir)) {
@@ -179,7 +183,14 @@ export const readImmutableDeclarations = (
     }
 
     const file = artifact.ast?.absolutePath
-    if (!file || !file.startsWith('src/')) continue
+    if (!file) continue
+    for (const node of artifact.ast?.nodes ?? []) {
+      if (node.nodeType !== 'ContractDefinition' || !node.name) continue
+      const files = definitions.get(node.name) ?? new Set<string>()
+      files.add(file)
+      definitions.set(node.name, files)
+    }
+    if (!file.startsWith('src/')) continue
     sourceFiles.add(file)
 
     for (const node of artifact.ast?.nodes ?? []) {
@@ -220,7 +231,7 @@ export const readImmutableDeclarations = (
   const declarations = [...byPosition.values()].sort(
     (a, b) => a.file.localeCompare(b.file) || a.line - b.line
   )
-  return { declarations, sourceFiles, contracts }
+  return { declarations, sourceFiles, contracts, definitions }
 }
 
 /**

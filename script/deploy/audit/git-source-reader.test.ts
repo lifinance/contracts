@@ -10,17 +10,21 @@
 
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
+import type { Hex } from 'viem'
 
 import {
   createClosureReader,
   createGitSourceReader,
   ensureCommitAvailable,
+  isAncestor,
 } from './git-source-reader'
+import { hashAuditRelevantSource } from './source-closure'
 
 const CWD = process.cwd()
 
 /** A commit that exists but is not reachable from any local branch. */
 const SQUASHED_AUDIT_COMMIT = 'a2bb57edd89f3c89f593994e3242cff3d1d93a93'
+const SQUASHED_AUDIT_PARENT = '7f1f01e9d5edee83f7c1aff635a7d118757ca18d'
 const ABSENT_COMMIT = 'dead1234dead1234dead1234dead1234dead1234'
 const KNOWN_CONTRACT = 'src/Periphery/ERC20Proxy.sol'
 
@@ -46,6 +50,26 @@ describe('ensureCommitAvailable', () => {
     // proves the local short-circuit ran ahead of the retry loop.
     expect(ensureCommitAvailable('HEAD', CWD, 0)).toBe(true)
   })
+})
+
+// Pinned SHAs, not `HEAD~1`: CI checks out at depth 1, where HEAD has no parent.
+describe('isAncestor', () => {
+  it('holds for a parent and its child, and for a commit and itself', () => {
+    expect(isAncestor(SQUASHED_AUDIT_PARENT, SQUASHED_AUDIT_COMMIT, CWD)).toBe(
+      true
+    )
+    expect(isAncestor('HEAD', 'HEAD', CWD)).toBe(true)
+  }, 30_000)
+
+  it('does not hold in the other direction', () => {
+    expect(isAncestor(SQUASHED_AUDIT_COMMIT, SQUASHED_AUDIT_PARENT, CWD)).toBe(
+      false
+    )
+  }, 30_000)
+
+  it('does not hold when a commit cannot be had', () => {
+    expect(isAncestor(ABSENT_COMMIT, 'HEAD', CWD)).toBe(false)
+  }, 30_000)
 })
 
 describe('createGitSourceReader', () => {
@@ -98,6 +122,27 @@ describe('createClosureReader', () => {
     if (typeof detail === 'string') throw new Error(`unresolved: ${detail}`)
     expect(detail.files[KNOWN_CONTRACT]).toMatch(/^0x[0-9a-f]{64}$/)
     expect(Object.keys(detail.files).length).toBeGreaterThan(1)
+  })
+
+  it('reads a file matching a declared patch as its upstream source', () => {
+    const lib = 'src/Libraries/LibAsset.sol'
+    const upstream = 'library LibAsset {}'
+    const headLib = createGitSourceReader('HEAD', CWD).readFile(lib) ?? ''
+    const readWith = (patchedSourceHash: Hex) =>
+      createClosureReader(
+        CWD,
+        'HEAD',
+        new Map([[lib, { patchedSourceHash, upstreamSource: upstream }]])
+      )('HEAD', KNOWN_CONTRACT)
+
+    const matched = readWith(hashAuditRelevantSource(headLib))
+    const unmatched = readWith(hashAuditRelevantSource('other'))
+
+    if (typeof matched === 'string') throw new Error(`unresolved: ${matched}`)
+    if (typeof unmatched === 'string')
+      throw new Error(`unresolved: ${unmatched}`)
+    expect(matched.files[lib]).toBe(hashAuditRelevantSource(upstream))
+    expect(unmatched.files[lib]).toBe(hashAuditRelevantSource(headLib))
   })
 
   it('is deterministic for the same tree-ish and contract', () => {
