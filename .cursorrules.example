@@ -83,7 +83,7 @@
 
 [scripts]
 
-- TS scripts: `.eslintrc.cjs`, run via `bunx tsx`, `citty` CLI, `consola` logging; validate env via helpers.
+- TS scripts: `.oxlintrc.json`, run via `bunx tsx`, `citty` CLI, `consola` logging; validate env via helpers.
 - Prefer TypeChain types over `any`; deterministic analysis outputs (decoded events, explicit error causes).
 - Reuse existing helpers (examples: getDeployments, getProvider, getWalletFromPrivateKeyInDotEnv, sendTransaction,
   ensureBalanceAndAllowanceToDiamond, getUniswapData\*) — **examples only, not exhaustive**.

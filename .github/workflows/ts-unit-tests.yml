@@ -1,9 +1,10 @@
 # Run TypeScript Unit Tests
-# - Runs the TypeScript/Bun test suite (`bun test:ts` → every `script/**/*.test.ts` and
+# - Lints the TypeScript/JavaScript tree with oxlint (`bun lint:js`), then runs the
+#   TypeScript/Bun test suite (`bun test:ts` → every `script/**/*.test.ts` and
 #   `tasks/**/*.test.ts`).
 # - Path-gated: the test job runs only when files that can affect the outcome change
 #   (`script/**`, `tasks/**`, `config/**`, `package.json`, `bun.lock`, `tsconfig*.json`,
-#   this workflow).
+#   `.oxlintrc.json`, this workflow).
 # - A `ts-tests-required` aggregator job always reports a final status so this workflow
 #   can remain a required check on `main` branch protection even when the test job is
 #   skipped (same pattern as `forge-unit-tests.yml`, see `.agents/rules/500-github-actions.md`).
@@ -68,6 +69,7 @@ jobs:
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig*.json'
+              - '.oxlintrc.json'
               - '.github/workflows/ts-unit-tests.yml'
 
   run-ts-tests:
@@ -98,6 +100,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Lint TypeScript/JavaScript
+        run: bun lint:js
 
       - name: Run TypeScript tests
         run: bun test:ts

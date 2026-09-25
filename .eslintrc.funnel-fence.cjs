@@ -48,9 +48,6 @@ module.exports = {
   // needs no type information and stays a few seconds.
   parser: '@typescript-eslint/parser',
   parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
-  // Loaded so the repo's inline `eslint-disable` comments still name defined
-  // rules when this config runs on its own; none of their rules is enabled here.
-  plugins: ['@typescript-eslint', 'import'],
   rules: {
     'no-restricted-syntax': ['error', ...FENCE],
   },

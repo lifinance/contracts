@@ -17,6 +17,7 @@ import { Keypair, PublicKey } from '@solana/web3.js'
 import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
 import {
+  erc20Abi,
   parseUnits,
   zeroAddress,
   type Narrow,
@@ -24,7 +25,6 @@ import {
   toHex,
   keccak256,
 } from 'viem'
-import { erc20Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import ecoFacetArtifact from '../../out/EcoFacet.sol/EcoFacet.json'

@@ -1859,7 +1859,7 @@ async function enforcePreBroadcastGateOrAbort(
       EnvironmentEnum.production
     )) as unknown as Record<string, unknown>
   } catch (error) {
-    return await abortUnverified(
+    return abortUnverified(
       'the deployment record could not be read, so no verdict was produced',
       error
     )
@@ -1873,7 +1873,7 @@ async function enforcePreBroadcastGateOrAbort(
   try {
     signTimeRecord = await fetchSignedSetRecord(networkName, operation.id)
   } catch (error) {
-    return await abortUnverified(
+    return abortUnverified(
       'the sign-time record store could not be read, so no verdict was produced',
       error
     )
@@ -1903,7 +1903,7 @@ async function enforcePreBroadcastGateOrAbort(
       }
     )
   } catch (error) {
-    return await abortUnverified(
+    return abortUnverified(
       'the gate could not run, so no verdict was produced',
       error
     )

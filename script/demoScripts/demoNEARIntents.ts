@@ -51,7 +51,7 @@ config()
 // NEARIntentsFacet types (for demo purposes, since typechain may not be generated yet)
 // eslint-disable-next-line @typescript-eslint/no-namespace -- Using namespace for type organization
 declare namespace NEARIntentsFacet {
-  // eslint-disable-next-line @typescript-eslint/naming-convention -- Matches Solidity struct name
+  // eslint-disable-next-line lifi/naming-convention -- Matches Solidity struct name
   interface NEARIntentsDataStruct {
     nonEVMReceiver: `0x${string}`
     destinationAsset: `0x${string}`

@@ -85,7 +85,7 @@ checklist:
 
 If none of the above applies, no registry change is needed — but the review itself is not
 optional. Edits to `healthCheckInvariants.ts` follow `200-typescript.md` (module header,
-JSDoc on exports, `bunx eslint` + `bunx tsc-files --noEmit`).
+JSDoc on exports, `bunx oxlint --type-aware` + `bunx tsc-files --noEmit`).
 
 ## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
 

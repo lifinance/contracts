@@ -39,27 +39,22 @@ const TIMEOUT_MS = 90_000
  * @param source - the candidate call site
  * @param virtualPath - repo-relative path it is judged as, which is what the
  *   allowlist matches on
- * @param useRepoConfig - lint with the repo-wide config instead of the fence's
- *   own, to show the fence is reachable from the config a commit is linted with
  */
 const lint = async (
   source: string,
-  virtualPath: string,
-  useRepoConfig = false
+  virtualPath: string
 ): Promise<{ exitCode: number; output: string }> => {
-  const args = useRepoConfig
-    ? ['--stdin', '--stdin-filename', virtualPath]
-    : [
-        '--no-eslintrc',
-        '-c',
-        FENCE_CONFIG,
-        // The flag CI runs with. Without it the cases below that carry an
-        // `eslint-disable` would pass while the fence had judged nothing.
-        '--no-inline-config',
-        '--stdin',
-        '--stdin-filename',
-        virtualPath,
-      ]
+  const args = [
+    '--no-eslintrc',
+    '-c',
+    FENCE_CONFIG,
+    // The flag CI runs with. Without it the cases below that carry an
+    // `eslint-disable` would pass while the fence had judged nothing.
+    '--no-inline-config',
+    '--stdin',
+    '--stdin-filename',
+    virtualPath,
+  ]
 
   // Async rather than `Bun.spawnSync`, whose options type pins stdin to
   // 'ignore': feeding the candidate on stdin is the point of this helper.
@@ -314,25 +309,30 @@ describe('the funnel fence lets compliant code through', () => {
   )
 })
 
-describe('the fence runs where it has to run', () => {
-  it(
-    'fires through the repo-wide config, so a commit cannot land one',
-    async () => {
-      // A path that exists: the repo-wide config resolves types from
-      // `tsconfig.eslint.json`, whose include is a filesystem glob, so a virtual
-      // filename with no file behind it fails to parse before any rule runs.
-      const result = await lint(
-        `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
-          `export const propose = storeTransactionInMongoDB\n`,
-        'script/tasks/proposeFraxChainIdMappings.ts',
-        true
-      )
+const readPackageJson = (): {
+  scripts: Record<string, string>
+  'lint-staged': Record<string, string[]>
+} => JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'))
 
-      expect(result.exitCode).not.toBe(0)
-      expect(result.output).toContain(REFUSAL)
-    },
-    TIMEOUT_MS
-  )
+describe('the fence runs where it has to run', () => {
+  it('runs on every staged module file, so a commit cannot land one', () => {
+    // The fence is not part of the repo-wide oxlint config, which honours inline
+    // disables, so lint-staged has to invoke it on its own terms.
+    const fenceEntries = Object.entries(
+      readPackageJson()['lint-staged']
+    ).filter(([, commands]) =>
+      commands.some(
+        (command) =>
+          command.includes(`-c ${FENCE_CONFIG}`) &&
+          command.includes('--no-inline-config')
+      )
+    )
+    expect(fenceEntries).toHaveLength(1)
+
+    const [glob] = fenceEntries[0] as [string, string[]]
+    const covered = (/^\*\.\{(.+)\}$/.exec(glob)?.[1] ?? '').split(',')
+    for (const ext of MODULE_EXTENSIONS) expect(covered).toContain(ext.slice(1))
+  })
 
   it(
     'is the command CI runs, and that command passes on this tree',
@@ -363,11 +363,7 @@ describe('the fence runs where it has to run', () => {
   )
 
   it('sweeps every module extension a propose route could be written at', () => {
-    const script = (
-      JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
-        scripts: Record<string, string>
-      }
-    ).scripts['lint:funnel']
+    const script = readPackageJson().scripts['lint:funnel']
     if (!script) throw new Error('package.json declares no lint:funnel script')
 
     // A directory sweep judges only the extensions it is given, and the flag is

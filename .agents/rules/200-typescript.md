@@ -9,7 +9,7 @@ paths:
 
 ## TypeScript Script Conventions
 
-- TS scripts use `.eslintrc.cjs` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
+- TS scripts use `.oxlintrc.json` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
 - **No Bun-only runtime APIs in shipped modules** ([CONV:NODE-RUNTIME-APIS]). `tsx` runs on **Node**, so a module under `script/**` or `tasks/**` that is not a `*.test.ts` cannot rely on Bun's runtime globals. Test files are exempt — `bun test` provides them. **Neither the type checker nor the test suite catches a violation**: `tsconfig.json` declares `"types": ["node", "bun"]`, so `tsc` believes the Bun globals exist everywhere, and tests run under Bun where they really do. The three cases fail differently and have different fixes:
   - `import.meta.dir` — Bun-only, never implemented in Node, so it is `undefined` under `tsx` on every Node version. A module-scope `join(import.meta.dir, …)` throws `ERR_INVALID_ARG_TYPE` **at import time**, taking down every CLI that transitively imports it (that is how EXSC-964 broke `confirm-safe-tx.ts` for the whole team). Use `dirname(fileURLToPath(import.meta.url))` — see `script/tasks/checkDeploymentAddressConsistency.ts`. This is the one case that is clean at zero today, and `script/bun-only-api-placement.test.ts` keeps it there.
   - `import.meta.main` — broken on our invocation path on **every** Node version, not version-dependent. Node does implement it (22.18+), but `tsx` drops it for `.ts` entry modules: measured `undefined` under the pinned tsx 4.23.13 on Node 18.20.8, 22.23.2 and 26.8.1 alike. The loader decides this, not the Node version — the same tsx reports `true` for a `.mjs` entry, as does a bare `node file.ts` on Node 24+. Since every CLI here is a `.ts` file run via `bunx tsx`, CI does not cover this: a guard spelled `import.meta.main` is a **silent** `exit 0` that does no work, for everyone. For a CLI entry guard call `isEntrypoint(import.meta.url)` from `script/utils/is-entrypoint.ts`. Do **not** hand-roll `process.argv[1] === fileURLToPath(import.meta.url)`: Node resolves symlinks as it loads, so `import.meta.url` is already the real path while argv[1] stays as typed, and the compare then answers `false` whenever a path component is a link — the same silent `exit 0`, just harder to reproduce. The helper realpaths both sides; `is-entrypoint.test.ts` pins the symlinked-file and symlinked-directory cases. Do **not** call `runMain` unconditionally: 8 of the 12 shipped modules that still carry this guard are imported by their own `*.test.ts` for their pure helpers, and an unconditional call would execute the CLI during `bun test`. Nine modules are already off it. Four moved in EXSC-1023: the three reachable from an agent command — `safe/list-timelock-queue`, `safe/reconcile-parked-tasks`, `tron/transfer-ownership-to-timelock` — because there a silent `exit 0` reads to the operator as a real result (an empty timelock queue, a completed cancellation, a finished ownership handover), plus `immutables/verify-immutable-registry`, whose own tests spawn `bunx tsx` and so hit the dropped guard directly. The other five (`shared/assert-direct-broadcast-gate`, `tasks/proposePeripheryWithWhitelist`, and the three `deploy/resources/*Reminder` modules) got there first and still carry hand-rolled realpath copies of the same check. Converting the remaining 12, and folding those five into the helper, is tracked in EXSC-971 — call the helper in new code.
@@ -23,8 +23,8 @@ paths:
 
 ## Code Quality
 
-- Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
-- When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
+- Obey `.oxlintrc.json`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- When editing any file matching this rule’s globs, run `bunx oxlint --type-aware <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
   - `script/utils/deploymentHelpers.ts` (deployment loading),
@@ -59,8 +59,8 @@ paths:
   - Other domains where neither file fits: colocate (e.g. `script/troncast/types.ts`, shapes next to Safe helpers in `script/deploy/safe/`).
 - **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
 - **Config-derived types**: Prefer deriving types from config schemas (e.g., `EVMVersion` from `networks.json`) over manually maintained union types. See `script/common/types.ts` for examples.
-- **Naming conventions** (enforced by `.eslintrc.cjs`):
-  - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by ESLint.
+- **Naming conventions** (enforced by `lifi/naming-convention` in `script/lint/oxlint-plugin-lifi.mjs`):
+  - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by oxlint.
   - Type aliases use PascalCase without prefix (e.g., `SupportedChain`, `HexString`).
   - Enums use PascalCase with `Enum` suffix (e.g., `EnvironmentEnum`).
 
@@ -132,7 +132,7 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 
 ## Post-Change Actions
 
-- After TS changes run lint/tests (or state which remain) to ensure eslint/type checks pass.
+- After TS changes run lint/tests (or state which remain) to ensure oxlint/type checks pass.
 
 ### Hard gate: CLI validation required
 
@@ -140,17 +140,17 @@ Editor diagnostics (and Cursor “lints”) are **not sufficient** to claim a Ty
 
 If you edit any file matching this rule’s globs, you **MUST** do the following before finalizing:
 
-- **Run ESLint CLI on the changed file(s)**:
-  - `bunx eslint <changed-file-1> [<changed-file-2> ...]`
-  - If ESLint reports fixable issues, run: `bunx eslint --fix <changed-file(s)>`
-  - Re-run `bunx eslint <changed-file(s)>` and ensure it exits `0`.
+- **Run oxlint on the changed file(s)**:
+  - `bunx oxlint --type-aware <changed-file-1> [<changed-file-2> ...]`
+  - If oxlint reports fixable issues, run: `bunx oxlint --type-aware --fix <changed-file(s)>`
+  - Re-run `bunx oxlint --type-aware <changed-file(s)>` and ensure it exits `0`.
 - **Run TypeScript typecheck on the changed file(s)**:
   - `bunx tsc-files --noEmit <changed-file-1> [<changed-file-2> ...]`
 
 ### Reporting requirement
 
 - In the final message, explicitly list the commands that were run and whether they passed.
-- **Never** state or imply “no linting errors” unless `bunx eslint ...` was executed and returned `0`.
+- **Never** state or imply “no linting errors” unless `bunx oxlint ...` was executed and returned `0`.
 
 ### Scope escalation (when needed)
 

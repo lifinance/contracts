@@ -57,7 +57,7 @@ cores, so the guard and the withholding widen together. Consequences:
 
 ## Asserting rejections ([CONV:TEST-ASSERT-REJECTS])
 
-- **Never assert rejections via `expect(...).rejects`** — awaiting Bun's matcher trips `@typescript-eslint/await-thenable` because it isn't a real Promise. Use a local `async function expectRejects(promise, match)` that catches and matches the error message, as in `script/deploy/safe/parked-tasks.test.ts`.
+- **Never assert rejections via `expect(...).rejects`** — awaiting Bun's matcher trips oxlint's `typescript/await-thenable` because it isn't a real Promise. Use a local `async function expectRejects(promise, match)` that catches and matches the error message, as in `script/deploy/safe/parked-tasks.test.ts`.
 
 ## Post-Change Actions
 
