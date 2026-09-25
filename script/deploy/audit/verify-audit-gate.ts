@@ -11,7 +11,7 @@
  * unaudited contract.
  */
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -25,7 +25,18 @@ import {
   type IContractUnderCheck,
 } from './audit-gate'
 import type { IAuditLogFile } from './audit-log-guard'
-import { createClosureReader, createGitSourceReader } from './git-source-reader'
+import {
+  AUDITED_PATCHES_PATH,
+  parseAuditedPatches,
+  resolveAuditedPatches,
+  type IPatchSubstitution,
+} from './audited-patches'
+import {
+  createClosureReader,
+  createGitSourceReader,
+  ensureCommitAvailable,
+  isAncestor,
+} from './git-source-reader'
 
 const EXIT_FAIL = 1
 const EXIT_ERROR = 2
@@ -60,6 +71,48 @@ const readContracts = (
 
     return { path, version: read.version }
   })
+}
+
+const createFetchingReader =
+  (cwd: string, headTreeish: string) =>
+  (treeish: string, path: string): string | undefined =>
+    treeish === headTreeish || ensureCommitAvailable(treeish, cwd)
+      ? createGitSourceReader(treeish, cwd).readFile(path)
+      : undefined
+
+/**
+ * Reads the fork's audited-patch declaration, when there is one. `main` has
+ * none, so this returns no substitutions there.
+ */
+const loadPatchSubstitutions = (
+  cwd: string,
+  headTreeish: string,
+  log: IAuditLogFile
+): Map<string, IPatchSubstitution> => {
+  if (!existsSync(AUDITED_PATCHES_PATH)) return new Map()
+
+  try {
+    const patches = parseAuditedPatches(
+      JSON.parse(readFileSync(AUDITED_PATCHES_PATH, 'utf8')),
+      log
+    )
+    const resolved = resolveAuditedPatches(patches, log, headTreeish, {
+      readAt: createFetchingReader(cwd, headTreeish),
+      isAncestor: (ancestor, descendant) =>
+        isAncestor(ancestor, descendant, cwd),
+    })
+    for (const line of resolved.applied) consola.info(line)
+    for (const line of resolved.mismatched) consola.warn(line)
+    return resolved.substitutions
+  } catch (error: unknown) {
+    // ERROR, not a skip: a broken declaration must not read as no declaration.
+    consola.error(
+      `Could not apply ${AUDITED_PATCHES_PATH}: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+    process.exit(EXIT_ERROR)
+  }
 }
 
 const main = defineCommand({
@@ -163,7 +216,13 @@ const main = defineCommand({
       log,
       contracts: readContracts(paths, cwd, args.head),
       headTreeish: args.head,
-      deps: { closureAt: createClosureReader(cwd, args.head) },
+      deps: {
+        closureAt: createClosureReader(
+          cwd,
+          args.head,
+          loadPatchSubstitutions(cwd, args.head, log)
+        ),
+      },
       prTitle: args.prTitle,
     })
 
