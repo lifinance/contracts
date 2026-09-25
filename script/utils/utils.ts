@@ -5,8 +5,8 @@
 
 import 'dotenv/config'
 
-import { readFileSync } from 'fs'
-import { readFile } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'fs'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -17,8 +17,8 @@ import networksConfig from '../../config/networks.json'
 import type {
   EVMVersion,
   IDeploymentResult,
+  IDiamondDeploymentLog,
   IFoundryProfileDefaultConfig,
-  IFoundryTomlConfig,
   INetwork,
   INetworkInfo,
   INetworksObject,
@@ -98,48 +98,39 @@ export const OUT_ROOT = resolve(
   '../../out'
 )
 
+/**
+ * Reads the three scalar settings the script helpers need from `[profile.default]`.
+ * Extracted by pattern rather than parsed: the repo carries no TOML parser, and
+ * three flat keys do not justify adding one.
+ */
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
   const content = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
 
-  try {
-    const parsed = Bun.TOML.parse(content) as IFoundryTomlConfig
-    const defaultProfile = parsed.profile?.default
-    if (!defaultProfile)
-      throw new Error('Missing [profile.default] section in foundry.toml')
-    return defaultProfile
-  } catch {
-    // Bun's TOML parser rejects keys starting with digits (e.g. "0g" in rpc_endpoints).
-    // Fall back to regex extraction of [profile.default] values.
-    // Extract only the section body (up to the next section header or end of file)
-    // so keys from other profiles are never matched.
-    const sectionBody =
-      content.match(/\[profile\.default\]\n([\s\S]*?)(?=\n\[|$)/)?.[1] ?? ''
-    if (!sectionBody)
-      throw new Error('Missing [profile.default] section in foundry.toml')
+  // Only the section body (up to the next header or end of file), so keys from
+  // other profiles are never matched.
+  const sectionBody =
+    content.match(/\[profile\.default\]\n([\s\S]*?)(?=\n\[|$)/)?.[1] ?? ''
+  if (!sectionBody)
+    throw new Error('Missing [profile.default] section in foundry.toml')
 
-    const extract = (key: string): string | undefined =>
-      sectionBody.match(
-        new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
-      )?.[1]
+  const extract = (key: string): string | undefined =>
+    sectionBody.match(new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm'))?.[1]
 
-    const extractNumeric = (key: string): number | undefined => {
-      const match = sectionBody.match(
-        new RegExp(`^${key}\\s*=\\s*(\\d(?:_?\\d)*)`, 'm')
-      )?.[1]
-      if (!match) return undefined
-      const value = Number(match.replace(/_/g, ''))
-      return Number.isSafeInteger(value) && value >= 0 ? value : undefined
-    }
+  const extractNumeric = (key: string): number | undefined => {
+    // Anchored to the end of the value, so `1.5` or `200abc` is rejected rather
+    // than read as its leading digits.
+    const match = sectionBody.match(
+      new RegExp(`^${key}\\s*=\\s*(\\d(?:_?\\d)*)\\s*(?:#.*)?$`, 'm')
+    )?.[1]
+    if (!match) return undefined
+    const value = Number(match.replace(/_/g, ''))
+    return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+  }
 
-    const solc_version = extract('solc_version')
-    const evm_version = extract('evm_version')
-    const optimizer_runs = extractNumeric('optimizer_runs')
-
-    return {
-      solc_version,
-      evm_version,
-      optimizer_runs,
-    } as IFoundryProfileDefaultConfig
+  return {
+    solc_version: extract('solc_version'),
+    evm_version: extract('evm_version'),
+    optimizer_runs: extractNumeric('optimizer_runs'),
   }
 }
 
@@ -277,20 +268,18 @@ export function getDeploymentRoots(): string[] {
  * Pick where to write `deployments/*.json` so parent-workspace cwd matches reads in
  * {@link getContractAddress} (existing file or `deployments/`), not only candidate order.
  */
-async function pickDeploymentRootForWrites(
+function pickDeploymentRootForWrites(
   network: SupportedChain,
   fileSuffix: string
-): Promise<string> {
+): string {
   const roots = getDeploymentRoots()
   const envDeploymentPath = `deployments/${network}.${fileSuffix}json`
 
   for (const candidate of roots)
-    if (await Bun.file(resolve(candidate, envDeploymentPath)).exists())
-      return candidate
+    if (existsSync(resolve(candidate, envDeploymentPath))) return candidate
 
   for (const candidate of roots)
-    if (await Bun.file(resolve(candidate, 'deployments')).exists())
-      return candidate
+    if (existsSync(resolve(candidate, 'deployments'))) return candidate
 
   const fallback = roots[0]
   if (!fallback) throw new Error('No deployment root available')
@@ -302,7 +291,7 @@ async function pickDeploymentRootForWrites(
  */
 export async function readJsonFile<T>(filePath: string): Promise<T | null> {
   try {
-    return (await Bun.file(filePath).json()) as T
+    return JSON.parse(await readFile(filePath, 'utf8')) as T
   } catch {
     return null
   }
@@ -388,24 +377,98 @@ export async function saveContractAddress(
   const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
-  const root = await pickDeploymentRootForWrites(network, fileSuffix)
+  const root = pickDeploymentRootForWrites(network, fileSuffix)
   const deploymentFile = resolve(
     root,
     `deployments/${network}.${fileSuffix}json`
   )
 
-  let deployments: Record<string, string> = {}
-
-  try {
-    const existing = await Bun.file(deploymentFile).json()
-    deployments = existing
-  } catch {
-    // File doesn't exist, start fresh
-  }
+  const deployments = await readDeploymentLogForUpdate(
+    deploymentFile,
+    `record ${contract} at ${address} by hand`
+  )
 
   deployments[contract] = address
 
-  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
+  // pickDeploymentRootForWrites falls back to a root without `deployments/`.
+  await writeDeploymentLog(deploymentFile, deployments)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Reads a deployment log that is about to be rewritten.
+ *
+ * Only a missing file yields an empty log. One that fails to parse (e.g.
+ * merge conflict markers) or is not a JSON object would otherwise be
+ * rewritten from empty, dropping every entry it recorded; an array root would
+ * also drop the new entry, since `JSON.stringify` omits string keys on arrays.
+ *
+ * @param path - absolute path of the log
+ * @param recovery - what the operator does by hand once the file is fixed
+ * @returns the parsed log, or `{}`
+ * @throws when the file exists but does not hold a JSON object
+ */
+async function readDeploymentLogForUpdate(
+  path: string,
+  recovery: string
+): Promise<Record<string, unknown>> {
+  if (!existsSync(path)) return {}
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(await readFile(path, 'utf8'))
+  } catch (error) {
+    throw new Error(`Cannot parse ${path}; fix it, then ${recovery}`, {
+      cause: error,
+    })
+  }
+  if (!isRecord(parsed))
+    throw new Error(`${path} is not a JSON object; fix it, then ${recovery}`)
+  return parsed
+}
+
+/**
+ * Reads `<network>.diamond.json` for an update, adding whichever of
+ * `LiFiDiamond`, `Facets` and `Periphery` is absent.
+ *
+ * @param path - absolute path of the log
+ * @param recovery - what the operator does by hand once the file is fixed
+ * @returns the log with every section present
+ * @throws when the file cannot be read as a log, or a section is not an object
+ */
+async function readDiamondLogForUpdate(
+  path: string,
+  recovery: string
+): Promise<IDiamondDeploymentLog> {
+  const log = await readDeploymentLogForUpdate(path, recovery)
+  const diamond = log.LiFiDiamond ?? {}
+  if (!isRecord(diamond))
+    throw new Error(
+      `${path}: LiFiDiamond is not an object; fix it, then ${recovery}`
+    )
+  const { Facets = {}, Periphery = {} } = diamond
+  for (const [name, section] of Object.entries({ Facets, Periphery }))
+    if (!isRecord(section))
+      throw new Error(
+        `${path}: LiFiDiamond.${name} is not an object; fix it, then ${recovery}`
+      )
+  return {
+    ...log,
+    LiFiDiamond: { ...diamond, Facets, Periphery },
+  } as IDiamondDeploymentLog
+}
+
+/**
+ * Writes a deployment log, creating its `deployments/` directory if needed.
+ *
+ * @param path - absolute path of the log
+ * @param data - the contents to serialise
+ */
+async function writeDeploymentLog(path: string, data: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, JSON.stringify(data, null, 2) + '\n')
 }
 
 /**
@@ -470,11 +533,8 @@ export async function saveDiamondDeployment(
     `deployments/${network}.diamond.${fileSuffix}json`
   )
 
-  const diamondData = {
-    LiFiDiamond: {
-      Facets: {} as Record<string, { Name: string; Version: string }>,
-      Periphery: {} as Record<string, string>,
-    },
+  const diamondData: IDiamondDeploymentLog = {
+    LiFiDiamond: { Facets: {}, Periphery: {} },
   }
 
   // Add facets with address as key
@@ -484,7 +544,7 @@ export async function saveDiamondDeployment(
       Version: facetInfo.version,
     }
 
-  await Bun.write(diamondFile, JSON.stringify(diamondData, null, 2))
+  await writeDeploymentLog(diamondFile, diamondData)
 }
 
 /**
@@ -503,21 +563,12 @@ export async function getFacetSelectors(
   if (relativePath.startsWith('..') || isAbsolute(relativePath))
     throw new Error(`Invalid facet name: ${facetName}`)
 
-  // Check if artifact exists
-  try {
-    const exists = await Bun.file(artifactPath).exists()
-    if (!exists)
-      throw new Error(
-        `Build artifact not found for ${facetName}. Run 'forge build' first.`
-      )
-  } catch (error) {
+  if (!existsSync(artifactPath))
     throw new Error(
       `Build artifact not found for ${facetName}. Run 'forge build' first.`
     )
-  }
 
-  // Read artifact file
-  const artifact = await Bun.file(artifactPath).json()
+  const artifact = JSON.parse(await readFile(artifactPath, 'utf8'))
 
   if (!artifact.methodIdentifiers)
     throw new Error(`No method identifiers found in ${facetName} artifact`)
@@ -613,35 +664,16 @@ export async function updateDiamondJson(
       `${network}.diamond.json`
     )
 
-    // Read existing file or create new structure
-    let diamondData: any
-    try {
-      const fileContent = await Bun.file(diamondJsonPath).text()
-      diamondData = JSON.parse(fileContent)
-    } catch {
-      // File doesn't exist or is invalid, create new structure
-      diamondData = {
-        LiFiDiamond: {
-          Facets: {},
-          Periphery: {},
-        },
-      }
-    }
-
-    // Ensure structure exists
-    if (!diamondData.LiFiDiamond)
-      diamondData.LiFiDiamond = {
-        Facets: {},
-        Periphery: {},
-      }
-
-    if (!diamondData.LiFiDiamond.Facets) diamondData.LiFiDiamond.Facets = {}
+    const diamondData = await readDiamondLogForUpdate(
+      diamondJsonPath,
+      `record ${facetName} at ${facetAddress} by hand`
+    )
 
     // Check if facet already exists (by name to avoid duplicates)
     const facets = diamondData.LiFiDiamond.Facets
 
     for (const address in facets)
-      if (facets[address].Name === facetName)
+      if (facets[address]?.Name === facetName)
         if (address === facetAddress) {
           consola.info(`${facetName} already exists in ${network}.diamond.json`)
           return
@@ -675,14 +707,14 @@ export async function updateDiamondJson(
     }
 
     // Write updated file
-    await Bun.write(
-      diamondJsonPath,
-      JSON.stringify(diamondData, null, 2) + '\n'
-    )
+    await writeDeploymentLog(diamondJsonPath, diamondData)
 
     consola.success(`Updated ${network}.diamond.json with ${facetName}`)
-  } catch (error: any) {
-    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
+  } catch (error) {
+    consola.error(
+      `Failed to update ${network}.diamond.json:`,
+      error instanceof Error ? error.message : String(error)
+    )
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -793,28 +825,10 @@ export async function updateDiamondJsonBatch(
       `${network}.diamond.json`
     )
 
-    // Read existing file or create new structure
-    let diamondData: any
-    try {
-      const fileContent = await Bun.file(diamondJsonPath).text()
-      diamondData = JSON.parse(fileContent)
-    } catch {
-      diamondData = {
-        LiFiDiamond: {
-          Facets: {},
-          Periphery: {},
-        },
-      }
-    }
-
-    // Ensure structure exists
-    if (!diamondData.LiFiDiamond)
-      diamondData.LiFiDiamond = {
-        Facets: {},
-        Periphery: {},
-      }
-
-    if (!diamondData.LiFiDiamond.Facets) diamondData.LiFiDiamond.Facets = {}
+    const diamondData = await readDiamondLogForUpdate(
+      diamondJsonPath,
+      `record ${facetEntries.map((entry) => entry.name).join(', ')} by hand`
+    )
 
     const facets = diamondData.LiFiDiamond.Facets
     let updatedCount = 0
@@ -824,7 +838,7 @@ export async function updateDiamondJsonBatch(
       // Check if facet already exists by name
       let existingAddress: string | null = null
       for (const address in facets)
-        if (facets[address].Name === entry.name) {
+        if (facets[address]?.Name === entry.name) {
           existingAddress = address
           break
         }
@@ -866,17 +880,17 @@ export async function updateDiamondJsonBatch(
 
     if (updatedCount > 0) {
       // Write updated file
-      await Bun.write(
-        diamondJsonPath,
-        JSON.stringify(diamondData, null, 2) + '\n'
-      )
+      await writeDeploymentLog(diamondJsonPath, diamondData)
 
       consola.success(
         `Updated ${network}.diamond.json with ${updatedCount} facet(s)`
       )
     }
-  } catch (error: any) {
-    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
+  } catch (error) {
+    consola.error(
+      `Failed to update ${network}.diamond.json:`,
+      error instanceof Error ? error.message : String(error)
+    )
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -899,30 +913,10 @@ export async function updateDiamondJsonPeriphery(
       `${network}.diamond.json`
     )
 
-    // Read existing file or create new structure
-    let diamondData: any
-    try {
-      const fileContent = await Bun.file(diamondJsonPath).text()
-      diamondData = JSON.parse(fileContent)
-    } catch {
-      // File doesn't exist or is invalid, create new structure
-      diamondData = {
-        LiFiDiamond: {
-          Facets: {},
-          Periphery: {},
-        },
-      }
-    }
-
-    // Ensure structure exists
-    if (!diamondData.LiFiDiamond)
-      diamondData.LiFiDiamond = {
-        Facets: {},
-        Periphery: {},
-      }
-
-    if (!diamondData.LiFiDiamond.Periphery)
-      diamondData.LiFiDiamond.Periphery = {}
+    const diamondData = await readDiamondLogForUpdate(
+      diamondJsonPath,
+      `record ${contractName} at ${contractAddress} by hand`
+    )
 
     // Update or add periphery contract (simple key-value format)
     const periphery = diamondData.LiFiDiamond.Periphery
@@ -943,16 +937,16 @@ export async function updateDiamondJsonPeriphery(
     periphery[contractName] = contractAddress
 
     // Write updated file
-    await Bun.write(
-      diamondJsonPath,
-      JSON.stringify(diamondData, null, 2) + '\n'
-    )
+    await writeDeploymentLog(diamondJsonPath, diamondData)
 
     consola.success(
       `Updated ${network}.diamond.json with ${contractName} (Periphery)`
     )
-  } catch (error: any) {
-    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
+  } catch (error) {
+    consola.error(
+      `Failed to update ${network}.diamond.json:`,
+      error instanceof Error ? error.message : String(error)
+    )
     // Don't throw - this is not critical for the deployment
   }
 }

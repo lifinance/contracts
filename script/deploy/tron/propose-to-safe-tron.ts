@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 /**
  * Propose to Safe (Tron)
  *
@@ -11,9 +11,9 @@
  *   Safe → target with calldata (no timelock). Used by sendOrPropose for production governance (e.g. whitelist sync).
  *
  * Usage:
- *   bun run script/deploy/tron/propose-to-safe-tron.ts
- *   bun run script/deploy/tron/propose-to-safe-tron.ts --dryRun
- *   bun run script/deploy/tron/propose-to-safe-tron.ts --to <base58> --calldata 0x... [--timelock|--direct] --privateKey 0x...
+ *   bunx tsx script/deploy/tron/propose-to-safe-tron.ts
+ *   bunx tsx script/deploy/tron/propose-to-safe-tron.ts --dryRun
+ *   bunx tsx script/deploy/tron/propose-to-safe-tron.ts --to <base58> --calldata 0x... [--timelock|--direct] --privateKey 0x...
  */
 
 import 'dotenv/config'

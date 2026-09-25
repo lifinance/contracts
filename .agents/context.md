@@ -26,7 +26,8 @@ are embedded in rule files.
 | Test (Solidity) | `bun test` |
 | Test (TypeScript) | `bun test:ts` |
 | Build | `forge build` |
-| Type check | `bunx tsc-files --noEmit <file>` |
+| Type check | `bash script/utils/typecheck-files.sh <file>` |
+| Node runtime fence | `bun lint:node-runtime` |
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
 

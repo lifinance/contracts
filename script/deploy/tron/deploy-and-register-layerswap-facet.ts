@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 
 /**
  * Deploys LayerSwapFacet to the Tron Diamond and proposes its diamondCut to the
@@ -6,6 +6,8 @@
  * LayerSwapFacet takes constructor arguments (the LayerSwap Depository address
  * and the backend signer), which the core-facet loop does not supply.
  */
+
+import { readFile } from 'node:fs/promises'
 
 import {
   MIN_BALANCE_WARNING,
@@ -112,7 +114,9 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
 
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    const layerSwapConfig = await Bun.file('config/layerswap.json').json()
+    const layerSwapConfig = JSON.parse(
+      await readFile('config/layerswap.json', 'utf8')
+    )
     const depositoryRaw = layerSwapConfig.layerSwapDepository?.[networkName]
 
     if (!depositoryRaw)
@@ -120,7 +124,9 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
         `LayerSwap depository not found for '${networkName}' in config/layerswap.json`
       )
 
-    const globalConfig = await Bun.file('config/global.json').json()
+    const globalConfig = JSON.parse(
+      await readFile('config/global.json', 'utf8')
+    )
     const backendSignerRaw = globalConfig.backendSigner?.production
 
     if (!backendSignerRaw)

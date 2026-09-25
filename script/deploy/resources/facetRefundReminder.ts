@@ -19,9 +19,10 @@
  * Prints the reminder to stdout when the facet source still refunds to msg.sender, otherwise
  * prints nothing. Always exits 0.
  */
-import { existsSync, readFileSync, realpathSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { fileURLToPath } from 'url'
+
+import { isEntrypoint } from '../../utils/is-entrypoint'
 
 export interface IMsgSenderRefundSites {
   /** `refundExcessNative(payable(msg.sender))` is present */
@@ -128,18 +129,4 @@ function runCli(): void {
   if (reminder) console.log(reminder)
 }
 
-/**
- * Run the CLI only when this file is executed directly (bunx tsx ...), not when imported by tests.
- * Compares the resolved entry script against this module's own path.
- */
-function isDirectRun(): boolean {
-  const entry = process.argv[1]
-  if (!entry) return false
-  try {
-    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
-  } catch {
-    return false
-  }
-}
-
-if (isDirectRun()) runCli()
+if (isEntrypoint(import.meta.url)) runCli()

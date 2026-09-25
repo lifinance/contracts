@@ -1,4 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
+
+import { readFile } from 'node:fs/promises'
 
 import {
   MIN_BALANCE_WARNING,
@@ -93,7 +95,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    const ecoConfig = await Bun.file('config/eco.json').json()
+    const ecoConfig = JSON.parse(await readFile('config/eco.json', 'utf8'))
     const tronEcoConfig = ecoConfig.tron
 
     if (!tronEcoConfig)
@@ -106,7 +108,9 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
     const portal = tronAddressToHex(tronWeb, portalTron)
 
-    const globalConfig = await Bun.file('config/global.json').json()
+    const globalConfig = JSON.parse(
+      await readFile('config/global.json', 'utf8')
+    )
     const backendSigner =
       environment === EnvironmentEnum.production
         ? globalConfig.backendSigner?.production

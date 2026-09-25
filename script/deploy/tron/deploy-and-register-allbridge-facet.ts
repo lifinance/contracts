@@ -1,4 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
+
+import { readFile } from 'node:fs/promises'
 
 import {
   TronContractDeployer,
@@ -115,7 +117,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     await validateBalance(tronWeb, 0)
     // Load AllBridge configuration. Kept as raw text as well, because the
     // chain-id mappings must be revived from the JSON source (see allBridgeInit)
-    const allbridgeConfigJson = await Bun.file('config/allbridge.json').text()
+    const allbridgeConfigJson = await readFile('config/allbridge.json', 'utf8')
     const allbridgeConfig = JSON.parse(allbridgeConfigJson)
     const allBridgeAddress = allbridgeConfig[network]?.allBridge
 
