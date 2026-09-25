@@ -84,6 +84,7 @@ const REFUSED: Array<[string, string]> = [
   ['the Bun global', "export const f = Bun.file('x')\n"],
   ['globalThis.Bun', 'export const b = globalThis.Bun\n'],
   ["globalThis['Bun']", "export const b = globalThis['Bun']\n"],
+  ['global.Bun', 'export const b = global.Bun\n'],
   ['a static bun import', "import { file } from 'bun'\nexport { file }\n"],
   [
     'a bun: import',
@@ -91,6 +92,14 @@ const REFUSED: Array<[string, string]> = [
   ],
   ['a dynamic bun import', "export const load = () => import('bun')\n"],
   ['a require of bun', "export const load = () => require('bun:ffi')\n"],
+  [
+    'a dynamic bun import by template literal',
+    'export const load = () => import(`bun:sqlite`)\n',
+  ],
+  [
+    'a require of bun by template literal',
+    'export const load = () => require(`bun`)\n',
+  ],
   [
     'a file that disables the rule on itself',
     '/* eslint-disable no-restricted-syntax */\nexport const m = import.meta.main\n',
@@ -107,6 +116,10 @@ const ALLOWED: Array<[string, string]> = [
     "import { readFile } from 'node:fs/promises'\nexport { readFile }\n",
   ],
   ['a package named like bun', "export const load = () => import('bunyan')\n"],
+  [
+    'a template-literal package named like bun',
+    'export const load = () => import(`bunyan`)\n',
+  ],
 ]
 
 describe('the Node-runtime fence', () => {

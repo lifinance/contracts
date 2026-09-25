@@ -12,12 +12,12 @@
  *   implements rather than denylisting Bun's, so `dir`, `file`, `path`, `env`
  *   and a destructured or passed-around `import.meta` are refused as well.
  * - the `Bun` global and `bun` / `bun:*` loaded by import, `import()` or
- *   `require()`.`tsconfig.node.json` already
- *   rejects these for the files `typecheck-files.sh` is given; this repeats the
- *   check over the whole tree, so it holds even for a caller that type-checks
- *   against the wrong config.
+ *   `require()`. `tsconfig.node.json` already rejects these for the files
+ *   `typecheck-files.sh` is given; this repeats the check over the whole tree,
+ *   so it holds even for a caller that type-checks against the wrong config.
  *
- * Run on its own by `bun lint:node-runtime` (lint-staged and
+ * Run on its own, always with `--no-inline-config` (`bun lint:node-runtime`,
+ * the lint-staged entry in `package.json`, and
  * `.github/workflows/validateScripts.yml`) rather than extended by
  * `.eslintrc.cjs`: both this and `.eslintrc.funnel-fence.cjs` configure
  * `no-restricted-syntax`, and a later `extends` entry replaces a rule's options
@@ -47,9 +47,6 @@ module.exports = {
   // information and stays a few seconds.
   parser: '@typescript-eslint/parser',
   parserOptions: { ecmaVersion: 2022, sourceType: 'module' },
-  // Loaded so the repo's inline `eslint-disable` comments still name defined
-  // rules when this config runs on its own; none of their rules is enabled here.
-  plugins: ['@typescript-eslint', 'import'],
   overrides: [
     {
       files: ['script/**/*', 'tasks/**/*'],
@@ -71,6 +68,14 @@ module.exports = {
             selector: `CallExpression[callee.name='require'][arguments.0.value=${BUN_SPECIFIER}]`,
             message: BUN_MESSAGE,
           },
+          {
+            selector: `ImportExpression[source.quasis.0.value.cooked=${BUN_SPECIFIER}]`,
+            message: BUN_MESSAGE,
+          },
+          {
+            selector: `CallExpression[callee.name='require'][arguments.0.quasis.0.value.cooked=${BUN_SPECIFIER}]`,
+            message: BUN_MESSAGE,
+          },
         ],
         'no-restricted-globals': [
           'error',
@@ -79,6 +84,7 @@ module.exports = {
         'no-restricted-properties': [
           'error',
           { object: 'globalThis', property: 'Bun', message: BUN_MESSAGE },
+          { object: 'global', property: 'Bun', message: BUN_MESSAGE },
         ],
         'no-restricted-imports': [
           'error',
