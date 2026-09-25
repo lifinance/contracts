@@ -9,104 +9,45 @@
  *
  * The M0 OrderBook escrows the sending asset and returns — a solver settles the order
  * later on the destination chain. A successful run therefore only proves the order was
- * OPENED; the fill (or the cancellation once `fillDeadline` passes) happens outside this
+ * OPENED; the fill, or the cancellation once `fillDeadline` passes, happens outside this
  * script. See docs/M0Facet.md.
  *
- * `amountOut` is a limit price, not a slippage floor. It is taken from M0's Orchestration
- * API (`POST /quote`, provider `limit-order`), which needs `M0_API_KEY` in `.env`.
+ * `amountOut` is a limit price, not a slippage floor. It comes from M0's Orchestration API
+ * (`POST /quote`, provider `limit-order`), which needs `M0_API_KEY` in `.env`. On the swap
+ * scenarios the facet scales it to the realized swap output, so positive slippage reaches
+ * the user rather than the solver.
  *
- * COVERAGE. Solver coverage is a per-route allowlist, not a property of the protocol,
- * so it is worth re-probing rather than inferring. As confirmed by M0 and re-probed on
- * 2026-09-25 against `POST /quote`:
+ * Quotes come back `exclusive: true`: the quoting solver priced the leg for itself and is
+ * the only one obliged to fill it, so it has to become the order's `designatedSolver`.
+ * Opening with bytes32(0) at an exclusive quote's price leaves an order nobody picks up —
+ * it sits at CREATED until `fillDeadline`. `resolveLimitPrice` falls back to an arbitrary
+ * limit price only if coverage is withdrawn from a route.
  *
- *   - SAME-CHAIN quotes broadly. Live pairs seen: Ethereum USDC<->USDat, wM->USDC;
- *     Arbitrum CUSD<->USDC and CUSD<->PYUSD; Base mrUSD/AUSD/wM<->USDC.
- *   - CROSS-CHAIN quotes on exactly four pairs today — the ones the scenarios below use:
+ * COVERAGE is a per-route solver allowlist, not a property of the protocol, so it is worth
+ * re-probing rather than inferring. Against `POST /quote` as of 2026-09-25:
+ *
+ *   - SAME-CHAIN quotes broadly. Live pairs: Ethereum USDC<->USDat, wM->USDC; Arbitrum
+ *     CUSD<->USDC and CUSD<->PYUSD; Base mrUSD/AUSD/wM<->USDC.
+ *   - CROSS-CHAIN quotes on exactly four pairs, the ones the scenarios below use:
  *     USDC.eth<->ctUSD.citrea, USDC.eth<->USDR.rise, USDC.arb<->USDR.rise and
- *     USDC.eth->XO.sol. Anything else 404s `NoQuotesAvailable`, including the
- *     USDC.eth->USDC.base and USDC.eth->USDC.sol routes this demo used to try.
- *     Coverage is also DIRECTIONAL: the return legs out of Rise price 5e6 below par and
- *     404 below a 1e7 input, and XO.sol->USDC.eth does not quote at any size.
- *   - Every cross-chain payload is approve + a single `openOrder` on the same OrderBook
- *     the same-chain payload targets, with `feeBps: 0` on the four pairs above, so
- *     cross-chain needs nothing from the facet that same-chain does not already do.
- *   - `destChainId` is simply the destination's EVM chain id (Citrea 4114, Rise 4153),
- *     except Solana, which is 1399811149 — matching `M0_CHAIN_ID_SOLANA` in the facet.
- *   - SAME-CHAIN pricing is fee = max(3_000_000, 3bps), so it is flat below 10_000 units
- *     and proportional above. The minimum is exactly 4e6: 3_999_999 is refused and 4e6
- *     quotes 1e6 out, i.e. the fee must leave at least 1e6. Because the fee is flat in
- *     that range, a run costs 3 units whether you send 4 or 10_000 — size only changes
- *     the balance you have to hold, not what you lose.
+ *     USDC.eth->XO.sol. Anything else 404s `NoQuotesAvailable`. Coverage is DIRECTIONAL:
+ *     the return legs out of Rise price 5e6 below par and 404 below a 1e7 input, and
+ *     XO.sol->USDC.eth does not quote at any size.
+ *   - SAME-CHAIN pricing is fee = max(3_000_000, 3bps) — flat below 10_000 units,
+ *     proportional above. The minimum input is 4e6: 3_999_999 is refused, 4e6 quotes 1e6
+ *     out, so the fee must leave at least 1e6. Being flat in that range, a run costs 3
+ *     units whether you send 4 or 10_000; size only changes the balance you have to hold.
  *
- * A quote also names its solver, and these quotes come back `exclusive: true` — that
- * solver priced the leg for itself and is the only one obliged to fill it, so it has to
- * become the order's `designatedSolver`. Opening with bytes32(0) instead leaves an
- * open-fill order at an exclusive quote's price, which nobody picks up: it just sits at
- * CREATED until fillDeadline. Every order in `/orders` names a solver.
+ * Every cross-chain payload is approve + a single `openOrder` on the same OrderBook the
+ * same-chain payload targets, with `feeBps: 0` on the four pairs above, so cross-chain
+ * asks nothing of the facet that same-chain does not. `destChainId` is the destination's
+ * EVM chain id (Citrea 4114, Rise 4153), except Solana, which is 1399811149 — the facet's
+ * `M0_CHAIN_ID_SOLANA`, translated by `_resolveDestination` from LI.FI's 1151111081099710.
  *
- * So every scenario below prices off a real quote. The arbitrary-limit-price fallback in
- * `resolveLimitPrice` now only fires if coverage is withdrawn from a route.
- *
- * Verified staging run (2026-09-25), `mainnet-to-citrea-w-swap`: 2 USDT pre-swapped to
- * USDC on Ethereum, then bridged to ctUSD on Citrea. This is the run that covers
- * swapAndStartBridgeTokensViaM0 and, with it, the amountOut scaling:
- *   declared floor (bridgeData.minAmount)  1_931_234   <- 3% under the expected output
- *   amountOut quoted against that floor    1_931_234
- *   realized swap output                   1_990_963
- *   amountOut actually escrowed            1_990_963   <- scaled on-chain
- * Without the scaling amountOut would have stayed at the floor and the ~59_729 units of
- * positive slippage would have gone to the solver as a better rate. It went to the user.
- *
- * It also needed the Uniswap V2 router whitelisted on the staging diamond first — the
- * pair (0x7a250d56...F2488D, 0x38ed1739) was not set, so the swap reverted
- * ContractCallNotAllowed. The gate is per contract+selector in WhitelistManagerFacet, not
- * the legacy approvedDexs list, so check it with isContractSelectorWhitelisted.
- *   open: https://etherscan.io/tx/0xba41e70776291e268c05dcec2d59b34e606b0640527197e888cbec1c3950d2ab
- *   fill (Citrea): 0xe13ab036471bc3250d86d498b909088d5869766b52207f4f6ad49ae42d9f47f5
- *   order 0x745eb8aac8ce457bde753fed0fa9fe4396d75d4ae9a15c52f03f0e9e86857f72
- *
- * Verified staging run (2026-09-25), `mainnet-to-solana`: 1 USDC on Ethereum -> 1 XO on
- * Solana, filled by M0 Solver 23s after the order opened, at feeBps 0. This is the run
- * that covers the non-EVM path, which the EVM scenarios cannot reach, so it is worth
- * recording what the receipt actually showed:
- *   - `BridgeToNonEVMChainBytes32` emitted with destinationChainId LIFI_CHAIN_ID_SOLANA
- *     and receiver 0xaa1e44ac...c7af, the decoded CT55XSqd... pubkey
- *   - `LiFiTransferStarted` carries the NON_EVM_ADDRESS sentinel (0x11f111f1...f1f1) as
- *     bridgeData.receiver, never the real one — that only appears in the event above
- *   - the OrderOpened topic shows destChainId 1399811149, i.e. _resolveDestination translated
- *     LI.FI's 1151111081099710
- *   - designatedSolver is the base58-decoded pubkey, and the fill came back from
- *     CLBFpZhM6gvqrEBSPygeuW5KyetWzsXYbDUNqYz9zoTu — the round trip that proves the
- *     encoding in `solverToBytes32`
- *   open: https://etherscan.io/tx/0x5d5450c588df2e2750482420f5f41c0cc663b5f8adb3c3c61a87c8d439183bed
- *   fill (Solana): 4hZpFDt7nNQjMWKAKKnPEh9ARwkCKZfdvpdtZhJjV8uhYHWaSZGqAx2936ND2Gv39drYFreHTA7cmhReTSAsw8xn
- *   order 0x212b1ccc8c433c657f9b7406efa387d0e10eedf1fa825621d54a216075bfabc4
- *
- * Verified staging run (2026-09-25), `mainnet-to-citrea`: 1 USDC on Ethereum -> 1 ctUSD on
- * Citrea, filled by M0 Solver 18s after the order opened, at feeBps 0 — amountIn,
- * amountOut, amountOutFilled and amountInReleased are all 1000000, so the route cost
- * nothing but gas. This is the cross-chain counterpart to the same-chain run below: same
- * facet, same OrderBook, same single openOrder, only destChainId differs.
- *   open: https://etherscan.io/tx/0xefe1ea1c2f99c446e564ca2e79e04ed97a5c8f455983aac5c7b96f9770a43627
- *   fill (Citrea): 0x87aefb99bf00eeb355a3561899223bdf77361bce0441f8e8263e01c5790906bf
- *   order 0xa5526251bbeb04fb2ad351296479e57c7cf8e2420aaccae05864890348af747b
- *
- * Verified staging run (2026-09-24), `mainnet-samechain`: 4 USDC -> 1 wM on Ethereum,
- * filled by Farsight Solver two blocks (~24s) after the order opened. The 3 USDC spread is
- * the solver's flat fee, not slippage. The Diamond retained nothing — it holds the USDC
- * only between depositAsset and openOrder, inside the one transaction.
- *   open: https://etherscan.io/tx/0x23d9328cc72a4a35a3a7309a1f046be147404e83209ca808111d4871d3f91be8
- *   fill: https://etherscan.io/tx/0xf7afafb6ac5304a370b4055ff9bc739179d2b0cc66b0156fb45e08b3b2373b6b
- *   order 0xf84df03882ed233400682549f7607ccddd293aba8c2b98365fdef152ca1cbc5d
- *
- * The run before it is the counter-example for the solver rule above: same route, same
- * price, opened with bytes32(0), never filled, cancelled after fillDeadline for a full
- * refund (order 0x719c928678c9073f20339342f1adb290a00f85f2f14cd9c48f53000aac50a239).
- *
- * STILL UNVERIFIED on-chain, so do not read the runs above as covering it:
- *   - Cancellation of a cross-chain order. Every cross-chain order filled, so the
- *     destination-chain cancel with msg.value for the Portal message is untested; only
- *     the same-chain cancel above has actually run.
+ * The swap scenarios need the Uniswap V2 router whitelisted on the diamond. The gate is
+ * per contract+selector in WhitelistManagerFacet, not the legacy approvedDexs list, so
+ * check it with isContractSelectorWhitelisted; an unset pair (0x7a250d56...F2488D,
+ * 0x38ed1739) reverts ContractCallNotAllowed.
  */
 import { randomBytes } from 'crypto'
 

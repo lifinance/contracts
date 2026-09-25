@@ -261,8 +261,7 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidCallData();
         }
 
-        // The OrderBook rejects a zero sender, but failing here keeps the order owner an
-        // explicit decision rather than something that happens to be non-zero.
+        // orderOwner receives the origin-chain refund when the order is cancelled.
         if (_m0Data.orderOwner == address(0)) {
             revert InvalidCallData();
         }
@@ -273,11 +272,9 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidCallData();
         }
 
-        // The receiver format is bound to the destination. Without this, a non-EVM order
-        // could carry a plain EVM receiver — escrowing to a left-padded address that means
-        // nothing on the destination chain, and skipping BridgeToNonEVMChainBytes32 — while
-        // an EVM order could use the sentinel and escape the receiver equality check
-        // entirely, letting receiverAddress point anywhere.
+        // The receiver format is bound to the destination: a non-EVM destination takes the
+        // NON_EVM_ADDRESS sentinel with the real receiver in receiverAddress, an EVM one
+        // takes a plain address that receiverAddress must equal.
         (, bool isNonEVMDestination) = _resolveDestination(
             _bridgeData.destinationChainId
         );
@@ -316,18 +313,14 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ///      the destination is non-EVM. Every non-EVM chain has two ids — the LI.FI one
     ///      callers pass and M0's own, which is what the OrderBook stores — and both halves
     ///      belong here so a chain cannot gain a translation without also being rejected in
-    ///      its raw M0 form. Passed raw it would survive the narrowing in `_startBridge`
-    ///      untouched and be treated as an EVM destination, escrowing to a left-padded EVM
-    ///      address no account on that chain owns and emitting no
-    ///      `BridgeToNonEVMChainBytes32`. Rejected with the same error as the other bindings
-    ///      rather than `InvalidDestinationChain`, whose selector the OrderBook already uses
-    ///      for its own unsupported-destination check.
-    /// @dev Returns the id unnarrowed: narrowing here would make an oversized id revert
-    ///      `Overflow` during validation, ahead of the receiver-format check that currently
-    ///      rejects the untranslatable non-EVM chains with the more specific
-    ///      `InvalidReceiver`.
+    ///      its raw M0 form: passed raw it would survive the `uint32` narrowing in
+    ///      `_startBridge` untouched and be treated as an EVM destination, escrowing to a
+    ///      left-padded EVM address no account on that chain owns and emitting no
+    ///      `BridgeToNonEVMChainBytes32`.
     /// @param _destinationChainId The LI.FI destination chain id
-    /// @return m0ChainId The destination chain id the OrderBook expects, not yet narrowed
+    /// @return m0ChainId The destination chain id the OrderBook expects. Narrowing stays at
+    ///         the `openOrder` call site, so an oversized id reaches the receiver-format
+    ///         check and fails it with `InvalidReceiver` rather than `Overflow`
     /// @return isNonEVM Whether the destination requires the `NON_EVM_ADDRESS` sentinel
     function _resolveDestination(
         uint256 _destinationChainId
