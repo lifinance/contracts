@@ -35,6 +35,7 @@ import {
   createClosureReader,
   createGitSourceReader,
   ensureCommitAvailable,
+  isAncestor,
 } from './git-source-reader'
 
 const EXIT_FAIL = 1
@@ -95,12 +96,11 @@ const loadPatchSubstitutions = (
       JSON.parse(readFileSync(AUDITED_PATCHES_PATH, 'utf8')),
       log
     )
-    const resolved = resolveAuditedPatches(
-      patches,
-      log,
-      headTreeish,
-      createFetchingReader(cwd, headTreeish)
-    )
+    const resolved = resolveAuditedPatches(patches, log, headTreeish, {
+      readAt: createFetchingReader(cwd, headTreeish),
+      isAncestor: (ancestor, descendant) =>
+        isAncestor(ancestor, descendant, cwd),
+    })
     for (const line of resolved.applied) consola.info(line)
     for (const line of resolved.mismatched) consola.warn(line)
     return resolved.substitutions

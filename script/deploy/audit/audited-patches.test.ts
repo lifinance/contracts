@@ -12,6 +12,7 @@ import {
   resolveAuditedPatches,
   withAuditedPatches,
   type AuditedPatches,
+  type IPatchGit,
   type IPatchSubstitution,
 } from './audited-patches'
 import {
@@ -73,10 +74,13 @@ const makeReader = (files: Record<string, string>): ISourceReader => ({
   readSubmodulePointer: (path) => (path === 'lib/solady' ? 'c' : undefined),
 })
 
-const readAtFrom =
-  (trees: Record<string, Record<string, string>>) =>
-  (treeish: string, path: string): string | undefined =>
-    trees[treeish]?.[path]
+const gitFrom = (
+  trees: Record<string, Record<string, string>>,
+  isAncestor: IPatchGit['isAncestor'] = (ancestor) => ancestor === UPSTREAM_SHA
+): IPatchGit => ({
+  readAt: (treeish, path) => trees[treeish]?.[path],
+  isAncestor,
+})
 
 const resolveWithHead = (
   head: string | undefined,
@@ -87,7 +91,7 @@ const resolveWithHead = (
     declared,
     log,
     HEAD,
-    readAtFrom({
+    gitFrom({
       [HEAD]: head === undefined ? {} : { [LIB]: head },
       [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
       [TRON_AUDIT_SHA]: audited === undefined ? {} : { [LIB]: audited },
@@ -169,7 +173,7 @@ describe('resolveAuditedPatches', () => {
         patches,
         log,
         HEAD,
-        readAtFrom({ [HEAD]: { [LIB]: PATCHED_LIB } })
+        gitFrom({ [HEAD]: { [LIB]: PATCHED_LIB } })
       )
     ).toThrow(`upstream source at ${UPSTREAM_SHA} could not be read`)
   })
@@ -213,12 +217,51 @@ describe('resolveAuditedPatches', () => {
         patches,
         log,
         HEAD,
-        readAtFrom({
+        gitFrom({
           [HEAD]: { [LIB]: PATCHED_LIB },
           [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
         })
       )
     ).toThrow("audit 'tronAudit' reviewed (unreadable)")
+  })
+
+  it('throws when the upstream commit is not in the audit commit’s history', () => {
+    expect(() =>
+      resolveAuditedPatches(
+        patches,
+        log,
+        HEAD,
+        gitFrom(
+          {
+            [HEAD]: { [LIB]: PATCHED_LIB },
+            [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
+            [TRON_AUDIT_SHA]: { [LIB]: PATCHED_LIB },
+          },
+          () => false
+        )
+      )
+    ).toThrow(
+      `upstreamCommit ${UPSTREAM_SHA} is not in the history of audit 'tronAudit' (${TRON_AUDIT_SHA})`
+    )
+  })
+
+  it('throws when the audit has no commit to check the base against', () => {
+    const noCommit: IAuditLogFile = {
+      ...log,
+      audits: { ...log.audits, tronAudit: {} },
+    }
+
+    expect(() =>
+      resolveAuditedPatches(
+        patches,
+        noCommit,
+        HEAD,
+        gitFrom({
+          [HEAD]: { [LIB]: PATCHED_LIB },
+          [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
+        })
+      )
+    ).toThrow('(no auditCommitHash)')
   })
 
   it('throws when the patch imports a file upstream does not', () => {

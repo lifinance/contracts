@@ -5,8 +5,9 @@
  * top of upstream files. Declaring it in `audit/auditedPatches.json` lets the
  * gate read a patched import as the upstream source it was applied to, so the
  * contracts importing it are judged against their own audits exactly as
- * upstream would judge them. Only a byte-exact match of the declared patch is
- * substituted; anything else is read as-is and drifts as before.
+ * upstream would judge them. Only a file whose audit-relevant hash matches the
+ * declared patch is substituted (comment-only edits still match, as everywhere
+ * else in the gate); anything else is read as-is and drifts as before.
  */
 
 import type { Hex } from 'viem'
@@ -26,7 +27,7 @@ export const AUDITED_PATCHES_PATH = 'audit/auditedPatches.json'
 export interface IAuditedPatch {
   /** Audit-relevant hash of the patched file, as the closure's per-file hashes compute it. */
   patchedSourceHash: Hex
-  /** Upstream commit holding the source the patch was applied to. */
+  /** Upstream commit the patch was applied to; must be in the audit commit's history. */
   upstreamCommit: string
   /** The audit that reviewed the patch on top of that upstream source. */
   auditId: string
@@ -151,6 +152,13 @@ const assertPatchCanBeSubstituted = (
     )
 }
 
+export interface IPatchGit {
+  /** Reads a file at a tree-ish; `undefined` when absent or unreadable. */
+  readAt: (treeish: string, path: string) => string | undefined
+  /** Whether `ancestor` is in `descendant`'s history. */
+  isAncestor: (ancestor: string, descendant: string) => boolean
+}
+
 export interface IResolvedPatches {
   /** Patched path to what the gate reads it as. */
   substitutions: Map<string, IPatchSubstitution>
@@ -166,17 +174,18 @@ export interface IResolvedPatches {
  * @param patches - from {@link parseAuditedPatches}.
  * @param log - the audit log.
  * @param headTreeish - the tree-ish holding PR head.
- * @param readAt - reads a file at a tree-ish; `undefined` when absent or unreadable.
+ * @param git - file reads and ancestry checks against the repository.
  * @returns the substitutions and a log line per declaration.
  * @throws Error when an upstream source cannot be read, or a patch PR head
  *   matches is not audited at its version, is not the source at its audit
- *   commit, or imports what upstream does not.
+ *   commit, was applied to an upstream commit outside that commit's history,
+ *   or imports what upstream does not.
  */
 export const resolveAuditedPatches = (
   patches: AuditedPatches,
   log: IAuditLogFile,
   headTreeish: string,
-  readAt: (treeish: string, path: string) => string | undefined
+  { readAt, isAncestor }: IPatchGit
 ): IResolvedPatches => {
   const resolved: IResolvedPatches = {
     substitutions: new Map(),
@@ -210,8 +219,18 @@ export const resolveAuditedPatches = (
     }
 
     const auditCommit = log.audits[patch.auditId]?.auditCommitHash
-    const audited =
-      auditCommit === undefined ? undefined : readAt(auditCommit, path)
+    if (
+      auditCommit === undefined ||
+      !isAncestor(patch.upstreamCommit, auditCommit)
+    )
+      throw new Error(
+        `${path}: upstreamCommit ${
+          patch.upstreamCommit
+        } is not in the history of audit '${patch.auditId}' (${
+          auditCommit ?? 'no auditCommitHash'
+        }), so it is not the base that audit reviewed the patch on`
+      )
+    const audited = readAt(auditCommit, path)
     assertPatchCanBeSubstituted(path, patch, { head, upstream, audited }, log)
     resolved.applied.push(
       `${path}: read as upstream ${patch.upstreamCommit} — PR head is the patch audited in '${patch.auditId}'`

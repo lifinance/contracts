@@ -16,6 +16,7 @@ import {
   createClosureReader,
   createGitSourceReader,
   ensureCommitAvailable,
+  isAncestor,
 } from './git-source-reader'
 import { hashAuditRelevantSource } from './source-closure'
 
@@ -48,6 +49,21 @@ describe('ensureCommitAvailable', () => {
     // proves the local short-circuit ran ahead of the retry loop.
     expect(ensureCommitAvailable('HEAD', CWD, 0)).toBe(true)
   })
+})
+
+describe('isAncestor', () => {
+  it('holds for a parent and its child, and for a commit and itself', () => {
+    expect(isAncestor('HEAD~1', 'HEAD', CWD)).toBe(true)
+    expect(isAncestor('HEAD', 'HEAD', CWD)).toBe(true)
+  })
+
+  it('does not hold in the other direction', () => {
+    expect(isAncestor('HEAD', 'HEAD~1', CWD)).toBe(false)
+  })
+
+  it('does not hold when a commit cannot be had', () => {
+    expect(isAncestor(ABSENT_COMMIT, 'HEAD', CWD)).toBe(false)
+  }, 30_000)
 })
 
 describe('createGitSourceReader', () => {

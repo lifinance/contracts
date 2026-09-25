@@ -67,6 +67,31 @@ export const ensureCommitAvailable = (
 }
 
 /**
+ * @param ancestor - commit that should be in `descendant`'s history.
+ * @param descendant - commit whose history is searched.
+ * @param cwd - repo directory.
+ * @returns whether both commits are available and `ancestor` is an ancestor of
+ *   (or equal to) `descendant`.
+ */
+export const isAncestor = (
+  ancestor: string,
+  descendant: string,
+  cwd: string
+): boolean => {
+  if (
+    !ensureCommitAvailable(ancestor, cwd) ||
+    !ensureCommitAvailable(descendant, cwd)
+  )
+    return false
+  try {
+    run(['merge-base', '--is-ancestor', ancestor, descendant], cwd)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * Creates a reader over one tree-ish, memoising every lookup — the closure walk
  * revisits shared imports (LibAsset, ILiFi) many times per contract.
  *

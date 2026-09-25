@@ -335,19 +335,22 @@ closure. On the fork every contract importing an overlaid file would report
 {
   "src/Libraries/LibAsset.sol": {
     "patchedSourceHash": "0x…",
-    "upstreamCommit": "<upstream commit the patch was applied to>",
+    "upstreamCommit": "<upstream commit the patch was applied to, in the audit commit's history>",
     "auditId": "audit20260522"
   }
 }
 ```
 
-Wherever the file matches `patchedSourceHash` exactly, at PR head or at an audit
+Wherever the file's audit-relevant hash (comments and blank lines ignored, as
+everywhere in the gate) matches `patchedSourceHash`, at PR head or at an audit
 commit, the gate reads it as its source at `upstreamCommit` for every contract
 that imports it, then runs the normal check. The overlaid contract itself is
 still judged as patched code, against its own `-tron` audit. The gate refuses to
 run if an entry is malformed, if its `auditId` is not listed for the version the
 patched file declares, if the file at that audit's commit is not the declared
-patch, or if the patch imports a file upstream does not.
+patch, if `upstreamCommit` is not in that audit commit's history, or if the
+patch imports a file upstream does not. The file is protected: changing it needs
+the same approval as `.github/`.
 
 When you rebase an overlay (step 3 above), update its entry: the new audit,
 an upstream commit holding the new base, and the new hash. The gate prints PR
