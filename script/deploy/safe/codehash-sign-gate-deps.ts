@@ -36,6 +36,7 @@ import { redactUrls } from '../../utils/redactUrls'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
+import { readCheckoutProfiles } from '../codehash/checkout-foundry-config'
 import {
   observeEvmImmutables,
   observeZkImmutables,
@@ -539,7 +540,7 @@ const assertSubmodulesPinned = (
 
 /**
  * Names the profile in a checkout's own `foundry.toml` that pins the requested
- * compiler pair.
+ * compiler pair, and pins the compiler forge runs for it.
  *
  * The request carries a profile from HEAD's `foundry.toml`, but the build runs
  * at the deployment commit, whose file may spell the same pair under another
@@ -548,20 +549,35 @@ const assertSubmodulesPinned = (
  * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
  *
  * A non-zk pair is matched by its versions, so either spelling of the london
- * profile resolves. The zk profile is matched by name: its zksolc pin attaches
- * by name in `parseBuildProfiles`, and older commits carry no pin at all.
+ * profile resolves. The zk profile is matched by name: older commits carry no
+ * zksolc pin at all, and the rebuild exports HEAD's through `FOUNDRY_ZKSYNC`.
  *
- * @param deps - the file primitive the runner reads the checkout with
+ * The solc binary is pinned through `FOUNDRY_SOLC` to the plain version the
+ * matched profile names, so the checkout chooses a version but never a binary.
+ * Measured on forge 1.7.1 and foundry-zksync v0.0.32: that variable outranks
+ * every `foundry.toml` spelling of a compiler and `--use` alike, and a version
+ * is looked up in svm's own directory. What outranks it is a `.env` in the
+ * checkout, which forge loads into its own environment and so into the
+ * compiler it spawns — hence the refusal of any such file.
+ *
+ * @param deps - the file primitives the runner reads the checkout with
  * @param checkout - absolute path of the detached worktree
  * @param requested - HEAD's profile for the lineage being rebuilt
- * @returns The profile name to export as `FOUNDRY_PROFILE` in that checkout
- * @throws when the checkout declares no such pair, or more than one profile for it
+ * @returns The `FOUNDRY_PROFILE` and `FOUNDRY_SOLC` to build that checkout under
+ * @throws when the checkout could choose what executes, declares no such pair,
+ * or declares more than one profile for it
  */
-const resolveCheckoutProfile = (
-  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+const resolveCheckoutBuildEnv = (
+  deps: Pick<IForgeRebuildDeps, 'readFile' | 'exists'>,
   checkout: string,
   requested: IBuildProfile
-): string => {
+): { FOUNDRY_PROFILE: string; FOUNDRY_SOLC: string } => {
+  // Runs after the submodule update, so a `.env` symlinked into `lib/`
+  // resolves here the same way it would for forge.
+  if (deps.exists(join(checkout, '.env')))
+    throw new Error(
+      `refusing to rebuild at ${checkout}: the commit carries a .env, which forge loads into the environment of the compiler it runs. No honest deployment commit tracks one; treat the deployment record as suspect.`
+    )
   const tomlPath = join(checkout, 'foundry.toml')
   let toml: string
   try {
@@ -575,10 +591,21 @@ const resolveCheckoutProfile = (
       } / evm ${requested.evmVersion} there.`
     )
   }
-  const profiles = parseBuildProfiles(toml)
+  let profiles: ReturnType<typeof readCheckoutProfiles>
+  try {
+    profiles = readCheckoutProfiles(toml)
+  } catch (error) {
+    throw new Error(
+      `refusing to rebuild at ${checkout}: ${
+        error instanceof Error ? error.message : String(error)
+      }. Treat the deployment record as suspect.`
+    )
+  }
 
   if (requested.zksolcVersion !== undefined) {
-    if (profiles[ZK_PROFILE] !== undefined) return ZK_PROFILE
+    const zk = profiles[ZK_PROFILE]
+    if (zk !== undefined)
+      return { FOUNDRY_PROFILE: zk.profile, FOUNDRY_SOLC: zk.solcVersion }
     throw new Error(
       `refusing to rebuild at ${checkout}: its foundry.toml declares no [profile.${ZK_PROFILE}], so forge would build the zk lineage under [profile.default] with a warning and exit 0.`
     )
@@ -587,11 +614,12 @@ const resolveCheckoutProfile = (
   const matching = Object.values(profiles).filter(
     (candidate) =>
       candidate.profile !== ZK_PROFILE &&
-      candidate.zksolcVersion === undefined &&
       candidate.solcVersion === requested.solcVersion &&
       candidate.evmVersion === requested.evmVersion
   )
-  if (matching.length === 1) return (matching[0] as IBuildProfile).profile
+  const [only] = matching
+  if (matching.length === 1 && only)
+    return { FOUNDRY_PROFILE: only.profile, FOUNDRY_SOLC: only.solcVersion }
   const pair = `solc ${requested.solcVersion} / evm ${requested.evmVersion}`
   if (matching.length === 0)
     throw new Error(
@@ -617,7 +645,8 @@ const resolveCheckoutProfile = (
  * checked out rather than what was deployed.
  *
  * `FOUNDRY_PROFILE` is the name the checkout's own `foundry.toml` gives the
- * requested compiler pair (`resolveCheckoutProfile`), not HEAD's.
+ * requested compiler pair, not HEAD's, and `FOUNDRY_SOLC` pins the compiler
+ * (`resolveCheckoutBuildEnv`).
  *
  * Each profile gets its own output directory. Foundry puts `default` and
  * `solc_floor` in the same `out/`, and one run can need both — a fleet rollout
@@ -694,7 +723,7 @@ export const createForgeRebuildRunner = (
       // The pin check first: a missing or off-pin zk toolchain names the drift
       // precisely, and a profile refusal in front of it would mask that.
       if (isZk) assertZkToolchainPinned(deps, command)
-      const checkoutProfile = resolveCheckoutProfile(
+      const checkoutEnv = resolveCheckoutBuildEnv(
         deps,
         checkout,
         request.profile
@@ -718,7 +747,7 @@ export const createForgeRebuildRunner = (
         '--ast',
       ]
       const env: Record<string, string> = {
-        FOUNDRY_PROFILE: checkoutProfile,
+        ...checkoutEnv,
         ...(isZk
           ? {
               FOUNDRY_ZKSYNC: `{ zksolc = "${request.profile.zksolcVersion}" }`,
