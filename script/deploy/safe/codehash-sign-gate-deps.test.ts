@@ -14,7 +14,17 @@
  * masking path at all.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { spawnSync } from 'child_process'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -575,6 +585,16 @@ describe('resolveDeploymentRecord', () => {
   })
 })
 
+/**
+ * Reports every rebuild output directory absent, the state a fresh checkout is
+ * in before the run's first restore or build, and defers everything else —
+ * the artifact inside it included — to the fake a test supplies.
+ */
+const freshOutDirs =
+  (exists: (path: string) => boolean) =>
+  (path: string): boolean =>
+    /\/(zkout|out-codehash-[^/]+)$/.test(path) ? false : exists(path)
+
 describe('createForgeRebuildRunner', () => {
   const artifact = JSON.stringify({
     deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
@@ -672,7 +692,7 @@ describe('createForgeRebuildRunner', () => {
             calls.push({ command, args, env: options.env, cwd: options.cwd })
             return { ok: true, output: '' }
           }),
-        exists: over.exists ?? ((path) => path.endsWith('.json')),
+        exists: freshOutDirs(over.exists ?? ((path) => path.endsWith('.json'))),
         readFile: over.readFile ?? readCheckoutFile,
         readDeclarations: over.readDeclarations ?? (() => []),
         ...(over.artifactCache ? { artifactCache: over.artifactCache } : {}),
@@ -705,7 +725,9 @@ describe('createForgeRebuildRunner', () => {
     const calls: unknown[] = []
     const harness = runner({
       calls,
-      exists: (path) => (path.endsWith('.json') ? restored : true),
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? restored : true
+      ),
       artifactCache: {
         restore: () => {
           restored = true
@@ -725,7 +747,7 @@ describe('createForgeRebuildRunner', () => {
   it('keys the cache on the commit and the profile, and saves what it built', () => {
     const saved: string[] = []
     const harness = runner({
-      exists: (path) => !path.endsWith('.json'),
+      exists: freshOutDirs((path) => !path.endsWith('.json')),
       artifactCache: { restore: () => false, save: (key) => saved.push(key) },
     })
 
@@ -737,7 +759,9 @@ describe('createForgeRebuildRunner', () => {
 
     let compiled = false
     const ok = runner({
-      exists: (path) => (path.endsWith('.json') ? compiled : true),
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? compiled : true
+      ),
       run: (_command, args) => {
         // The zk leg of this case runs the pinned-release check first, which
         // spawns the binary before any build.
@@ -783,7 +807,7 @@ describe('createForgeRebuildRunner', () => {
     const calls: unknown[] = []
     const harness = runner({
       calls,
-      exists: (path) => (path.endsWith('.json') ? built : true),
+      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
       run: (command, args) => {
         built = true
         calls.push({ command, args })
@@ -826,7 +850,7 @@ describe('createForgeRebuildRunner', () => {
     ])
     expect(seen[0]?.sourceRoot).toBe(`/tmp/rebuilds/${'a'.repeat(40)}`)
     expect(seen[0]?.outDir).toBe(
-      `/tmp/rebuilds/${'a'.repeat(40)}/out-codehash-default`
+      `/tmp/rebuilds/evm-out/${'a'.repeat(40)}/out-codehash-default`
     )
   })
 
@@ -839,7 +863,7 @@ describe('createForgeRebuildRunner', () => {
     const calls: unknown[] = []
     const harness = runner({
       calls,
-      exists: () => true,
+      exists: freshOutDirs(() => true),
       readFile: readCheckoutFiles(() => astless),
       run: (command, args) => {
         calls.push({ command, args })
@@ -851,7 +875,7 @@ describe('createForgeRebuildRunner', () => {
     expect(calls).toHaveLength(1)
   })
 
-  it('does not rebuild when the artifact on disk already carries its AST', () => {
+  it('does not rebuild when the artifact this run holds already carries its AST', () => {
     const harness = runner({ exists: (path) => path.endsWith('.json') })
     harness.runner.build(request)
 
@@ -892,13 +916,14 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: (path) => (path.endsWith('.json') ? built : false),
+      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : false)),
       readFile: readCheckoutFile,
       readDeclarations: () => [],
     }).build(request)
 
     expect(gitCalls[0]?.slice(0, 3)).toEqual(['worktree', 'add', '--detach'])
-    expect(gitCalls[1]).toEqual([
+    expect(gitCalls[1]?.slice(2)).toEqual(['ls-files', '-z'])
+    expect(gitCalls[2]).toEqual([
       '-C',
       `/tmp/rebuilds/${request.commit}`,
       'submodule',
@@ -906,7 +931,7 @@ describe('createForgeRebuildRunner', () => {
       '--init',
       '--recursive',
     ])
-    expect(gitCalls[2]?.slice(0, 4)).toEqual([
+    expect(gitCalls[3]?.slice(0, 4)).toEqual([
       '-C',
       `/tmp/rebuilds/${request.commit}`,
       'submodule',
@@ -952,7 +977,7 @@ describe('createForgeRebuildRunner', () => {
         expect(options.env.FOUNDRY_PROFILE).toBe('default')
         return { ok: true, output: '' }
       },
-      exists: (path) => !path.endsWith('.json') || built,
+      exists: freshOutDirs((path) => !path.endsWith('.json') || built),
       readFile: readCheckoutFile,
       readDeclarations: () => [],
     })
@@ -985,7 +1010,9 @@ describe('createForgeRebuildRunner', () => {
           env.push(options.env)
           return { ok: true, output: '' }
         },
-        exists: (path) => !path.endsWith('.json') || env.length > 0,
+        exists: freshOutDirs(
+          (path) => !path.endsWith('.json') || env.length > 0
+        ),
         readFile: (path) => (path.endsWith('foundry.toml') ? toml : artifact),
         readDeclarations: () => [],
       })
@@ -1073,7 +1100,7 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: (path) => (path.endsWith('.json') ? built : true),
+      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
       readFile: readZkFiles(zkArtifact),
       readDeclarations: () => [],
     })
@@ -1103,7 +1130,9 @@ describe('createForgeRebuildRunner', () => {
           over.onBuild?.()
           return { ok: true, output: '' }
         },
-        exists: over.exists ?? ((path) => !path.endsWith('.json')),
+        exists: freshOutDirs(
+          over.exists ?? ((path) => !path.endsWith('.json'))
+        ),
         readFile: over.readFile
           ? readCheckoutFiles(over.readFile)
           : readZkFiles(zkArtifact),
@@ -1114,7 +1143,9 @@ describe('createForgeRebuildRunner', () => {
       let compiled = false
       expect(() =>
         zkRunner({
-          exists: (path) => !path.endsWith('.json') && !path.endsWith('forge'),
+          exists: freshOutDirs(
+            (path) => !path.endsWith('.json') && !path.endsWith('forge')
+          ),
           onBuild: () => {
             compiled = true
           },
@@ -1126,7 +1157,9 @@ describe('createForgeRebuildRunner', () => {
     it('names the install path a signer can act on', () => {
       expect(() =>
         zkRunner({
-          exists: (path) => !path.endsWith('.json') && !path.endsWith('forge'),
+          exists: freshOutDirs(
+            (path) => !path.endsWith('.json') && !path.endsWith('forge')
+          ),
         }).build(zkRequest)
       ).toThrow(/source script\/helperFunctions\.sh && install_foundry_zksync/)
     })
@@ -1184,7 +1217,7 @@ describe('createForgeRebuildRunner', () => {
           built = true
           return { ok: true, output: '' }
         },
-        exists: (path) => (path.endsWith('.json') ? built : true),
+        exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
         readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
@@ -1209,10 +1242,10 @@ describe('createForgeRebuildRunner', () => {
           built = true
           return { ok: true, output: '' }
         },
-        exists: (path) => {
+        exists: freshOutDirs((path) => {
           paths.push(path)
           return path.endsWith('.json') ? built : true
-        },
+        }),
         readFile: readZkFiles(
           profile.zksolcVersion === undefined ? artifact : zkArtifact
         ),
@@ -1285,7 +1318,7 @@ describe('createForgeRebuildRunner', () => {
         checkoutRoot: '/tmp/rebuilds',
         git: () => '',
         run: () => ({ ok: true, output: '' }),
-        exists: (path) => !path.endsWith('.json'),
+        exists: freshOutDirs((path) => !path.endsWith('.json')),
         readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
@@ -1316,7 +1349,7 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: (path) => (path.endsWith('.json') ? built : true),
+      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
       readFile: readCheckoutFile,
       readDeclarations: () => [],
     })
@@ -1337,7 +1370,7 @@ describe('createForgeRebuildRunner', () => {
         return ''
       },
       run: () => ({ ok: true, output: '' }),
-      exists: (path) => path.endsWith('.json'),
+      exists: freshOutDirs((path) => path.endsWith('.json')),
       readFile: readCheckoutFile,
       readDeclarations: () => [],
     })
@@ -1572,6 +1605,351 @@ describe('createForgeRebuildRunner refuses a commit it cannot trust', () => {
     // Paired with the accepted-commit cases above, where the same spy records a
     // worktree add: nothing ran for a commit that was refused.
     expect(gitCalls).toEqual([])
+  })
+})
+
+describe('createForgeRebuildRunner never reads output it did not write', () => {
+  const COMMIT = 'b'.repeat(40)
+  const evmRequest = {
+    contractName: 'GlacisFacet',
+    commit: COMMIT,
+    profile: {
+      profile: 'default',
+      solcVersion: '0.8.29',
+      evmVersion: 'cancun',
+    },
+  }
+  const zkRequest = {
+    ...evmRequest,
+    profile: {
+      ...evmRequest.profile,
+      profile: 'zksync',
+      zksolcVersion: '1.5.15',
+    },
+  }
+  const FORGED = JSON.stringify({
+    bytecode: { object: '0xdeadbeef' },
+    deployedBytecode: { object: '0xdeadbeef' },
+    ast: {},
+  })
+
+  const harness = (over: {
+    tracked?: readonly string[]
+    exists?: (path: string) => boolean
+  }) => {
+    const spawned: string[] = []
+    const restored: string[] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: (args) =>
+        args.includes('ls-files') ? (over.tracked ?? []).join('\0') : '',
+      run: (command) => {
+        spawned.push(command)
+        return { ok: true, output: '' }
+      },
+      exists: over.exists ?? ((path) => path.endsWith('.json')),
+      readFile: () => FORGED,
+      readDeclarations: () => [],
+      artifactCache: {
+        restore: (key) => {
+          restored.push(key)
+          return false
+        },
+        save: () => undefined,
+      },
+    })
+    return { runner, spawned, restored }
+  }
+
+  it.each([
+    ['a zk artifact', 'zkout/GlacisFacet.sol/GlacisFacet.json', zkRequest],
+    ['a case variant', 'ZKOUT/GlacisFacet.sol/GlacisFacet.json', zkRequest],
+    ['a Unicode case variant', 'z\u212Aout/x', zkRequest],
+    ['a symlink or gitlink at the output root', 'zkout', zkRequest],
+    [
+      'an EVM artifact',
+      'out-codehash-default/GlacisFacet.sol/GlacisFacet.json',
+      evmRequest,
+    ],
+    [
+      'another profile’s EVM output',
+      'out-codehash-solc_floor/x.json',
+      evmRequest,
+    ],
+    [
+      'a long-s variant',
+      'out-codeha\u017Fh-default/GlacisFacet.sol/GlacisFacet.json',
+      evmRequest,
+    ],
+    ['a zk compile cache', 'zkcache/zksolc-files-cache.json', zkRequest],
+    ['a solc compile cache', 'cache/solidity-files-cache.json', evmRequest],
+  ])(
+    'refuses a commit tracking %s before reading or building anything',
+    (_label, path, request) => {
+      const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
+
+      expect(() => h.runner.build(request)).toThrow(/tracks build output/)
+      expect(h.spawned).toEqual([])
+      expect(h.restored).toEqual([])
+    }
+  )
+
+  it.each([
+    ['a nested directory of the same name', 'src/zkout/Thing.sol'],
+    ['a name that only starts like one', 'zkoutput/x.json'],
+    ['the default forge output', 'out/x.json'],
+  ])('admits a commit tracking %s', (_label, path) => {
+    const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
+
+    expect(() => h.runner.build(evmRequest)).not.toThrow()
+  })
+
+  it.each([
+    ['zk', zkRequest, `/tmp/rebuilds/${COMMIT}/zkout`],
+    ['EVM', evmRequest, `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`],
+  ])(
+    'refuses a %s output directory already present before this run wrote to it',
+    (_label, request, outPath) => {
+      const h = harness({
+        exists: (path) => path === outPath || path.endsWith('.json'),
+      })
+
+      expect(() => h.runner.build(request)).toThrow(/this run did not write it/)
+      expect(h.spawned).toEqual([])
+      expect(h.restored).toEqual([])
+    }
+  )
+
+  it('builds EVM output outside the checkout, where no tracked path can alias it', () => {
+    const outs: string[] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: () => '',
+      run: (_command, args) => {
+        outs.push(args[args.indexOf('--out') + 1] as string)
+        return { ok: true, output: '' }
+      },
+      exists: (path) => (path.endsWith('.json') ? outs.length > 0 : false),
+      readFile: (path) =>
+        path.endsWith('foundry.toml')
+          ? readFileSync(
+              join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+              'utf8'
+            )
+          : FORGED,
+      readDeclarations: () => [],
+    })
+
+    runner.build(evmRequest)
+
+    expect(outs).toEqual([
+      `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`,
+    ])
+    expect(outs[0]?.startsWith(`/tmp/rebuilds/${COMMIT}`)).toBe(false)
+  })
+
+  it('reads a directory it vetted absent for a second contract at the same commit', () => {
+    let builds = 0
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: () => '',
+      run: () => {
+        builds++
+        return { ok: true, output: '' }
+      },
+      // The first build is what makes the directory exist, so the second
+      // request sees it present and must not take it for a checked-in one.
+      exists: (path) =>
+        path.endsWith('/out-codehash-default') || path.endsWith('.json')
+          ? builds > 0
+          : false,
+      readFile: (path) =>
+        path.endsWith('foundry.toml')
+          ? readFileSync(
+              join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+              'utf8'
+            )
+          : FORGED,
+      readDeclarations: () => [],
+    })
+
+    runner.build(evmRequest)
+    expect(builds).toBe(1)
+    expect(
+      runner.build({ ...evmRequest, contractName: 'Other' }).runtimeHex
+    ).toBe('0xdeadbeef')
+    expect(builds).toBe(1)
+  })
+
+  describe('against a real checkout', () => {
+    let root: string
+    afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+    const git = (cwd: string, args: string[]): string => {
+      const result = spawnSync(
+        'git',
+        [
+          '-c',
+          'user.name=t',
+          '-c',
+          'user.email=t@t',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        { cwd, encoding: 'utf8' }
+      )
+      if (result.status !== 0)
+        throw new Error(`git ${args.join(' ')}: ${result.stderr}`)
+      return result.stdout
+    }
+
+    /** A repo whose one commit is honest source plus whatever `plant` adds. */
+    const commitWith = (
+      plant: (repo: string) => void
+    ): { repo: string; commit: string } => {
+      root = mkdtempSync(join(tmpdir(), 'codehash-planted-'))
+      const repo = join(root, 'repo')
+      mkdirSync(join(repo, 'src'), { recursive: true })
+      git(repo, ['init', '-q'])
+      writeFileSync(
+        join(repo, 'foundry.toml'),
+        readFileSync(
+          join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+          'utf8'
+        )
+      )
+      writeFileSync(
+        join(repo, '.gitignore'),
+        'zkout/\nout-codehash-*/\ncache/\nzkcache/\n'
+      )
+      writeFileSync(
+        join(repo, 'src', 'GlacisFacet.sol'),
+        'contract GlacisFacet {}\n'
+      )
+      plant(repo)
+      git(repo, ['add', '-A'])
+      git(repo, ['add', '-f', '.'])
+      git(repo, ['commit', '-q', '-m', 'planted'])
+      return { repo, commit: git(repo, ['rev-parse', 'HEAD']).trim() }
+    }
+
+    const realRunner = (repo: string, spawned: string[]) =>
+      createForgeRebuildRunner({
+        repoRoot: repo,
+        checkoutRoot: join(root, 'checkouts'),
+        git: (args) => git(repo, args),
+        run: (command, args, options) => {
+          spawned.push(command)
+          // Stands in for forge: writes an artifact to `--out` for each
+          // contract `src/` defines, and leaves anything else where it lies.
+          const out = args[args.indexOf('--out') + 1] as string
+          for (const file of readdirSync(join(options.cwd, 'src'))) {
+            const dir = join(out, file)
+            mkdirSync(dir, { recursive: true })
+            writeFileSync(
+              join(dir, file.replace(/\.sol$/, '.json')),
+              JSON.stringify({
+                deployedBytecode: { object: '0xc0de' },
+                ast: {},
+              })
+            )
+          }
+          return { ok: true, output: '' }
+        },
+        exists: existsSync,
+        readFile: (path) => readFileSync(path, 'utf8'),
+        readDeclarations: () => [],
+      })
+
+    it('compiles an honest commit', () => {
+      const { repo, commit } = commitWith(() => undefined)
+      const spawned: string[] = []
+
+      expect(
+        realRunner(repo, spawned).build({ ...evmRequest, commit }).runtimeHex
+      ).toBe('0xc0de')
+      expect(spawned).toEqual(['forge'])
+    })
+
+    it('refuses a force-added artifact that would otherwise be read as the build', () => {
+      const { repo, commit } = commitWith((dir) => {
+        const artifactDir = join(dir, 'out-codehash-default', 'GlacisFacet.sol')
+        mkdirSync(artifactDir, { recursive: true })
+        writeFileSync(join(artifactDir, 'GlacisFacet.json'), FORGED)
+      })
+      const spawned: string[] = []
+
+      expect(() =>
+        realRunner(repo, spawned).build({ ...evmRequest, commit })
+      ).toThrow(
+        /tracks build output \(out-codehash-default\/GlacisFacet\.sol\/GlacisFacet\.json\)/
+      )
+      expect(spawned).toEqual([])
+    })
+
+    // The route that got past the first cut of these guards on APFS: the link
+    // dangles while the checkout is vetted, and the submodule update that runs
+    // just before the compile is what fills its target.
+    it.each([
+      ['EVM', evmRequest, 'out-codeha\u017Fh-default'],
+      ['zk', zkRequest, 'z\u212Aout'],
+    ])(
+      'refuses a %s look-alike symlink into a submodule that is filled after vetting',
+      (_label, request, name) => {
+        const { repo, commit } = commitWith((dir) => {
+          const evil = join(root, 'evil')
+          mkdirSync(join(evil, 'out', 'Planted.sol'), { recursive: true })
+          writeFileSync(
+            join(evil, 'out', 'Planted.sol', 'Planted.json'),
+            FORGED
+          )
+          git(evil, ['init', '-q'])
+          git(evil, ['add', '-f', '.'])
+          git(evil, ['commit', '-q', '-m', 'evil'])
+          git(dir, [
+            '-c',
+            'protocol.file.allow=always',
+            'submodule',
+            'add',
+            '-q',
+            evil,
+            'lib/evil',
+          ])
+          symlinkSync('lib/evil/out', join(dir, name))
+        })
+        const spawned: string[] = []
+
+        expect(() =>
+          realRunner(repo, spawned).build({
+            ...request,
+            contractName: 'Planted',
+            commit,
+          })
+        ).toThrow(`tracks build output (${name})`)
+        expect(spawned).toEqual([])
+      }
+    )
+
+    it('refuses a tracked symlink where the output directory goes', () => {
+      const { repo, commit } = commitWith((dir) => {
+        mkdirSync(join(dir, 'planted', 'GlacisFacet.sol'), { recursive: true })
+        writeFileSync(
+          join(dir, 'planted', 'GlacisFacet.sol', 'GlacisFacet.json'),
+          FORGED
+        )
+        symlinkSync('planted', join(dir, 'out-codehash-default'))
+      })
+      const spawned: string[] = []
+
+      expect(() =>
+        realRunner(repo, spawned).build({ ...evmRequest, commit })
+      ).toThrow(/tracks build output \(out-codehash-default\)/)
+      expect(spawned).toEqual([])
+    })
   })
 })
 
