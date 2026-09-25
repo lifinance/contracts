@@ -186,6 +186,14 @@ const CHAIN_ID_RISE = 4153n
 const M0_API_URL =
   process.env.M0_API_URL || 'https://gateway.m0.xyz/v1/orchestration'
 
+// Every request carries the key in an x-api-key header, so a plain-http override would put
+// it on the wire in cleartext. Checked at load, before the key is read at all.
+if (new URL(M0_API_URL).protocol !== 'https:') {
+  throw new Error(
+    `M0_API_URL must use https (got ${M0_API_URL}) — M0_API_KEY is sent as a request header.`
+  )
+}
+
 type Scenario =
   | 'mainnet-samechain'
   | 'mainnet-to-citrea'
@@ -432,7 +440,15 @@ const fetchM0LimitOrderQuote = async (
   })
 
   if (!response.ok) {
-    const error = (await response.json()) as { code?: string; message?: string }
+    // A gateway error is not always JSON. Parsing it unguarded would throw over the status
+    // code, which is the part that actually explains the failure.
+    let error: { code?: string; message?: string }
+    try {
+      error = (await response.json()) as { code?: string; message?: string }
+    } catch {
+      error = { message: response.statusText }
+    }
+
     consola.warn(
       `M0 quote unavailable (HTTP ${response.status} ${
         error.code ?? 'unknown'
