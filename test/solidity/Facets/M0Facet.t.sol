@@ -619,6 +619,22 @@ contract M0FacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    /// @dev M0's own Solana id is a uint32, so the cast would pass it through untouched
+    ///      and the EVM branch of the receiver binding would accept a plain EVM receiver —
+    ///      a Solana-bound order escrowed to an address nobody on Solana controls.
+    function testRevert_WhenDestinationIsRawM0SolanaId() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = M0_CHAIN_ID_SOLANA;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenDestinationChainIdExceedsUint32() public {
         vm.startPrank(USER_SENDER);
 

@@ -269,6 +269,17 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidCallData();
         }
 
+        // Solana has two ids in play: LI.FI's LIFI_CHAIN_ID_SOLANA, which _toM0ChainId
+        // translates, and M0's own, which SafeCastLib would pass straight through. Passing
+        // the latter would reach the OrderBook as a Solana destination while taking the EVM
+        // branch below, so the order would escrow to a left-padded EVM address no Solana
+        // account owns and emit no BridgeToNonEVMChainBytes32. Rejected with the same error
+        // as the other bindings rather than InvalidDestinationChain, whose selector the
+        // OrderBook already uses for its own unsupported-destination check.
+        if (_bridgeData.destinationChainId == M0_CHAIN_ID_SOLANA) {
+            revert InvalidCallData();
+        }
+
         // The receiver format is bound to the destination. Without this, a Solana order
         // could carry a plain EVM receiver — escrowing to a left-padded address that means
         // nothing on Solana, and skipping BridgeToNonEVMChainBytes32 — while an EVM order
