@@ -95,9 +95,10 @@ audit — **no product features**.
 - **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
   versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
   example.
-- **Audit (2)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
-  `WithdrawablePeriphery 1.0.0-tron`, plus the
-  `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report.
+- **Audit (3)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
+  `WithdrawablePeriphery 1.0.0-tron`, the
+  `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report, and
+  `auditedPatches.json` (see [the audit gate on the fork](#the-audit-gate-on-the-fork)).
 
 If a change lands only in `contracts-tron` and grows beyond this shape,
 stop and reconsider — it almost certainly belongs here in `main` instead
@@ -322,6 +323,35 @@ fork-only and are not present in this repo) against a candidate resolution:
 ```bash
 bunx tsx script/tasks/checkTronForkDelta.ts --base origin/main --head HEAD --upstream upstream/main
 ```
+
+### The audit gate on the fork
+
+Facet audits pin upstream commits, so upstream `LibAsset` is in their audited
+closure. On the fork every contract importing an overlaid file would report
+`closure-drift` against that audit on every sync. `audit/auditedPatches.json`
+(fork only) declares each overlay as an audited patch:
+
+```json
+{
+  "src/Libraries/LibAsset.sol": {
+    "patchedSourceHash": "0x…",
+    "upstreamCommit": "<upstream commit the patch was applied to>",
+    "auditId": "audit20260522"
+  }
+}
+```
+
+When the file at PR head matches `patchedSourceHash` exactly, the gate reads it
+as its source at `upstreamCommit` for every contract that imports it, then runs
+the normal check. The overlaid contract itself is still judged as patched code,
+against its own `-tron` audit. The gate refuses to run if an entry is malformed
+or its `auditId` is not listed for that contract.
+
+When you rebase an overlay (step 3 above), update its entry: the new audit,
+an upstream commit holding the new base, and the new hash. The gate prints PR
+head's hash for any entry that doesn't match. Until the entry is updated, the
+importers show `closure-drift` again. That is intended, because the patch on a
+new base is not what was audited.
 
 ### New-dev gotchas (quick checklist)
 

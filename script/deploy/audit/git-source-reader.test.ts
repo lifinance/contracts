@@ -16,6 +16,7 @@ import {
   createGitSourceReader,
   ensureCommitAvailable,
 } from './git-source-reader'
+import { hashAuditRelevantSource } from './source-closure'
 
 const CWD = process.cwd()
 
@@ -98,6 +99,19 @@ describe('createClosureReader', () => {
     if (typeof detail === 'string') throw new Error(`unresolved: ${detail}`)
     expect(detail.files[KNOWN_CONTRACT]).toMatch(/^0x[0-9a-f]{64}$/)
     expect(Object.keys(detail.files).length).toBeGreaterThan(1)
+  })
+
+  it('reads an audited patch as upstream at PR head only', () => {
+    const lib = 'src/Libraries/LibAsset.sol'
+    const upstream = 'library LibAsset {}'
+    const read = createClosureReader(CWD, 'HEAD', new Map([[lib, upstream]]))
+    const atHead = read('HEAD', KNOWN_CONTRACT)
+    const atParent = read('HEAD~1', KNOWN_CONTRACT)
+
+    if (typeof atHead === 'string') throw new Error(`unresolved: ${atHead}`)
+    if (typeof atParent === 'string') throw new Error(`unresolved: ${atParent}`)
+    expect(atHead.files[lib]).toBe(hashAuditRelevantSource(upstream))
+    expect(atParent.files[lib]).not.toBe(hashAuditRelevantSource(upstream))
   })
 
   it('is deterministic for the same tree-ish and contract', () => {
