@@ -3,17 +3,23 @@
  *
  * A fork such as `contracts-tron` carries a small, separately audited patch on
  * top of upstream files. Declaring it in `audit/auditedPatches.json` lets the
- * gate read a patched import at PR head as the upstream source it was applied
- * to, so the contracts importing it are judged against their own audits exactly
- * as upstream would judge them. Only a byte-exact match of the declared patch is
+ * gate read a patched import as the upstream source it was applied to, so the
+ * contracts importing it are judged against their own audits exactly as
+ * upstream would judge them. Only a byte-exact match of the declared patch is
  * substituted; anything else is read as-is and drifts as before.
  */
 
 import type { Hex } from 'viem'
 
+import { readContractVersion } from '../shared/contract-version'
+
 import { contractNameFromPath } from './audit-gate'
 import type { IAuditLogFile } from './audit-log-guard'
-import { hashAuditRelevantSource, type ISourceReader } from './source-closure'
+import {
+  hashAuditRelevantSource,
+  parseImports,
+  type ISourceReader,
+} from './source-closure'
 
 export const AUDITED_PATCHES_PATH = 'audit/auditedPatches.json'
 
@@ -28,6 +34,12 @@ export interface IAuditedPatch {
 
 /** Patched file path to its declaration. */
 export type AuditedPatches = Record<string, IAuditedPatch>
+
+/** What the gate reads a declared patch as, wherever it finds it. */
+export interface IPatchSubstitution {
+  patchedSourceHash: Hex
+  upstreamSource: string
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -55,30 +67,22 @@ const parsePatch = (
   if (typeof auditId !== 'string' || log.audits[auditId] === undefined)
     throw new Error(`${path}: auditId '${String(auditId)}' is not in the log`)
 
-  const name = contractNameFromPath(path)
-  const listed = Object.values(log.auditedContracts[name] ?? {}).some((ids) =>
-    ids?.includes(auditId)
-  )
-  if (!listed)
-    throw new Error(
-      `${path}: audit '${auditId}' is not listed for ${name} in auditedContracts`
-    )
-
+  // Lower-cased because the source hashes it is compared against always are.
   return {
-    patchedSourceHash: patchedSourceHash as Hex,
-    upstreamCommit,
+    patchedSourceHash: patchedSourceHash.toLowerCase() as Hex,
+    upstreamCommit: upstreamCommit.toLowerCase(),
     auditId,
   }
 }
 
 /**
- * Validates a parsed `auditedPatches.json` against the audit log.
+ * Validates a parsed `auditedPatches.json`.
  *
  * @param raw - the parsed JSON.
  * @param log - the audit log the declared audit ids must exist in.
  * @returns the declarations, keyed by patched file path.
- * @throws Error naming the offending entry when the shape is wrong or its audit
- *   is not recorded for that contract.
+ * @throws Error naming the offending entry when its shape is wrong or its audit
+ *   is not in the log.
  */
 export const parseAuditedPatches = (
   raw: unknown,
@@ -95,27 +99,68 @@ export const parseAuditedPatches = (
   )
 }
 
+/**
+ * Checks a patch PR head matches against the log and against upstream.
+ *
+ * The audit must be recorded for the version the patch declares, or an upstream
+ * audit of the same contract could vouch for it. And the patch may import only
+ * what upstream imports: reading it as upstream drops its own imports from every
+ * importer's closure, so a file only the patch imports would escape the gate.
+ */
+const assertPatchCanBeSubstituted = (
+  path: string,
+  patch: IAuditedPatch,
+  sources: { head: string; upstream: string },
+  log: IAuditLogFile
+): void => {
+  const name = contractNameFromPath(path)
+  const read = readContractVersion(sources.head)
+  const version = read.kind === 'ok' ? read.version : undefined
+  const listed =
+    version !== undefined &&
+    (log.auditedContracts[name]?.[version]?.includes(patch.auditId) ?? false)
+  if (!listed)
+    throw new Error(
+      `${path}: audit '${patch.auditId}' is not listed for ${name}@${
+        version ?? '(no readable version)'
+      }`
+    )
+
+  const upstreamImports = new Set(parseImports(sources.upstream))
+  const added = parseImports(sources.head).filter(
+    (specifier) => !upstreamImports.has(specifier)
+  )
+  if (added.length > 0)
+    throw new Error(
+      `${path}: the patch imports ${added.join(
+        ', '
+      )}, which upstream does not — reading it as upstream would hide those files`
+    )
+}
+
 export interface IResolvedPatches {
-  /** Patched path to the upstream source it is read as. */
-  substitutions: Map<string, string>
-  /** A log line per substituted declaration. */
+  /** Patched path to what the gate reads it as. */
+  substitutions: Map<string, IPatchSubstitution>
+  /** A log line per declaration PR head matches. */
   applied: string[]
   /** A log line per declaration PR head does not match, with the head hash. */
   mismatched: string[]
 }
 
 /**
- * Decides which declared patches match PR head exactly.
+ * Loads each declared patch's upstream source and checks it against PR head.
  *
  * @param patches - from {@link parseAuditedPatches}.
+ * @param log - the audit log.
  * @param headTreeish - the tree-ish holding PR head.
  * @param readAt - reads a file at a tree-ish; `undefined` when absent or unreadable.
- * @returns the substitutions to apply and a log line per declaration.
- * @throws Error when a matching patch's upstream source cannot be read, since
- *   the gate would otherwise judge the file as something it is not.
+ * @returns the substitutions and a log line per declaration.
+ * @throws Error when an upstream source cannot be read, or a patch PR head
+ *   matches is not audited at its version or imports what upstream does not.
  */
 export const resolveAuditedPatches = (
   patches: AuditedPatches,
+  log: IAuditLogFile,
   headTreeish: string,
   readAt: (treeish: string, path: string) => string | undefined
 ): IResolvedPatches => {
@@ -126,10 +171,20 @@ export const resolveAuditedPatches = (
   }
 
   for (const [path, patch] of Object.entries(patches)) {
+    const upstream = readAt(patch.upstreamCommit, path)
+    if (upstream === undefined)
+      throw new Error(
+        `${path}: upstream source at ${patch.upstreamCommit} could not be read`
+      )
+    resolved.substitutions.set(path, {
+      patchedSourceHash: patch.patchedSourceHash,
+      upstreamSource: upstream,
+    })
+
     const head = readAt(headTreeish, path)
     const headHash =
       head === undefined ? undefined : hashAuditRelevantSource(head)
-    if (headHash !== patch.patchedSourceHash) {
+    if (head === undefined || headHash !== patch.patchedSourceHash) {
       resolved.mismatched.push(
         `${path}: not read as upstream — PR head (${
           headHash ?? 'absent'
@@ -140,13 +195,7 @@ export const resolveAuditedPatches = (
       continue
     }
 
-    const upstream = readAt(patch.upstreamCommit, path)
-    if (upstream === undefined)
-      throw new Error(
-        `${path}: upstream source at ${patch.upstreamCommit} could not be read`
-      )
-
-    resolved.substitutions.set(path, upstream)
+    assertPatchCanBeSubstituted(path, patch, { head, upstream }, log)
     resolved.applied.push(
       `${path}: read as upstream ${patch.upstreamCommit} — PR head is the patch audited in '${patch.auditId}'`
     )
@@ -156,25 +205,36 @@ export const resolveAuditedPatches = (
 }
 
 /**
- * Wraps a PR-head reader so matched patches read as their upstream source.
+ * Wraps a reader so declared patches read as their upstream source.
  *
- * A contract that is itself a declared patch reads everything as-is: it and the
- * patches it imports were audited together, as patched code.
+ * Applied at every tree-ish the gate reads, PR head and audit commits alike, so
+ * a contract audited on a fork commit that already held the patch compares
+ * upstream against upstream rather than drifting. A contract that is itself a
+ * declared patch reads everything as-is: it and the patches it imports were
+ * audited together, as patched code.
  *
- * @param reader - the reader at PR head.
+ * @param reader - the reader at one tree-ish.
  * @param substitutions - from {@link resolveAuditedPatches}.
  * @param contractPath - the contract whose closure is being read.
  * @returns a reader for that contract's closure.
  */
 export const withAuditedPatches = (
   reader: ISourceReader,
-  substitutions: Map<string, string>,
+  substitutions: Map<string, IPatchSubstitution>,
   contractPath: string
 ): ISourceReader => {
   if (substitutions.size === 0 || substitutions.has(contractPath)) return reader
 
   return {
-    readFile: (path) => substitutions.get(path) ?? reader.readFile(path),
+    readFile: (path) => {
+      const source = reader.readFile(path)
+      const patch = substitutions.get(path)
+      return patch !== undefined &&
+        source !== undefined &&
+        hashAuditRelevantSource(source) === patch.patchedSourceHash
+        ? patch.upstreamSource
+        : source
+    },
     readSubmodulePointer: (path) => reader.readSubmodulePointer(path),
   }
 }

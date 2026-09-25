@@ -29,6 +29,7 @@ import {
   AUDITED_PATCHES_PATH,
   parseAuditedPatches,
   resolveAuditedPatches,
+  type IPatchSubstitution,
 } from './audited-patches'
 import {
   createClosureReader,
@@ -86,7 +87,7 @@ const loadPatchSubstitutions = (
   cwd: string,
   headTreeish: string,
   log: IAuditLogFile
-): Map<string, string> => {
+): Map<string, IPatchSubstitution> => {
   if (!existsSync(AUDITED_PATCHES_PATH)) return new Map()
 
   try {
@@ -96,6 +97,7 @@ const loadPatchSubstitutions = (
     )
     const resolved = resolveAuditedPatches(
       patches,
+      log,
       headTreeish,
       createFetchingReader(cwd, headTreeish)
     )

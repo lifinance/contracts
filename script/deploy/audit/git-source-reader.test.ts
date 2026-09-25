@@ -10,6 +10,7 @@
 
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
+import type { Hex } from 'viem'
 
 import {
   createClosureReader,
@@ -101,17 +102,25 @@ describe('createClosureReader', () => {
     expect(Object.keys(detail.files).length).toBeGreaterThan(1)
   })
 
-  it('reads an audited patch as upstream at PR head only', () => {
+  it('reads a file matching a declared patch as its upstream source', () => {
     const lib = 'src/Libraries/LibAsset.sol'
     const upstream = 'library LibAsset {}'
-    const read = createClosureReader(CWD, 'HEAD', new Map([[lib, upstream]]))
-    const atHead = read('HEAD', KNOWN_CONTRACT)
-    const atParent = read('HEAD~1', KNOWN_CONTRACT)
+    const headLib = createGitSourceReader('HEAD', CWD).readFile(lib) ?? ''
+    const readWith = (patchedSourceHash: Hex) =>
+      createClosureReader(
+        CWD,
+        'HEAD',
+        new Map([[lib, { patchedSourceHash, upstreamSource: upstream }]])
+      )('HEAD', KNOWN_CONTRACT)
 
-    if (typeof atHead === 'string') throw new Error(`unresolved: ${atHead}`)
-    if (typeof atParent === 'string') throw new Error(`unresolved: ${atParent}`)
-    expect(atHead.files[lib]).toBe(hashAuditRelevantSource(upstream))
-    expect(atParent.files[lib]).not.toBe(hashAuditRelevantSource(upstream))
+    const matched = readWith(hashAuditRelevantSource(headLib))
+    const unmatched = readWith(hashAuditRelevantSource('other'))
+
+    if (typeof matched === 'string') throw new Error(`unresolved: ${matched}`)
+    if (typeof unmatched === 'string')
+      throw new Error(`unresolved: ${unmatched}`)
+    expect(matched.files[lib]).toBe(hashAuditRelevantSource(upstream))
+    expect(unmatched.files[lib]).toBe(hashAuditRelevantSource(headLib))
   })
 
   it('is deterministic for the same tree-ish and contract', () => {

@@ -341,11 +341,12 @@ closure. On the fork every contract importing an overlaid file would report
 }
 ```
 
-When the file at PR head matches `patchedSourceHash` exactly, the gate reads it
-as its source at `upstreamCommit` for every contract that imports it, then runs
-the normal check. The overlaid contract itself is still judged as patched code,
-against its own `-tron` audit. The gate refuses to run if an entry is malformed
-or its `auditId` is not listed for that contract.
+Wherever the file matches `patchedSourceHash` exactly, at PR head or at an audit
+commit, the gate reads it as its source at `upstreamCommit` for every contract
+that imports it, then runs the normal check. The overlaid contract itself is
+still judged as patched code, against its own `-tron` audit. The gate refuses to
+run if an entry is malformed, if its `auditId` is not listed for the version the
+patched file declares, or if the patch imports a file upstream does not.
 
 When you rebase an overlay (step 3 above), update its entry: the new audit,
 an upstream commit holding the new base, and the new hash. The gate prints PR

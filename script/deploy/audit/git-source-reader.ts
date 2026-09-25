@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process'
 import { consola } from 'consola'
 
 import type { ClosureAtResult } from './audit-gate'
-import { withAuditedPatches } from './audited-patches'
+import { withAuditedPatches, type IPatchSubstitution } from './audited-patches'
 import {
   collectSourceClosure,
   computeClosureDetail,
@@ -119,25 +119,25 @@ export const createGitSourceReader = (
  *
  * @param cwd - repo directory.
  * @param headTreeish - the tree-ish that is already checked out and needs no fetch.
- * @param patchSubstitutions - audited patches to read as upstream at PR head,
- *   from `resolveAuditedPatches`.
+ * @param patchSubstitutions - audited patches to read as upstream, from
+ *   `resolveAuditedPatches`.
  * @returns a `closureAt` implementation for the gate.
  */
 export const createClosureReader =
   (
     cwd: string,
     headTreeish: string,
-    patchSubstitutions: Map<string, string> = new Map()
+    patchSubstitutions: Map<string, IPatchSubstitution> = new Map()
   ) =>
   (treeish: string, contractPath: string): ClosureAtResult => {
     if (treeish !== headTreeish && !ensureCommitAvailable(treeish, cwd))
       return 'unfetchable'
 
-    const gitReader = createGitSourceReader(treeish, cwd)
-    const reader =
-      treeish === headTreeish
-        ? withAuditedPatches(gitReader, patchSubstitutions, contractPath)
-        : gitReader
+    const reader = withAuditedPatches(
+      createGitSourceReader(treeish, cwd),
+      patchSubstitutions,
+      contractPath
+    )
     if (reader.readFile(contractPath) === undefined) return 'contract-absent'
 
     const remappings = parseRemappings(reader.readFile('remappings.txt') ?? '')

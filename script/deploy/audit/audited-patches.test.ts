@@ -12,6 +12,7 @@ import {
   resolveAuditedPatches,
   withAuditedPatches,
   type AuditedPatches,
+  type IPatchSubstitution,
 } from './audited-patches'
 import {
   collectSourceClosure,
@@ -21,18 +22,38 @@ import {
 } from './source-closure'
 
 const LIB = 'src/Libraries/LibAsset.sol'
+const SWAP = 'src/Libraries/LibSwap.sol'
 const FACET = 'src/Facets/FooFacet.sol'
 const UPSTREAM_SHA = 'a'.repeat(40)
 const HEAD = 'HEAD'
 
-const UPSTREAM_LIB = 'library LibAsset { function t() internal {} }'
-const PATCHED_LIB =
-  'library LibAsset { function t() internal { if (tron) return; } }'
+const libSource = (
+  version: string,
+  body: string,
+  imports = ['./LibSwap.sol']
+) =>
+  [
+    `/// @custom:version ${version}`,
+    ...imports.map((path) => `import "${path}";`),
+    `library LibAsset { ${body} }`,
+  ].join('\n')
+
+const UPSTREAM_LIB = libSource('2.1.3', 'function t() internal {}')
+const PATCHED_LIB = libSource(
+  '2.1.3-tron',
+  'function t() internal { if (tron) return; }'
+)
 const FACET_SOURCE = 'import "../Libraries/LibAsset.sol";\ncontract FooFacet {}'
+const SWAP_SOURCE = 'library LibSwap {}'
 
 const log: IAuditLogFile = {
-  audits: { tronAudit: { auditCommitHash: 'b'.repeat(40) } },
-  auditedContracts: { LibAsset: { '2.1.3-tron': ['tronAudit'] } },
+  audits: {
+    tronAudit: { auditCommitHash: 'b'.repeat(40) },
+    upstreamAudit: { auditCommitHash: 'c'.repeat(40) },
+  },
+  auditedContracts: {
+    LibAsset: { '2.1.3': ['upstreamAudit'], '2.1.3-tron': ['tronAudit'] },
+  },
 }
 
 const declaration = (overrides: Record<string, unknown> = {}) => ({
@@ -56,9 +77,34 @@ const readAtFrom =
   (treeish: string, path: string): string | undefined =>
     trees[treeish]?.[path]
 
+const resolveWithHead = (head: string | undefined, declared = patches) =>
+  resolveAuditedPatches(
+    declared,
+    log,
+    HEAD,
+    readAtFrom({
+      [HEAD]: head === undefined ? {} : { [LIB]: head },
+      [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
+    })
+  )
+
 describe('parseAuditedPatches', () => {
-  it('accepts a declaration whose audit is listed for the contract', () => {
+  it('accepts a well-formed declaration', () => {
     expect(patches[LIB]?.auditId).toBe('tronAudit')
+  })
+
+  it('lower-cases the hash and commit, since source hashes always are', () => {
+    const hash = hashAuditRelevantSource(PATCHED_LIB)
+    const parsed = parseAuditedPatches(
+      declaration({
+        patchedSourceHash: `0x${hash.slice(2).toUpperCase()}`,
+        upstreamCommit: 'A'.repeat(40),
+      }),
+      log
+    )
+
+    expect(parsed[LIB]?.patchedSourceHash).toBe(hash)
+    expect(parsed[LIB]?.upstreamCommit).toBe(UPSTREAM_SHA)
   })
 
   it.each([
@@ -83,102 +129,147 @@ describe('parseAuditedPatches', () => {
   ])('rejects %s', (_label, raw, message) => {
     expect(() => parseAuditedPatches(raw, log)).toThrow(message)
   })
-
-  it('rejects an audit that exists but is not listed for the patched contract', () => {
-    const otherLog: IAuditLogFile = {
-      ...log,
-      auditedContracts: { OtherLib: { '1.0.0': ['tronAudit'] } },
-    }
-
-    expect(() => parseAuditedPatches(declaration(), otherLog)).toThrow(
-      "audit 'tronAudit' is not listed for LibAsset"
-    )
-  })
 })
 
 describe('resolveAuditedPatches', () => {
-  it('substitutes the upstream source when PR head is the declared patch', () => {
-    const resolved = resolveAuditedPatches(
-      patches,
-      HEAD,
-      readAtFrom({
-        [HEAD]: { [LIB]: PATCHED_LIB },
-        [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
-      })
-    )
+  it('reports a declaration PR head matches as applied', () => {
+    const resolved = resolveWithHead(PATCHED_LIB)
 
-    expect(resolved.substitutions.get(LIB)).toBe(UPSTREAM_LIB)
+    expect(resolved.substitutions.get(LIB)?.upstreamSource).toBe(UPSTREAM_LIB)
     expect(resolved.applied).toHaveLength(1)
     expect(resolved.mismatched).toEqual([])
   })
 
   it('ignores comment-only differences, as the closure hash does', () => {
-    const resolved = resolveAuditedPatches(
-      patches,
-      HEAD,
-      readAtFrom({
-        [HEAD]: { [LIB]: `// note\n${PATCHED_LIB}` },
-        [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
-      })
-    )
+    expect(resolveWithHead(`// note\n${PATCHED_LIB}`).applied).toHaveLength(1)
+  })
 
+  it('reports a changed patch with its head hash, and keeps the substitution for audit commits', () => {
+    const changed = `${PATCHED_LIB}\nuint x;`
+    const resolved = resolveWithHead(changed)
+
+    expect(resolved.applied).toEqual([])
+    expect(resolved.mismatched[0]).toContain(hashAuditRelevantSource(changed))
     expect(resolved.substitutions.has(LIB)).toBe(true)
   })
 
-  it('leaves a changed patch alone and reports its head hash', () => {
-    const changed = `${PATCHED_LIB}\nuint x;`
-    const resolved = resolveAuditedPatches(
-      patches,
-      HEAD,
-      readAtFrom({
-        [HEAD]: { [LIB]: changed },
-        [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
-      })
-    )
-
-    expect(resolved.substitutions.size).toBe(0)
-    expect(resolved.mismatched[0]).toContain(hashAuditRelevantSource(changed))
+  it('reports a patch absent at PR head', () => {
+    expect(resolveWithHead(undefined).mismatched[0]).toContain('(absent)')
   })
 
-  it('leaves a patch absent at PR head alone', () => {
-    const resolved = resolveAuditedPatches(patches, HEAD, readAtFrom({}))
-
-    expect(resolved.substitutions.size).toBe(0)
-    expect(resolved.mismatched[0]).toContain('(absent)')
-  })
-
-  it('throws when a matching patch has no readable upstream source', () => {
+  it('throws when the upstream source cannot be read', () => {
     expect(() =>
       resolveAuditedPatches(
         patches,
+        log,
         HEAD,
         readAtFrom({ [HEAD]: { [LIB]: PATCHED_LIB } })
       )
     ).toThrow(`upstream source at ${UPSTREAM_SHA} could not be read`)
   })
+
+  it("throws when the audit is listed for another version, not the patch's own", () => {
+    const citesUpstream = parseAuditedPatches(
+      declaration({ auditId: 'upstreamAudit' }),
+      log
+    )
+
+    expect(() => resolveWithHead(PATCHED_LIB, citesUpstream)).toThrow(
+      "audit 'upstreamAudit' is not listed for LibAsset@2.1.3-tron"
+    )
+  })
+
+  it('throws when the patch has no readable version', () => {
+    const untagged = PATCHED_LIB.replace('/// @custom:version 2.1.3-tron\n', '')
+    const declared = parseAuditedPatches(
+      declaration({ patchedSourceHash: hashAuditRelevantSource(untagged) }),
+      log
+    )
+
+    expect(() => resolveWithHead(untagged, declared)).toThrow(
+      'LibAsset@(no readable version)'
+    )
+  })
+
+  it('throws when the patch imports a file upstream does not', () => {
+    const withHelper = libSource('2.1.3-tron', 'function t() internal {}', [
+      './LibSwap.sol',
+      './TronHelper.sol',
+    ])
+    const declared = parseAuditedPatches(
+      declaration({ patchedSourceHash: hashAuditRelevantSource(withHelper) }),
+      log
+    )
+
+    expect(() => resolveWithHead(withHelper, declared)).toThrow(
+      'the patch imports ./TronHelper.sol, which upstream does not'
+    )
+  })
+
+  it('accepts a patch that drops one of upstream’s imports', () => {
+    const fewer = libSource('2.1.3-tron', 'function t() internal {}', [])
+    const declared = parseAuditedPatches(
+      declaration({ patchedSourceHash: hashAuditRelevantSource(fewer) }),
+      log
+    )
+
+    expect(resolveWithHead(fewer, declared).applied).toHaveLength(1)
+  })
 })
 
 describe('withAuditedPatches', () => {
-  const head = makeReader({ [FACET]: FACET_SOURCE, [LIB]: PATCHED_LIB })
-  const substitutions = new Map([[LIB, UPSTREAM_LIB]])
+  const substitutions = new Map<string, IPatchSubstitution>([
+    [
+      LIB,
+      {
+        patchedSourceHash: hashAuditRelevantSource(PATCHED_LIB),
+        upstreamSource: UPSTREAM_LIB,
+      },
+    ],
+  ])
+  const tree = (lib: string) =>
+    makeReader({ [FACET]: FACET_SOURCE, [LIB]: lib, [SWAP]: SWAP_SOURCE })
+  const detailOf = (reader: ISourceReader) =>
+    computeClosureDetail(collectSourceClosure(FACET, reader, []), reader)
 
   it('gives an importer the same closure it had upstream', () => {
-    const upstream = makeReader({ [FACET]: FACET_SOURCE, [LIB]: UPSTREAM_LIB })
-    const patched = withAuditedPatches(head, substitutions, FACET)
-    const detailOf = (reader: ISourceReader) =>
-      computeClosureDetail(collectSourceClosure(FACET, reader, []), reader)
+    const patched = withAuditedPatches(tree(PATCHED_LIB), substitutions, FACET)
 
-    expect(detailOf(patched)).toEqual(detailOf(upstream))
+    expect(detailOf(patched)).toEqual(detailOf(tree(UPSTREAM_LIB)))
     expect(patched.readSubmodulePointer('lib/solady')).toBe('c')
   })
 
+  it('reads an upstream commit as-is, since it does not hold the patch', () => {
+    const upstream = tree(UPSTREAM_LIB)
+
+    expect(
+      withAuditedPatches(upstream, substitutions, FACET).readFile(LIB)
+    ).toBe(UPSTREAM_LIB)
+  })
+
+  it('reads a changed patch as-is, so the importer drifts', () => {
+    const changed = `${PATCHED_LIB}\nuint x;`
+
+    expect(
+      withAuditedPatches(tree(changed), substitutions, FACET).readFile(LIB)
+    ).toBe(changed)
+  })
+
   it('reads a declared patch as-is when it is the contract being checked', () => {
-    const reader = withAuditedPatches(head, substitutions, LIB)
+    const reader = withAuditedPatches(tree(PATCHED_LIB), substitutions, LIB)
 
     expect(reader.readFile(LIB)).toBe(PATCHED_LIB)
   })
 
-  it('returns the reader unchanged when nothing is substituted', () => {
-    expect(withAuditedPatches(head, new Map(), FACET)).toBe(head)
+  it('reads an absent file as absent', () => {
+    const reader = withAuditedPatches(makeReader({}), substitutions, FACET)
+
+    expect(reader.readFile(LIB)).toBeUndefined()
+  })
+
+  it('returns the reader unchanged when nothing is declared', () => {
+    const reader = tree(PATCHED_LIB)
+
+    expect(withAuditedPatches(reader, new Map(), FACET)).toBe(reader)
   })
 })
