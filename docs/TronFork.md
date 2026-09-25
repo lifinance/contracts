@@ -346,7 +346,8 @@ commit, the gate reads it as its source at `upstreamCommit` for every contract
 that imports it, then runs the normal check. The overlaid contract itself is
 still judged as patched code, against its own `-tron` audit. The gate refuses to
 run if an entry is malformed, if its `auditId` is not listed for the version the
-patched file declares, or if the patch imports a file upstream does not.
+patched file declares, if the file at that audit's commit is not the declared
+patch, or if the patch imports a file upstream does not.
 
 When you rebase an overlay (step 3 above), update its entry: the new audit,
 an upstream commit holding the new base, and the new hash. The gate prints PR

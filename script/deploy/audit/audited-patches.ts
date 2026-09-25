@@ -103,14 +103,16 @@ export const parseAuditedPatches = (
  * Checks a patch PR head matches against the log and against upstream.
  *
  * The audit must be recorded for the version the patch declares, or an upstream
- * audit of the same contract could vouch for it. And the patch may import only
+ * audit of the same contract could vouch for it. Its commit must hold the
+ * declared patch, so the declaration cannot vouch for source the audit never
+ * reviewed, however that source reached the branch. And the patch may import only
  * what upstream imports: reading it as upstream drops its own imports from every
  * importer's closure, so a file only the patch imports would escape the gate.
  */
 const assertPatchCanBeSubstituted = (
   path: string,
   patch: IAuditedPatch,
-  sources: { head: string; upstream: string },
+  sources: { head: string; upstream: string; audited: string | undefined },
   log: IAuditLogFile
 ): void => {
   const name = contractNameFromPath(path)
@@ -124,6 +126,17 @@ const assertPatchCanBeSubstituted = (
       `${path}: audit '${patch.auditId}' is not listed for ${name}@${
         version ?? '(no readable version)'
       }`
+    )
+
+  const auditedHash =
+    sources.audited === undefined
+      ? undefined
+      : hashAuditRelevantSource(sources.audited)
+  if (auditedHash !== patch.patchedSourceHash)
+    throw new Error(
+      `${path}: audit '${patch.auditId}' reviewed ${
+        auditedHash ?? '(unreadable)'
+      }, not the declared patch ${patch.patchedSourceHash}`
     )
 
   const upstreamImports = new Set(parseImports(sources.upstream))
@@ -156,7 +169,8 @@ export interface IResolvedPatches {
  * @param readAt - reads a file at a tree-ish; `undefined` when absent or unreadable.
  * @returns the substitutions and a log line per declaration.
  * @throws Error when an upstream source cannot be read, or a patch PR head
- *   matches is not audited at its version or imports what upstream does not.
+ *   matches is not audited at its version, is not the source at its audit
+ *   commit, or imports what upstream does not.
  */
 export const resolveAuditedPatches = (
   patches: AuditedPatches,
@@ -195,7 +209,10 @@ export const resolveAuditedPatches = (
       continue
     }
 
-    assertPatchCanBeSubstituted(path, patch, { head, upstream }, log)
+    const auditCommit = log.audits[patch.auditId]?.auditCommitHash
+    const audited =
+      auditCommit === undefined ? undefined : readAt(auditCommit, path)
+    assertPatchCanBeSubstituted(path, patch, { head, upstream, audited }, log)
     resolved.applied.push(
       `${path}: read as upstream ${patch.upstreamCommit} — PR head is the patch audited in '${patch.auditId}'`
     )

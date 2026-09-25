@@ -26,6 +26,7 @@ const SWAP = 'src/Libraries/LibSwap.sol'
 const FACET = 'src/Facets/FooFacet.sol'
 const UPSTREAM_SHA = 'a'.repeat(40)
 const HEAD = 'HEAD'
+const TRON_AUDIT_SHA = 'b'.repeat(40)
 
 const libSource = (
   version: string,
@@ -48,7 +49,7 @@ const SWAP_SOURCE = 'library LibSwap {}'
 
 const log: IAuditLogFile = {
   audits: {
-    tronAudit: { auditCommitHash: 'b'.repeat(40) },
+    tronAudit: { auditCommitHash: TRON_AUDIT_SHA },
     upstreamAudit: { auditCommitHash: 'c'.repeat(40) },
   },
   auditedContracts: {
@@ -77,7 +78,11 @@ const readAtFrom =
   (treeish: string, path: string): string | undefined =>
     trees[treeish]?.[path]
 
-const resolveWithHead = (head: string | undefined, declared = patches) =>
+const resolveWithHead = (
+  head: string | undefined,
+  declared = patches,
+  audited = head
+) =>
   resolveAuditedPatches(
     declared,
     log,
@@ -85,6 +90,7 @@ const resolveWithHead = (head: string | undefined, declared = patches) =>
     readAtFrom({
       [HEAD]: head === undefined ? {} : { [LIB]: head },
       [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
+      [TRON_AUDIT_SHA]: audited === undefined ? {} : { [LIB]: audited },
     })
   )
 
@@ -189,6 +195,30 @@ describe('resolveAuditedPatches', () => {
     expect(() => resolveWithHead(untagged, declared)).toThrow(
       'LibAsset@(no readable version)'
     )
+  })
+
+  it('throws when the audit commit does not hold the declared patch', () => {
+    const other = libSource('2.1.3-tron', 'function t() internal { other(); }')
+
+    expect(() => resolveWithHead(PATCHED_LIB, patches, other)).toThrow(
+      `audit 'tronAudit' reviewed ${hashAuditRelevantSource(
+        other
+      )}, not the declared patch`
+    )
+  })
+
+  it('throws when the patch cannot be read at its audit commit', () => {
+    expect(() =>
+      resolveAuditedPatches(
+        patches,
+        log,
+        HEAD,
+        readAtFrom({
+          [HEAD]: { [LIB]: PATCHED_LIB },
+          [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
+        })
+      )
+    ).toThrow("audit 'tronAudit' reviewed (unreadable)")
   })
 
   it('throws when the patch imports a file upstream does not', () => {
