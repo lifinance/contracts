@@ -73,7 +73,7 @@
  *     and receiver 0xaa1e44ac...c7af, the decoded CT55XSqd... pubkey
  *   - `LiFiTransferStarted` carries the NON_EVM_ADDRESS sentinel (0x11f111f1...f1f1) as
  *     bridgeData.receiver, never the real one — that only appears in the event above
- *   - the OrderOpened topic shows destChainId 1399811149, i.e. _toM0ChainId translated
+ *   - the OrderOpened topic shows destChainId 1399811149, i.e. _resolveDestination translated
  *     LI.FI's 1151111081099710
  *   - designatedSolver is the base58-decoded pubkey, and the fill came back from
  *     CLBFpZhM6gvqrEBSPygeuW5KyetWzsXYbDUNqYz9zoTu — the round trip that proves the
