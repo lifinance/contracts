@@ -28,7 +28,13 @@ case "$FILE" in
     fi
     ;;
   *.ts)
-    OUTPUT=$(bash script/utils/typecheck-files.sh "$REL" 2>&1)
+    # A checkout from before the wrapper existed (another repo, an older worktree)
+    # gets the plain check rather than a "No such file" on every edit.
+    if [[ -f script/utils/typecheck-files.sh ]]; then
+      OUTPUT=$(bash script/utils/typecheck-files.sh "$REL" 2>&1)
+    else
+      OUTPUT=$(bunx tsc-files --noEmit "$REL" 2>&1)
+    fi
     [[ -n "$OUTPUT" ]] && echo "$OUTPUT"
     ;;
   *.sh)
