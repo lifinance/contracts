@@ -47,6 +47,15 @@
  * So every scenario below prices off a real quote. The arbitrary-limit-price fallback in
  * `resolveLimitPrice` now only fires if coverage is withdrawn from a route.
  *
+ * Verified staging run (2026-09-25), `mainnet-to-citrea`: 1 USDC on Ethereum -> 1 ctUSD on
+ * Citrea, filled by M0 Solver 18s after the order opened, at feeBps 0 — amountIn,
+ * amountOut, amountOutFilled and amountInReleased are all 1000000, so the route cost
+ * nothing but gas. This is the cross-chain counterpart to the same-chain run below: same
+ * facet, same OrderBook, same single openOrder, only destChainId differs.
+ *   open: https://etherscan.io/tx/0xefe1ea1c2f99c446e564ca2e79e04ed97a5c8f455983aac5c7b96f9770a43627
+ *   fill (Citrea): 0x87aefb99bf00eeb355a3561899223bdf77361bce0441f8e8263e01c5790906bf
+ *   order 0xa5526251bbeb04fb2ad351296479e57c7cf8e2420aaccae05864890348af747b
+ *
  * Verified staging run (2026-09-24), `mainnet-samechain`: 4 USDC -> 1 wM on Ethereum,
  * filled by Farsight Solver two blocks (~24s) after the order opened. The 3 USDC spread is
  * the solver's flat fee, not slippage. The Diamond retained nothing — it holds the USDC
@@ -69,9 +78,11 @@ import {
   getAddress,
   getContract,
   parseUnits,
+  slice,
   zeroAddress,
   type Address,
   type Hex,
+  type PublicClient,
 } from 'viem'
 
 import {
@@ -112,6 +123,10 @@ const ANY_SOLVER: Hex =
   '0x0000000000000000000000000000000000000000000000000000000000000000'
 
 const FILL_DEADLINE_SECONDS = 3600
+
+// keccak256 of the OrderBook's OrderOpened signature (see logFillStatusCommand).
+const ORDER_OPENED_TOPIC: Hex =
+  '0xbf2b26246c7c9d256de05b7dbd48ebf43c20cc61ca4a2c684ace2c8b9d4cf23b'
 
 // WrappedM by M0 on Ethereum (6 decimals) — the same-chain scenario's tokenOut.
 const ADDRESS_WM_ETH = '0x437cc33344a0B27A429f795ff6B469C72698B291'
@@ -694,6 +709,12 @@ const cli = defineCommand({
         true
       )
       consola.success(`tx hash: ${hash}`)
+      await logFillStatusCommand(
+        publicClient,
+        hash,
+        orderBookAddress,
+        scenario.quoteRoute.sourceChain
+      )
       logEscrowReminder(isSameChainOrder)
       return
     }
@@ -748,9 +769,57 @@ const cli = defineCommand({
       true
     )
     consola.success(`tx hash: ${hash}`)
+    await logFillStatusCommand(
+      publicClient,
+      hash,
+      orderBookAddress,
+      scenario.quoteRoute.sourceChain
+    )
     logEscrowReminder(isSameChainOrder)
   },
 })
+
+/**
+ * Prints the command that reports whether the order actually filled.
+ *
+ * The tx hash only proves the order was OPENED — the fill happens later, off this chain
+ * and outside this script — so the run is not meaningful to judge without this follow-up.
+ * The orderId comes from the OrderBook's `OrderOpened`, where it is the first non-indexed
+ * parameter; the signature is
+ * `OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)`.
+ * Decoding just that one word avoids restating the whole event, whose parameter names are
+ * not in any ABI we ship.
+ */
+async function logFillStatusCommand(
+  publicClient: PublicClient,
+  hash: Hex | null,
+  orderBookAddress: Address,
+  originChain: M0Chain
+): Promise<void> {
+  if (hash === null) return
+
+  const receipt = await publicClient.getTransactionReceipt({ hash })
+  const opened = receipt.logs.find(
+    (log) =>
+      getAddress(log.address) === getAddress(orderBookAddress) &&
+      log.topics[0] === ORDER_OPENED_TOPIC
+  )
+
+  if (!opened) {
+    consola.warn(
+      'Could not find OrderOpened in the receipt — look the order up by tx hash instead.'
+    )
+    return
+  }
+
+  const orderId = slice(opened.data, 0, 32)
+  consola.info(`orderId: ${orderId}`)
+  consola.info(
+    'Check whether it filled (want status COMPLETED and a non-zero amountOutFilled):\n' +
+      `  curl -s -H "x-api-key: $M0_API_KEY" \\\n` +
+      `    "${M0_API_URL}/orders/${originChain}/${orderId}" | jq`
+  )
+}
 
 function logEscrowReminder(isSameChainOrder: boolean): void {
   if (isSameChainOrder) {
