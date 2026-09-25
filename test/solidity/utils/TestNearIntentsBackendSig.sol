@@ -10,16 +10,16 @@ import { TestEIP712 } from "./TestEIP712.sol";
 /// @notice Payload-specific signature helpers for `NEARIntentsFacet` tests.
 abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
     // EIP-712 typehash for NEARIntentsPayload:
-    // keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut,bytes32 destinationAsset)")
+    // keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut,bytes32 destinationAsset,address refundRecipient)")
     bytes32 internal constant NEARINTENTS_PAYLOAD_TYPEHASH =
-        0xd47b984fe59451779b58ef224d6378bc43a15258040d557d281c397748692cdb;
+        0x4d5a33c4af83dbad79b202811c07cdb5ba5794247bde504fc57a9da2df04bb0d;
 
     string internal constant NEAR_DOMAIN_NAME = "LI.FI NEAR Intents Facet";
     string internal constant EIP712_VERSION = "1";
 
     /// @dev Set this to the diamond address (the verifyingContract used in the facet via delegatecall).
     address internal nearIntentsVerifyingContract;
-    /// @dev Set this to the intended refund recipient used in test flows.
+    /// @dev Set this to the refund recipient bound into the signed payload.
     address internal nearIntentsRefundRecipient;
     /// @dev Set this to the destination asset word bound into the signed payload.
     bytes32 internal nearIntentsDestinationAsset;
@@ -39,6 +39,7 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         bytes32 quoteId;
         uint256 minAmountOut;
         bytes32 destinationAsset;
+        address refundRecipient;
     }
 
     function _buildDomainSeparator(
@@ -69,7 +70,8 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
                     _payload.deadline,
                     _payload.quoteId,
                     _payload.minAmountOut,
-                    _payload.destinationAsset
+                    _payload.destinationAsset,
+                    _payload.refundRecipient
                 )
             );
     }
@@ -81,7 +83,8 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         bytes32 _quoteId,
         uint256 _minAmountOut,
         bytes32 _nonEvmReceiver,
-        bytes32 _destinationAsset
+        bytes32 _destinationAsset,
+        address _refundRecipient
     ) internal pure returns (NEARIntentsPayload memory) {
         bytes32 receiverBytes32 = _bridgeData.receiver == NON_EVM_ADDRESS
             ? _nonEvmReceiver
@@ -98,7 +101,8 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
                 deadline: _deadline,
                 quoteId: _quoteId,
                 minAmountOut: _minAmountOut,
-                destinationAsset: _destinationAsset
+                destinationAsset: _destinationAsset,
+                refundRecipient: _refundRecipient
             });
     }
 
@@ -119,7 +123,8 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
             _quoteId,
             _minAmountOut,
             _nonEvmReceiver,
-            nearIntentsDestinationAsset
+            nearIntentsDestinationAsset,
+            nearIntentsRefundRecipient
         );
 
         bytes32 domainSeparatorHash = _buildDomainSeparator(_chainId);
