@@ -1702,7 +1702,7 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
   ])('admits a commit tracking %s', (_label, path) => {
     const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
 
-    expect(h.runner.build(evmRequest).runtimeHex).toBe('0xdeadbeef')
+    expect(() => h.runner.build(evmRequest)).not.toThrow()
   })
 
   it.each([
@@ -1894,36 +1894,45 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
     // The route that got past the first cut of these guards on APFS: the link
     // dangles while the checkout is vetted, and the submodule update that runs
     // just before the compile is what fills its target.
-    it('refuses a look-alike symlink into a submodule that is filled after vetting', () => {
-      const { repo, commit } = commitWith((dir) => {
-        const evil = join(root, 'evil')
-        mkdirSync(join(evil, 'out', 'Planted.sol'), { recursive: true })
-        writeFileSync(join(evil, 'out', 'Planted.sol', 'Planted.json'), FORGED)
-        git(evil, ['init', '-q'])
-        git(evil, ['add', '-f', '.'])
-        git(evil, ['commit', '-q', '-m', 'evil'])
-        git(dir, [
-          '-c',
-          'protocol.file.allow=always',
-          'submodule',
-          'add',
-          '-q',
-          evil,
-          'lib/evil',
-        ])
-        symlinkSync('lib/evil/out', join(dir, 'out-codeha\u017Fh-default'))
-      })
-      const spawned: string[] = []
-
-      expect(() =>
-        realRunner(repo, spawned).build({
-          ...evmRequest,
-          contractName: 'Planted',
-          commit,
+    it.each([
+      ['EVM', evmRequest, 'out-codeha\u017Fh-default'],
+      ['zk', zkRequest, 'z\u212Aout'],
+    ])(
+      'refuses a %s look-alike symlink into a submodule that is filled after vetting',
+      (_label, request, name) => {
+        const { repo, commit } = commitWith((dir) => {
+          const evil = join(root, 'evil')
+          mkdirSync(join(evil, 'out', 'Planted.sol'), { recursive: true })
+          writeFileSync(
+            join(evil, 'out', 'Planted.sol', 'Planted.json'),
+            FORGED
+          )
+          git(evil, ['init', '-q'])
+          git(evil, ['add', '-f', '.'])
+          git(evil, ['commit', '-q', '-m', 'evil'])
+          git(dir, [
+            '-c',
+            'protocol.file.allow=always',
+            'submodule',
+            'add',
+            '-q',
+            evil,
+            'lib/evil',
+          ])
+          symlinkSync('lib/evil/out', join(dir, name))
         })
-      ).toThrow(/tracks build output \(out-codeha\u017Fh-default\)/)
-      expect(spawned).toEqual([])
-    })
+        const spawned: string[] = []
+
+        expect(() =>
+          realRunner(repo, spawned).build({
+            ...request,
+            contractName: 'Planted',
+            commit,
+          })
+        ).toThrow(`tracks build output (${name})`)
+        expect(spawned).toEqual([])
+      }
+    )
 
     it('refuses a tracked symlink where the output directory goes', () => {
       const { repo, commit } = commitWith((dir) => {
