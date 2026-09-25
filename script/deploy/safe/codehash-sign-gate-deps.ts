@@ -547,14 +547,14 @@ const assertSubmodulesPinned = (
  * Whether a top-level name in a checkout is one the rebuild writes its output
  * to or reads a compile cache from.
  *
- * Folded before comparing, because a case-insensitive filesystem resolves
+ * Case-folded before comparing, because a case-insensitive filesystem resolves
  * `ZKOUT` to the directory the artifact is read from.
  *
  * @param name - first component of a tracked path
  * @returns true when content at that name could stand in for a compile
  */
 const isBuildOutputName = (name: string): boolean => {
-  const folded = name.normalize('NFKC').toLowerCase()
+  const folded = name.toLowerCase()
   return (
     folded === ZK_OUT_DIR ||
     folded.startsWith(EVM_OUT_PREFIX) ||
@@ -726,12 +726,13 @@ export const createForgeRebuildRunner = (
       assertNoTrackedBuildOutput(deps.git, checkout)
       vettedCheckouts.add(checkout)
     }
-    // Catches what the tracked listing cannot: a checkout left behind by an
-    // earlier process, or one reused under the same root.
+    // Catches what the tracked listing cannot: a checkout left behind under
+    // the same root by an earlier process, or a name the filesystem resolves
+    // to this directory that the case fold above does not.
     if (!vettedOutDirs.has(outPath)) {
       if (deps.exists(outPath))
         throw new Error(
-          `refusing to rebuild at ${checkout}: ${outDir}/ already exists and this run did not write it, so what it holds cannot be told from a compile. Remove ${deps.checkoutRoot} and re-run.`
+          `refusing to rebuild at ${checkout}: ${outDir}/ already exists and this run did not write it, so what it holds cannot be told from a compile. If an earlier run left it, remove ${deps.checkoutRoot} and re-run; otherwise the commit put it there, and the deployment record is suspect.`
         )
       vettedOutDirs.add(outPath)
     }

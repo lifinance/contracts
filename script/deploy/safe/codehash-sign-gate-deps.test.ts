@@ -874,7 +874,7 @@ describe('createForgeRebuildRunner', () => {
     expect(calls).toHaveLength(1)
   })
 
-  it('does not rebuild when the artifact on disk already carries its AST', () => {
+  it('does not rebuild when the artifact this run holds already carries its AST', () => {
     const harness = runner({ exists: (path) => path.endsWith('.json') })
     harness.runner.build(request)
 
@@ -1664,7 +1664,7 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
   it.each([
     ['a zk artifact', 'zkout/GlacisFacet.sol/GlacisFacet.json', zkRequest],
     ['a case variant', 'ZKOUT/GlacisFacet.sol/GlacisFacet.json', zkRequest],
-    ['a compatibility-form variant', 'z\u212Aout/x', zkRequest],
+    ['a Unicode case variant', 'z\u212Aout/x', zkRequest],
     ['a symlink or gitlink at the output root', 'zkout', zkRequest],
     [
       'an EVM artifact',
