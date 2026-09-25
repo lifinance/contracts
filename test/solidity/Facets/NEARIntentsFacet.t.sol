@@ -1535,4 +1535,102 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         );
         assertEq(usdc.balanceOf(address(diamond)), 0);
     }
+
+    function test_RefundsExcessNativeToRefundRecipientOnSwapEntrypoint()
+        public
+    {
+        address refundRecipient = address(0xBEEF);
+        uint256 excessAmount = 0.5 ether;
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        nearIntentsRefundRecipient = refundRecipient;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        uint256 senderBalanceBefore = USER_SENDER.balance;
+        uint256 refundRecipientBalanceBefore = refundRecipient.balance;
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents{
+            value: excessAmount
+        }(bridgeData, swapData, validNearData);
+        vm.stopPrank();
+
+        assertEq(USER_SENDER.balance, senderBalanceBefore - excessAmount);
+        assertEq(
+            refundRecipient.balance,
+            refundRecipientBalanceBefore + excessAmount
+        );
+    }
+
+    function test_RefundsNativeSwapLeftoversToRefundRecipient() public {
+        address refundRecipient = address(0xBEEF);
+        bridgeData.hasSourceSwaps = true;
+
+        nearIntentsFacet.addAllowedContractSelector(
+            ADDRESS_UNISWAP,
+            uniswap.swapETHForExactTokens.selector
+        );
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+        uint256 leftover = 0.1 ether;
+        uint256 fromAmount = amountIn + leftover;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: fromAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    bridgeData.minAmount,
+                    path,
+                    address(diamond),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        nearIntentsRefundRecipient = refundRecipient;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        uint256 senderBalanceBefore = USER_SENDER.balance;
+        uint256 refundRecipientBalanceBefore = refundRecipient.balance;
+
+        vm.startPrank(USER_SENDER);
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents{
+            value: fromAmount
+        }(bridgeData, swapData, validNearData);
+        vm.stopPrank();
+
+        assertEq(USER_SENDER.balance, senderBalanceBefore - fromAmount);
+        assertEq(
+            refundRecipient.balance,
+            refundRecipientBalanceBefore + leftover
+        );
+        assertEq(address(diamond).balance, 0);
+    }
 }
