@@ -47,6 +47,23 @@
  * So every scenario below prices off a real quote. The arbitrary-limit-price fallback in
  * `resolveLimitPrice` now only fires if coverage is withdrawn from a route.
  *
+ * Verified staging run (2026-09-25), `mainnet-to-solana`: 1 USDC on Ethereum -> 1 XO on
+ * Solana, filled by M0 Solver 23s after the order opened, at feeBps 0. This is the run
+ * that covers the non-EVM path, which the EVM scenarios cannot reach, so it is worth
+ * recording what the receipt actually showed:
+ *   - `BridgeToNonEVMChainBytes32` emitted with destinationChainId LIFI_CHAIN_ID_SOLANA
+ *     and receiver 0xaa1e44ac...c7af, the decoded CT55XSqd... pubkey
+ *   - `LiFiTransferStarted` carries the NON_EVM_ADDRESS sentinel (0x11f111f1...f1f1) as
+ *     bridgeData.receiver, never the real one — that only appears in the event above
+ *   - the OrderOpened topic shows destChainId 1399811149, i.e. _toM0ChainId translated
+ *     LI.FI's 1151111081099710
+ *   - designatedSolver is the base58-decoded pubkey, and the fill came back from
+ *     CLBFpZhM6gvqrEBSPygeuW5KyetWzsXYbDUNqYz9zoTu — the round trip that proves the
+ *     encoding in `solverToBytes32`
+ *   open: https://etherscan.io/tx/0x5d5450c588df2e2750482420f5f41c0cc663b5f8adb3c3c61a87c8d439183bed
+ *   fill (Solana): 4hZpFDt7nNQjMWKAKKnPEh9ARwkCKZfdvpdtZhJjV8uhYHWaSZGqAx2936ND2Gv39drYFreHTA7cmhReTSAsw8xn
+ *   order 0x212b1ccc8c433c657f9b7406efa387d0e10eedf1fa825621d54a216075bfabc4
+ *
  * Verified staging run (2026-09-25), `mainnet-to-citrea`: 1 USDC on Ethereum -> 1 ctUSD on
  * Citrea, filled by M0 Solver 18s after the order opened, at feeBps 0 — amountIn,
  * amountOut, amountOutFilled and amountInReleased are all 1000000, so the route cost
@@ -67,6 +84,14 @@
  * The run before it is the counter-example for the solver rule above: same route, same
  * price, opened with bytes32(0), never filled, cancelled after fillDeadline for a full
  * refund (order 0x719c928678c9073f20339342f1adb290a00f85f2f14cd9c48f53000aac50a239).
+ *
+ * STILL UNVERIFIED on-chain, so do not read the runs above as covering it:
+ *   - `swapAndStartBridgeTokensViaM0`. Every run so far used the plain entrypoint, so the
+ *     amountOut scaling has only ever executed in tests. `mainnet-to-citrea-w-swap` is
+ *     the scenario for it.
+ *   - Cancellation of a cross-chain order. Every cross-chain order filled, so the
+ *     destination-chain cancel with msg.value for the Portal message is untested; only
+ *     the same-chain cancel above has actually run.
  */
 import { randomBytes } from 'crypto'
 
