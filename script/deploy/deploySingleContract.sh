@@ -647,6 +647,14 @@ deploySingleContract() {
         VERIFIED=true
       fi
     fi
+  elif [[ $VERIFY_CONTRACTS == "true" ]]; then
+    # The log's VERIFIED flag records the explorer only; Sourcify is checked
+    # separately (one lookup when already verified there). The contract may
+    # predate the current toolchain, so forge gets the one it was built with.
+    verifyContractOnSourcify "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" \
+      "$(echo "$LOG_ENTRY" | jq -r '.SOLC_VERSION // empty')" \
+      "$(echo "$LOG_ENTRY" | jq -r '.EVM_VERSION // empty')" \
+      "$(echo "$LOG_ENTRY" | jq -r '.OPTIMIZER_RUNS // empty')" || true
   fi
 
   # check if log entry was found

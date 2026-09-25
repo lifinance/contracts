@@ -360,14 +360,14 @@ function bridgeFacetName(fnName: string): string {
 //   - Squid — the recipient is route-type-dependent (destinationAddress for some
 //     routes, _bridgeData.receiver for others); no single field is always right.
 // (See docs/ClearSigningProposal.md for the full audit + follow-up scope.)
-interface IExtraReceiver {
+interface IExtraFieldSpec {
   paramName: string
   component: string
   type: string
   label: string
 }
 
-const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
+const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraFieldSpec> = {
   // TYPE-A: field is the bridge's on-chain recipient in every branch.
   AcrossV4: {
     paramName: '_acrossData',
@@ -464,47 +464,64 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
   },
 }
 
-function extraReceiverSpec(fn: IAbiFn): IExtraReceiver | null {
-  return BRIDGE_EXTRA_RECEIVERS[bridgeFacetName(fn.name)] ?? null
+// Signed fields that are not recipients but must reach a screen for the same
+// reason: the signer has to see what the call commits to. Validated as
+// strictly as BRIDGE_EXTRA_RECEIVERS.
+const BRIDGE_EXTRA_FIELDS: Record<string, IExtraFieldSpec[]> = {
+  // NEARIntents v2.0.0 binds the quote's destination asset into the backend's
+  // EIP-712 signature; a signer who cannot see it cannot spot a swapped quote.
+  NEARIntents: [
+    {
+      paramName: '_nearData',
+      component: 'destinationAsset',
+      type: 'bytes32',
+      label: 'Destination Asset',
+    },
+  ],
 }
 
-// Strict-by-default: if a bridge declares an extra-receiver field above, the
+function extraFieldSpecs(fn: IAbiFn): IExtraFieldSpec[] {
+  const facet = bridgeFacetName(fn.name)
+  const receiver = BRIDGE_EXTRA_RECEIVERS[facet]
+  return [
+    ...(receiver ? [receiver] : []),
+    ...(BRIDGE_EXTRA_FIELDS[facet] ?? []),
+  ]
+}
+
+// Strict-by-default: if a bridge declares an extra display field above, the
 // referenced tuple component must exist in the ABI with the expected type. A
 // struct rename must fail the generator (and CI) loudly rather than emit a dead
 // display path that silently resolves to nothing in wallets.
-function validateExtraReceiver(fn: IAbiFn): string | null {
-  const spec = extraReceiverSpec(fn)
-  if (!spec) return null
-  const param = fn.inputs.find((p) => p.name === spec.paramName)
-  // Exact `tuple`, not `startsWith('tuple')`: a `tuple[]` param would need an
-  // index in the path and must not silently satisfy a single-struct lookup.
-  if (!param || param.type !== 'tuple')
-    return `expected param "${spec.paramName}" of tuple type for bridge-specific recipient; got name="${param?.name}" type="${param?.type}"`
-  const comp = (
-    param.components as { name: string; type: string }[] | undefined
-  )?.find((c) => c.name === spec.component)
-  if (!comp)
-    return `${spec.paramName}: missing component "${spec.component}" (bridge-specific recipient)`
-  // Exact type match, not a prefix: `startsWith('bytes')` would wrongly accept
-  // `bytes32[]`/`bytes16`, and `startsWith('bytes32')` would accept `bytes32[]`
-  // — incompatible shapes that would pass CI but render the wrong value.
-  if (comp.type !== spec.type)
-    return `${spec.paramName}: component "${spec.component}" has type "${comp.type}", expected exactly "${spec.type}"`
+function validateExtraFields(fn: IAbiFn): string | null {
+  for (const spec of extraFieldSpecs(fn)) {
+    const param = fn.inputs.find((p) => p.name === spec.paramName)
+    // Exact `tuple`, not `startsWith('tuple')`: a `tuple[]` param would need an
+    // index in the path and must not silently satisfy a single-struct lookup.
+    if (!param || param.type !== 'tuple')
+      return `expected param "${spec.paramName}" of tuple type for bridge-specific display field; got name="${param?.name}" type="${param?.type}"`
+    const comp = (
+      param.components as { name: string; type: string }[] | undefined
+    )?.find((c) => c.name === spec.component)
+    if (!comp)
+      return `${spec.paramName}: missing component "${spec.component}" (bridge-specific display field)`
+    // Exact type match, not a prefix: `startsWith('bytes')` would wrongly accept
+    // `bytes32[]`/`bytes16`, and `startsWith('bytes32')` would accept `bytes32[]`
+    // — incompatible shapes that would pass CI but render the wrong value.
+    if (comp.type !== spec.type)
+      return `${spec.paramName}: component "${spec.component}" has type "${comp.type}", expected exactly "${spec.type}"`
+  }
   return null
 }
 
-function extraReceiverFields(fn: IAbiFn): IField[] {
-  const spec = extraReceiverSpec(fn)
-  if (!spec) return []
-  return [
-    {
-      path: `${spec.paramName}.${spec.component}`,
-      label: spec.label,
-      // bytes32 recipient (may be non-EVM); addressName accepts `address` only.
-      format: 'raw',
-      visible: 'always',
-    },
-  ]
+function extraFields(fn: IAbiFn): IField[] {
+  return extraFieldSpecs(fn).map((spec) => ({
+    path: `${spec.paramName}.${spec.component}`,
+    label: spec.label,
+    // bytes32 recipient/asset (may be non-EVM); addressName takes `address` only.
+    format: 'raw',
+    visible: 'always',
+  }))
 }
 
 function buildStartFormat(fn: IAbiFn): IFormatEntry {
@@ -527,7 +544,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
       },
       CHAIN_FIELD,
       RECEIVER_FIELD,
-      ...extraReceiverFields(fn),
+      ...extraFields(fn),
       ...HIDDEN_BRIDGE_FIELDS,
     ],
   }
@@ -557,7 +574,7 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
       },
       CHAIN_FIELD,
       RECEIVER_FIELD,
-      ...extraReceiverFields(fn),
+      ...extraFields(fn),
       ...HIDDEN_BRIDGE_FIELDS,
       {
         path: '_swapData.[].callData',
@@ -973,10 +990,10 @@ function main() {
         )
         continue
       }
-      const extraErr = validateExtraReceiver(fn)
+      const extraErr = validateExtraFields(fn)
       if (extraErr) {
         failures.push(
-          `${sig}\n      reason: bridge-specific recipient mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
+          `${sig}\n      reason: bridge-specific display field mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS / BRIDGE_EXTRA_FIELDS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
         )
         continue
       }
@@ -989,10 +1006,10 @@ function main() {
         )
         continue
       }
-      const extraErr = validateExtraReceiver(fn)
+      const extraErr = validateExtraFields(fn)
       if (extraErr) {
         failures.push(
-          `${sig}\n      reason: bridge-specific recipient mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
+          `${sig}\n      reason: bridge-specific display field mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS / BRIDGE_EXTRA_FIELDS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
         )
         continue
       }

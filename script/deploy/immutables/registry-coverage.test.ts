@@ -87,8 +87,7 @@ describe('assessRegistryCoverage', () => {
   })
 
   it('reports an immutable with no registry entry', () => {
-    // The authoring gap part (ii) closes. It has to be visible per contract and
-    // per name, not as a count.
+    // It has to be visible per contract and per name, not as a count.
     const result = assessRegistryCoverage(
       [declared('SPOKE_POOL'), declared('SOMETHING_NEW')],
       { AcrossFacet: ['_spokePool'] }

@@ -20,6 +20,7 @@ import {
   formatUnits,
   parseAbi,
   getContract,
+  pad,
   type Abi,
 } from 'viem'
 
@@ -53,6 +54,7 @@ declare namespace NEARIntentsFacet {
   // eslint-disable-next-line @typescript-eslint/naming-convention -- Matches Solidity struct name
   interface NEARIntentsDataStruct {
     nonEVMReceiver: `0x${string}`
+    destinationAsset: `0x${string}`
     depositAddress: string
     quoteId: `0x${string}`
     deadline: bigint
@@ -169,6 +171,7 @@ async function generateBackendSignature(
     deadline: bigint
     minAmountOut: bigint
     nonEVMReceiver: `0x${string}`
+    destinationAsset: `0x${string}`
   },
   sourceChainId: number
 ): Promise<`0x${string}`> {
@@ -197,6 +200,7 @@ async function generateBackendSignature(
       { name: 'deadline', type: 'uint256' },
       { name: 'quoteId', type: 'bytes32' },
       { name: 'minAmountOut', type: 'uint256' },
+      { name: 'destinationAsset', type: 'bytes32' },
     ],
   } as const
 
@@ -216,6 +220,7 @@ async function generateBackendSignature(
     deadline: nearData.deadline,
     quoteId: nearData.quoteId,
     minAmountOut: nearData.minAmountOut,
+    destinationAsset: nearData.destinationAsset,
   } as const
 
   console.log('Types:', types)
@@ -296,6 +301,10 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
   // Note: The asset ID uses a different hex encoding (5ce3bf3a...) than the contract address
   const destinationAsset =
     'nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near'
+  // Same bytes32 codec as the receiver: the facet binds the destination mint into the signature
+  const destinationAssetBytes32 = solanaAddressToBytes32(
+    'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+  )
 
   console.log('\n💱 Asset mapping:')
   console.log('  Origin:', originAsset)
@@ -417,6 +426,7 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
     deadline,
     minAmountOut,
     nonEVMReceiver: solanaReceiverBytes32,
+    destinationAsset: destinationAssetBytes32,
   }
 
   // Generate backend signature
@@ -434,6 +444,7 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
     nonEVMReceiver: solanaReceiverBytes32,
+    destinationAsset: destinationAssetBytes32,
     depositAddress: quote.depositAddress,
     quoteId: quoteIdBytes32,
     deadline,
@@ -541,6 +552,11 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
   // Base USDC: CONTRACT=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
   const destinationAsset =
     'nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near'
+  // EVM destination asset as bytes32: token address left-padded to 32 bytes
+  const destinationAssetBytes32 = pad(
+    '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+    { size: 32 }
+  )
 
   console.log('\n💱 Asset mapping:')
   console.log('  Origin:', originAsset)
@@ -655,6 +671,7 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
     deadline,
     minAmountOut,
     nonEVMReceiver: `0x${'0'.repeat(64)}` as `0x${string}`, // Empty for EVM
+    destinationAsset: destinationAssetBytes32,
   }
 
   const evmSourceChainId = networks[SOURCE_CHAIN]?.chainId
@@ -671,6 +688,7 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
 
   const nearData: NEARIntentsFacet.NEARIntentsDataStruct = {
     nonEVMReceiver: `0x${'0'.repeat(64)}`,
+    destinationAsset: destinationAssetBytes32,
     depositAddress: quote.depositAddress,
     quoteId: quoteIdBytes32,
     deadline,

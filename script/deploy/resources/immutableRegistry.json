@@ -489,5 +489,12 @@
       "configData": "_backendSigner",
       "authorityBearing": true
     }
+  },
+  "CentrifugeFacet": {
+    "TOKEN_BRIDGE": {
+      "source": "config",
+      "configData": "_tokenBridge",
+      "authorityBearing": true
+    }
   }
 }
