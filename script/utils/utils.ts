@@ -17,6 +17,7 @@ import networksConfig from '../../config/networks.json'
 import type {
   EVMVersion,
   IDeploymentResult,
+  IDiamondDeploymentLog,
   IFoundryProfileDefaultConfig,
   INetwork,
   INetworkInfo,
@@ -382,25 +383,59 @@ export async function saveContractAddress(
     `deployments/${network}.${fileSuffix}json`
   )
 
-  // Only a missing file starts fresh: one that fails to parse (e.g. merge
-  // conflict markers) would otherwise be rewritten with this single entry,
-  // dropping every other recorded address.
-  let deployments: Record<string, string> = {}
-  if (existsSync(deploymentFile))
-    try {
-      deployments = JSON.parse(await readFile(deploymentFile, 'utf8'))
-    } catch (error) {
-      throw new Error(
-        `Cannot parse ${deploymentFile}; fix it, then record ${contract} at ${address} by hand`,
-        { cause: error }
-      )
-    }
+  const deployments = await readDeploymentLogForUpdate<Record<string, string>>(
+    deploymentFile,
+    {},
+    `record ${contract} at ${address} by hand`
+  )
 
   deployments[contract] = address
 
   // pickDeploymentRootForWrites falls back to a root without `deployments/`.
-  await mkdir(dirname(deploymentFile), { recursive: true })
-  await writeFile(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
+  await writeDeploymentLog(deploymentFile, deployments)
+}
+
+/**
+ * Reads a deployment log that is about to be rewritten.
+ *
+ * Only a missing file yields `empty`: one that fails to parse (e.g. merge
+ * conflict markers) would otherwise be rewritten from `empty`, dropping every
+ * entry it recorded.
+ *
+ * @param path - absolute path of the log
+ * @param empty - the contents to start from when the file does not exist
+ * @param recovery - what the operator does by hand once the file is fixed
+ * @returns the parsed log, or `empty`
+ */
+async function readDeploymentLogForUpdate<T>(
+  path: string,
+  empty: T,
+  recovery: string
+): Promise<T> {
+  if (!existsSync(path)) return empty
+  try {
+    return JSON.parse(await readFile(path, 'utf8')) as T
+  } catch (error) {
+    throw new Error(`Cannot parse ${path}; fix it, then ${recovery}`, {
+      cause: error,
+    })
+  }
+}
+
+/** The contents of a `<network>.diamond.json` that records nothing yet. */
+function emptyDiamondLog(): IDiamondDeploymentLog {
+  return { LiFiDiamond: { Facets: {}, Periphery: {} } }
+}
+
+/**
+ * Writes a deployment log, creating its `deployments/` directory if needed.
+ *
+ * @param path - absolute path of the log
+ * @param data - the contents to serialise
+ */
+async function writeDeploymentLog(path: string, data: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, JSON.stringify(data, null, 2) + '\n')
 }
 
 /**
@@ -479,7 +514,7 @@ export async function saveDiamondDeployment(
       Version: facetInfo.version,
     }
 
-  await writeFile(diamondFile, JSON.stringify(diamondData, null, 2))
+  await writeDeploymentLog(diamondFile, diamondData)
 }
 
 /**
@@ -599,20 +634,11 @@ export async function updateDiamondJson(
       `${network}.diamond.json`
     )
 
-    // Read existing file or create new structure
-    let diamondData: any
-    try {
-      const fileContent = await readFile(diamondJsonPath, 'utf8')
-      diamondData = JSON.parse(fileContent)
-    } catch {
-      // File doesn't exist or is invalid, create new structure
-      diamondData = {
-        LiFiDiamond: {
-          Facets: {},
-          Periphery: {},
-        },
-      }
-    }
+    const diamondData = await readDeploymentLogForUpdate<IDiamondDeploymentLog>(
+      diamondJsonPath,
+      emptyDiamondLog(),
+      `record ${facetName} at ${facetAddress} by hand`
+    )
 
     // Ensure structure exists
     if (!diamondData.LiFiDiamond)
@@ -627,7 +653,7 @@ export async function updateDiamondJson(
     const facets = diamondData.LiFiDiamond.Facets
 
     for (const address in facets)
-      if (facets[address].Name === facetName)
+      if (facets[address]?.Name === facetName)
         if (address === facetAddress) {
           consola.info(`${facetName} already exists in ${network}.diamond.json`)
           return
@@ -661,14 +687,14 @@ export async function updateDiamondJson(
     }
 
     // Write updated file
-    await writeFile(
-      diamondJsonPath,
-      JSON.stringify(diamondData, null, 2) + '\n'
-    )
+    await writeDeploymentLog(diamondJsonPath, diamondData)
 
     consola.success(`Updated ${network}.diamond.json with ${facetName}`)
-  } catch (error: any) {
-    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
+  } catch (error) {
+    consola.error(
+      `Failed to update ${network}.diamond.json:`,
+      error instanceof Error ? error.message : String(error)
+    )
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -779,19 +805,11 @@ export async function updateDiamondJsonBatch(
       `${network}.diamond.json`
     )
 
-    // Read existing file or create new structure
-    let diamondData: any
-    try {
-      const fileContent = await readFile(diamondJsonPath, 'utf8')
-      diamondData = JSON.parse(fileContent)
-    } catch {
-      diamondData = {
-        LiFiDiamond: {
-          Facets: {},
-          Periphery: {},
-        },
-      }
-    }
+    const diamondData = await readDeploymentLogForUpdate<IDiamondDeploymentLog>(
+      diamondJsonPath,
+      emptyDiamondLog(),
+      `record ${facetEntries.map((entry) => entry.name).join(', ')} by hand`
+    )
 
     // Ensure structure exists
     if (!diamondData.LiFiDiamond)
@@ -810,7 +828,7 @@ export async function updateDiamondJsonBatch(
       // Check if facet already exists by name
       let existingAddress: string | null = null
       for (const address in facets)
-        if (facets[address].Name === entry.name) {
+        if (facets[address]?.Name === entry.name) {
           existingAddress = address
           break
         }
@@ -852,17 +870,17 @@ export async function updateDiamondJsonBatch(
 
     if (updatedCount > 0) {
       // Write updated file
-      await writeFile(
-        diamondJsonPath,
-        JSON.stringify(diamondData, null, 2) + '\n'
-      )
+      await writeDeploymentLog(diamondJsonPath, diamondData)
 
       consola.success(
         `Updated ${network}.diamond.json with ${updatedCount} facet(s)`
       )
     }
-  } catch (error: any) {
-    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
+  } catch (error) {
+    consola.error(
+      `Failed to update ${network}.diamond.json:`,
+      error instanceof Error ? error.message : String(error)
+    )
     // Don't throw - this is not critical for the deployment
   }
 }
@@ -885,20 +903,11 @@ export async function updateDiamondJsonPeriphery(
       `${network}.diamond.json`
     )
 
-    // Read existing file or create new structure
-    let diamondData: any
-    try {
-      const fileContent = await readFile(diamondJsonPath, 'utf8')
-      diamondData = JSON.parse(fileContent)
-    } catch {
-      // File doesn't exist or is invalid, create new structure
-      diamondData = {
-        LiFiDiamond: {
-          Facets: {},
-          Periphery: {},
-        },
-      }
-    }
+    const diamondData = await readDeploymentLogForUpdate<IDiamondDeploymentLog>(
+      diamondJsonPath,
+      emptyDiamondLog(),
+      `record ${contractName} at ${contractAddress} by hand`
+    )
 
     // Ensure structure exists
     if (!diamondData.LiFiDiamond)
@@ -929,16 +938,16 @@ export async function updateDiamondJsonPeriphery(
     periphery[contractName] = contractAddress
 
     // Write updated file
-    await writeFile(
-      diamondJsonPath,
-      JSON.stringify(diamondData, null, 2) + '\n'
-    )
+    await writeDeploymentLog(diamondJsonPath, diamondData)
 
     consola.success(
       `Updated ${network}.diamond.json with ${contractName} (Periphery)`
     )
-  } catch (error: any) {
-    consola.error(`Failed to update ${network}.diamond.json:`, error.message)
+  } catch (error) {
+    consola.error(
+      `Failed to update ${network}.diamond.json:`,
+      error instanceof Error ? error.message : String(error)
+    )
     // Don't throw - this is not critical for the deployment
   }
 }

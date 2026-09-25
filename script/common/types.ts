@@ -133,6 +133,17 @@ export interface IFoundryProfileDefaultConfig {
 }
 
 /**
+ * `deployments/<network>.diamond.json`, as read back before an update. Either
+ * section can be absent from a hand-edited file, so readers add what is missing.
+ */
+export interface IDiamondDeploymentLog {
+  LiFiDiamond?: {
+    Facets?: Record<string, { Name: string; Version: string }>
+    Periphery?: Record<string, string>
+  }
+}
+
+/**
  * Whitelist configuration structure for DEX and Periphery contracts
  * Used in health check scripts to validate on-chain whitelist state
  */

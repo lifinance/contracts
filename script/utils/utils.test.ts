@@ -54,6 +54,10 @@ const {
   getFoundryDefaultOptimizerRuns,
   node_url,
   saveContractAddress,
+  saveDiamondDeployment,
+  updateDiamondJson,
+  updateDiamondJsonBatch,
+  updateDiamondJsonPeriphery,
 } = await import('./utils')
 
 type NetworkArg = Parameters<typeof getContractAddress>[0]
@@ -128,6 +132,24 @@ optimizer_runs = 1.5
     expect(() => getFoundryDefaultOptimizerRuns()).toThrow(
       /Missing or invalid \[profile\.default\]\.optimizer_runs/
     )
+  })
+
+  it('throws when optimizer_runs has trailing junk', () => {
+    mockedFoundryToml = `
+[profile.default]
+optimizer_runs = 200abc
+`
+    expect(() => getFoundryDefaultOptimizerRuns()).toThrow(
+      /Missing or invalid \[profile\.default\]\.optimizer_runs/
+    )
+  })
+
+  it('reads optimizer_runs followed by a comment', () => {
+    mockedFoundryToml = `
+[profile.default]
+optimizer_runs = 200 # tuned for size
+`
+    expect(getFoundryDefaultOptimizerRuns()).toBe(200)
   })
 
   it('throws when [profile.default] is missing entirely', () => {
@@ -502,5 +524,218 @@ describe('saveContractAddress', () => {
       )
       expect(realFs.readFileSync(logPath, 'utf8')).toBe(corrupt)
     })
+  })
+
+  // A root is chosen by its `deployments/` directory when no root holds the
+  // file yet, so a parent-workspace cwd writes where getContractAddress reads.
+  it('writes into the root that already has deployments/', async () => {
+    await withWorkspace(async (workspace) => {
+      const base = join(workspace, '..')
+      realFs.mkdirSync(join(base, 'deployments'))
+
+      await saveContractAddress('tron', 'EcoFacet', 'TAddr1')
+
+      expect(realFs.existsSync(join(workspace, 'deployments'))).toBe(false)
+      expect(
+        JSON.parse(
+          realFs.readFileSync(
+            join(base, 'deployments', 'tron.staging.json'),
+            'utf8'
+          )
+        )
+      ).toEqual({ EcoFacet: 'TAddr1' })
+    })
+  })
+})
+
+describe('diamond log writers', () => {
+  /** Runs `assertions` from a throwaway cwd, with or without `deployments/`. */
+  const withCwd = async (
+    withDeploymentsDir: boolean,
+    assertions: (logPath: string) => Promise<void>
+  ) => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-writers-'))
+    const previousCwd = process.cwd()
+    const previousProduction = process.env.PRODUCTION
+    try {
+      process.env.PRODUCTION = 'true'
+      if (withDeploymentsDir) realFs.mkdirSync(join(root, 'deployments'))
+      process.chdir(root)
+      await assertions(join(root, 'deployments', 'tron.diamond.json'))
+    } finally {
+      process.chdir(previousCwd)
+      if (previousProduction === undefined) {
+        delete process.env.PRODUCTION
+      } else {
+        process.env.PRODUCTION = previousProduction
+      }
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  const readLog = (logPath: string): unknown =>
+    JSON.parse(realFs.readFileSync(logPath, 'utf8'))
+
+  /** Runs `action` with consola.error captured, since the writers log and do not throw. */
+  const captureErrors = async (action: () => Promise<void>) => {
+    const realError = consola.error
+    const messages: string[] = []
+    consola.error = ((...args: unknown[]) => {
+      messages.push(args.map(String).join(' '))
+    }) as typeof consola.error
+    try {
+      await action()
+    } finally {
+      consola.error = realError
+    }
+    return messages
+  }
+
+  it('saveDiamondDeployment creates deployments/ when it is missing', async () => {
+    await withCwd(false, async (logPath) => {
+      await saveDiamondDeployment('tron', 'TDiamond', {
+        EcoFacet: { address: 'TAddr1', version: '1.0.0' },
+      })
+
+      expect(readLog(logPath)).toEqual({
+        LiFiDiamond: {
+          Facets: { TAddr1: { Name: 'EcoFacet', Version: '1.0.0' } },
+          Periphery: {},
+        },
+      })
+    })
+  })
+
+  it('updateDiamondJson creates deployments/ when it is missing', async () => {
+    await withCwd(false, async (logPath) => {
+      const errors = await captureErrors(() =>
+        updateDiamondJson('TAddr1', 'EcoFacet', '1.0.0')
+      )
+
+      expect(errors).toEqual([])
+      expect(readLog(logPath)).toEqual({
+        LiFiDiamond: {
+          Facets: { TAddr1: { Name: 'EcoFacet', Version: '1.0.0' } },
+          Periphery: {},
+        },
+      })
+    })
+  })
+
+  it('updateDiamondJson replaces a facet by name and keeps the rest', async () => {
+    await withCwd(true, async (logPath) => {
+      realFs.writeFileSync(
+        logPath,
+        JSON.stringify({
+          LiFiDiamond: {
+            Facets: {
+              TOld: { Name: 'EcoFacet', Version: '0.9.0' },
+              TOther: { Name: 'AllBridgeFacet', Version: '2.2.0' },
+            },
+            Periphery: { Executor: 'TExec' },
+          },
+        })
+      )
+
+      await updateDiamondJson('TNew', 'EcoFacet', '1.0.0')
+
+      expect(readLog(logPath)).toEqual({
+        LiFiDiamond: {
+          Facets: {
+            TOther: { Name: 'AllBridgeFacet', Version: '2.2.0' },
+            TNew: { Name: 'EcoFacet', Version: '1.0.0' },
+          },
+          Periphery: { Executor: 'TExec' },
+        },
+      })
+    })
+  })
+
+  it('updateDiamondJsonBatch adds every entry in one write', async () => {
+    await withCwd(true, async (logPath) => {
+      await updateDiamondJsonBatch([
+        { address: 'TAddr1', name: 'EcoFacet', version: '1.0.0' },
+        { address: 'TAddr2', name: 'AllBridgeFacet', version: '2.2.0' },
+      ])
+
+      expect(readLog(logPath)).toEqual({
+        LiFiDiamond: {
+          Facets: {
+            TAddr1: { Name: 'EcoFacet', Version: '1.0.0' },
+            TAddr2: { Name: 'AllBridgeFacet', Version: '2.2.0' },
+          },
+          Periphery: {},
+        },
+      })
+    })
+  })
+
+  it('updateDiamondJsonPeriphery records the contract and keeps the facets', async () => {
+    await withCwd(true, async (logPath) => {
+      realFs.writeFileSync(
+        logPath,
+        JSON.stringify({
+          LiFiDiamond: {
+            Facets: { TAddr1: { Name: 'EcoFacet', Version: '1.0.0' } },
+          },
+        })
+      )
+
+      await updateDiamondJsonPeriphery('TExec', 'Executor')
+
+      expect(readLog(logPath)).toEqual({
+        LiFiDiamond: {
+          Facets: { TAddr1: { Name: 'EcoFacet', Version: '1.0.0' } },
+          Periphery: { Executor: 'TExec' },
+        },
+      })
+    })
+  })
+
+  // Starting fresh here would rewrite the log with one entry and drop every
+  // other facet and periphery contract it recorded.
+  it.each([
+    [
+      'updateDiamondJson',
+      () => updateDiamondJson('TAddr1', 'EcoFacet', '1.0.0'),
+      /record EcoFacet at TAddr1 by hand/,
+    ],
+    [
+      'updateDiamondJsonBatch',
+      () =>
+        updateDiamondJsonBatch([
+          { address: 'TAddr1', name: 'EcoFacet', version: '1.0.0' },
+          { address: 'TAddr2', name: 'AllBridgeFacet', version: '2.2.0' },
+        ]),
+      /record EcoFacet, AllBridgeFacet by hand/,
+    ],
+    [
+      'updateDiamondJsonPeriphery',
+      () => updateDiamondJsonPeriphery('TExec', 'Executor'),
+      /record Executor at TExec by hand/,
+    ],
+  ] as Array<[string, () => Promise<void>, RegExp]>)(
+    '%s leaves a log it cannot parse untouched',
+    async (_name, write, recovery) => {
+      await withCwd(true, async (logPath) => {
+        const corrupt = '{\n<<<<<<< HEAD\n  "LiFiDiamond": {}\n'
+        realFs.writeFileSync(logPath, corrupt)
+
+        const errors = await captureErrors(write)
+
+        expect(realFs.readFileSync(logPath, 'utf8')).toBe(corrupt)
+        expect(errors.join('\n')).toMatch(/Cannot parse .*tron\.diamond\.json/)
+        expect(errors.join('\n')).toMatch(recovery)
+      })
+    }
+  )
+})
+
+describe('getFacetSelectors artifact lookup', () => {
+  it('names forge build as the fix when the artifact is missing', async () => {
+    await expectRejects(
+      getFacetSelectors('NoSuchFacetEverBuilt'),
+      "Build artifact not found for NoSuchFacetEverBuilt. Run 'forge build' first."
+    )
   })
 })
