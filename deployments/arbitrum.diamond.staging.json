@@ -232,10 +232,6 @@
       "0x611137973F903e25AF3C8f2eE153A168887Cbdc8": {
         "Name": "NEARIntentsFacet",
         "Version": "3.0.0"
-      },
-      "0x8c5D446ac08eF25Fbe168b759f9b23A59e1d0f0b": {
-        "Name": "M0Facet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
