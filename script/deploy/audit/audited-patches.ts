@@ -100,20 +100,65 @@ export const parseAuditedPatches = (
   )
 }
 
+export interface IPatchGit {
+  /** Reads a file at a tree-ish; `undefined` when absent or unreadable. */
+  readAt: (treeish: string, path: string) => string | undefined
+  /** Whether `ancestor` is in `descendant`'s history. */
+  isAncestor: (ancestor: string, descendant: string) => boolean
+}
+
+/**
+ * Checks a declaration against the audit it cites, whatever PR head holds.
+ *
+ * Runs before the substitution is kept, because it also applies at audit
+ * commits when PR head no longer matches. The audit's commit must hold the
+ * declared patch, so the declaration cannot vouch for source the audit never
+ * reviewed, however that source reached the branch. And the upstream commit
+ * must be in that commit's history, or an entry could point importers at an
+ * upstream base the patch was never applied to.
+ */
+const assertDeclarationMatchesAudit = (
+  path: string,
+  patch: IAuditedPatch,
+  log: IAuditLogFile,
+  { readAt, isAncestor }: IPatchGit
+): void => {
+  const auditCommit = log.audits[patch.auditId]?.auditCommitHash
+  if (
+    auditCommit === undefined ||
+    !isAncestor(patch.upstreamCommit, auditCommit)
+  )
+    throw new Error(
+      `${path}: upstreamCommit ${
+        patch.upstreamCommit
+      } is not in the history of audit '${patch.auditId}' (${
+        auditCommit ?? 'no auditCommitHash'
+      }), so it is not the base that audit reviewed the patch on`
+    )
+
+  const audited = readAt(auditCommit, path)
+  const auditedHash =
+    audited === undefined ? undefined : hashAuditRelevantSource(audited)
+  if (auditedHash !== patch.patchedSourceHash)
+    throw new Error(
+      `${path}: audit '${patch.auditId}' reviewed ${
+        auditedHash ?? '(unreadable)'
+      }, not the declared patch ${patch.patchedSourceHash}`
+    )
+}
+
 /**
  * Checks a patch PR head matches against the log and against upstream.
  *
  * The audit must be recorded for the version the patch declares, or an upstream
- * audit of the same contract could vouch for it. Its commit must hold the
- * declared patch, so the declaration cannot vouch for source the audit never
- * reviewed, however that source reached the branch. And the patch may import only
+ * audit of the same contract could vouch for it. And the patch may import only
  * what upstream imports: reading it as upstream drops its own imports from every
  * importer's closure, so a file only the patch imports would escape the gate.
  */
 const assertPatchCanBeSubstituted = (
   path: string,
   patch: IAuditedPatch,
-  sources: { head: string; upstream: string; audited: string | undefined },
+  sources: { head: string; upstream: string },
   log: IAuditLogFile
 ): void => {
   const name = contractNameFromPath(path)
@@ -129,17 +174,6 @@ const assertPatchCanBeSubstituted = (
       }`
     )
 
-  const auditedHash =
-    sources.audited === undefined
-      ? undefined
-      : hashAuditRelevantSource(sources.audited)
-  if (auditedHash !== patch.patchedSourceHash)
-    throw new Error(
-      `${path}: audit '${patch.auditId}' reviewed ${
-        auditedHash ?? '(unreadable)'
-      }, not the declared patch ${patch.patchedSourceHash}`
-    )
-
   const upstreamImports = new Set(parseImports(sources.upstream))
   const added = parseImports(sources.head).filter(
     (specifier) => !upstreamImports.has(specifier)
@@ -150,13 +184,6 @@ const assertPatchCanBeSubstituted = (
         ', '
       )}, which upstream does not — reading it as upstream would hide those files`
     )
-}
-
-export interface IPatchGit {
-  /** Reads a file at a tree-ish; `undefined` when absent or unreadable. */
-  readAt: (treeish: string, path: string) => string | undefined
-  /** Whether `ancestor` is in `descendant`'s history. */
-  isAncestor: (ancestor: string, descendant: string) => boolean
 }
 
 export interface IResolvedPatches {
@@ -176,16 +203,16 @@ export interface IResolvedPatches {
  * @param headTreeish - the tree-ish holding PR head.
  * @param git - file reads and ancestry checks against the repository.
  * @returns the substitutions and a log line per declaration.
- * @throws Error when an upstream source cannot be read, or a patch PR head
- *   matches is not audited at its version, is not the source at its audit
- *   commit, was applied to an upstream commit outside that commit's history,
- *   or imports what upstream does not.
+ * @throws Error when an upstream source cannot be read, when a declaration is
+ *   not the source at its audit commit or names an upstream commit outside that
+ *   commit's history, or when a patch PR head matches is not audited at its
+ *   version or imports what upstream does not.
  */
 export const resolveAuditedPatches = (
   patches: AuditedPatches,
   log: IAuditLogFile,
   headTreeish: string,
-  { readAt, isAncestor }: IPatchGit
+  git: IPatchGit
 ): IResolvedPatches => {
   const resolved: IResolvedPatches = {
     substitutions: new Map(),
@@ -194,17 +221,18 @@ export const resolveAuditedPatches = (
   }
 
   for (const [path, patch] of Object.entries(patches)) {
-    const upstream = readAt(patch.upstreamCommit, path)
+    const upstream = git.readAt(patch.upstreamCommit, path)
     if (upstream === undefined)
       throw new Error(
         `${path}: upstream source at ${patch.upstreamCommit} could not be read`
       )
+    assertDeclarationMatchesAudit(path, patch, log, git)
     resolved.substitutions.set(path, {
       patchedSourceHash: patch.patchedSourceHash,
       upstreamSource: upstream,
     })
 
-    const head = readAt(headTreeish, path)
+    const head = git.readAt(headTreeish, path)
     const headHash =
       head === undefined ? undefined : hashAuditRelevantSource(head)
     if (head === undefined || headHash !== patch.patchedSourceHash) {
@@ -218,20 +246,7 @@ export const resolveAuditedPatches = (
       continue
     }
 
-    const auditCommit = log.audits[patch.auditId]?.auditCommitHash
-    if (
-      auditCommit === undefined ||
-      !isAncestor(patch.upstreamCommit, auditCommit)
-    )
-      throw new Error(
-        `${path}: upstreamCommit ${
-          patch.upstreamCommit
-        } is not in the history of audit '${patch.auditId}' (${
-          auditCommit ?? 'no auditCommitHash'
-        }), so it is not the base that audit reviewed the patch on`
-      )
-    const audited = readAt(auditCommit, path)
-    assertPatchCanBeSubstituted(path, patch, { head, upstream, audited }, log)
+    assertPatchCanBeSubstituted(path, patch, { head, upstream }, log)
     resolved.applied.push(
       `${path}: read as upstream ${patch.upstreamCommit} — PR head is the patch audited in '${patch.auditId}'`
     )

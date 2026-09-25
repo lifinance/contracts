@@ -28,6 +28,7 @@ const FACET = 'src/Facets/FooFacet.sol'
 const UPSTREAM_SHA = 'a'.repeat(40)
 const HEAD = 'HEAD'
 const TRON_AUDIT_SHA = 'b'.repeat(40)
+const UPSTREAM_AUDIT_SHA = 'c'.repeat(40)
 
 const libSource = (
   version: string,
@@ -51,7 +52,7 @@ const SWAP_SOURCE = 'library LibSwap {}'
 const log: IAuditLogFile = {
   audits: {
     tronAudit: { auditCommitHash: TRON_AUDIT_SHA },
-    upstreamAudit: { auditCommitHash: 'c'.repeat(40) },
+    upstreamAudit: { auditCommitHash: UPSTREAM_AUDIT_SHA },
   },
   auditedContracts: {
     LibAsset: { '2.1.3': ['upstreamAudit'], '2.1.3-tron': ['tronAudit'] },
@@ -82,10 +83,11 @@ const gitFrom = (
   isAncestor,
 })
 
+/** Both audit commits hold `audited`, the declared patch unless a test says otherwise. */
 const resolveWithHead = (
   head: string | undefined,
   declared = patches,
-  audited = head
+  audited = PATCHED_LIB
 ) =>
   resolveAuditedPatches(
     declared,
@@ -94,7 +96,8 @@ const resolveWithHead = (
     gitFrom({
       [HEAD]: head === undefined ? {} : { [LIB]: head },
       [UPSTREAM_SHA]: { [LIB]: UPSTREAM_LIB },
-      [TRON_AUDIT_SHA]: audited === undefined ? {} : { [LIB]: audited },
+      [TRON_AUDIT_SHA]: { [LIB]: audited },
+      [UPSTREAM_AUDIT_SHA]: { [LIB]: audited },
     })
   )
 
@@ -196,8 +199,16 @@ describe('resolveAuditedPatches', () => {
       log
     )
 
-    expect(() => resolveWithHead(untagged, declared)).toThrow(
+    expect(() => resolveWithHead(untagged, declared, untagged)).toThrow(
       'LibAsset@(no readable version)'
+    )
+  })
+
+  it('throws for a declaration its audit does not back, even when PR head no longer matches', () => {
+    const changed = `${PATCHED_LIB}\nuint x;`
+
+    expect(() => resolveWithHead(changed, patches, changed)).toThrow(
+      "audit 'tronAudit' reviewed"
     )
   })
 
@@ -274,7 +285,7 @@ describe('resolveAuditedPatches', () => {
       log
     )
 
-    expect(() => resolveWithHead(withHelper, declared)).toThrow(
+    expect(() => resolveWithHead(withHelper, declared, withHelper)).toThrow(
       'the patch imports ./TronHelper.sol, which upstream does not'
     )
   })
@@ -286,7 +297,7 @@ describe('resolveAuditedPatches', () => {
       log
     )
 
-    expect(resolveWithHead(fewer, declared).applied).toHaveLength(1)
+    expect(resolveWithHead(fewer, declared, fewer).applied).toHaveLength(1)
   })
 })
 
