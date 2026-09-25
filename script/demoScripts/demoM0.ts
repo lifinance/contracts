@@ -7,6 +7,46 @@
  *   bunx tsx script/demoScripts/demoM0.ts --scenario arbitrum-to-rise
  *   bunx tsx script/demoScripts/demoM0.ts --scenario mainnet-to-solana
  *
+ * Executed runs (staging diamond, mainnet):
+ *   mainnet-samechain       OPEN https://etherscan.io/tx/0x23d9328cc72a4a35a3a7309a1f046be147404e83209ca808111d4871d3f91be8
+ *                           FILL https://etherscan.io/tx/0xf7afafb6ac5304a370b4055ff9bc739179d2b0cc66b0156fb45e08b3b2373b6b
+ *                           order 0xf84df03882ed233400682549f7607ccddd293aba8c2b98365fdef152ca1cbc5d
+ *                           4 USDC -> 1 wM, filled by Farsight Solver two blocks (~24s) after
+ *                           open. The 3 USDC spread is the solver's flat fee, not slippage.
+ *   mainnet-to-citrea       OPEN https://etherscan.io/tx/0xefe1ea1c2f99c446e564ca2e79e04ed97a5c8f455983aac5c7b96f9770a43627
+ *                           FILL (Citrea) 0x87aefb99bf00eeb355a3561899223bdf77361bce0441f8e8263e01c5790906bf
+ *                           order 0xa5526251bbeb04fb2ad351296479e57c7cf8e2420aaccae05864890348af747b
+ *                           1 USDC -> 1 ctUSD, filled 18s after open at feeBps 0; amountIn,
+ *                           amountOut, amountOutFilled and amountInReleased all 1000000.
+ *   mainnet-to-citrea-w-swap OPEN https://etherscan.io/tx/0xba41e70776291e268c05dcec2d59b34e606b0640527197e888cbec1c3950d2ab
+ *                           FILL (Citrea) 0xe13ab036471bc3250d86d498b909088d5869766b52207f4f6ad49ae42d9f47f5
+ *                           order 0x745eb8aac8ce457bde753fed0fa9fe4396d75d4ae9a15c52f03f0e9e86857f72
+ *                           2 USDT pre-swapped to USDC, then bridged to ctUSD. The run that
+ *                           covers swapAndStartBridgeTokensViaM0 and the amountOut scaling:
+ *                             declared floor (bridgeData.minAmount) 1_931_234  <- 3% under
+ *                             amountOut quoted against that floor   1_931_234
+ *                             realized swap output                  1_990_963
+ *                             amountOut actually escrowed           1_990_963  <- scaled
+ *                           Unscaled, the ~59_729 units of positive slippage would have gone
+ *                           to the solver as a better rate. It went to the user.
+ *   mainnet-to-solana       OPEN https://etherscan.io/tx/0x5d5450c588df2e2750482420f5f41c0cc663b5f8adb3c3c61a87c8d439183bed
+ *                           FILL (Solana) 4hZpFDt7nNQjMWKAKKnPEh9ARwkCKZfdvpdtZhJjV8uhYHWaSZGqAx2936ND2Gv39drYFreHTA7cmhReTSAsw8xn
+ *                           order 0x212b1ccc8c433c657f9b7406efa387d0e10eedf1fa825621d54a216075bfabc4
+ *                           1 USDC -> 1 XO, filled by M0 Solver 23s after open at feeBps 0.
+ *                           The only run covering the non-EVM path: BridgeToNonEVMChainBytes32
+ *                           carries LIFI_CHAIN_ID_SOLANA and the decoded CT55XSqd... pubkey
+ *                           while LiFiTransferStarted carries the NON_EVM_ADDRESS sentinel,
+ *                           OrderOpened shows destChainId 1399811149, and the fill came back
+ *                           from CLBFpZhM6gvqrEBSPygeuW5KyetWzsXYbDUNqYz9zoTu — the round trip
+ *                           that proves the encoding in `solverToBytes32`.
+ *
+ * mainnet-to-rise and arbitrum-to-rise have not been run. Cancellation of a CROSS-CHAIN order
+ * is also unexercised — every cross-chain order above filled, so the destination-chain cancel
+ * with msg.value for the Portal message is untested. The only cancellation that has run is the
+ * same-chain counter-example to the designated-solver rule below: same route and price as
+ * mainnet-samechain but opened with bytes32(0), never filled, cancelled after fillDeadline for
+ * a full refund (order 0x719c928678c9073f20339342f1adb290a00f85f2f14cd9c48f53000aac50a239).
+ *
  * The M0 OrderBook escrows the sending asset and returns — a solver settles the order
  * later on the destination chain. A successful run therefore only proves the order was
  * OPENED; the fill, or the cancellation once `fillDeadline` passes, happens outside this
