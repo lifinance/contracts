@@ -19,6 +19,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -849,7 +850,7 @@ describe('createForgeRebuildRunner', () => {
     ])
     expect(seen[0]?.sourceRoot).toBe(`/tmp/rebuilds/${'a'.repeat(40)}`)
     expect(seen[0]?.outDir).toBe(
-      `/tmp/rebuilds/${'a'.repeat(40)}/out-codehash-default`
+      `/tmp/rebuilds/evm-out/${'a'.repeat(40)}/out-codehash-default`
     )
   })
 
@@ -1676,6 +1677,11 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       'out-codehash-solc_floor/x.json',
       evmRequest,
     ],
+    [
+      'a long-s variant',
+      'out-codeha\u017Fh-default/GlacisFacet.sol/GlacisFacet.json',
+      evmRequest,
+    ],
     ['a zk compile cache', 'zkcache/zksolc-files-cache.json', zkRequest],
     ['a solc compile cache', 'cache/solidity-files-cache.json', evmRequest],
   ])(
@@ -1701,7 +1707,7 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
 
   it.each([
     ['zk', zkRequest, `/tmp/rebuilds/${COMMIT}/zkout`],
-    ['EVM', evmRequest, `/tmp/rebuilds/${COMMIT}/out-codehash-default`],
+    ['EVM', evmRequest, `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`],
   ])(
     'refuses a %s output directory already present before this run wrote to it',
     (_label, request, outPath) => {
@@ -1714,6 +1720,35 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       expect(h.restored).toEqual([])
     }
   )
+
+  it('builds EVM output outside the checkout, where no tracked path can alias it', () => {
+    const outs: string[] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: () => '',
+      run: (_command, args) => {
+        outs.push(args[args.indexOf('--out') + 1] as string)
+        return { ok: true, output: '' }
+      },
+      exists: (path) => (path.endsWith('.json') ? outs.length > 0 : false),
+      readFile: (path) =>
+        path.endsWith('foundry.toml')
+          ? readFileSync(
+              join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+              'utf8'
+            )
+          : FORGED,
+      readDeclarations: () => [],
+    })
+
+    runner.build(evmRequest)
+
+    expect(outs).toEqual([
+      `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`,
+    ])
+    expect(outs[0]?.startsWith(`/tmp/rebuilds/${COMMIT}`)).toBe(false)
+  })
 
   it('reads a directory it vetted absent for a second contract at the same commit', () => {
     let builds = 0
@@ -1807,19 +1842,22 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
         repoRoot: repo,
         checkoutRoot: join(root, 'checkouts'),
         git: (args) => git(repo, args),
-        run: (command, _args, options) => {
+        run: (command, args, options) => {
           spawned.push(command)
-          // Stands in for forge: writes the artifact a real compile would.
-          const dir = join(
-            options.cwd,
-            'out-codehash-default',
-            'GlacisFacet.sol'
-          )
-          mkdirSync(dir, { recursive: true })
-          writeFileSync(
-            join(dir, 'GlacisFacet.json'),
-            JSON.stringify({ deployedBytecode: { object: '0xc0de' }, ast: {} })
-          )
+          // Stands in for forge: writes an artifact to `--out` for each
+          // contract `src/` defines, and leaves anything else where it lies.
+          const out = args[args.indexOf('--out') + 1] as string
+          for (const file of readdirSync(join(options.cwd, 'src'))) {
+            const dir = join(out, file)
+            mkdirSync(dir, { recursive: true })
+            writeFileSync(
+              join(dir, file.replace(/\.sol$/, '.json')),
+              JSON.stringify({
+                deployedBytecode: { object: '0xc0de' },
+                ast: {},
+              })
+            )
+          }
           return { ok: true, output: '' }
         },
         exists: existsSync,
@@ -1850,6 +1888,40 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       ).toThrow(
         /tracks build output \(out-codehash-default\/GlacisFacet\.sol\/GlacisFacet\.json\)/
       )
+      expect(spawned).toEqual([])
+    })
+
+    // The route that got past the first cut of these guards on APFS: the link
+    // dangles while the checkout is vetted, and the submodule update that runs
+    // just before the compile is what fills its target.
+    it('refuses a look-alike symlink into a submodule that is filled after vetting', () => {
+      const { repo, commit } = commitWith((dir) => {
+        const evil = join(root, 'evil')
+        mkdirSync(join(evil, 'out', 'Planted.sol'), { recursive: true })
+        writeFileSync(join(evil, 'out', 'Planted.sol', 'Planted.json'), FORGED)
+        git(evil, ['init', '-q'])
+        git(evil, ['add', '-f', '.'])
+        git(evil, ['commit', '-q', '-m', 'evil'])
+        git(dir, [
+          '-c',
+          'protocol.file.allow=always',
+          'submodule',
+          'add',
+          '-q',
+          evil,
+          'lib/evil',
+        ])
+        symlinkSync('lib/evil/out', join(dir, 'out-codeha\u017Fh-default'))
+      })
+      const spawned: string[] = []
+
+      expect(() =>
+        realRunner(repo, spawned).build({
+          ...evmRequest,
+          contractName: 'Planted',
+          commit,
+        })
+      ).toThrow(/tracks build output \(out-codeha\u017Fh-default\)/)
       expect(spawned).toEqual([])
     })
 

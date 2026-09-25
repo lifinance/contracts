@@ -103,6 +103,12 @@ const ZK_OUT_DIR = 'zkout'
 /** Prefix of the per-profile directory an EVM rebuild writes to via `--out`. */
 const EVM_OUT_PREFIX = 'out-codehash-'
 
+/**
+ * Where EVM rebuilds write, under the checkout root and beside the commit's
+ * checkout rather than inside it, so no path the commit tracks can alias it.
+ */
+const EVM_OUT_ROOT = 'evm-out'
+
 /** Compile caches the rebuild's forge reads by default, beside its output. */
 const BUILD_CACHE_DIRS = ['cache', 'zkcache']
 
@@ -547,14 +553,15 @@ const assertSubmodulesPinned = (
  * Whether a top-level name in a checkout is one the rebuild writes its output
  * to or reads a compile cache from.
  *
- * Case-folded before comparing, because a case-insensitive filesystem resolves
- * `ZKOUT` to the directory the artifact is read from.
+ * Folded through upper case before comparing, because a case-insensitive
+ * filesystem resolves `ZKOUT`, and `ſ` (U+017F) for `s`, to the directory
+ * the artifact is read from; lower-casing alone leaves `ſ` as it is.
  *
  * @param name - first component of a tracked path
  * @returns true when content at that name could stand in for a compile
  */
 const isBuildOutputName = (name: string): boolean => {
-  const folded = name.toLowerCase()
+  const folded = name.toUpperCase().toLowerCase()
   return (
     folded === ZK_OUT_DIR ||
     folded.startsWith(EVM_OUT_PREFIX) ||
@@ -709,13 +716,15 @@ export const createForgeRebuildRunner = (
     }
 
     // The zk toolchain writes to `zkout/` and ignores `--out`, so the path the
-    // artifact is read from has to follow the toolchain rather than the flag.
-    // It still sits inside this commit's checkout, so it stays per-commit.
+    // artifact is read from has to follow the toolchain rather than the flag,
+    // and sits inside the checkout where only the guards below protect it.
     const isZk = request.profile.zksolcVersion !== undefined
     const outDir = isZk
       ? ZK_OUT_DIR
       : `${EVM_OUT_PREFIX}${request.profile.profile}`
-    const outPath = join(checkout, outDir)
+    const outPath = isZk
+      ? join(checkout, outDir)
+      : join(deps.checkoutRoot, EVM_OUT_ROOT, request.commit, outDir)
     const artifactPath = join(
       outPath,
       `${request.contractName}.sol`,
@@ -781,7 +790,7 @@ export const createForgeRebuildRunner = (
       // silently substituted mid-build.
       const args = [
         'build',
-        ...(isZk ? ['--zksync'] : ['--out', outDir]),
+        ...(isZk ? ['--zksync'] : ['--out', outPath]),
         '--skip',
         'test/**',
         '--skip',
