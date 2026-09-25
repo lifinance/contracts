@@ -100,6 +100,12 @@ const UNKNOWN_COMMIT = 'UNKNOWN'
  */
 const ZK_OUT_DIR = 'zkout'
 
+/** Prefix of the per-profile directory an EVM rebuild writes to via `--out`. */
+const EVM_OUT_PREFIX = 'out-codehash-'
+
+/** Compile caches the rebuild's forge reads by default, beside its output. */
+const BUILD_CACHE_DIRS = ['cache', 'zkcache']
+
 /** Repo root, resolved from this module so a caller's cwd cannot change it. */
 const REPO_ROOT = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -538,6 +544,55 @@ const assertSubmodulesPinned = (
 }
 
 /**
+ * Whether a top-level name in a checkout is one the rebuild writes its output
+ * to or reads a compile cache from.
+ *
+ * Folded before comparing, because a case-insensitive filesystem resolves
+ * `ZKOUT` to the directory the artifact is read from.
+ *
+ * @param name - first component of a tracked path
+ * @returns true when content at that name could stand in for a compile
+ */
+const isBuildOutputName = (name: string): boolean => {
+  const folded = name.normalize('NFKC').toLowerCase()
+  return (
+    folded === ZK_OUT_DIR ||
+    folded.startsWith(EVM_OUT_PREFIX) ||
+    BUILD_CACHE_DIRS.includes(folded)
+  )
+}
+
+/**
+ * Refuses a checkout whose commit tracks anything where the rebuild writes.
+ *
+ * The commit comes from the deployment record and need only be fetchable, and
+ * `worktree add` checks out every tracked file — force-added past
+ * `.gitignore`, symlinked, or a submodule gitlink alike. A tracked artifact
+ * would be read as the rebuild's result without anything having compiled, and a
+ * tracked cache could let forge skip the compile that should overwrite it.
+ *
+ * @param git - runs git with the same cwd/env the runner uses
+ * @param checkout - absolute path of the detached worktree
+ * @throws when any tracked path sits under a build output or cache directory
+ */
+const assertNoTrackedBuildOutput = (
+  git: (args: string[]) => string,
+  checkout: string
+): void => {
+  const tracked = git(['-C', checkout, 'ls-files', '-z'])
+    .split('\0')
+    .filter(
+      (path) => path.length > 0 && isBuildOutputName(path.split('/')[0] ?? '')
+    )
+  if (tracked.length === 0) return
+  const shown = tracked.slice(0, 5).join(', ')
+  const more = tracked.length > 5 ? ` and ${tracked.length - 5} more` : ''
+  throw new Error(
+    `refusing to rebuild at ${checkout}: the commit tracks build output (${shown}${more}), which would be read as this rebuild's result without the source having been compiled. No honest deployment commit tracks these paths; treat the deployment record as suspect.`
+  )
+}
+
+/**
  * Names the profile in a checkout's own `foundry.toml` that pins the requested
  * compiler pair.
  *
@@ -634,6 +689,10 @@ export const createForgeRebuildRunner = (
   cleanup: () => void
 } => {
   const created = new Set<string>()
+  const vettedCheckouts = new Set<string>()
+  // Output directories seen absent before this run's first restore or build
+  // into them, so everything they hold since was written by this run.
+  const vettedOutDirs = new Set<string>()
 
   const build = (request: IRebuildRequest): IRebuiltArtifact => {
     // The commit comes from a Mongo row and reaches both a path join and git's
@@ -653,13 +712,29 @@ export const createForgeRebuildRunner = (
     // artifact is read from has to follow the toolchain rather than the flag.
     // It still sits inside this commit's checkout, so it stays per-commit.
     const isZk = request.profile.zksolcVersion !== undefined
-    const outDir = isZk ? ZK_OUT_DIR : `out-codehash-${request.profile.profile}`
+    const outDir = isZk
+      ? ZK_OUT_DIR
+      : `${EVM_OUT_PREFIX}${request.profile.profile}`
+    const outPath = join(checkout, outDir)
     const artifactPath = join(
-      checkout,
-      outDir,
+      outPath,
       `${request.contractName}.sol`,
       `${request.contractName}.json`
     )
+
+    if (!vettedCheckouts.has(checkout)) {
+      assertNoTrackedBuildOutput(deps.git, checkout)
+      vettedCheckouts.add(checkout)
+    }
+    // Catches what the tracked listing cannot: a checkout left behind by an
+    // earlier process, or one reused under the same root.
+    if (!vettedOutDirs.has(outPath)) {
+      if (deps.exists(outPath))
+        throw new Error(
+          `refusing to rebuild at ${checkout}: ${outDir}/ already exists and this run did not write it, so what it holds cannot be told from a compile. Remove ${deps.checkoutRoot} and re-run.`
+        )
+      vettedOutDirs.add(outPath)
+    }
 
     // An artifact left by a build that predates `--ast` satisfies an
     // existence check while carrying no declarations, which would report every
@@ -679,7 +754,7 @@ export const createForgeRebuildRunner = (
     // toolchain sends every profile to `zkout`, so a key spelled from the
     // directory alone would serve one zksolc version's build as another's.
     const cacheKey = `${request.commit}-${request.profile.profile}-${outDir}`
-    if (!usable()) deps.artifactCache?.restore(cacheKey, join(checkout, outDir))
+    if (!usable()) deps.artifactCache?.restore(cacheKey, outPath)
 
     if (!usable()) {
       // `worktree add --detach` does not populate `lib/`. Without pinning,
@@ -747,7 +822,7 @@ export const createForgeRebuildRunner = (
       // Only a build this run made and can vouch for. Keyed on the commit and
       // the profile, which is what determines the output — a key that named
       // neither would serve one commit's bytecode as another's.
-      if (usable()) deps.artifactCache?.save(cacheKey, join(checkout, outDir))
+      if (usable()) deps.artifactCache?.save(cacheKey, outPath)
     }
 
     let parsed: {
@@ -784,7 +859,7 @@ export const createForgeRebuildRunner = (
     // checkout, so both the ids and the line numbers describe the commit being
     // graded rather than whatever the operator has checked out.
     const declarations = deps
-      .readDeclarations(join(checkout, outDir), checkout)
+      .readDeclarations(outPath, checkout)
       .filter((one) => one.contract === request.contractName)
 
     return {
