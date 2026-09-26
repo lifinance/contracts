@@ -13,6 +13,6 @@ import { FACTORY_PILOT_OWNER } from './types'
 
 describe('FACTORY_PILOT_OWNER', () => {
   it('is the factory pilot owner code', () => {
-    expect(FACTORY_PILOT_OWNER).toBe('DEINEMUDDA')
+    expect(FACTORY_PILOT_OWNER).toBe('daniel')
   })
 })
