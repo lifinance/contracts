@@ -36,6 +36,49 @@ graph LR;
 The LI.FI intent facet supports destination swaps using the periphery contract `ReceiverOIF`.
 Destination swaps require configuring `.dstCallReceiver` to an instance of `ReceiverOIF` and `.dstCallSwapData` as a list of SwapData. When `dstCallSwapData.length` > 0, the recipient will be replaced with `.dstCallReceiver` and instead encoded in data to be executed by `ReceiverOIF`. The `BridgeData.hasDestinationCall` flag must be set to `true`. `.dstCallReceiver` is not validated beyond being non-zero. If `.dstCallSwapData.length` > 0 and `.dstCallReceiver` is set to an address that accepts an OIF callback without being `ReceiverOIF`, funds may be lost.
 
+## Native Inputs
+
+Starting with facet version **2.0.0**, both entrypoints accept the chain's native token as the escrow input (`bridgeData.sendingAssetId == address(0)`), either sent directly or produced by a source swap. The order input is encoded as token `0`. The escrow input settler funds native inputs from `msg.value`, which must equal the sum of the order's native input amounts **exactly**. The facet therefore forwards exactly the escrowed amount.
+
+| Route                                       | `msg.value` to send | Escrowed amount                     | Refunded to `depositAndRefundAddress` |
+| ------------------------------------------- | ------------------- | ----------------------------------- | ------------------------------------- |
+| Direct native (`startBridge…`)              | `minAmount`         | `minAmount`                         | `msg.value - minAmount`               |
+| Direct ERC20 (`startBridge…`)               | `0`                 | `minAmount` of the ERC20            | any attached `msg.value`              |
+| ERC20 → native swap (`swapAndStartBridge…`) | `0`                 | native balance increase (see below) | ERC20 swap leftovers                  |
+| Native → ERC20 swap (`swapAndStartBridge…`) | swap input          | realized ERC20 swap output          | unspent native swap input             |
+
+- **Excess native, swap leftovers and settler refunds all go to `depositAndRefundAddress`**, never to `msg.sender`, which may be a relayer or the Permit2Proxy.
+- **For swaps that end in native, attached `msg.value` funds the intent.** The swap output is measured as the diamond's native balance increase, with `msg.value` excluded from the baseline. Any `msg.value` the swaps don't consume is therefore escrowed rather than refunded, and it raises the committed output through `outputAmountMultiplier`. Send `value = 0` for ERC20 → native routes.
+- **The final swap asset must equal `sendingAssetId`.** `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` reverts with `InformationMismatch()` otherwise, so a swap output can't be escrowed as a different asset.
+- **Native recipients must accept native transfers.** The settler pays native inputs out with a plain value transfer on `refund` (to `depositAndRefundAddress`) and `finalise` (to the solver's destination). A contract that rejects native transfers blocks that payout. On the facet side, a `depositAndRefundAddress` that rejects an excess refund reverts the whole call.
+
+## Relative and Absolute Deadlines
+
+Starting with facet version **2.0.0**, both entrypoints resolve `fillDeadline`, `expires`, and the exclusivity deadline in a `0xe0` output context at transaction inclusion. `MAX_RELATIVE_PERIOD_SECONDS` is **31,536,000 seconds (365 days)**:
+
+| Supplied value       | Resolved timestamp        |
+| -------------------- | ------------------------- |
+| Less than 31,536,000 | `block.timestamp + value` |
+| At least 31,536,000  | Supplied value unchanged  |
+
+The threshold itself is an absolute timestamp, not a one-year duration. Zero resolves to the inclusion timestamp. The origin settler rejects fill and expiry timestamps that have already arrived, so zero is not a useful fill or proof window. Zero exclusivity ends at inclusion; use an empty context for an order without exclusivity.
+
+For example, `fillDeadline = 600`, `expires = 172800`, and exclusivity `60` give a 10-minute fill window, 2-day proof/claim window, and 1-minute exclusivity window from inclusion. A wallet or mempool delay does not shorten those windows. It does not refresh quoted prices or deadlines embedded in source or destination swap calldata.
+
+Each value resolves independently, so absolute and relative fields may be mixed. The origin settler continues to enforce expiration and deadline ordering; the facet does not clamp or reorder deadlines. Relative timestamps are cast to `uint32` after addition; values exceeding `uint32.max` are truncated. Absolute timestamps are forwarded unchanged.
+
+The resolved timestamps and context are part of the on-chain order identifier. Indexers, solvers, and status tracking must use the origin settler's emitted `Open` order rather than hash the unresolved quote inputs.
+
+### Exclusivity encoding
+
+Exclusive limit orders use exactly 37 packed bytes:
+
+```text
+0xe0 | exclusiveFor (bytes32) | exclusivityDeadline (uint32)
+  1 byte       32 bytes                4 bytes
+```
+
+The facet preserves the tag and solver identifier, replacing only the final four bytes with the resolved timestamp. This is packed encoding, not `abi.encode`. A context beginning with `0xe0` with any other length reverts with `InvalidCallData()` before an order is opened. Empty contexts and other tags, including `0x01` and `0xe1` Dutch auctions, pass through byte-for-byte; their timestamps must still be absolute.
 
 ## Output Amount Scaling
 
@@ -72,17 +115,17 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 ```solidity
 /// @param dstCallReceiver If dstCallSwapData.length > 0, has to be provided as a deployment of `ReceiverOIF`. Otherwise ignored.
 /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
-/// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
+/// @param depositAndRefundAddress The deposit and claim registration will be made for. Receives excess native, swap leftovers and settler refunds; for native inputs it must be able to receive native tokens or settler refunds revert.
 /// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
-/// @param expires If the proof for the fill does not arrive before this time, the claim expires
-/// @param fillDeadline The fill has to happen before this time
+/// @param expires Claim expiry: seconds from block.timestamp if below MAX_RELATIVE_PERIOD_SECONDS, otherwise an absolute Unix timestamp.
+/// @param fillDeadline Fill deadline: seconds from block.timestamp if below MAX_RELATIVE_PERIOD_SECONDS, otherwise an absolute Unix timestamp.
 /// @param inputOracle Address of the validation layer used on the input chain
 /// @param outputOracle Address of the validation layer used on the output chain
 /// @param outputSettler Address of the output settlement contract containing the fill logic
 /// @param outputToken The desired destination token
 /// @param outputAmountMultiplier Scaling factor against `MULTIPLIER_BASE` (1e18 = 100%). On both entrypoints the committed output is `inputAmount * outputAmountMultiplier / MULTIPLIER_BASE`, folding the quoted price ratio and any input/output decimal difference into one factor. Use only LI.FI backend-generated calldata.
 /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
-/// @param outputContext Context for the outputSettler to identify the order type
+/// @param outputContext Context for the outputSettler. A 0xe0 context must be exactly 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
 struct LiFiIntentEscrowDataV2 {
   // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
   bytes32 dstCallReceiver;
@@ -110,6 +153,8 @@ Some methods accept a `SwapData _swapData` parameter.
 Swapping is performed by a swap specific library that expects an array of calldata to can be run on various DEXs (i.e. Uniswap) to make one or multiple swaps before performing another action.
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
+
+The last swap's `receivingAssetId` must equal `bridgeData.sendingAssetId`. Swap leftovers and excess native are sent to `_lifiIntentData.depositAndRefundAddress`.
 
 ## LiFi Data
 
@@ -166,4 +211,12 @@ To get a transaction for a transfer from 30 USDT on Avalanche to USDC on Binance
 
 ```shell
 curl 'https://li.quest/v1/quote?fromChain=AVA&fromAmount=30000000&fromToken=USDT&toChain=BSC&toToken=USDC&slippage=0.03&allowBridges=LIFIIntent&fromAddress={YOUR_WALLET_ADDRESS}'
+```
+
+### Cross Only (native input)
+
+To get a transaction for a transfer of 0.01 ETH on Arbitrum to ETH on Base, request a quote with the native token (`0x0000000000000000000000000000000000000000`) as `fromToken`. The returned `transactionRequest.value` carries the native amount (`0.01 ETH`), and it must be sent unchanged:
+
+```shell
+curl 'https://li.quest/v1/quote?fromChain=ARB&fromAmount=10000000000000000&fromToken=0x0000000000000000000000000000000000000000&toChain=BAS&toToken=0x0000000000000000000000000000000000000000&slippage=0.03&allowBridges=LIFIIntent&fromAddress={YOUR_WALLET_ADDRESS}'
 ```

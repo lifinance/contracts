@@ -10,7 +10,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InvalidReceiver, InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidAmount, InformationMismatch, InvalidCallData } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
@@ -18,9 +18,9 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 
 /// @title LiFiIntentEscrowFacetV2
 /// @author LI.FI (https://li.fi)
-/// @notice Deposits and registers claims directly on a OIF Input Settler.
+/// @notice Deposits and registers claims directly on a OIF Input Settler. Supports ERC20 and native inputs.
 /// @notice This contract is not intended to custody user funds; any balance held is incidental (transient during execution) and should not persist.
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract LiFiIntentEscrowFacetV2 is
     ILiFi,
     ReentrancyGuard,
@@ -54,21 +54,27 @@ contract LiFiIntentEscrowFacetV2 is
     ///         scale in both directions including input/output decimal differences.
     uint256 internal constant MULTIPLIER_BASE = 1e18;
 
+    /// @notice Values strictly below 31,536,000 seconds (365 days) are offsets
+    ///         from block.timestamp; values at or above it are Unix timestamps.
+    ///         Zero resolves to block.timestamp. Applies to expiry, fill deadline,
+    ///         and the exclusivity deadline in a packed 0xe0 output context.
+    uint32 internal constant MAX_RELATIVE_PERIOD_SECONDS = 365 days;
+
     /// Types ///
 
     /// @param dstCallReceiver If dstCallSwapData.length > 0, becomes the on-chain output recipient and must be a `ReceiverOIF` deployment. On-chain it is only checked to be non-zero, not verified to be an instance of `ReceiverOIF`. If it is any other address that accepts an OIF callback, funds may be lost. Ignored when dstCallSwapData.length == 0.
     /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
-    /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
+    /// @param depositAndRefundAddress The deposit and claim registration will be made for. Receives excess native, swap leftovers and settler refunds; for native inputs it must be able to receive native tokens or settler refunds revert.
     /// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
-    /// @param expires If the proof for the fill does not arrive before this time, the claim expires
-    /// @param fillDeadline The fill has to happen before this time
+    /// @param expires Claim expiry: seconds from block.timestamp if below MAX_RELATIVE_PERIOD_SECONDS, otherwise an absolute Unix timestamp.
+    /// @param fillDeadline Fill deadline: seconds from block.timestamp if below MAX_RELATIVE_PERIOD_SECONDS, otherwise an absolute Unix timestamp.
     /// @param inputOracle Address of the validation layer used on the input chain
     /// @param outputOracle Address of the validation layer used on the output chain
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
     /// @param outputAmountMultiplier Scaling factor against `MULTIPLIER_BASE` (1e18 = 100%). On both entrypoints the committed output is `inputAmount * outputAmountMultiplier / MULTIPLIER_BASE`, folding the backend-quoted price ratio and any input/output decimal difference into one factor (`multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)`). Use only LI.FI backend-generated calldata.
     /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
-    /// @param outputContext Context for the outputSettler to identify the order type
+    /// @param outputContext Context for the outputSettler. A 0xe0 context must be exactly 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
     struct LiFiIntentEscrowDataV2 {
         // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
         bytes32 dstCallReceiver;
@@ -99,6 +105,9 @@ contract LiFiIntentEscrowFacetV2 is
     /// External Methods ///
 
     /// @notice Bridges tokens via LIFIIntent
+    /// @dev For a native input (`sendingAssetId == address(0)`), exactly
+    ///      `minAmount` is forwarded to the settler; any excess `msg.value` is
+    ///      refunded to `depositAndRefundAddress`.
     /// @param _bridgeData The core information needed for bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
     function startBridgeTokensViaLiFiIntentEscrowV2(
@@ -106,8 +115,9 @@ contract LiFiIntentEscrowFacetV2 is
         LiFiIntentEscrowDataV2 calldata _lifiIntentData
     )
         external
+        payable
         nonReentrant
-        noNativeAsset(_bridgeData)
+        refundExcessNative(payable(_lifiIntentData.depositAndRefundAddress))
         validateBridgeDataLiFiIntentEscrowV2(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
     {
@@ -130,6 +140,9 @@ contract LiFiIntentEscrowFacetV2 is
     ///      backend-quoted price ratio and any input/output decimal difference
     ///      into one 1e18-based factor. Use only LI.FI backend-generated calldata;
     ///      see "Output Amount Scaling" in `docs/LiFiIntentEscrowFacetV2.md`.
+    ///      When the final swap asset is native, `msg.value` not consumed by the
+    ///      swaps counts toward the swap output and funds the intent. Excess
+    ///      native and swap leftovers go to `depositAndRefundAddress`.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps before bridging
     /// @param _lifiIntentData Data specific to LIFIIntent
@@ -141,8 +154,7 @@ contract LiFiIntentEscrowFacetV2 is
         external
         payable
         nonReentrant
-        noNativeAsset(_bridgeData)
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_lifiIntentData.depositAndRefundAddress))
         containsSourceSwaps(_bridgeData)
         validateBridgeDataLiFiIntentEscrowV2(_bridgeData)
     {
@@ -150,6 +162,14 @@ contract LiFiIntentEscrowFacetV2 is
             .depositAndRefundAddress;
         if (depositAndRefundAddress == address(0))
             revert InvalidDepositAndRefundAddress();
+        // `_depositAndSwap` measures the last swap's receiving asset, while the
+        // escrow input is `sendingAssetId`; they must be the same asset.
+        uint256 numSwaps = _swapData.length;
+        if (
+            numSwaps != 0 &&
+            _swapData[numSwaps - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) revert InformationMismatch();
 
         // `_bridgeData.minAmount` is the worst-case swap output; `_depositAndSwap`
         // reverts unless the realized output meets it.
@@ -211,8 +231,8 @@ contract LiFiIntentEscrowFacetV2 is
         }
 
         address sendingAsset = _bridgeData.sendingAssetId;
-        // Set approval
         uint256 amount = _bridgeData.minAmount;
+        // No-op for native; native inputs are pushed as msg.value below.
         LibAsset.maxApproveERC20(
             IERC20(sendingAsset),
             address(LIFI_INTENT_ESCROW_SETTLER_V2),
@@ -246,21 +266,24 @@ contract LiFiIntentEscrowFacetV2 is
             amount: _effectiveOutputAmount,
             recipient: recipient,
             callbackData: outputCall,
-            context: _lifiIntentData.outputContext
+            context: _resolveOutputContext(_lifiIntentData.outputContext)
         });
 
         // Convert given token and amount into a idsAndAmount array
         uint256[2][] memory inputs = new uint256[2][](1);
         inputs[0] = [uint256(uint160(sendingAsset)), amount];
 
-        // Make the deposit on behalf of the user
-        IOriginSettler(LIFI_INTENT_ESCROW_SETTLER_V2).open(
+        // Make the deposit on behalf of the user. The settler requires msg.value
+        // to equal the order's native input amount exactly.
+        IOriginSettler(LIFI_INTENT_ESCROW_SETTLER_V2).open{
+            value: LibAsset.isNativeAsset(sendingAsset) ? amount : 0
+        }(
             StandardOrder({
                 user: _lifiIntentData.depositAndRefundAddress,
                 nonce: _lifiIntentData.nonce,
                 originChainId: block.chainid,
-                expires: _lifiIntentData.expires,
-                fillDeadline: _lifiIntentData.fillDeadline,
+                expires: _resolveDeadline(_lifiIntentData.expires),
+                fillDeadline: _resolveDeadline(_lifiIntentData.fillDeadline),
                 inputOracle: _lifiIntentData.inputOracle,
                 inputs: inputs,
                 outputs: outputs
@@ -268,5 +291,24 @@ contract LiFiIntentEscrowFacetV2 is
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function _resolveDeadline(uint32 _value) internal view returns (uint32) {
+        if (_value >= MAX_RELATIVE_PERIOD_SECONDS) return _value;
+
+        return uint32(block.timestamp + _value);
+    }
+
+    function _resolveOutputContext(
+        bytes calldata _context
+    ) internal view returns (bytes memory) {
+        if (_context.length == 0 || _context[0] != 0xe0) return _context;
+        if (_context.length != 37) revert InvalidCallData();
+
+        return
+            abi.encodePacked(
+                _context[:33],
+                _resolveDeadline(uint32(bytes4(_context[33:37])))
+            );
     }
 }
