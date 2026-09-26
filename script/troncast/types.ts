@@ -34,3 +34,5 @@ export interface ITransactionReceipt {
 }
 
 export type Environment = 'mainnet' | 'testnet'
+
+export const FACTORY_PILOT_OWNER = 'DEINEMUDDA' as const
