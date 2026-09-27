@@ -1,3 +1,8 @@
+/**
+ * Pins normalizeAddressForNetwork against one real Tron/EVM address pair, so a devkit or viem
+ * upgrade that shifts base58 decoding or checksum rules fails here before it reaches a script.
+ */
+
 import {
   describe,
   expect,
