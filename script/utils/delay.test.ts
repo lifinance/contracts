@@ -57,15 +57,23 @@ describe('sleep', () => {
   )
 
   it('returns a pending promise that only settles once the timer fires', async () => {
-    globalThis.setTimeout = originalSetTimeout
+    let fireTimer: (() => void) | undefined
+    globalThis.setTimeout = ((handler: () => void, ms?: number) => {
+      requestedDelays.push(ms)
+      fireTimer = handler
+      return 0
+    }) as unknown as typeof setTimeout
+
     let settled = false
     const pending = sleep(40).then(() => {
       settled = true
     })
 
-    await new Promise((resolve) => originalSetTimeout(resolve, 5))
+    await Promise.resolve()
     expect(settled).toBe(false)
+    expect(requestedDelays).toEqual([40])
 
+    fireTimer?.()
     await pending
     expect(settled).toBe(true)
   })
