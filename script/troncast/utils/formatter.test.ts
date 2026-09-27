@@ -1,10 +1,3 @@
-/**
- * Unit tests for troncast output formatting helpers.
- *
- * Focus: formatReceipt, which renders a Tron transaction receipt as the multi-line block that
- * `troncast send` prints. Covers the success default, failed receipts with a revert message,
- * falsy optional fields, zero resource usage, and a missing receipt.
- */
 import {
   describe,
   it,
