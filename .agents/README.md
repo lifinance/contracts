@@ -92,7 +92,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 ## Factory Intake Rules
 
-`.agents/factory.yml` and `.agents/intake/*.md` are read only by the Dark Factory pilot's intake gate, which checks a Linear ticket before an agent picks it up: the factory file names the repo's areas, and each intake rule lists the ticket sections a ticked area requires. They are not symlinked into `.cursor/` or `.claude/`, because editor sessions have no use for ticket requirements. The factory reads both from `main` only, and may never edit them itself.
+`.agents/factory.yml` and `.agents/intake/*.md` are read only by the Dark Factory pilot. Its intake gate checks a Linear ticket before an agent picks it up: the factory file names the repo's areas, and each intake rule lists the ticket sections a ticked area requires. Its drift check and push guard read the same files. They are not symlinked into `.cursor/` or `.claude/`, because editor sessions have no use for ticket requirements. The factory reads both from `main` only, and may never edit them itself.
 
 ## Transaction Analysis
 
