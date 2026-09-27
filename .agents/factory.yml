@@ -12,16 +12,26 @@ areas:
     - script/tasks/fundNewWalletOnAllChains.ts
     - script/tasks/manageWalletFunds.ts
     - script/tasks/moveNativeFundsToNewWallet.ts
+    - script/utils/walletFundsHelpers*.ts
+    - script/troncast/commands/send*.ts
+    - script/universalCast.sh
+    - script/helperFunctions.sh
+    - script/deploy/deployAllContracts.sh
+    - script/tasks/verifyERC20ProxyAuthorization.sh
+    - script/tasks/atomicBatch7702.ts
+    - script/demoScripts/**
   docs: ['docs/**', '*.md']
   contracts: ['src/**']
   deploy-config: ['config/**', 'deployments/**']
 
 protected: []
 
-# How the factory answers each finding. The values shown are the defaults.
+# How the factory answers each finding. The first choice after each value is the default.
 responses:
   rule-unmet: bounce    # bounce | warn. A rule can override it with on_fail; the factory base rule always bounces
   unknown-area: bounce  # bounce | warn
-  drift-unmet: warn     # warn | ask. The change entered an unticked area whose rules the ticket misses
+  # ask, not warn: funds and safe-signing sit inside scripts, so a scripts-only ticket could
+  # otherwise edit a funds or signing script with only a note on the hand-off
+  drift-unmet: ask      # warn | ask. The change entered an unticked area whose rules the ticket misses
   drift-met: warn       # warn | silent. The same, but the ticket already meets that area's rules
   unmapped-files: warn  # warn | silent. The change touched files in no area
