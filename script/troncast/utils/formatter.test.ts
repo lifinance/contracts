@@ -3,7 +3,7 @@
  *
  * Focus: formatReceipt, which renders a Tron transaction receipt as the multi-line block that
  * `troncast send` prints. Covers the success default, failed receipts with a revert message,
- * falsy optional fields, and zero resource usage.
+ * falsy optional fields, zero resource usage, and a missing receipt.
  */
 import {
   describe,
@@ -92,5 +92,14 @@ describe('formatReceipt', () => {
     expect(output).toContain('Transaction ID: partial')
     expect(output).toContain('Block Number: undefined')
     expect(output).toContain('Status: SUCCESS')
+  })
+
+  it('throws a TypeError when the receipt is null or undefined', () => {
+    expect(() => formatReceipt(null as unknown as ITransactionReceipt)).toThrow(
+      TypeError
+    )
+    expect(() =>
+      formatReceipt(undefined as unknown as ITransactionReceipt)
+    ).toThrow(TypeError)
   })
 })
