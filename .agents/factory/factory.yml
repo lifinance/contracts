@@ -6,17 +6,27 @@
 # The factory's own protected paths always apply; `protected` below can only add to them.
 
 areas:
-  scripts: ['script/**', 'tasks/**']
-  docs: ['docs/**', '*.md']
   contracts: ['src/**']
-  deploy-config: ['config/**', 'deployments/**']
+  # script/emergency/ and script/deploy/immutables/ are left out: an area over a protected path bounces every ticket
+  general:
+    - script/*
+    - script/{claude,common,demoScripts,mongoDb,output,resources,safe,tasks,troncast,utils}/**
+    - script/deploy/*
+    - script/deploy/{audit,codehash,facets,github,resources,safe,shared,tron,zksync}/**
+    - tasks/**
+    - test/**
+    - docs/**
+    - templates/**
+    - '*.md'
 
-protected: []
+# the paths protectSecurityRelevantCode.yml sends to the Information Security review that the factory floor does not already cover
+protected: ['.husky/**', 'script/emergency/**', 'script/deploy/immutables/**']
 
 # How the factory answers each finding. The first choice after each value is the default.
 responses:
   rule-unmet: bounce    # bounce | warn. A rule can override it with on_fail; the factory base rule always bounces
   unknown-area: bounce  # bounce | warn
-  drift-unmet: warn     # warn | ask. The change entered an unticked area whose rules the ticket misses
+  # only the contracts area carries a rule, so only a change reaching src/ undeclared stops
+  drift-unmet: ask      # warn | ask. The change entered an unticked area whose rules the ticket misses
   drift-met: warn       # warn | silent. The same, but the ticket already meets that area's rules
   unmapped-files: warn  # warn | silent. The change touched files in no area
