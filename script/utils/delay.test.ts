@@ -95,10 +95,12 @@ describe('sleep', () => {
     expect(performance.now() - start).toBeGreaterThanOrEqual(40)
   })
 
-  it('resolves promptly for zero, negative and NaN durations', async () => {
-    const start = performance.now()
-    await Promise.all([sleep(0), sleep(-100), sleep(Number.NaN)])
-    expect(performance.now() - start).toBeLessThan(100)
+  it('forwards zero, negative and NaN durations unchanged and resolves', async () => {
+    const timers = captureTimeouts()
+    const pending = Promise.all([sleep(0), sleep(-100), sleep(Number.NaN)])
+    expect(timers.delays).toEqual([0, -100, Number.NaN])
+    timers.fire()
+    expect(await pending).toEqual([undefined, undefined, undefined])
   })
 
   it('rejects when scheduling the timer throws', async () => {
