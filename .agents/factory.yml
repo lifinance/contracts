@@ -1,0 +1,27 @@
+# Fixed by the factory, whatever this file says:
+# - a safety-scan hit bounces the ticket unless the engineer approves that exact description
+# - a ticked area that covers a protected path bounces the ticket
+# - an invalid factory or rule file blocks every ticket and DMs the engineer
+# - a protected path in the diff blocks the push
+# The factory's own protected paths always apply; `protected` below can only add to them.
+
+areas:
+  scripts: ['script/**', 'tasks/**']
+  safe-signing: ['script/deploy/safe/**', 'script/deploy/codehash/**']
+  funds:
+    - script/tasks/fundNewWalletOnAllChains.ts
+    - script/tasks/manageWalletFunds.ts
+    - script/tasks/moveNativeFundsToNewWallet.ts
+  docs: ['docs/**', '*.md']
+  contracts: ['src/**']
+  deploy-config: ['config/**', 'deployments/**']
+
+protected: []
+
+# How the factory answers each finding. The values shown are the defaults.
+responses:
+  rule-unmet: bounce    # bounce | warn. A rule can override it with on_fail; the factory base rule always bounces
+  unknown-area: bounce  # bounce | warn
+  drift-unmet: warn     # warn | ask. The change entered an unticked area whose rules the ticket misses
+  drift-met: warn       # warn | silent. The same, but the ticket already meets that area's rules
+  unmapped-files: warn  # warn | silent. The change touched files in no area
