@@ -7,6 +7,10 @@
  * value never becomes syntax, and that nothing it stops printing goes unnamed.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
   afterAll,
   beforeAll,
@@ -299,6 +303,40 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     expect(stubRequests).toEqual([['0xfeedface']])
     expect(lines).toContain('CALLDATA COULD NOT BE DECODED — no ABI matches it')
     expect(lines).not.toContain('ARGUMENTS COULD NOT BE DECODED')
+  })
+
+  it('falls back to the 4byte lookup when no resolver is supplied', async () => {
+    // Seeded disk cache, so the default resolver answers without the network
+    // the file-wide fetch stub refuses.
+    const dir = mkdtempSync(join(tmpdir(), 'calldata-effect-lines-'))
+    const cachePath = join(dir, 'selector-signatures.json')
+    writeFileSync(
+      cachePath,
+      JSON.stringify({ '0x13af4035': 'setOwner(address)' })
+    )
+    const previous = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = cachePath
+    try {
+      const lines = plain(
+        await buildCalldataEffectLines(
+          encodeFunctionData({
+            abi: parseAbi(['function setOwner(address)']),
+            functionName: 'setOwner',
+            args: [FACET],
+          }),
+          { network: NETWORK, indent: INDENT, target: DIAMOND }
+        )
+      ).join('\n')
+      expect(lines).toContain('setOwner [0x13af4035]')
+      expect(lines).toContain(FACET)
+    } finally {
+      if (previous === undefined) {
+        delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+      } else {
+        process.env.SELECTOR_SIGNATURE_CACHE_PATH = previous
+      }
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('reports empty calldata as empty rather than as a failure', async () => {
