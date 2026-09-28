@@ -11,8 +11,8 @@ requires:
     hint: What changes in which contracts, the invariants it must keep, and whether storage layout or selectors move
 ---
 
-The factory's floor protects `src/`. A ticket labelled `blast-radius:high` lifts that for its own job,
-once the factory's `high_blast_radius` switch is on; the job then runs `/gate-review` every triage
-round, gets a second-vendor review, must pass `forge build` and `forge test`, and asks for a second
-human reviewer. While the switch is off, the factory's base rule refuses the label and every
-contracts ticket bounces.
+The factory's floor protects `src/`. A ticket labelled `factory_blast-radius:high` in Linear
+(`blast-radius:high` in rules) lifts that for its own job, once the factory's `high_blast_radius`
+switch is on; the job then runs `/gate-review` every triage round, gets a second-vendor review, must
+pass `forge build` and `forge test`, and asks for a second human reviewer. While the switch is off,
+the factory's base rule refuses the label and every contracts ticket bounces.

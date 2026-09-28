@@ -30,3 +30,7 @@ responses:
   drift-unmet: ask      # warn | ask. The change entered an unticked area whose rules the ticket misses
   drift-met: warn       # warn | silent. The same, but the ticket already meets that area's rules
   unmapped-files: warn  # warn | silent. The change touched files in no area
+
+# The first word of every Check must be one of these, or a repo script
+checks:
+  runners: [bun, bunx, forge, git, bash, test, grep]
