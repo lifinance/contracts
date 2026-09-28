@@ -71,14 +71,26 @@ The resolved timestamps and context are part of the on-chain order identifier. I
 
 ### Exclusivity encoding
 
-Exclusive limit orders use exactly 37 packed bytes:
+Exclusive limit orders start with 37 packed bytes, followed by an optional opaque suffix:
 
 ```text
-0xe0 | exclusiveFor (bytes32) | exclusivityDeadline (uint32)
-  1 byte       32 bytes                4 bytes
+0xe0 | exclusiveFor (bytes32) | exclusivityDeadline (uint32) | destination context
+  1 byte       32 bytes                4 bytes                   0+ bytes, opaque
 ```
 
-The facet preserves the tag and solver identifier, replacing only the final four bytes with the resolved timestamp. This is packed encoding, not `abi.encode`. A context beginning with `0xe0` with any other length reverts with `InvalidCallData()` before an order is opened. Empty contexts and other tags, including `0x01` and `0xe1` Dutch auctions, pass through byte-for-byte; their timestamps must still be absolute.
+The facet preserves the tag and solver identifier and replaces only bytes `[33:37]` with the resolved timestamp. This is packed encoding, not `abi.encode`. A context beginning with `0xe0` that is shorter than 37 bytes reverts with `InvalidCallData()` before an order is opened. Empty contexts and other tags, including `0x01` and `0xe1` Dutch auctions, pass through byte-for-byte; their timestamps must still be absolute.
+
+Bytes after offset 37 are opaque destination context for delivery. The facet forwards them unchanged and does not validate them; their layout is defined by the selected output settler.
+
+For reference, the current Stellar output settler appends a recipient tag to the pricing context (`pricing || tag:u8 [|| muxed_id:u64]`, `muxed_id` big-endian):
+
+| Tag  | Recipient                | Suffix                 |       Total bytes |
+| ---- | ------------------------ | ---------------------- | ----------------: |
+| `00` | G-account (ed25519 key)  | `00`                   |  1, 2, 38, 42, 74 |
+| `01` | C-contract (contract ID) | `01`                   |  1, 2, 38, 42, 74 |
+| `02` | M-account (ed25519 key)  | `02 \|\| muxed_id:u64` | 9, 10, 46, 50, 82 |
+
+An exclusive (`0xe0`) Stellar context is therefore 38 bytes, or 46 bytes for an M-account.
 
 ## Output Amount Scaling
 
@@ -125,7 +137,7 @@ The methods listed above take a variable labeled `_lifiIntentData`. This data is
 /// @param outputToken The desired destination token
 /// @param outputAmountMultiplier Scaling factor against `MULTIPLIER_BASE` (1e18 = 100%). On both entrypoints the committed output is `inputAmount * outputAmountMultiplier / MULTIPLIER_BASE`, folding the quoted price ratio and any input/output decimal difference into one factor. Use only LI.FI backend-generated calldata.
 /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
-/// @param outputContext Context for the outputSettler. A 0xe0 context must be exactly 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
+/// @param outputContext Context for the outputSettler. A 0xe0 context must be at least 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); trailing bytes are forwarded unchanged; its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
 struct LiFiIntentEscrowDataV2 {
   // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
   bytes32 dstCallReceiver;
