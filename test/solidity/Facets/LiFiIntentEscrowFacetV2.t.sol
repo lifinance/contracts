@@ -1124,7 +1124,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
     }
 
     function testRevert_MalformedExclusiveContexts() external {
-        uint256[4] memory lengths = [uint256(1), 33, 36, 38];
+        uint256[4] memory lengths = [uint256(1), 33, 35, 36];
         for (uint256 path; path < 2; ++path) {
             for (uint256 i; i < lengths.length; ++i) {
                 LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2

@@ -74,7 +74,7 @@ contract LiFiIntentEscrowFacetV2 is
     /// @param outputToken The desired destination token
     /// @param outputAmountMultiplier Scaling factor against `MULTIPLIER_BASE` (1e18 = 100%). On both entrypoints the committed output is `inputAmount * outputAmountMultiplier / MULTIPLIER_BASE`, folding the backend-quoted price ratio and any input/output decimal difference into one factor (`multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)`). Use only LI.FI backend-generated calldata.
     /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
-    /// @param outputContext Context for the outputSettler. A 0xe0 context must be exactly 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
+    /// @param outputContext Context for the outputSettler. A 0xe0 context must be at least 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); trailing bytes are forwarded unchanged; its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
     struct LiFiIntentEscrowDataV2 {
         // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
         bytes32 dstCallReceiver;
@@ -303,12 +303,15 @@ contract LiFiIntentEscrowFacetV2 is
         bytes calldata _context
     ) internal view returns (bytes memory) {
         if (_context.length == 0 || _context[0] != 0xe0) return _context;
-        if (_context.length != 37) revert InvalidCallData();
+        // Trailing bytes are allowed (e.g. the Stellar M-settler's muxed_id:u64 suffix);
+        // the minimum guards the deadline slice below.
+        if (_context.length < 37) revert InvalidCallData();
 
         return
             abi.encodePacked(
                 _context[:33],
-                _resolveDeadline(uint32(bytes4(_context[33:37])))
+                _resolveDeadline(uint32(bytes4(_context[33:37]))),
+                _context[37:]
             );
     }
 }
