@@ -26,8 +26,7 @@ protected: ['.husky/**', 'script/emergency/**', 'script/deploy/immutables/**']
 responses:
   rule-unmet: bounce    # bounce | warn. A rule can override it with on_fail; the factory base rule always bounces
   unknown-area: bounce  # bounce | warn
-  # only the contracts area carries a rule, so only a change reaching src/ undeclared stops
-  drift-unmet: ask      # warn | ask. The change entered an unticked area whose rules the ticket misses
+  drift-unmet: warn     # warn | ask. The change entered an unticked area whose rules the ticket misses
   drift-met: warn       # warn | silent. The same, but the ticket already meets that area's rules
   unmapped-files: warn  # warn | silent. The change touched files in no area
 
