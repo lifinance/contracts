@@ -90,6 +90,10 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `update-wallet-config.md` | `/update-wallet-config --role <deployer\|dev\|pauser> --new-address 0xNEW [--production]` | Open the PR that rotates a wallet role in `config/global.json` (EVM field + matching `tronWallets.<role>` base58, Tron address derived + round-trip-checked); config-only, delegates to `/create-pr` |
 | `verify-contracts.md` | `/verify-contracts <network> \| PR #<N>` | Verify a network's deployed contracts on its block explorer and flip the MongoDB `verified` flag for each |
 
+## Factory Intake Rules
+
+`.agents/factory/` holds everything the Dark Factory pilot reads here: `factory.yml`, and any intake rules under `intake/*.md` (none yet). Nothing else reads them. Its intake gate checks a Linear ticket before an agent picks it up: the factory file names the repo's areas, and each intake rule lists the ticket sections a ticked area requires. Its drift check and push guard read the same files. They are not symlinked into `.cursor/` or `.claude/`, because editor sessions have no use for ticket requirements. The factory reads both from `main` only, and may never edit them itself. Its base rule, which every ticket must meet, ships with the factory: a copy here would reuse its rule name, which the gate rejects as invalid, bouncing every ticket.
+
 ## Transaction Analysis
 
 Special handling for transaction analysis:
