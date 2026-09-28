@@ -742,7 +742,7 @@ describe('createForgeRebuildRunner', () => {
     const harness = runner({
       calls,
       exists: freshOutDirs((path) =>
-        path.endsWith('.json') ? restored : true
+        path.endsWith('.json') ? restored : !path.endsWith('.env')
       ),
       artifactCache: {
         restore: () => {
@@ -763,7 +763,9 @@ describe('createForgeRebuildRunner', () => {
   it('keys the cache on the commit and the profile, and saves what it built', () => {
     const saved: string[] = []
     const harness = runner({
-      exists: freshOutDirs((path) => !path.endsWith('.json')),
+      exists: freshOutDirs(
+        (path) => !path.endsWith('.json') && !path.endsWith('.env')
+      ),
       artifactCache: { restore: () => false, save: (key) => saved.push(key) },
     })
 
@@ -776,7 +778,7 @@ describe('createForgeRebuildRunner', () => {
     let compiled = false
     const ok = runner({
       exists: freshOutDirs((path) =>
-        path.endsWith('.json') ? compiled : true
+        path.endsWith('.json') ? compiled : !path.endsWith('.env')
       ),
       run: (_command, args) => {
         // The zk leg of this case runs the pinned-release check first, which
@@ -823,7 +825,9 @@ describe('createForgeRebuildRunner', () => {
     const calls: unknown[] = []
     const harness = runner({
       calls,
-      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? built : !path.endsWith('.env')
+      ),
       run: (command, args) => {
         built = true
         calls.push({ command, args })
@@ -885,7 +889,7 @@ describe('createForgeRebuildRunner', () => {
     const calls: unknown[] = []
     const harness = runner({
       calls,
-      exists: freshOutDirs(() => true),
+      exists: freshOutDirs((path) => !path.endsWith('.env')),
       readFile: readCheckoutFiles(() => astless),
       run: (command, args) => {
         calls.push({ command, args })
@@ -999,7 +1003,9 @@ describe('createForgeRebuildRunner', () => {
         expect(options.env.FOUNDRY_PROFILE).toBe('default')
         return { ok: true, output: '' }
       },
-      exists: freshOutDirs((path) => !path.endsWith('.json') || built),
+      exists: freshOutDirs(
+        (path) => (!path.endsWith('.json') && !path.endsWith('.env')) || built
+      ),
       readFile: readCheckoutFile,
       readDeclarations: () => NO_DECLARATIONS,
     })
@@ -1017,7 +1023,8 @@ describe('createForgeRebuildRunner', () => {
     }
     const buildWithToml = (
       toml: string,
-      profile: IBuildProfile = londonProfile
+      profile: IBuildProfile = londonProfile,
+      checkoutHasDotenv = false
     ): { env: Record<string, string>[]; build: () => void } => {
       const env: Record<string, string>[] = []
       const harness = createForgeRebuildRunner({
@@ -1032,10 +1039,15 @@ describe('createForgeRebuildRunner', () => {
           env.push(options.env)
           return { ok: true, output: '' }
         },
-        exists: freshOutDirs(
-          (path) => !path.endsWith('.json') || env.length > 0
-        ),
-        readFile: (path) => (path.endsWith('foundry.toml') ? toml : artifact),
+        exists: freshOutDirs((path) => {
+          if (path.endsWith('.json')) return env.length > 0
+          if (path.endsWith('/.env')) return checkoutHasDotenv
+          return true
+        }),
+        readFile: (path) => {
+          if (path.endsWith('foundry.toml')) return toml
+          return profile.zksolcVersion === undefined ? artifact : zkArtifact
+        },
         readDeclarations: () => NO_DECLARATIONS,
       })
       return { env, build: () => harness.build({ ...request, profile }) }
@@ -1080,8 +1092,8 @@ describe('createForgeRebuildRunner', () => {
     })
 
     it('does not admit the zk profile as a cancun lineage for a non-zk request', () => {
-      // [profile.zksync] pins the default pair too; without the zksolc pin it
-      // would read as a plain cancun profile and make the match ambiguous.
+      // [profile.zksync] pins the default pair too, and is excluded by name: a
+      // checkout with no zksolc pin must not see it as a second cancun profile.
       const unpinnedZk = CHECKOUT_TOML.replace(/^zksolc = .*$/m, '')
       expect(unpinnedZk).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(unpinnedZk, request.profile)
@@ -1105,6 +1117,69 @@ describe('createForgeRebuildRunner', () => {
       expect(() => harness.build()).toThrow(/declares no \[profile\.zksync\]/)
       expect(harness.env).toEqual([])
     })
+
+    it('pins the compiler through FOUNDRY_SOLC to the version the matched profile names', () => {
+      const london = buildWithToml(CHECKOUT_TOML)
+      london.build()
+      const cancun = buildWithToml(CHECKOUT_TOML, request.profile)
+      cancun.build()
+
+      expect(london.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.17'])
+      expect(cancun.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.29'])
+    })
+
+    it("pins a zk rebuild to the checkout's zk solc, not HEAD's", () => {
+      // The zk profile is matched by name, so its solc can differ from HEAD's;
+      // one commit on main pinned 0.8.17 there.
+      const older = CHECKOUT_TOML.replace(
+        /(\[profile\.zksync\]\n)solc_version = '0\.8\.29'/,
+        "$1solc_version = '0.8.26'"
+      )
+      expect(older).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(older, zkRequest.profile)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.26'])
+    })
+
+    it('refuses a checkout whose foundry.toml selects a compiler binary, before forge runs', () => {
+      const pathed = CHECKOUT_TOML.replace(
+        "solc_version = '0.8.17'",
+        "solc_version = '0.8.17'\nsolc = './fake-solc'"
+      )
+      expect(pathed).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(pathed)
+
+      expect(() => harness.build()).toThrow(
+        /could choose what the rebuild executes: profile\.solc_floor\.solc/
+      )
+      expect(harness.env).toEqual([])
+    })
+
+    it('refuses a zk rebuild whose checkout sets zksync.solc_path, before forge runs', () => {
+      const pathed = CHECKOUT_TOML.replace(
+        'out = "out/zksync"',
+        'out = "out/zksync"\nzksync = { solc_path = "./fake-solc" }'
+      )
+      expect(pathed).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(pathed, zkRequest.profile)
+
+      expect(() => harness.build()).toThrow(
+        /profile\.zksync\.zksync\.solc_path/
+      )
+      expect(harness.env).toEqual([])
+    })
+
+    it('refuses a checkout carrying a .env, before forge runs', () => {
+      const clean = buildWithToml(CHECKOUT_TOML)
+      clean.build()
+      const harness = buildWithToml(CHECKOUT_TOML, londonProfile, true)
+
+      expect(clean.env).toHaveLength(1)
+      expect(() => harness.build()).toThrow(/the commit carries a \.env/)
+      expect(harness.env).toEqual([])
+    })
   })
 
   it('builds a zk lineage with the pinned foundry-zksync binary', () => {
@@ -1122,7 +1197,9 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? built : !path.endsWith('.env')
+      ),
       readFile: readZkFiles(zkArtifact),
       readDeclarations: () => NO_DECLARATIONS,
     })
@@ -1133,6 +1210,7 @@ describe('createForgeRebuildRunner', () => {
     expect(seen.args).toContain('--zksync')
     expect(seen.env.FOUNDRY_ZKSYNC).toContain('1.5.15')
     expect(seen.env.FOUNDRY_PROFILE).toBe('zksync')
+    expect(seen.env.FOUNDRY_SOLC).toBe('0.8.29')
   })
 
   describe('zk toolchain preflight', () => {
@@ -1153,7 +1231,8 @@ describe('createForgeRebuildRunner', () => {
           return { ok: true, output: '' }
         },
         exists: freshOutDirs(
-          over.exists ?? ((path) => !path.endsWith('.json'))
+          over.exists ??
+            ((path) => !path.endsWith('.json') && !path.endsWith('.env'))
         ),
         readFile: over.readFile
           ? readCheckoutFiles(over.readFile)
@@ -1166,7 +1245,10 @@ describe('createForgeRebuildRunner', () => {
       expect(() =>
         zkRunner({
           exists: freshOutDirs(
-            (path) => !path.endsWith('.json') && !path.endsWith('forge')
+            (path) =>
+              !path.endsWith('.json') &&
+              !path.endsWith('.env') &&
+              !path.endsWith('forge')
           ),
           onBuild: () => {
             compiled = true
@@ -1180,7 +1262,10 @@ describe('createForgeRebuildRunner', () => {
       expect(() =>
         zkRunner({
           exists: freshOutDirs(
-            (path) => !path.endsWith('.json') && !path.endsWith('forge')
+            (path) =>
+              !path.endsWith('.json') &&
+              !path.endsWith('.env') &&
+              !path.endsWith('forge')
           ),
         }).build(zkRequest)
       ).toThrow(/source script\/helperFunctions\.sh && install_foundry_zksync/)
@@ -1239,7 +1324,9 @@ describe('createForgeRebuildRunner', () => {
           built = true
           return { ok: true, output: '' }
         },
-        exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
+        exists: freshOutDirs((path) =>
+          path.endsWith('.json') ? built : !path.endsWith('.env')
+        ),
         readFile: readCheckoutFile,
         readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
@@ -1266,7 +1353,7 @@ describe('createForgeRebuildRunner', () => {
         },
         exists: freshOutDirs((path) => {
           paths.push(path)
-          return path.endsWith('.json') ? built : true
+          return path.endsWith('.json') ? built : !path.endsWith('.env')
         }),
         readFile: readZkFiles(
           profile.zksolcVersion === undefined ? artifact : zkArtifact
@@ -1340,7 +1427,9 @@ describe('createForgeRebuildRunner', () => {
         checkoutRoot: '/tmp/rebuilds',
         git: () => '',
         run: () => ({ ok: true, output: '' }),
-        exists: freshOutDirs((path) => !path.endsWith('.json')),
+        exists: freshOutDirs(
+          (path) => !path.endsWith('.json') && !path.endsWith('.env')
+        ),
         readFile: readCheckoutFile,
         readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
@@ -1371,7 +1460,9 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : true)),
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? built : !path.endsWith('.env')
+      ),
       readFile: readCheckoutFile,
       readDeclarations: () => NO_DECLARATIONS,
     })
@@ -1421,6 +1512,10 @@ describe('createForgeRebuildRunner', () => {
         writesOutput?: boolean
         /** The output path answers as present before any build has run. */
         preexisting?: boolean
+        /** The checkout's `foundry.toml`, in place of the repo's own. */
+        toml?: string
+        /** The checkout carries a `.env`. */
+        dotenv?: boolean
         artifactCache?: {
           restore: (key: string, outDir: string) => boolean
           save: (key: string, outDir: string) => void
@@ -1428,6 +1523,7 @@ describe('createForgeRebuildRunner', () => {
       } = {}
     ) => {
       let written = over.preexisting ?? false
+      const { toml } = over
       const calls: {
         command: string
         args: string[]
@@ -1436,7 +1532,10 @@ describe('createForgeRebuildRunner', () => {
       }[] = []
       const reads: { outDir: string; sourceRoot: string }[] = []
       const made = runner({
-        exists: (path) => path === OUT && written,
+        exists: (path) =>
+          (path === OUT && written) ||
+          (path === `${CHECKOUT}/.env` && over.dotenv === true),
+        ...(toml === undefined ? {} : { readFile: () => toml }),
         run: (command, args, options) => {
           calls.push({ command, args, ...options })
           const result = over.run?.(command, args, options) ?? {
@@ -1502,6 +1601,7 @@ describe('createForgeRebuildRunner', () => {
         cwd: CHECKOUT,
         env: {
           FOUNDRY_PROFILE: 'zksync',
+          FOUNDRY_SOLC: '0.8.29',
           FOUNDRY_CACHE_PATH: `${BUILD_ROOT}/cache`,
         },
       })
@@ -1517,6 +1617,25 @@ describe('createForgeRebuildRunner', () => {
           (args) => args[1] === CHECKOUT && args[2] === 'submodule'
         )
       ).toBe(true)
+    })
+
+    it('refuses a checkout that could choose the compiler before building its AST', () => {
+      const planted = harness({
+        toml: CHECKOUT_TOML.replace(
+          /(\[profile\.zksync\]\n)/,
+          "$1solc = './fake-solc'\n"
+        ),
+      })
+      expect(() =>
+        planted.runner.declarationsAt(COMMIT, zkRequest.profile)
+      ).toThrow(/could choose what the rebuild executes/)
+      expect(planted.calls).toHaveLength(0)
+
+      const dotenv = harness({ dotenv: true })
+      expect(() =>
+        dotenv.runner.declarationsAt(COMMIT, zkRequest.profile)
+      ).toThrow(/carries a \.env/)
+      expect(dotenv.calls).toHaveLength(0)
     })
 
     it('compiles once per commit and profile for the life of the run', () => {

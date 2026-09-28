@@ -18,6 +18,7 @@
         "consola": "^3.2.3",
         "merkletreejs": "^0.3.11",
         "mongodb": "^6.13.0",
+        "smol-toml": "1.7.1",
         "tronweb": "^6.1.1",
         "viem": "^2.55.19",
       },
