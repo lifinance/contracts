@@ -274,7 +274,14 @@ export interface ICalldataEffectContext {
   readonly indent: string
   /** The address this calldata is sent to, as stored. */
   readonly target: unknown
+  /** Names selectors no local table knows; defaults to the 4byte lookup. */
+  readonly resolveSelectors?: (
+    selectors: string[]
+  ) => Promise<Map<string, string>>
 }
+
+const resolverOf = (context: ICalldataEffectContext) =>
+  context.resolveSelectors ?? resolveSelectorsViaFourByte
 
 /**
  * What the payload does, as the lines of THE CALLDATA DOES.
@@ -319,7 +326,7 @@ async function effectLines(
     ]
 
   const hex = dataText as Hex
-  const decoded = await decodeCall(hex)
+  const decoded = await decodeCall(hex, resolverOf(context))
   if (!decoded)
     return [
       cannotRead(pre, 'CALLDATA COULD NOT BE DECODED — no ABI matches it:'),
@@ -386,15 +393,15 @@ const bareName = (functionName: string): string =>
  * arguments — the one case zone 1 reports on itself.
  */
 async function decodeCall(
-  data: Hex
+  data: Hex,
+  resolveSelectors: NonNullable<ICalldataEffectContext['resolveSelectors']>
 ): Promise<{ functionName: string; args?: readonly unknown[] } | undefined> {
   const selector = data.slice(0, 10)
   const local = getLocalSelectorInfo(selector)
   const functionName =
     local?.source === 'diamond.json'
       ? local.name
-      : local?.signature ??
-        (await resolveSelectorsViaFourByte([selector])).get(selector)
+      : local?.signature ?? (await resolveSelectors([selector])).get(selector)
 
   const candidates = []
   if (functionName) {
@@ -572,7 +579,7 @@ async function diamondCutLines(
   }
   const fourByte =
     unknown.length > 0
-      ? await resolveSelectorsViaFourByte(unknown)
+      ? await resolverOf(context)(unknown)
       : new Map<string, string>()
 
   const lines = addressLines(

@@ -8,6 +8,8 @@
  */
 
 import {
+  afterAll,
+  beforeAll,
   describe,
   expect,
   it,
@@ -74,12 +76,41 @@ const scheduleBatch = (
     ],
   })
 
+/** Stands in for the 4byte lookup; answers only the selectors it holds. */
+const STUB_SIGNATURES = new Map([
+  ['0xdeadbeef', 'collidingName(uint256)'],
+  ['0x13af4035', 'setOwner(address)'],
+])
+const stubRequests: string[][] = []
+const stubResolveSelectors = async (
+  selectors: string[]
+): Promise<Map<string, string>> => {
+  stubRequests.push(selectors)
+  return new Map(
+    selectors.flatMap((selector) => {
+      const signature = STUB_SIGNATURES.get(selector)
+      return signature === undefined ? [] : [[selector, signature] as const]
+    })
+  )
+}
+
 const render = async (data: unknown, target: unknown = DIAMOND) =>
   buildCalldataEffectLines(data, {
     network: NETWORK,
     indent: INDENT,
     target,
+    resolveSelectors: stubResolveSelectors,
   })
+
+const originalFetch = globalThis.fetch
+beforeAll(() => {
+  globalThis.fetch = (async () => {
+    throw new Error('calldata-effect-lines tests must not reach the network')
+  }) as unknown as typeof fetch
+})
+afterAll(() => {
+  globalThis.fetch = originalFetch
+})
 
 /** The lines with their colour codes removed, which is what a reader sees. */
 const plain = (lines: string[]): string[] =>
@@ -213,10 +244,12 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
       { length: 30 },
       (_, i) => `0x${i.toString(16).padStart(8, '0')}` as `0x${string}`
     )
+    stubRequests.length = 0
     const lines = plain(await render(diamondCut(1, FACET, selectors))).join(
       '\n'
     )
     expect(lines).toContain('further selectors not shown (30 in the calldata)')
+    expect(stubRequests.at(-1)).toContain(selectors[29])
   })
 })
 
@@ -255,8 +288,17 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     // The registry answers this selector from a 4byte-style collision name, so
     // the call is named but nothing decodes its body.
     const lines = plain(await render('0xdeadbeef')).join('\n')
+    expect(lines).toContain('collidingName')
     expect(lines).toContain('[0xdeadbeef]')
     expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
+  })
+
+  it('reports a selector the registry cannot name as undecoded', async () => {
+    stubRequests.length = 0
+    const lines = plain(await render('0xfeedface')).join('\n')
+    expect(stubRequests).toEqual([['0xfeedface']])
+    expect(lines).toContain('CALLDATA COULD NOT BE DECODED — no ABI matches it')
+    expect(lines).not.toContain('ARGUMENTS COULD NOT BE DECODED')
   })
 
   it('reports empty calldata as empty rather than as a failure', async () => {
