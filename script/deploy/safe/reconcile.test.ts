@@ -15,7 +15,7 @@ import {
   mock,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Collection } from 'mongodb'
+import { ObjectId, type Collection } from 'mongodb'
 import {
   encodeAbiParameters,
   keccak256,
@@ -119,10 +119,12 @@ function applyUpdate(
       delete (row as unknown as Record<string, unknown>)[key]
 }
 
+type FakeRow = ISafeTxDocument & { _id: ObjectId }
+
 function createFakeCollection(
   initial: ISafeTxDocument[] = []
-): Collection<ISafeTxDocument> & { rows: ISafeTxDocument[] } {
-  const rows: ISafeTxDocument[] = initial.map((r) => ({ ...r }))
+): Collection<ISafeTxDocument> & { rows: FakeRow[] } {
+  const rows: FakeRow[] = initial.map((r) => ({ _id: new ObjectId(), ...r }))
   const api = {
     rows,
     find(filter: Record<string, unknown>) {
@@ -168,7 +170,7 @@ function createFakeCollection(
     },
   }
   return api as unknown as Collection<ISafeTxDocument> & {
-    rows: ISafeTxDocument[]
+    rows: FakeRow[]
   }
 }
 
@@ -1385,6 +1387,43 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     }
   }
 
+  function idOf(collection: { rows: FakeRow[] }, index: number): ObjectId {
+    const row = collection.rows[index]
+    if (!row) throw new Error(`fake collection has no row ${index}`)
+    return row._id
+  }
+
+  it('resolves the live row when an older row shares its safeTxHash', async () => {
+    // A reverted execution does not consume its nonce, so re-proposing the
+    // same payload yields the same safeTxHash on a new row.
+    const collection = createFakeCollection([
+      { ...submittedRow('mainnet', 1, HASH_A), status: 'reverted' },
+      submittedRow('mainnet', 1, HASH_A),
+    ])
+    const enqueueSpy = mock(noopEnqueueImpl)
+    const clock = fakeClock()
+
+    const statuses = await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 1) }],
+      {
+        publicClientFactory: () =>
+          createFakeClient({ receipts: { [HASH_A]: 'success' } }),
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: enqueueSpy,
+        now: clock.now,
+        sleep: clock.sleep,
+      }
+    )
+
+    expect(collection.rows.map((r) => r.status)).toEqual([
+      'reverted',
+      'executed',
+    ])
+    expect(statuses.get(HASH_A)).toBe('executed')
+    expect(enqueueSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('promotes and enqueues a tx whose receipt appears during the wait', async () => {
     const collection = createFakeCollection([
       submittedRow('mainnet', 1, HASH_A),
@@ -1396,7 +1435,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
       {
         publicClientFactory: () => client,
         readSafeNonce: async () => 1n,
@@ -1424,7 +1463,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
       {
         publicClientFactory: () => createFakeClient(),
         readSafeNonce: async () => 0n,
@@ -1451,7 +1490,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
       {
         publicClientFactory: () =>
           createFakeClient({ receipts: { [HASH_A]: 'reverted' } }),
@@ -1478,8 +1517,8 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     await reconcileRunSubmissions(
       collection,
       [
-        { network: 'base', safeTxHash: HASH_A },
-        { network: 'mainnet', safeTxHash: HASH_B },
+        { network: 'base', safeTxHash: HASH_A, rowId: idOf(collection, 0) },
+        { network: 'mainnet', safeTxHash: HASH_B, rowId: idOf(collection, 1) },
       ],
       {
         publicClientFactory: (network) => {
@@ -1512,7 +1551,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
       {
         publicClientFactory: (network) => {
           factoryCalls.push(network)
@@ -1536,7 +1575,10 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     const factory = mock(() => createFakeClient())
     const clock = fakeClock()
 
-    for (const submissions of [[], [{ network: 'tron', safeTxHash: HASH_A }]]) {
+    for (const submissions of [
+      [],
+      [{ network: 'tron', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
+    ]) {
       const statuses = await reconcileRunSubmissions(collection, submissions, {
         publicClientFactory: factory,
         now: clock.now,

@@ -23,7 +23,7 @@
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import { type Collection } from 'mongodb'
+import { type Collection, type ObjectId } from 'mongodb'
 import {
   decodeEventLog,
   TransactionReceiptNotFoundError,
@@ -329,6 +329,8 @@ export const END_OF_RUN_POLL_MS = 10_000 // 10 seconds
 export interface IRunSubmission {
   network: string
   safeTxHash: string
+  /** The row's `_id` — `safeTxHash` alone can match a re-proposed tx's older row. */
+  rowId: ObjectId
 }
 
 export interface IRunSubmissionReconcileOptions
@@ -371,7 +373,10 @@ export async function reconcileRunSubmissions(
   const wait = options?.sleep ?? sleep
   const now = options?.now ?? Date.now
   const deadline = now() + waitMs
-  const hashes = evmSubmissions.map((s) => s.safeTxHash)
+  const hashByRowId = new Map(
+    evmSubmissions.map((s) => [s.rowId.toHexString(), s.safeTxHash])
+  )
+  const rowIds = evmSubmissions.map((s) => s.rowId)
 
   let open = evmSubmissions
   for (;;) {
@@ -383,9 +388,12 @@ export async function reconcileRunSubmissions(
       })
 
     const rows = await pendingTransactions
-      .find({ safeTxHash: { $in: hashes } })
+      .find({ _id: { $in: rowIds } })
       .toArray()
-    for (const row of rows) statuses.set(row.safeTxHash, row.status)
+    for (const row of rows) {
+      const safeTxHash = hashByRowId.get(row._id.toHexString())
+      if (safeTxHash) statuses.set(safeTxHash, row.status)
+    }
 
     open = evmSubmissions.filter(
       (s) => statuses.get(s.safeTxHash) === 'submitted'
@@ -451,7 +459,7 @@ async function sweepA(
       if (now - submittedAtMs > graceMs) {
         const droppedHash = row.executionHash
         await pendingTransactions.updateOne(
-          { safeTxHash: { $eq: row.safeTxHash } },
+          { _id: { $eq: row._id } },
           {
             $set: { status: 'pending' },
             $unset: { executionHash: '', submittedAt: '' },
@@ -467,7 +475,7 @@ async function sweepA(
     }
     if (status === 'success') {
       await pendingTransactions.updateOne(
-        { safeTxHash: { $eq: row.safeTxHash } },
+        { _id: { $eq: row._id } },
         { $set: { status: 'executed' } }
       )
       result.promoted++
@@ -487,7 +495,7 @@ async function sweepA(
       )
     } else {
       await pendingTransactions.updateOne(
-        { safeTxHash: { $eq: row.safeTxHash } },
+        { _id: { $eq: row._id } },
         { $set: { status: 'reverted' } }
       )
       result.reverted++
@@ -571,7 +579,7 @@ async function sweepB(
     if (!candidate) continue
 
     await pendingTransactions.updateOne(
-      { safeTxHash: { $eq: safeTxHash } },
+      { _id: { $eq: candidate._id } },
       {
         $set: {
           status: isSuccess ? 'executed' : 'reverted',

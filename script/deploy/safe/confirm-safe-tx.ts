@@ -445,7 +445,7 @@ async function settleRunSubmissions(
     else if (status === 'pending')
       globalFailedExecutions.push({
         ...entry,
-        error: 'not found on-chain — sent back to pending',
+        error: 'row is pending — execution not confirmed on-chain',
       })
   }
 
@@ -850,6 +850,15 @@ const processTxs = async (
         nextStatus = exec.status === 'success' ? 'executed' : 'reverted'
       else nextStatus = 'submitted'
 
+      // Recorded before the write: a write that throws may still have landed,
+      // and the end-of-run pass must see the execution either way.
+      if (nextStatus === 'submitted' && txDoc._id)
+        runSubmissions.push({
+          network: networkKey,
+          safeTxHash,
+          rowId: txDoc._id,
+        })
+
       await pendingTransactions.updateOne(
         mongoSafeTxRowFilter(txDoc, networkKey, chain.id),
         {
@@ -896,7 +905,6 @@ const processTxs = async (
           `⚠️  Safe transaction submitted but not yet confirmed — recorded as submitted`
         )
         consola.warn(`   It will be re-checked before this run exits.`)
-        runSubmissions.push({ network: networkKey, safeTxHash })
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash,
