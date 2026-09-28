@@ -226,11 +226,17 @@ const command = defineCommand({
   },
 
   async run({ args }) {
-    const { facets, facetAddresses, periphery, auto, allNetworks, yes } = args
+    const { facets, facetAddresses, periphery } = args
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
 
     // Read from argv, not from `args` — see `cli-flags.ts`.
+    const auto = readBooleanFlag(process.argv, { camel: 'auto', kebab: 'auto' })
+    const allNetworks = readBooleanFlag(process.argv, {
+      camel: 'allNetworks',
+      kebab: 'all-networks',
+    })
+    const yes = readBooleanFlag(process.argv, { camel: 'yes', kebab: 'yes' })
     const signing: SigningFlags = {
       ledger: readBooleanFlag(process.argv, {
         camel: 'ledger',

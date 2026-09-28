@@ -186,6 +186,83 @@ describe('a flag whose ON widens the run refuses a value it cannot read', () => 
   })
 
   /**
+   * `--facets` with `--facetAddresses` is refused as mutually exclusive before
+   * the fleet branch or any network lookup, so a run that gets past the reader
+   * stops there instead of sweeping every active network or proposing.
+   */
+  const CLEANUP = 'tasks/cleanUpProdDiamond.ts'
+  const CLEANUP_BASE = [
+    '--network',
+    PROBE_NETWORK,
+    '--environment',
+    'production',
+    '--facets',
+    '["PlacementProbe"]',
+    '--facetAddresses',
+    '["0x1111111111111111111111111111111111111111"]',
+  ]
+
+  it.each([
+    ['yes', 'no', 'yes'],
+    ['yes', '0', 'yes'],
+    ['all-networks', 'no', 'allNetworks'],
+    ['allNetworks', 'no', 'allNetworks'],
+    ['auto', 'no', 'auto'],
+  ])(`${CLEANUP} refuses --%s %s`, (typed, value, camel) => {
+    const output = run(CLEANUP, [...CLEANUP_BASE, `--${typed}`, value])
+    if (output.includes(UNBUILT)) {
+      expect(output).toContain(UNBUILT)
+      unjudged.push(`--${typed} ${value}`)
+      return
+    }
+    expect(output).toContain(REFUSAL)
+    expect(output).toContain(`--${camel} accepts no value`)
+    judged += 1
+  })
+
+  it(`${CLEANUP} accepts readable values for --yes, --all-networks and --auto`, () => {
+    const output = run(CLEANUP, [
+      ...CLEANUP_BASE,
+      '--yes',
+      '--all-networks=false',
+      '--auto=false',
+    ])
+    if (output.includes(UNBUILT)) return
+    expect(output).toContain(
+      '--facets, --facet-addresses are mutually exclusive'
+    )
+    expect(output).not.toContain(REFUSAL)
+  })
+
+  /**
+   * `false` is a value the reader can read, so `--all-networks false` is not
+   * refused: it must resolve to off. citty alone hands back the string
+   * `'false'`, which is truthy and fans the run out to every network. Off, the
+   * run skips the `--facetAddresses` fleet guard and stops at the probe
+   * network's missing deploy log.
+   */
+  it(`${CLEANUP} reads --all-networks false as off`, () => {
+    const output = run(CLEANUP, [
+      '--network',
+      PROBE_NETWORK,
+      '--environment',
+      'production',
+      '--facetAddresses',
+      '["0x1111111111111111111111111111111111111111"]',
+      '--all-networks',
+      'false',
+    ])
+    if (output.includes(UNBUILT)) {
+      unjudged.push('--all-networks false')
+      return
+    }
+    expect(output).toContain(PROBE_NETWORK)
+    expect(output).not.toContain('cannot be combined with --all-networks')
+    expect(output).not.toContain(REFUSAL)
+    judged += 1
+  })
+
+  /**
    * The refusals above say a value is rejected; these say a readable one is
    * accepted AND reaches the code that acts on it, so the pair cannot both be
    * satisfied by a command that refuses everything. Only the two commands that
