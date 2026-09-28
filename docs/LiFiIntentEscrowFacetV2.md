@@ -69,6 +69,8 @@ Each value resolves independently, so absolute and relative fields may be mixed.
 
 The resolved timestamps and context are part of the on-chain order identifier. Indexers, solvers, and status tracking must use the origin settler's emitted `Open` order rather than hash the unresolved quote inputs.
 
+For non-EVM destinations, `BridgeToNonEVMChainBytes32` carries only the 32-byte `recipient`. Delivery data in the opaque destination context (see [Exclusivity encoding](#exclusivity-encoding)), such as a Stellar muxed ID, is not part of any LI.FI event, so orders that differ only in that context emit the same receiver. Integrators that need the full delivery target must read it from the origin settler's `Open` event (`outputs[].context`) and decode it per the output settler.
+
 ### Exclusivity encoding
 
 Exclusive limit orders start with 37 packed bytes, followed by an optional opaque suffix:
