@@ -1598,7 +1598,7 @@ describe('createForgeRebuildRunner', () => {
       })
       expect(() =>
         planted.runner.declarationsAt(COMMIT, zkRequest.profile)
-      ).toThrow(/refusing to rebuild/)
+      ).toThrow(/could choose what the rebuild executes/)
       expect(planted.calls).toHaveLength(0)
 
       const dotenv = harness({ dotenv: true })
