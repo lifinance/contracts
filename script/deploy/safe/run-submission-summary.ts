@@ -12,13 +12,13 @@ import { type SafeTxStatus } from './safe-utils'
 export interface IExecutionSummaryEntry {
   chain: string
   safeTxHash: string
+  /** The row's `_id` as hex, when the entry came from a row the run executed. */
+  rowId?: string | undefined
   error: string
 }
 
 /** An execution this run left unconfirmed, with what the summary needs to find it. */
 export interface IRunSubmissionRecord extends IRunSubmission {
-  chain: string
-  safeTxHash: string
   proposalKey: string
 }
 
@@ -29,17 +29,17 @@ export interface IRunSummaryState {
   outcomes: INetworkOutcome[]
 }
 
-/** Removes and returns the first entry for this execution found in `lists`. */
+/**
+ * Removes and returns the first entry for this execution's row found in
+ * `lists` — by row, since `safeTxHash` is not unique across rows.
+ */
 function takeEntry(
   submission: IRunSubmissionRecord,
   lists: IExecutionSummaryEntry[][]
 ): IExecutionSummaryEntry | undefined {
+  const rowId = submission.rowId.toHexString()
   for (const list of lists) {
-    const index = list.findIndex(
-      (item) =>
-        item.chain === submission.chain &&
-        item.safeTxHash === submission.safeTxHash
-    )
+    const index = list.findIndex((item) => item.rowId === rowId)
     if (index !== -1) return list.splice(index, 1)[0]
   }
   return undefined

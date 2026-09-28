@@ -15,6 +15,7 @@ import { type Hex } from 'viem'
 import { rollUpQueue, type INetworkOutcome } from './confirm-safe-tx-ack'
 import {
   applyRunSubmissionStatuses,
+  type IExecutionSummaryEntry,
   type IRunSubmissionRecord,
   type IRunSummaryState,
 } from './run-submission-summary'
@@ -27,9 +28,19 @@ function submission(): IRunSubmissionRecord {
   return {
     network: 'mainnet',
     rowId: new ObjectId(),
+    proposalKey: 'proposal-1',
+  }
+}
+
+function entryFor(
+  s: IRunSubmissionRecord,
+  error: string
+): IExecutionSummaryEntry {
+  return {
     chain: 'mainnet',
     safeTxHash: HASH,
-    proposalKey: 'proposal-1',
+    rowId: s.rowId.toHexString(),
+    error,
   }
 }
 
@@ -49,10 +60,10 @@ function outcome(): INetworkOutcome {
   }
 }
 
-function stateWithTimeout(): IRunSummaryState {
+function stateWithTimeout(s: IRunSubmissionRecord): IRunSummaryState {
   return {
     failed: [],
-    timedOut: [{ chain: 'mainnet', safeTxHash: HASH, error: 'timeout' }],
+    timedOut: [entryFor(s, 'timeout')],
     outcomes: [outcome()],
   }
 }
@@ -67,7 +78,7 @@ function statusOf(
 describe('applyRunSubmissionStatuses', () => {
   it('counts a late-confirmed execution as executed and clears its timeout', () => {
     const s = submission()
-    const state = stateWithTimeout()
+    const state = stateWithTimeout(s)
 
     const stillSubmitted = applyRunSubmissionStatuses(
       [s],
@@ -86,7 +97,7 @@ describe('applyRunSubmissionStatuses', () => {
     // as failed with the write's error.
     const s = submission()
     const state: IRunSummaryState = {
-      failed: [{ chain: 'mainnet', safeTxHash: HASH, error: 'write failed' }],
+      failed: [entryFor(s, 'write failed')],
       timedOut: [],
       outcomes: [outcome()],
     }
@@ -99,47 +110,48 @@ describe('applyRunSubmissionStatuses', () => {
 
   it('lists a reverted execution as failed', () => {
     const s = submission()
-    const state = stateWithTimeout()
+    const state = stateWithTimeout(s)
 
     applyRunSubmissionStatuses([s], statusOf(s, 'reverted'), state)
 
     expect(state.timedOut).toEqual([])
-    expect(state.failed).toEqual([
-      { chain: 'mainnet', safeTxHash: HASH, error: 'on-chain revert' },
-    ])
+    expect(state.failed).toEqual([entryFor(s, 'on-chain revert')])
     expect(rollUpQueue(state.outcomes).rollups[0]?.executed).toBe(0)
   })
 
   it('lists a timed-out execution whose row is back to pending as failed', () => {
     const s = submission()
-    const state = stateWithTimeout()
+    const state = stateWithTimeout(s)
 
     applyRunSubmissionStatuses([s], statusOf(s, 'pending'), state)
 
     expect(state.timedOut).toEqual([])
-    expect(state.failed[0]?.error).toBe(
-      'row is pending — execution not confirmed on-chain'
-    )
+    expect(state.failed).toEqual([
+      entryFor(s, 'row is pending — execution not confirmed on-chain'),
+    ])
   })
 
   it('keeps the original error on a failed entry whose row is pending', () => {
     const s = submission()
-    const failed = [
-      { chain: 'mainnet', safeTxHash: HASH, error: 'write failed' },
-    ]
-    const state: IRunSummaryState = { failed, timedOut: [], outcomes: [] }
+    const state: IRunSummaryState = {
+      failed: [entryFor(s, 'write failed')],
+      timedOut: [],
+      outcomes: [],
+    }
 
     applyRunSubmissionStatuses([s], statusOf(s, 'pending'), state)
 
-    expect(state.failed).toEqual([
-      { chain: 'mainnet', safeTxHash: HASH, error: 'write failed' },
-    ])
+    expect(state.failed).toEqual([entryFor(s, 'write failed')])
   })
 
   it('leaves a still-submitted or unknown execution timed out', () => {
     const submitted = submission()
     const unknown = submission()
-    const state = stateWithTimeout()
+    const state: IRunSummaryState = {
+      failed: [],
+      timedOut: [entryFor(submitted, 'timeout'), entryFor(unknown, 'timeout')],
+      outcomes: [outcome()],
+    }
 
     const stillSubmitted = applyRunSubmissionStatuses(
       [submitted, unknown],
@@ -148,21 +160,31 @@ describe('applyRunSubmissionStatuses', () => {
     )
 
     expect(stillSubmitted).toBe(1)
-    expect(state.timedOut).toHaveLength(1)
+    expect(state.timedOut).toHaveLength(2)
     expect(state.outcomes).toHaveLength(1)
   })
 
-  it('matches a summary entry by chain as well as safeTxHash', () => {
-    const s = submission()
+  it("resolves only its own row's entry when two rows share a safeTxHash", () => {
+    // A failed write left one row's entry under Failed, while another row with
+    // the same safeTxHash timed out; the executed one must clear only its own.
+    const executed = submission()
+    const other = submission()
     const state: IRunSummaryState = {
-      failed: [],
-      timedOut: [{ chain: 'base', safeTxHash: HASH, error: 'timeout' }],
+      failed: [entryFor(other, 'write failed')],
+      timedOut: [entryFor(executed, 'timeout')],
       outcomes: [],
     }
 
-    applyRunSubmissionStatuses([s], statusOf(s, 'reverted'), state)
+    applyRunSubmissionStatuses(
+      [executed, other],
+      new Map([
+        [executed.rowId.toHexString(), 'executed'],
+        [other.rowId.toHexString(), 'pending'],
+      ]),
+      state
+    )
 
-    expect(state.timedOut).toHaveLength(1)
-    expect(state.failed).toEqual([])
+    expect(state.timedOut).toEqual([])
+    expect(state.failed).toEqual([entryFor(other, 'write failed')])
   })
 })

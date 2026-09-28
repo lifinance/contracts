@@ -836,8 +836,6 @@ const processTxs = async (
         runSubmissions.push({
           network: networkKey,
           rowId: txDoc._id,
-          chain: chain.name,
-          safeTxHash,
           proposalKey: buildProposalKey({
             to: safeTransaction.data.to,
             chainId: chain.id,
@@ -894,6 +892,7 @@ const processTxs = async (
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash,
+          rowId: txDoc._id?.toHexString(),
           error: 'confirmation pending',
         })
       }
@@ -931,12 +930,14 @@ const processTxs = async (
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
+          rowId: txDoc._id?.toHexString(),
           error: errorMsg,
         })
       else
         globalFailedExecutions.push({
           chain: chain.name,
           safeTxHash: safeTxHash,
+          rowId: txDoc._id?.toHexString(),
           error: errorMsg,
         })
 
