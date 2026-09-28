@@ -154,7 +154,6 @@ import { buildReadOnlyClient } from './read-only-safe-client'
 import {
   reconcileAllSubmittedSafeTxs,
   reconcileRunSubmissions,
-  type IRunSubmission,
 } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
@@ -164,6 +163,11 @@ import {
   createPinnedBlock,
   ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
+import {
+  applyRunSubmissionStatuses,
+  type IExecutionSummaryEntry,
+  type IRunSubmissionRecord,
+} from './run-submission-summary'
 import {
   collectDiamondCutTargets,
   collectedInstallsSomething,
@@ -392,25 +396,17 @@ const readPinnedBlob = createPinnedBlobReader({ anchor: pinnedAnchor })
 const networksAttempted = new Set<string>()
 
 // Global arrays to record execution failures and timeouts
-const globalFailedExecutions: Array<{
-  chain: string
-  safeTxHash: string
-  error: string
-}> = []
-const globalTimeoutExecutions: Array<{
-  chain: string
-  safeTxHash: string
-  error: string
-}> = []
+const globalFailedExecutions: IExecutionSummaryEntry[] = []
+const globalTimeoutExecutions: IExecutionSummaryEntry[] = []
 
 // Executions this run broadcast without seeing a receipt, re-checked before
 // exit so a tx that lands late still gets its timelock op queued this run.
-const runSubmissions: IRunSubmission[] = []
+const runSubmissions: IRunSubmissionRecord[] = []
 
 /**
- * Reconciles {@link runSubmissions} and moves each resolved one out of the
- * timed-out list, so the execution summary reports where it ended up. Never
- * throws: it runs on the way out of a run that may already be failing.
+ * Reconciles {@link runSubmissions} and updates the execution summary and the
+ * queue outcomes with where each one ended up. Never throws: it runs on the
+ * way out of a run that may already be failing.
  */
 async function settleRunSubmissions(
   pendingTransactions: Collection<ISafeTxDocument>,
@@ -431,27 +427,11 @@ async function settleRunSubmissions(
     return
   }
 
-  for (const { safeTxHash } of runSubmissions) {
-    const status = statuses.get(safeTxHash)
-    const index = globalTimeoutExecutions.findIndex(
-      (item) => item.safeTxHash === safeTxHash
-    )
-    const entry = globalTimeoutExecutions[index]
-    if (!entry || status === undefined || status === 'submitted') continue
-
-    globalTimeoutExecutions.splice(index, 1)
-    if (status === 'reverted')
-      globalFailedExecutions.push({ ...entry, error: 'on-chain revert' })
-    else if (status === 'pending')
-      globalFailedExecutions.push({
-        ...entry,
-        error: 'row is pending — execution not confirmed on-chain',
-      })
-  }
-
-  const stillSubmitted = runSubmissions.filter(
-    ({ safeTxHash }) => statuses.get(safeTxHash) === 'submitted'
-  ).length
+  const stillSubmitted = applyRunSubmissionStatuses(runSubmissions, statuses, {
+    failed: globalFailedExecutions,
+    timedOut: globalTimeoutExecutions,
+    outcomes: networkOutcomes,
+  })
   if (stillSubmitted > 0)
     consola.warn(
       `${stillSubmitted} execution(s) still unconfirmed — the next run's startup reconcile will resolve them and queue their timelock ops.`
@@ -855,8 +835,14 @@ const processTxs = async (
       if (nextStatus === 'submitted' && txDoc._id)
         runSubmissions.push({
           network: networkKey,
-          safeTxHash,
           rowId: txDoc._id,
+          chain: chain.name,
+          safeTxHash,
+          proposalKey: buildProposalKey({
+            to: safeTransaction.data.to,
+            chainId: chain.id,
+            nonce: safeTransaction.data.nonce,
+          }),
         })
 
       await pendingTransactions.updateOne(

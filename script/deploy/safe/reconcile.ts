@@ -252,23 +252,43 @@ export async function reconcileAllSubmittedSafeTxs(
   pendingTransactions: Collection<ISafeTxDocument>,
   options?: IReconcileAllOptions
 ): Promise<Set<string>> {
-  const clientFactory =
-    options?.publicClientFactory ??
-    ((network: string) => buildReadOnlyClient(network, options?.rpcUrl))
-  const nonceReader = options?.readSafeNonce ?? defaultReadSafeNonce
   const networkFilter = options?.network?.toLowerCase()
 
   const submittedRows = await pendingTransactions
     .find({ status: { $eq: 'submitted' } })
     .toArray()
 
+  return reconcileSafesOf(
+    pendingTransactions,
+    submittedRows.filter(
+      (row) => !networkFilter || row.network.toLowerCase() === networkFilter
+    ),
+    options
+  )
+}
+
+/**
+ * Runs the full reconcile (Sweep A + Sweep B) once for each Safe that owns one
+ * of `rows`, skipping Tron. Per-Safe failures are logged and skipped.
+ *
+ * @returns `reconcileCoverageKey` values for each Safe that was successfully swept.
+ */
+async function reconcileSafesOf(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  rows: ISafeTxDocument[],
+  options?: IReconcileAllOptions
+): Promise<Set<string>> {
+  const clientFactory =
+    options?.publicClientFactory ??
+    ((network: string) => buildReadOnlyClient(network, options?.rpcUrl))
+  const nonceReader = options?.readSafeNonce ?? defaultReadSafeNonce
+
   const groups = new Map<
     string,
     { network: string; chainId: number; safeAddress: Address }
   >()
-  for (const row of submittedRows) {
+  for (const row of rows) {
     const network = row.network.toLowerCase()
-    if (networkFilter && network !== networkFilter) continue
     if (isTronNetworkKey(network)) continue
     const safeAddress = row.safeAddress as Address
     const key = reconcileCoverageKey(network, row.chainId, safeAddress)
@@ -303,7 +323,7 @@ export async function reconcileAllSubmittedSafeTxs(
         return key
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error)
-        consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
+        consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
         return null
       }
     }
@@ -328,10 +348,12 @@ export const END_OF_RUN_POLL_MS = 10_000 // 10 seconds
 /** A Safe tx this run broadcast whose receipt the executor did not see. */
 export interface IRunSubmission {
   network: string
-  safeTxHash: string
   /** The row's `_id` — `safeTxHash` alone can match a re-proposed tx's older row. */
   rowId: ObjectId
 }
+
+const isSettled = (status: SafeTxStatus | undefined): boolean =>
+  status === 'executed' || status === 'reverted'
 
 export interface IRunSubmissionReconcileOptions
   extends Omit<IReconcileAllOptions, 'network'> {
@@ -349,13 +371,17 @@ export interface IRunSubmissionReconcileOptions
  * Sweep A reads each receipt once, so a reconcile run right after the last
  * execution would see it as missing and leave it `submitted` — with its
  * timelock op never queued until some later run. This re-runs the reconcile
- * for the affected networks until none of `submissions` is still `submitted`,
- * or `waitMs` elapses.
+ * for the Safes those rows belong to until every row is `executed` or
+ * `reverted`, or `waitMs` elapses. A row still `pending` keeps the wait going:
+ * its status write failed after the broadcast, and Sweep B back-fills it once
+ * the execution is mined — which is why the Safes are taken from the rows
+ * rather than from the `submitted` rows {@link reconcileAllSubmittedSafeTxs}
+ * sweeps.
  *
  * @param pendingTransactions - Safe tx collection.
  * @param submissions - This run's executions that came back without a receipt.
  * @param options - Wait bounds plus the {@link reconcileAllSubmittedSafeTxs} seams.
- * @returns Final status of each submission, keyed by safeTxHash.
+ * @returns Final status of each submission's row, keyed by `rowId.toHexString()`.
  */
 export async function reconcileRunSubmissions(
   pendingTransactions: Collection<ISafeTxDocument>,
@@ -373,31 +399,17 @@ export async function reconcileRunSubmissions(
   const wait = options?.sleep ?? sleep
   const now = options?.now ?? Date.now
   const deadline = now() + waitMs
-  const hashByRowId = new Map(
-    evmSubmissions.map((s) => [s.rowId.toHexString(), s.safeTxHash])
-  )
-  const rowIds = evmSubmissions.map((s) => s.rowId)
+  const readRows = (ids: ObjectId[]) =>
+    pendingTransactions.find({ _id: { $in: ids } }).toArray()
 
-  let open = evmSubmissions
+  let open = await readRows(evmSubmissions.map((s) => s.rowId))
   for (;;) {
-    const networks = new Set(open.map((s) => s.network.toLowerCase()))
-    for (const network of networks)
-      await reconcileAllSubmittedSafeTxs(pendingTransactions, {
-        ...options,
-        network,
-      })
+    await reconcileSafesOf(pendingTransactions, open, options)
 
-    const rows = await pendingTransactions
-      .find({ _id: { $in: rowIds } })
-      .toArray()
-    for (const row of rows) {
-      const safeTxHash = hashByRowId.get(row._id.toHexString())
-      if (safeTxHash) statuses.set(safeTxHash, row.status)
-    }
+    const rows = await readRows(open.map((row) => row._id))
+    for (const row of rows) statuses.set(row._id.toHexString(), row.status)
 
-    open = evmSubmissions.filter(
-      (s) => statuses.get(s.safeTxHash) === 'submitted'
-    )
+    open = rows.filter((row) => !isSettled(row.status))
     if (open.length === 0 || now() + pollMs > deadline) return statuses
 
     consola.info(

@@ -1405,7 +1405,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 1) }],
+      [{ network: 'mainnet', rowId: idOf(collection, 1) }],
       {
         publicClientFactory: () =>
           createFakeClient({ receipts: { [HASH_A]: 'success' } }),
@@ -1420,7 +1420,8 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
       'reverted',
       'executed',
     ])
-    expect(statuses.get(HASH_A)).toBe('executed')
+    expect(statuses.get(idOf(collection, 1).toHexString())).toBe('executed')
+    expect(statuses.size).toBe(1)
     expect(enqueueSpy).toHaveBeenCalledTimes(1)
   })
 
@@ -1435,7 +1436,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
+      [{ network: 'mainnet', rowId: idOf(collection, 0) }],
       {
         publicClientFactory: () => client,
         readSafeNonce: async () => 1n,
@@ -1448,8 +1449,41 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
       }
     )
 
-    expect(statuses.get(HASH_A)).toBe('executed')
+    expect(statuses.get(idOf(collection, 0).toHexString())).toBe('executed')
     expect(collection.rows[0]?.status).toBe('executed')
+    expect(enqueueSpy).toHaveBeenCalledTimes(1)
+    expect(clock.slept).toEqual([END_OF_RUN_POLL_MS])
+  })
+
+  it('back-fills a row whose status write failed after the broadcast', async () => {
+    // The write recording the broadcast threw, so the row is still `pending`
+    // with no executionHash and no `submitted` row points at its Safe — only
+    // Sweep B on that Safe can resolve it, once the execution is mined.
+    const collection = createFakeCollection([
+      buildRow({ network: 'mainnet', chainId: 1, safeTxHash: HASH_A }),
+    ])
+    const clientOptions: IFakeClientOptions = { logs: [] }
+    const enqueueSpy = mock(noopEnqueueImpl)
+    const clock = fakeClock()
+
+    const statuses = await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', rowId: idOf(collection, 0) }],
+      {
+        publicClientFactory: () => createFakeClient(clientOptions),
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: enqueueSpy,
+        now: clock.now,
+        sleep: async (ms) => {
+          await clock.sleep(ms)
+          clientOptions.logs = [
+            makeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH_A),
+          ]
+        },
+      }
+    )
+
+    expect(statuses.get(idOf(collection, 0).toHexString())).toBe('executed')
     expect(enqueueSpy).toHaveBeenCalledTimes(1)
     expect(clock.slept).toEqual([END_OF_RUN_POLL_MS])
   })
@@ -1463,7 +1497,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
+      [{ network: 'mainnet', rowId: idOf(collection, 0) }],
       {
         publicClientFactory: () => createFakeClient(),
         readSafeNonce: async () => 0n,
@@ -1473,7 +1507,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
       }
     )
 
-    expect(statuses.get(HASH_A)).toBe('submitted')
+    expect(statuses.get(idOf(collection, 0).toHexString())).toBe('submitted')
     expect(collection.rows[0]?.status).toBe('submitted')
     expect(collection.rows[0]?.executionHash).toBe(HASH_A)
     expect(enqueueSpy).not.toHaveBeenCalled()
@@ -1490,7 +1524,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     const statuses = await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
+      [{ network: 'mainnet', rowId: idOf(collection, 0) }],
       {
         publicClientFactory: () =>
           createFakeClient({ receipts: { [HASH_A]: 'reverted' } }),
@@ -1501,7 +1535,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
       }
     )
 
-    expect(statuses.get(HASH_A)).toBe('reverted')
+    expect(statuses.get(idOf(collection, 0).toHexString())).toBe('reverted')
     expect(clock.slept).toEqual([])
   })
 
@@ -1517,8 +1551,8 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     await reconcileRunSubmissions(
       collection,
       [
-        { network: 'base', safeTxHash: HASH_A, rowId: idOf(collection, 0) },
-        { network: 'mainnet', safeTxHash: HASH_B, rowId: idOf(collection, 1) },
+        { network: 'base', rowId: idOf(collection, 0) },
+        { network: 'mainnet', rowId: idOf(collection, 1) },
       ],
       {
         publicClientFactory: (network) => {
@@ -1542,21 +1576,30 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     ])
   })
 
-  it('reconciles only the networks this run submitted on', async () => {
+  it('reconciles only the Safes this run submitted on', async () => {
+    const HASH_C = ('0x' + 'd3'.repeat(32)) as Hex
     const collection = createFakeCollection([
       submittedRow('mainnet', 1, HASH_A),
       submittedRow('optimism', 10, HASH_B),
+      {
+        ...submittedRow('mainnet', 1, HASH_C),
+        safeAddress: '0x0000000000000000000000000000000000000002' as Address,
+      },
     ])
     const factoryCalls: string[] = []
 
     await reconcileRunSubmissions(
       collection,
-      [{ network: 'mainnet', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
+      [{ network: 'mainnet', rowId: idOf(collection, 0) }],
       {
         publicClientFactory: (network) => {
           factoryCalls.push(network)
           return createFakeClient({
-            receipts: { [HASH_A]: 'success', [HASH_B]: 'success' },
+            receipts: {
+              [HASH_A]: 'success',
+              [HASH_B]: 'success',
+              [HASH_C]: 'success',
+            },
           })
         },
         readSafeNonce: async () => 1n,
@@ -1565,7 +1608,11 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     )
 
     expect(factoryCalls).toEqual(['mainnet'])
-    expect(collection.rows[1]?.status).toBe('submitted')
+    expect(collection.rows.map((r) => r.status)).toEqual([
+      'executed',
+      'submitted',
+      'submitted',
+    ])
   })
 
   it('does nothing for no submissions or Tron-only submissions', async () => {
@@ -1577,7 +1624,7 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
 
     for (const submissions of [
       [],
-      [{ network: 'tron', safeTxHash: HASH_A, rowId: idOf(collection, 0) }],
+      [{ network: 'tron', rowId: idOf(collection, 0) }],
     ]) {
       const statuses = await reconcileRunSubmissions(collection, submissions, {
         publicClientFactory: factory,
