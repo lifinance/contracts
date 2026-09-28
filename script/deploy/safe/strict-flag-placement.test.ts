@@ -19,6 +19,7 @@ import {
   describe,
   expect,
   it,
+  setDefaultTimeout,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
@@ -54,6 +55,10 @@ const unjudged: string[] = []
 
 /** 20 seconds: long enough to reach the reader, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
+
+// A test spawns up to two children, each allowed TIMEOUT_MS; bun's 5s default
+// kills a test whose two cold starts take ~3s each before either child can.
+setDefaultTimeout(2 * TIMEOUT_MS + 5_000)
 
 const run = (script: string, args: string[]): string => {
   const env: Record<string, string> = {
