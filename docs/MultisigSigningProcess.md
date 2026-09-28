@@ -639,7 +639,10 @@ missed enqueues.
 `confirm-safe-tx` startup) promotes `submitted` rows to `executed`/`reverted`
 from receipts, demotes truly-missing broadcasts back to `pending`, and
 back-fills from `ExecutionSuccess`/`ExecutionFailure` logs when the on-chain
-nonce has moved. Inspection CLIs: `list-pending-proposals.ts`,
+nonce has moved. Before `confirm-safe-tx` exits — including when its network
+loop throws — `reconcileRunSubmissions` re-checks the executions that run left
+`submitted` (executor receipt poll timed out) every 10s for up to 60s, so a tx
+that lands late still gets its timelock op queued in the same run. Inspection CLIs: `list-pending-proposals.ts`,
 `list-timelock-queue.ts`, `list-parked-tasks.ts`;
 `delete-pending-proposals.ts` refuses multi-signed rows without `--force`;
 parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.

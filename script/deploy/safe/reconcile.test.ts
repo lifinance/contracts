@@ -30,8 +30,11 @@ import {
 } from 'viem'
 
 import {
+  END_OF_RUN_POLL_MS,
+  END_OF_RUN_WAIT_MS,
   reconcileAllSubmittedSafeTxs,
   reconcileCoverageKey,
+  reconcileRunSubmissions,
   reconcileSubmittedSafeTxs,
   RECONCILE_LOOKBACK_BLOCKS,
   SUBMITTED_GRACE_MS,
@@ -1343,5 +1346,206 @@ describe('reconcileAllSubmittedSafeTxs — startup sweep across networks', () =>
 
     expect(peak).toBe(2)
     expect(covered.size).toBe(4)
+  })
+})
+
+describe('reconcileRunSubmissions — end-of-run pass', () => {
+  const HASH_A = ('0x' + 'd1'.repeat(32)) as Hex
+  const HASH_B = ('0x' + 'd2'.repeat(32)) as Hex
+
+  function submittedRow(
+    network: string,
+    chainId: number,
+    executionHash: Hex
+  ): ISafeTxDocument {
+    return buildRow({
+      network,
+      chainId,
+      status: 'submitted',
+      executionHash,
+      submittedAt: new Date(),
+      safeTxHash: executionHash,
+    })
+  }
+
+  function fakeClock(): {
+    now: () => number
+    sleep: (ms: number) => Promise<void>
+    slept: number[]
+  } {
+    let t = 0
+    const slept: number[] = []
+    return {
+      now: () => t,
+      sleep: async (ms) => {
+        slept.push(ms)
+        t += ms
+      },
+      slept,
+    }
+  }
+
+  it('promotes and enqueues a tx whose receipt appears during the wait', async () => {
+    const collection = createFakeCollection([
+      submittedRow('mainnet', 1, HASH_A),
+    ])
+    const receipts: Record<string, 'success'> = {}
+    const client = createFakeClient({ receipts })
+    const enqueueSpy = mock(noopEnqueueImpl)
+    const clock = fakeClock()
+
+    const statuses = await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      {
+        publicClientFactory: () => client,
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: enqueueSpy,
+        now: clock.now,
+        sleep: async (ms) => {
+          await clock.sleep(ms)
+          receipts[HASH_A] = 'success'
+        },
+      }
+    )
+
+    expect(statuses.get(HASH_A)).toBe('executed')
+    expect(collection.rows[0]?.status).toBe('executed')
+    expect(enqueueSpy).toHaveBeenCalledTimes(1)
+    expect(clock.slept).toEqual([END_OF_RUN_POLL_MS])
+  })
+
+  it('leaves a still-missing tx submitted and stops at the deadline', async () => {
+    const collection = createFakeCollection([
+      submittedRow('mainnet', 1, HASH_A),
+    ])
+    const enqueueSpy = mock(noopEnqueueImpl)
+    const clock = fakeClock()
+
+    const statuses = await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      {
+        publicClientFactory: () => createFakeClient(),
+        readSafeNonce: async () => 0n,
+        enqueueTimelockOpFn: enqueueSpy,
+        now: clock.now,
+        sleep: clock.sleep,
+      }
+    )
+
+    expect(statuses.get(HASH_A)).toBe('submitted')
+    expect(collection.rows[0]?.status).toBe('submitted')
+    expect(collection.rows[0]?.executionHash).toBe(HASH_A)
+    expect(enqueueSpy).not.toHaveBeenCalled()
+    const total = clock.slept.reduce((a, b) => a + b, 0)
+    expect(total).toBeLessThanOrEqual(END_OF_RUN_WAIT_MS)
+    expect(total).toBeGreaterThan(END_OF_RUN_WAIT_MS - END_OF_RUN_POLL_MS)
+  })
+
+  it('does not wait when every submission resolves on the first round', async () => {
+    const collection = createFakeCollection([
+      submittedRow('mainnet', 1, HASH_A),
+    ])
+    const clock = fakeClock()
+
+    const statuses = await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      {
+        publicClientFactory: () =>
+          createFakeClient({ receipts: { [HASH_A]: 'reverted' } }),
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: mock(noopEnqueueImpl),
+        now: clock.now,
+        sleep: clock.sleep,
+      }
+    )
+
+    expect(statuses.get(HASH_A)).toBe('reverted')
+    expect(clock.slept).toEqual([])
+  })
+
+  it('stops re-checking a network once its submissions resolve', async () => {
+    const collection = createFakeCollection([
+      submittedRow('base', 8453, HASH_A),
+      submittedRow('mainnet', 1, HASH_B),
+    ])
+    const receipts: Record<string, 'success'> = { [HASH_A]: 'success' }
+    const factoryCalls: string[] = []
+    const clock = fakeClock()
+
+    await reconcileRunSubmissions(
+      collection,
+      [
+        { network: 'base', safeTxHash: HASH_A },
+        { network: 'mainnet', safeTxHash: HASH_B },
+      ],
+      {
+        publicClientFactory: (network) => {
+          factoryCalls.push(network)
+          return createFakeClient({ receipts })
+        },
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: mock(noopEnqueueImpl),
+        now: clock.now,
+        sleep: async (ms) => {
+          await clock.sleep(ms)
+          receipts[HASH_B] = 'success'
+        },
+      }
+    )
+
+    expect(factoryCalls).toEqual(['base', 'mainnet', 'mainnet'])
+    expect(collection.rows.map((r) => r.status)).toEqual([
+      'executed',
+      'executed',
+    ])
+  })
+
+  it('reconciles only the networks this run submitted on', async () => {
+    const collection = createFakeCollection([
+      submittedRow('mainnet', 1, HASH_A),
+      submittedRow('optimism', 10, HASH_B),
+    ])
+    const factoryCalls: string[] = []
+
+    await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', safeTxHash: HASH_A }],
+      {
+        publicClientFactory: (network) => {
+          factoryCalls.push(network)
+          return createFakeClient({
+            receipts: { [HASH_A]: 'success', [HASH_B]: 'success' },
+          })
+        },
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: mock(noopEnqueueImpl),
+      }
+    )
+
+    expect(factoryCalls).toEqual(['mainnet'])
+    expect(collection.rows[1]?.status).toBe('submitted')
+  })
+
+  it('does nothing for no submissions or Tron-only submissions', async () => {
+    const collection = createFakeCollection([
+      submittedRow('tron', 728126428, HASH_A),
+    ])
+    const factory = mock(() => createFakeClient())
+    const clock = fakeClock()
+
+    for (const submissions of [[], [{ network: 'tron', safeTxHash: HASH_A }]]) {
+      const statuses = await reconcileRunSubmissions(collection, submissions, {
+        publicClientFactory: factory,
+        now: clock.now,
+        sleep: clock.sleep,
+      })
+      expect(statuses.size).toBe(0)
+    }
+
+    expect(factory).not.toHaveBeenCalled()
+    expect(clock.slept).toEqual([])
   })
 })

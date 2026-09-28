@@ -151,7 +151,11 @@ import {
 } from './prebroadcast-gate'
 import { asPrintable, printableField, trustedMarkup } from './printable-field'
 import { buildReadOnlyClient } from './read-only-safe-client'
-import { reconcileAllSubmittedSafeTxs } from './reconcile'
+import {
+  reconcileAllSubmittedSafeTxs,
+  reconcileRunSubmissions,
+  type IRunSubmission,
+} from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
 import {
@@ -398,6 +402,61 @@ const globalTimeoutExecutions: Array<{
   safeTxHash: string
   error: string
 }> = []
+
+// Executions this run broadcast without seeing a receipt, re-checked before
+// exit so a tx that lands late still gets its timelock op queued this run.
+const runSubmissions: IRunSubmission[] = []
+
+/**
+ * Reconciles {@link runSubmissions} and moves each resolved one out of the
+ * timed-out list, so the execution summary reports where it ended up. Never
+ * throws: it runs on the way out of a run that may already be failing.
+ */
+async function settleRunSubmissions(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  rpcUrl: string | undefined
+): Promise<void> {
+  if (runSubmissions.length === 0) return
+
+  let statuses: Map<string, SafeTxStatus>
+  try {
+    statuses = await reconcileRunSubmissions(
+      pendingTransactions,
+      runSubmissions,
+      { rpcUrl }
+    )
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    consola.warn(`End-of-run reconcile failed: ${errorMsg}`)
+    return
+  }
+
+  for (const { safeTxHash } of runSubmissions) {
+    const status = statuses.get(safeTxHash)
+    const index = globalTimeoutExecutions.findIndex(
+      (item) => item.safeTxHash === safeTxHash
+    )
+    const entry = globalTimeoutExecutions[index]
+    if (!entry || status === undefined || status === 'submitted') continue
+
+    globalTimeoutExecutions.splice(index, 1)
+    if (status === 'reverted')
+      globalFailedExecutions.push({ ...entry, error: 'on-chain revert' })
+    else if (status === 'pending')
+      globalFailedExecutions.push({
+        ...entry,
+        error: 'not found on-chain — sent back to pending',
+      })
+  }
+
+  const stillSubmitted = runSubmissions.filter(
+    ({ safeTxHash }) => statuses.get(safeTxHash) === 'submitted'
+  ).length
+  if (stillSubmitted > 0)
+    consola.warn(
+      `${stillSubmitted} execution(s) still unconfirmed — the next run's startup reconcile will resolve them and queue their timelock ops.`
+    )
+}
 
 // `reconcileCoverageKey` values for each Safe whose `submitted` rows were
 // resolved by the startup reconcile sweep. Used to skip the redundant
@@ -836,9 +895,8 @@ const processTxs = async (
         consola.warn(
           `⚠️  Safe transaction submitted but not yet confirmed — recorded as submitted`
         )
-        consola.warn(
-          `   Reconciliation will resolve the final status on the next run.`
-        )
+        consola.warn(`   It will be re-checked before this run exits.`)
+        runSubmissions.push({ network: networkKey, safeTxHash })
         globalTimeoutExecutions.push({
           chain: chain.name,
           safeTxHash,
@@ -2619,88 +2677,97 @@ const main = defineCommand({
         checks: [...CONFIRM_CHECK_DEFINITIONS],
       })
 
-      for (let i = 0; i < networks.length; i++) {
-        const network = networks[i]
-        if (!network) continue
+      try {
+        for (let i = 0; i < networks.length; i++) {
+          const network = networks[i]
+          if (!network) continue
 
-        const networkTxs = txsByNetwork[network.toLowerCase()]
-        if (!networkTxs || networkTxs.length === 0) {
-          recordNothingToGrade(network, 'no pending transaction was fetched')
-          continue
-        }
+          const networkTxs = txsByNetwork[network.toLowerCase()]
+          if (!networkTxs || networkTxs.length === 0) {
+            recordNothingToGrade(network, 'no pending transaction was fetched')
+            continue
+          }
 
-        networksAttempted.add(network)
+          networksAttempted.add(network)
 
-        const nextNetwork = networks[i + 1]
-        if (nextNetwork) {
-          const nextTxs = txsByNetwork[nextNetwork.toLowerCase()]
-          if (nextTxs && nextTxs.length > 0)
-            prefetchQueue.schedule(nextNetwork, {
-              ...prefetchParamsBase,
-              pendingTxs: nextTxs,
-            })
-        }
+          const nextNetwork = networks[i + 1]
+          if (nextNetwork) {
+            const nextTxs = txsByNetwork[nextNetwork.toLowerCase()]
+            if (nextTxs && nextTxs.length > 0)
+              prefetchQueue.schedule(nextNetwork, {
+                ...prefetchParamsBase,
+                pendingTxs: nextTxs,
+              })
+          }
 
-        const prepared = await prefetchQueue.take(network, {
-          ...prefetchParamsBase,
-          pendingTxs: networkTxs,
-        })
+          const prepared = await prefetchQueue.take(network, {
+            ...prefetchParamsBase,
+            pendingTxs: networkTxs,
+          })
 
-        switch (prepared.kind) {
-          case 'ready':
-            await processTxs(
-              keyType,
-              pendingTransactions,
-              args.rpcUrl,
-              prepared.context
-            )
-            break
-          case 'nothing-actionable':
-            consola.success(`No actionable pending transactions on ${network}`)
-            recordNothingToGrade(
-              network,
-              'nothing actionable was left once the network was prepared'
-            )
-            break
-          case 'not-owner':
-            consola.error(
-              `[${network}] The current signer is not an owner of this Safe — cannot sign or execute`
-            )
-            consola.error(`  Signer: ${prepared.signerAddress}`)
-            consola.error(`  Owners: ${prepared.owners.join(', ')}`)
-            recordNothingToGrade(
-              network,
-              'the signer is not an owner of this Safe, so nothing here can be signed'
-            )
-            break
-          case 'owner-check-failed':
-            consola.error(
-              `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
-            )
-            recordCouldNotGrade(
-              network,
-              'the Safe ownership read failed, so ownership could not be established'
-            )
-            break
-          case 'read-failed':
-            // Unknown threshold/nonce state must abort rather than proceed —
-            // a signing/execution decision on stale state is unsafe.
-            throw new Error(
-              `Could not read threshold/nonce for the Safe on ${network}: ${prepared.error}`
-            )
-          case 'prepare-error':
-            throw new Error(`Failed to prepare ${network}: ${prepared.error}`)
-          default: {
-            const exhaustive: never = prepared
-            throw new Error(
-              `Unhandled prepare result: ${JSON.stringify(exhaustive)}`
-            )
+          switch (prepared.kind) {
+            case 'ready':
+              await processTxs(
+                keyType,
+                pendingTransactions,
+                args.rpcUrl,
+                prepared.context
+              )
+              break
+            case 'nothing-actionable':
+              consola.success(
+                `No actionable pending transactions on ${network}`
+              )
+              recordNothingToGrade(
+                network,
+                'nothing actionable was left once the network was prepared'
+              )
+              break
+            case 'not-owner':
+              consola.error(
+                `[${network}] The current signer is not an owner of this Safe — cannot sign or execute`
+              )
+              consola.error(`  Signer: ${prepared.signerAddress}`)
+              consola.error(`  Owners: ${prepared.owners.join(', ')}`)
+              recordNothingToGrade(
+                network,
+                'the signer is not an owner of this Safe, so nothing here can be signed'
+              )
+              break
+            case 'owner-check-failed':
+              consola.error(
+                `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
+              )
+              recordCouldNotGrade(
+                network,
+                'the Safe ownership read failed, so ownership could not be established'
+              )
+              break
+            case 'read-failed':
+              // Unknown threshold/nonce state must abort rather than proceed —
+              // a signing/execution decision on stale state is unsafe.
+              throw new Error(
+                `Could not read threshold/nonce for the Safe on ${network}: ${prepared.error}`
+              )
+            case 'prepare-error':
+              throw new Error(`Failed to prepare ${network}: ${prepared.error}`)
+            default: {
+              const exhaustive: never = prepared
+              throw new Error(
+                `Unhandled prepare result: ${JSON.stringify(exhaustive)}`
+              )
+            }
           }
         }
+      } finally {
+        // In `finally` so an execution loop that throws after broadcasting
+        // still gets its late receipts resolved and timelock ops queued.
+        await settleRunSubmissions(
+          pendingTransactions,
+          args.network ? args.rpcUrl : undefined
+        )
+        await mongoClient.close(true)
       }
-
-      // Close MongoDB connection
-      await mongoClient.close(true)
     } finally {
       await releaseAllPooledSafeClients().catch(() => undefined)
       if (codehashDeps) {

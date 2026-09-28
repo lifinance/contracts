@@ -1,8 +1,9 @@
 /**
  * Reconciliation of in-flight Safe transactions against on-chain state.
  *
- * Called at the top of each network's processing pass in confirm-safe-tx.
- * Two sweeps:
+ * Called at startup and at the top of each network's processing pass in
+ * confirm-safe-tx, and again before it exits for the executions that run left
+ * `submitted`. Two sweeps:
  *
  * - Sweep A walks every `submitted` row in MongoDB and resolves it from
  *   the receipt of its stored `executionHash`. The row is promoted to
@@ -31,11 +32,16 @@ import {
   type PublicClient,
 } from 'viem'
 
+import { sleep } from '../../utils/delay'
 import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 
 import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
 import { buildReadOnlyClient } from './read-only-safe-client'
-import { NONCE_CONSUMING_STATUSES, type ISafeTxDocument } from './safe-utils'
+import {
+  NONCE_CONSUMING_STATUSES,
+  type ISafeTxDocument,
+  type SafeTxStatus,
+} from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 /**
@@ -306,6 +312,91 @@ export async function reconcileAllSubmittedSafeTxs(
   for (const key of results) if (key !== null) covered.add(key)
 
   return covered
+}
+
+/**
+ * How long the end-of-run pass keeps re-checking this run's `submitted`
+ * executions. The executor has already polled 30s by then, so this brings a
+ * mainnet tx to ~90s (~7 blocks) from broadcast; anything slower is stuck on
+ * gas and is left to the next run's startup sweep.
+ */
+export const END_OF_RUN_WAIT_MS = 60_000 // 60 seconds
+
+/** Pause between end-of-run reconcile rounds — about one mainnet block. */
+export const END_OF_RUN_POLL_MS = 10_000 // 10 seconds
+
+/** A Safe tx this run broadcast whose receipt the executor did not see. */
+export interface IRunSubmission {
+  network: string
+  safeTxHash: string
+}
+
+export interface IRunSubmissionReconcileOptions
+  extends Omit<IReconcileAllOptions, 'network'> {
+  waitMs?: number
+  pollMs?: number
+  /** Injectable for tests. */
+  sleep?: (ms: number) => Promise<void>
+  /** Injectable for tests. */
+  now?: () => number
+}
+
+/**
+ * Resolves the executions this run left `submitted` before the run exits.
+ *
+ * Sweep A reads each receipt once, so a reconcile run right after the last
+ * execution would see it as missing and leave it `submitted` — with its
+ * timelock op never queued until some later run. This re-runs the reconcile
+ * for the affected networks until none of `submissions` is still `submitted`,
+ * or `waitMs` elapses.
+ *
+ * @param pendingTransactions - Safe tx collection.
+ * @param submissions - This run's executions that came back without a receipt.
+ * @param options - Wait bounds plus the {@link reconcileAllSubmittedSafeTxs} seams.
+ * @returns Final status of each submission, keyed by safeTxHash.
+ */
+export async function reconcileRunSubmissions(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  submissions: IRunSubmission[],
+  options?: IRunSubmissionReconcileOptions
+): Promise<Map<string, SafeTxStatus>> {
+  const evmSubmissions = submissions.filter(
+    (s) => !isTronNetworkKey(s.network.toLowerCase())
+  )
+  const statuses = new Map<string, SafeTxStatus>()
+  if (evmSubmissions.length === 0) return statuses
+
+  const waitMs = options?.waitMs ?? END_OF_RUN_WAIT_MS
+  const pollMs = options?.pollMs ?? END_OF_RUN_POLL_MS
+  const wait = options?.sleep ?? sleep
+  const now = options?.now ?? Date.now
+  const deadline = now() + waitMs
+  const hashes = evmSubmissions.map((s) => s.safeTxHash)
+
+  let open = evmSubmissions
+  for (;;) {
+    const networks = new Set(open.map((s) => s.network.toLowerCase()))
+    for (const network of networks)
+      await reconcileAllSubmittedSafeTxs(pendingTransactions, {
+        ...options,
+        network,
+      })
+
+    const rows = await pendingTransactions
+      .find({ safeTxHash: { $in: hashes } })
+      .toArray()
+    for (const row of rows) statuses.set(row.safeTxHash, row.status)
+
+    open = evmSubmissions.filter(
+      (s) => statuses.get(s.safeTxHash) === 'submitted'
+    )
+    if (open.length === 0 || now() + pollMs > deadline) return statuses
+
+    consola.info(
+      `Waiting for ${open.length} execution(s) to confirm before exit…`
+    )
+    await wait(pollMs)
+  }
 }
 
 /**
