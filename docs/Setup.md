@@ -7,7 +7,8 @@ only the quick-start; this is the full guide.
 
 ## Prerequisites
 
-- Node.js (`nvm use` picks the recommended version from `.nvmrc`; minimum is 18.18)
+- Node.js 22 or newer (`nvm use` picks it from `.nvmrc`). `bunx tsx` runs the
+  scripts on whatever `node` is first on `PATH`, and nothing checks its version.
 - Bun (latest version)
 - Foundry (pinned via `.foundry-version`)
 - Git

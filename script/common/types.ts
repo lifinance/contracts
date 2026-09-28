@@ -122,20 +122,23 @@ export interface INetwork {
   feeManagerAddress?: string
 }
 
-/** Parsed subset of `foundry.toml` used by script helpers that read default compiler/EVM settings. */
-export interface IFoundryTomlConfig {
-  profile?: {
-    default?: {
-      solc_version?: string
-      evm_version?: string
-      optimizer_runs?: number
-    }
-  }
+/**
+ * `[profile.default]` settings of `foundry.toml` read by script helpers for
+ * default compiler/EVM settings.
+ */
+export interface IFoundryProfileDefaultConfig {
+  solc_version?: string
+  evm_version?: string
+  optimizer_runs?: number
 }
 
-export type IFoundryProfileDefaultConfig = NonNullable<
-  NonNullable<IFoundryTomlConfig['profile']>['default']
->
+/** `deployments/<network>.diamond.json`: facets keyed by address, periphery by name. */
+export interface IDiamondDeploymentLog {
+  LiFiDiamond: {
+    Facets: Record<string, { Name: string; Version: string }>
+    Periphery: Record<string, string>
+  }
+}
 
 /**
  * Whitelist configuration structure for DEX and Periphery contracts

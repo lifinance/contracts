@@ -15,6 +15,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
+
 import 'dotenv/config'
 
 import {
@@ -177,4 +179,4 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
