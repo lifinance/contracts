@@ -132,6 +132,10 @@
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x6275c64C1DA8919D1F7F5D558D36A6D750C74838": {
+        "Name": "CentrifugeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

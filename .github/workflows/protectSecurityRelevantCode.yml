@@ -63,8 +63,9 @@ jobs:
             ##### matching, so a path that no longer exists is still safe to test.
             ##### check for github actions, pre-commit checker, emergency-pause break-glass paths,
             ##### and the immutables gate — its checker, plus the getter exemptions
-            ##### recorded beside it (EXSC-869, D20)
-            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/|^script/deploy/immutables/'; then
+            ##### recorded beside it (EXSC-869, D20), and the fork's audited-patch
+            ##### declaration, which decides what the audit gate reads (EXSC-1095)
+            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/|^script/deploy/immutables/|^audit/auditedPatches\.json$'; then
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi

@@ -392,6 +392,15 @@ export const computeSourceClosureHash = (
   reader: ISourceReader
 ): Hex => computeClosureDetail(closure, reader).combined
 
+/**
+ * Hashes one file as the closure's per-file hashes do.
+ *
+ * @param source - Solidity source, as read from disk or git.
+ * @returns keccak256 over the audit-relevant lines.
+ */
+export const hashAuditRelevantSource = (source: string): Hex =>
+  keccak256(toHex(normaliseAuditRelevantSource(source)))
+
 /** A closure hashed both as a whole and file by file. */
 export interface IClosureDetail {
   /** Hash over the whole closure. Identical to {@link computeSourceClosureHash}. */
@@ -421,12 +430,7 @@ export const computeClosureDetail = (
 ): IClosureDetail => {
   const files = closure.files.map(
     (path) =>
-      [
-        path,
-        keccak256(
-          toHex(normaliseAuditRelevantSource(reader.readFile(path) ?? ''))
-        ),
-      ] as const
+      [path, hashAuditRelevantSource(reader.readFile(path) ?? '')] as const
   )
   const dependencies = Object.keys(closure.dependencies)
     .sort()
