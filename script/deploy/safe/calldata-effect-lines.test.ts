@@ -211,7 +211,7 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
   it('counts the selectors it holds back', async () => {
     const selectors = Array.from(
       { length: 30 },
-      (_, i) => `0x${i.toString(16).padStart(8, '0')}` as `0x${string}`
+      (_, i) => SELECTORS[i % SELECTORS.length] as `0x${string}`
     )
     const lines = plain(await render(diamondCut(1, FACET, selectors))).join(
       '\n'
@@ -252,10 +252,10 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
   })
 
   it('quotes a name the selector registry resolved rather than vouching for it', async () => {
-    // The registry answers this selector from a 4byte-style collision name, so
-    // the call is named but nothing decodes its body.
-    const lines = plain(await render('0xdeadbeef')).join('\n')
-    expect(lines).toContain('[0xdeadbeef]')
+    // `transferOwnership(address)` with no argument body: the registry names the
+    // call, but nothing decodes it.
+    const lines = plain(await render('0xf2fde38b')).join('\n')
+    expect(lines).toContain('[0xf2fde38b]')
     expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
   })
 
@@ -411,13 +411,13 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
     const lines = plain(
       await render(
         encodeFunctionData({
-          abi: parseAbi(['function setOwner(address)']),
-          functionName: 'setOwner',
+          abi: parseAbi(['function transferOwnership(address)']),
+          functionName: 'transferOwnership',
           args: [FACET],
         })
       )
     ).join('\n')
-    expect(lines).toContain('setOwner [')
+    expect(lines).toContain('transferOwnership [')
     expect(lines).toContain('[0]: ')
     expect(lines).toContain(FACET)
   })
