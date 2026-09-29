@@ -15,6 +15,7 @@ import {
   encodeFunctionData,
   keccak256,
   numberToHex,
+  toHex,
   pad,
   parseAbi,
   parseAbiItem,
@@ -53,6 +54,7 @@ const TIMELOCK: Address = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29'
 const DIAMOND: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const SAFE: Address = '0x2deA87C92aAB9257409987A019be44ea9e774226'
 const STRANGER: Address = '0x000000000000000000000000000000000000dEaD'
+const DEPLOYER: Address = '0x11F1022cA6AdEF6400e5677528a80d49a069C00c'
 const ZERO32: Hex = `0x${'0'.repeat(64)}`
 
 const opOf = (
@@ -469,6 +471,83 @@ describe('gradeAuthority', () => {
       },
     ])
     expect(gradeAuthority(op, known).status).toBe('unknown')
+  })
+
+  it('gives governing timelock roles only to the Safe or the timelock', () => {
+    const proposer = keccak256(toHex('PROPOSER_ROLE'))
+    const withHot = new Map([
+      ...known,
+      [DEPLOYER.toLowerCase(), 'deployerWallet'],
+    ])
+    const grant = (who: Address) =>
+      opOf([
+        {
+          target: TIMELOCK,
+          data: call('grantRole(bytes32,address)', [proposer, who]),
+        },
+      ])
+    expect(gradeAuthority(grant(DEPLOYER), withHot).status).toBe('fail')
+    expect(gradeAuthority(grant(SAFE), withHot).status).toBe('pass')
+  })
+
+  it('leaves a canceller grant to a not-yet-known address unverified, not failed', () => {
+    const canceller = keccak256(toHex('CANCELLER_ROLE'))
+    const op = opOf([
+      {
+        target: TIMELOCK,
+        data: call('grantRole(bytes32,address)', [canceller, STRANGER]),
+      },
+    ])
+    expect(gradeAuthority(op, known).status).toBe('unknown')
+  })
+
+  it('leaves ownership to a known address that is not an owner unverified', () => {
+    const withHot = new Map([
+      ...known,
+      [DEPLOYER.toLowerCase(), 'deployerWallet'],
+    ])
+    const op = opOf([
+      { target: DIAMOND, data: call('transferOwnership(address)', [DEPLOYER]) },
+    ])
+    expect(gradeAuthority(op, withHot).status).toBe('unknown')
+  })
+
+  it('reads an authority call made from a diamondCut _init', () => {
+    const cutWith = (to: Address) =>
+      call('diamondCut((address,uint8,bytes4[])[],address,bytes)', [
+        [],
+        STRANGER,
+        call('transferOwnership(address)', [to]),
+      ])
+    const attack = gradeAuthority(
+      opOf([{ target: DIAMOND, data: cutWith(STRANGER) }]),
+      known
+    )
+    expect(attack.status).toBe('fail')
+    expect(attack.detail).toContain('_init')
+    expect(
+      gradeAuthority(
+        opOf([{ target: DIAMOND, data: cutWith(TIMELOCK) }]),
+        known
+      ).status
+    ).toBe('pass')
+  })
+
+  it('counts an address the operation installs as known', () => {
+    const op = opOf([
+      {
+        target: DIAMOND,
+        data: call('setCanExecute(bytes4,address,bool)', [
+          '0x12345678',
+          STRANGER,
+          true,
+        ]),
+      },
+    ])
+    expect(gradeAuthority(op, known).status).toBe('fail')
+    expect(
+      gradeAuthority(op, known, new Set([STRANGER.toLowerCase()])).status
+    ).toBe('pass')
   })
 
   it('is unknown for a truncated authority call', () => {

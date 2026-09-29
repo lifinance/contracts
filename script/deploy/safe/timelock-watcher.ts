@@ -163,6 +163,9 @@ const UNSET_READS_BEFORE_DROP = 3
 /** An unverifiable gate K result is retried once a day, not every run: each retry is a rebuild. */
 const CODEHASH_UNKNOWN_RETRY_MS = 24 * 60 * 60 * 1000 // 24 hours
 
+/** One operation's gate K rebuilds; the queue moves on without it after this. */
+const REBUILD_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
+
 /** A cached gate K result, reused while the code it judged is unchanged. */
 interface ICodehashCacheEntry {
   status: 'pass' | 'fail' | 'unknown'
@@ -496,22 +499,28 @@ const runCodehash = async (
   try {
     // One at a time: every rebuild shares one checkout root keyed by commit, and
     // two networks installing code from the same commit would build into it at once.
-    await ctx.codehash.serialise(async () => {
-      for (const call of installations)
-        reports.push(
-          await verifyCutTargets(
-            {
-              cuts: call.cuts,
-              init: call.init,
-              network,
-              ...('registrations' in call
-                ? { registrations: call.registrations }
-                : {}),
-            },
-            ctx.codehash.deps()
-          )
-        )
-    })
+    await ctx.codehash.serialise(() =>
+      withTimeout(
+        (async () => {
+          for (const call of installations)
+            reports.push(
+              await verifyCutTargets(
+                {
+                  cuts: call.cuts,
+                  init: call.init,
+                  network,
+                  ...('registrations' in call
+                    ? { registrations: call.registrations }
+                    : {}),
+                },
+                ctx.codehash.deps()
+              )
+            )
+        })(),
+        REBUILD_TIMEOUT_MS,
+        'gate K rebuild'
+      )
+    )
   } catch (error) {
     return {
       kind: 'error',
@@ -530,6 +539,17 @@ const runCodehash = async (
       checkedAt: new Date().toISOString(),
     }
   return result
+}
+
+/** Addresses an operation installs, which the codehash check judges. */
+const installedBy = (op: IScannedOperation): Set<string> => {
+  const collected = collectDiamondCutTargets(encodeOperation(op))
+  return new Set(
+    [
+      ...collected.calls.flatMap((c) => c.cuts.map((cut) => cut.facetAddress)),
+      ...collected.registrations.map((r) => r.address),
+    ].map((a) => a.toLowerCase())
+  )
 }
 
 const knownAddresses = (
@@ -773,9 +793,12 @@ export const watchNetwork = async (
   }
 
   let now: bigint
+  let latestBlock: bigint
   let liveMinimum: bigint | undefined
   try {
-    now = (await client.getBlock()).timestamp
+    const latest = await client.getBlock()
+    now = latest.timestamp
+    latestBlock = latest.number
   } catch (error) {
     return unreadable(
       `the latest block could not be read: ${describe(error)}`,
@@ -807,6 +830,8 @@ export const watchNetwork = async (
   for (const [key, value] of Object.entries(globalConfig))
     if (typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value))
       knownForArguments.set(value.toLowerCase(), key)
+  for (const owner of globalConfig.safeOwners)
+    knownForArguments.set(owner.toLowerCase(), 'a Safe owner')
   const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
@@ -821,6 +846,10 @@ export const watchNetwork = async (
         args: [op.id],
       })
       stage = stageOf(readyAt, now)
+      // A node behind the scheduling block reads 0 for an operation it has not
+      // seen yet; that read says nothing about whether it was cancelled.
+      if (stage === 'unset' && latestBlock < BigInt(op.blockNumber))
+        stage = undefined
     } catch {
       stage = undefined
     }
@@ -828,7 +857,8 @@ export const watchNetwork = async (
     if (
       stage === 'done' ||
       (stage === 'unset' &&
-        (isProvenCancelled(op) || unsetReads >= UNSET_READS_BEFORE_DROP))
+        (isProvenCancelled(op, scan.state.cancels) ||
+          unsetReads >= UNSET_READS_BEFORE_DROP))
     ) {
       delete scan.state.operations[op.id]
       delete ctx.state.codehash[findingKey(name, op.id)]
@@ -848,7 +878,7 @@ export const watchNetwork = async (
       gradeDelay(op, agreedMinimum, liveMinimum, timelock),
       gradeTargets(op, known),
       gradeDelegatecall(op),
-      gradeAuthority(op, knownForArguments),
+      gradeAuthority(op, knownForArguments, installedBy(op)),
     ]
 
     let signTimeRecordPresent = false
@@ -1133,7 +1163,9 @@ const command = defineCommand({
 
     const now = new Date()
     const settled = new Set(
-      reports.filter((r) => r.status !== 'unreadable').map((r) => r.network)
+      reports
+        .filter((r) => r.status === 'watched' || r.status === 'uncovered')
+        .map((r) => r.network)
     )
     const decision = decideAlerts(
       state.alerts,
@@ -1186,6 +1218,9 @@ const command = defineCommand({
       deliveryFailed
     )
       process.exit(1)
+    // A timed-out rebuild keeps running after its network was reported; it must
+    // not hold the job open.
+    process.exit(0)
   },
 })
 

@@ -198,6 +198,29 @@ describe('mergeScheduledLogs', () => {
     expect(isProvenCancelled(opIn(never, id(7)))).toBe(false)
   })
 
+  it('proves a cancel read in an earlier run than its schedule', async () => {
+    const deps = chain({
+      head: 10_000n,
+      floor: 0n,
+      maxSpan: 1_000n,
+      logs: [scheduledAt(500n, id(3))],
+      cancels: [{ id: id(3), blockNumber: 9_500n }],
+    })
+    const start = {
+      ...initialScanState(undefined, TIMELOCK),
+      floor: '0',
+      low: '10000',
+      high: '10000',
+      span: '1000',
+    }
+    const first = await advanceScan(start, deps, 2)
+    expect(first.state.operations[id(3)]).toBeUndefined()
+    const second = await advanceScan(first.state, deps, 100)
+    const op = opIn(second.state.operations, id(3))
+    expect(isProvenCancelled(op)).toBe(false)
+    expect(isProvenCancelled(op, second.state.cancels)).toBe(true)
+  })
+
   it('keeps the latest cancel, and ignores one for an unknown id', () => {
     const merged = mergeScheduledLogs(
       {},

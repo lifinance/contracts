@@ -113,6 +113,12 @@ export interface INetworkScanState {
   /** Widest `eth_getLogs` range this network's endpoints last accepted. */
   span?: string
   operations: Record<string, IScannedOperation>
+  /**
+   * Latest `Cancelled` block per lowercased id, including ids whose schedule
+   * the history leg has not reached yet: walking down, it reads a cancel before
+   * the schedule it undoes.
+   */
+  cancels?: Record<string, string>
 }
 
 export interface IScanDependencies {
@@ -224,6 +230,21 @@ export const mergeScheduledLogs = (
 
 const emptyLogs = (): IRangeLogs => ({ scheduled: [], salts: [], cancels: [] })
 
+/** Folds cancel logs into the per-id latest-cancel map. */
+const mergeCancels = (
+  cancels: Readonly<Record<string, string>>,
+  logs: readonly ICancelledLog[]
+): Record<string, string> => {
+  const merged = { ...cancels }
+  for (const log of logs) {
+    const key = log.id.toLowerCase()
+    const seen = merged[key]
+    if (seen === undefined || BigInt(seen) < log.blockNumber)
+      merged[key] = log.blockNumber.toString()
+  }
+  return merged
+}
+
 const appendLogs = (into: IRangeLogs, from: IRangeLogs): void => {
   into.scheduled.push(...from.scheduled)
   into.salts.push(...from.salts)
@@ -235,11 +256,19 @@ const appendLogs = (into: IRangeLogs, from: IRangeLogs): void => {
  * that `getTimestamp` reading 0 is explained rather than a lagging node.
  *
  * @param op - The operation.
+ * @param cancels - The network's cancels by id, from its scan state.
  * @returns True when a `Cancelled` log follows its latest `CallScheduled`.
  */
-export const isProvenCancelled = (op: IScannedOperation): boolean =>
-  op.cancelledInBlock !== undefined &&
-  BigInt(op.cancelledInBlock) >= BigInt(op.blockNumber)
+export const isProvenCancelled = (
+  op: IScannedOperation,
+  cancels: Readonly<Record<string, string>> = {}
+): boolean => {
+  const latest = [op.cancelledInBlock, cancels[op.id.toLowerCase()]]
+    .filter((b): b is string => b !== undefined)
+    .map(BigInt)
+    .reduce((a, b) => (a > b ? a : b), -1n)
+  return latest >= BigInt(op.blockNumber)
+}
 
 /**
  * Reads logs over `[from, to]`, splitting the range whenever an endpoint
@@ -371,6 +400,7 @@ export const advanceScan = async (
       : MAX_LOG_SPAN
   let span = widened < MAX_LOG_SPAN ? widened : MAX_LOG_SPAN
   let operations = previous.operations
+  let cancels = previous.cancels ?? {}
   let logCalls = 0
   let scheduledLogs = 0
   let historyError: string | undefined
@@ -386,6 +416,7 @@ export const advanceScan = async (
   const forward = await readRange(deps, forwardFrom, head, span, forwardBudget)
   logCalls += Number.MAX_SAFE_INTEGER - forwardBudget.left
   operations = mergeScheduledLogs(operations, forward.logs)
+  cancels = mergeCancels(cancels, forward.logs.cancels)
   scheduledLogs += forward.logs.scheduled.length
   span = forward.span
 
@@ -406,6 +437,7 @@ export const advanceScan = async (
     )
     logCalls += logBudget - historyBudget.left
     operations = mergeScheduledLogs(operations, backward.logs)
+    cancels = mergeCancels(cancels, backward.logs.cancels)
     scheduledLogs += backward.logs.scheduled.length
     span = backward.span
     low = backward.reachedFrom
@@ -429,6 +461,7 @@ export const advanceScan = async (
       high: head.toString(),
       span: span.toString(),
       operations,
+      cancels,
     },
   }
 }

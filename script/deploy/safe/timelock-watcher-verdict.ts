@@ -11,7 +11,9 @@
 import {
   decodeAbiParameters,
   decodeFunctionData,
+  keccak256,
   parseAbi,
+  toHex,
   type Hex,
 } from 'viem'
 
@@ -320,24 +322,30 @@ export const gradeTargets = (
 }
 
 /**
- * Reads the operation bytes of a packed `multiSend` payload.
+ * Reads the inner transactions of a packed `multiSend` payload.
  *
  * @param packed - The `transactions` argument.
- * @returns Each inner transaction's operation byte, or `undefined` when the
- *   packing is malformed.
+ * @returns Each inner transaction's operation byte and calldata, or `undefined`
+ *   when the packing is malformed.
  */
-const multiSendOperations = (packed: Hex): number[] | undefined => {
+const multiSendEntries = (
+  packed: Hex
+): { operation: number; data: Hex }[] | undefined => {
   const bytes = packed.slice(2)
-  const operations: number[] = []
+  const entries: { operation: number; data: Hex }[] = []
   let at = 0
   // operation (1 byte) | to (20) | value (32) | dataLength (32) | data
   while (at < bytes.length) {
     if (at + 170 > bytes.length) return undefined
-    operations.push(parseInt(bytes.slice(at, at + 2), 16))
     const length = Number(BigInt(`0x${bytes.slice(at + 106, at + 170)}`))
+    if (at + 170 + length * 2 > bytes.length) return undefined
+    entries.push({
+      operation: parseInt(bytes.slice(at, at + 2), 16),
+      data: `0x${bytes.slice(at + 170, at + 170 + length * 2)}`,
+    })
     at += 170 + length * 2
   }
-  return at === bytes.length ? operations : undefined
+  return entries
 }
 
 /**
@@ -369,10 +377,10 @@ export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
             [{ type: 'bytes' }],
             `0x${args[2].slice(10)}`
           )
-          const operations = multiSendOperations(packed)
+          const operations = multiSendEntries(packed)
           if (!operations)
             unknown.push(`call ${call.index} carries a malformed multiSend`)
-          else if (operations.some((o) => o !== 0))
+          else if (operations.some((o) => o.operation !== 0))
             failures.push(`call ${call.index} multiSends a delegatecall`)
         }
       } else if (selector === MULTISEND_SELECTOR) {
@@ -380,10 +388,10 @@ export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
           abi: MULTISEND_ABI,
           data: call.data,
         })
-        const operations = multiSendOperations(args[0])
+        const operations = multiSendEntries(args[0])
         if (!operations)
           unknown.push(`call ${call.index} carries a malformed multiSend`)
-        else if (operations.some((o) => o !== 0))
+        else if (operations.some((o) => o.operation !== 0))
           failures.push(`call ${call.index} multiSends a delegatecall`)
       } else if (selector === DIAMOND_CUT_SELECTOR) {
         const { args } = decodeFunctionData({
@@ -423,76 +431,181 @@ export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
   }
 }
 
+const roleHash = (name: string): string => keccak256(toHex(name)).toLowerCase()
+
+/** Timelock roles only the Safe or the timelock itself may hold. */
+const GOVERNING_ROLES = new Map([
+  [roleHash('TIMELOCK_ADMIN_ROLE'), 'TIMELOCK_ADMIN_ROLE'],
+  [roleHash('PROPOSER_ROLE'), 'PROPOSER_ROLE'],
+  [roleHash('EXECUTOR_ROLE'), 'EXECUTOR_ROLE'],
+])
+const CANCELLER_ROLE = roleHash('CANCELLER_ROLE')
+const GOVERNORS = new Set(['Safe', 'LiFiTimelockController'])
+const OWNERS = new Set([
+  'Safe',
+  'LiFiTimelockController',
+  'refundWallet',
+  'feeCollectorOwner',
+])
+
+/** A call an operation makes, directly or from inside another call. */
+interface IReachedCall {
+  label: string
+  data: Hex
+}
+
 /**
- * Grades what an operation will hand authority or funds to. Gate G reads the
- * authorities as they stand, which a pending operation has not changed yet, so
- * this reads the arguments instead: a new owner, a granted role, a selector
- * executor or a withdrawal recipient must be an address main knows, and an
- * arbitrary call made from the diamond is unverified.
+ * Every call the operation makes, including the `_init` call of a
+ * `diamondCut` and the calls a Safe `execTransaction` or `multiSend` carries,
+ * down to a fixed depth.
+ */
+const reachedCalls = (op: IScannedOperation): IReachedCall[] => {
+  const reached: IReachedCall[] = []
+  const visit = (label: string, data: Hex, depth: number): void => {
+    reached.push({ label, data })
+    if (depth >= 3) return
+    const selector = selectorOf(data)
+    try {
+      if (selector === DIAMOND_CUT_SELECTOR) {
+        const { args } = decodeFunctionData({ abi: DIAMOND_CUT_INIT_ABI, data })
+        if (args[1].toLowerCase() !== ZERO_ADDRESS && args[2].length > 2)
+          visit(`${label} → _init`, args[2], depth + 1)
+      } else if (selector === SAFE_EXEC_SELECTOR) {
+        const { args } = decodeFunctionData({ abi: SAFE_EXEC_ABI, data })
+        if (args[2].length > 2)
+          visit(`${label} → Safe call`, args[2], depth + 1)
+      } else if (selector === MULTISEND_SELECTOR) {
+        const { args } = decodeFunctionData({ abi: MULTISEND_ABI, data })
+        for (const [i, inner] of (multiSendEntries(args[0]) ?? []).entries())
+          if (inner.data.length > 2)
+            visit(`${label} → multiSend ${i}`, inner.data, depth + 1)
+      }
+    } catch {
+      // An undecodable envelope is the delegatecall check's finding.
+    }
+  }
+  for (const call of op.calls) visit(`call ${call.index}`, call.data, 0)
+  return reached
+}
+
+/**
+ * Grades what an operation will hand authority or funds to, in every call it
+ * reaches. Gate G reads the authorities as they stand, which a pending
+ * operation has not changed yet, so this reads the arguments instead:
+ * - a governing timelock role may only go to the Safe or the timelock;
+ * - ownership may only go to the Safe, the timelock, the refund wallet or the
+ *   fee collector owner (another address main knows is unverified);
+ * - a canceller, a selector executor or a withdrawal recipient must be an
+ *   address main knows; an unknown canceller is unverified, because a
+ *   canceller can delay but not execute;
+ * - an arbitrary call made from the diamond is unverified.
  *
  * @param op - The operation.
- * @param known - Lowercased address → name: the call-target set plus the
- *   wallets `config/global.json` names.
+ * @param known - Lowercased address → name: the call-target set, the wallets
+ *   and Safe owners `config/global.json` names.
+ * @param installed - Lowercased addresses this operation installs, whose code
+ *   the codehash check judges.
  * @returns The check outcome.
  */
 export const gradeAuthority = (
   op: IScannedOperation,
-  known: ReadonlyMap<string, string>
+  known: ReadonlyMap<string, string>,
+  installed: ReadonlySet<string> = new Set()
 ): ICheckOutcome => {
   const failures: string[] = []
   const unknown: string[] = []
   const granted: string[] = []
-  const grantTo = (call: number, what: string, address: string): void => {
-    const name = known.get(address.toLowerCase())
-    if (name) granted.push(`call ${call} ${what} ${name}`)
-    else
-      failures.push(`call ${call} ${what} ${address}, which main does not know`)
-  }
-  for (const call of op.calls) {
+  const nameOf = (address: string): string | undefined =>
+    known.get(address.toLowerCase()) ??
+    (installed.has(address.toLowerCase())
+      ? 'a contract this operation installs'
+      : undefined)
+
+  for (const call of reachedCalls(op)) {
     if (!AUTHORITY_SELECTORS.has(selectorOf(call.data))) continue
+    let decoded: ReturnType<typeof decodeFunctionData<typeof AUTHORITY_ABI>>
     try {
-      const decoded = decodeFunctionData({
-        abi: AUTHORITY_ABI,
-        data: call.data,
-      })
-      switch (decoded.functionName) {
-        case 'transferOwnership':
-          grantTo(call.index, 'transfers ownership to', decoded.args[0])
-          break
-        case 'grantRole':
-          grantTo(
-            call.index,
-            `grants role ${decoded.args[0]} to`,
-            decoded.args[1]
-          )
-          break
-        case 'setCanExecute':
-          if (decoded.args[2])
-            grantTo(
-              call.index,
-              `lets ${decoded.args[0]} be called by`,
-              decoded.args[1]
-            )
-          break
-        case 'withdraw':
-          grantTo(call.index, 'withdraws to', decoded.args[1])
-          break
-        case 'executeCallAndWithdraw':
-          unknown.push(
-            `call ${call.index} makes the diamond call ${decoded.args[0]} with arbitrary calldata`
-          )
-          break
-        default:
-          unknown.push(
-            `call ${call.index} carries an authority call this check does not read`
-          )
-      }
+      decoded = decodeFunctionData({ abi: AUTHORITY_ABI, data: call.data })
     } catch {
       unknown.push(
-        `call ${call.index} carries selector ${selectorOf(
+        `${call.label} carries selector ${selectorOf(
           call.data
         )} that could not be decoded`
       )
+      continue
+    }
+    switch (decoded.functionName) {
+      case 'transferOwnership': {
+        const [to] = decoded.args
+        const name = nameOf(to)
+        if (name && OWNERS.has(name))
+          granted.push(`${call.label} transfers ownership to ${name}`)
+        else if (name)
+          unknown.push(
+            `${call.label} transfers ownership to ${name}, which is not an owner main uses`
+          )
+        else
+          failures.push(
+            `${call.label} transfers ownership to ${to}, which main does not know`
+          )
+        break
+      }
+      case 'grantRole': {
+        const [role, to] = decoded.args
+        const name = nameOf(to)
+        const governing = GOVERNING_ROLES.get(role.toLowerCase())
+        if (governing) {
+          if (name && GOVERNORS.has(name))
+            granted.push(`${call.label} grants ${governing} to ${name}`)
+          else
+            failures.push(
+              `${call.label} grants ${governing} to ${
+                name ?? to
+              }, which is neither the Safe nor the timelock`
+            )
+        } else if (name)
+          granted.push(`${call.label} grants role ${role} to ${name}`)
+        else if (role.toLowerCase() === CANCELLER_ROLE)
+          unknown.push(
+            `${call.label} grants CANCELLER_ROLE to ${to}, which main does not know yet`
+          )
+        else
+          failures.push(
+            `${call.label} grants role ${role} to ${to}, which main does not know`
+          )
+        break
+      }
+      case 'setCanExecute': {
+        const [selector, executor, canExecute] = decoded.args
+        if (!canExecute) break
+        const name = nameOf(executor)
+        if (name)
+          granted.push(`${call.label} lets ${selector} be called by ${name}`)
+        else
+          failures.push(
+            `${call.label} lets ${selector} be called by ${executor}, which main does not know`
+          )
+        break
+      }
+      case 'withdraw': {
+        const [, to] = decoded.args
+        const name = nameOf(to)
+        if (name) granted.push(`${call.label} withdraws to ${name}`)
+        else
+          failures.push(
+            `${call.label} withdraws to ${to}, which main does not know`
+          )
+        break
+      }
+      case 'executeCallAndWithdraw':
+        unknown.push(
+          `${call.label} makes the diamond call ${decoded.args[0]} with arbitrary calldata`
+        )
+        break
+      default:
+        unknown.push(
+          `${call.label} carries an authority call this check does not read`
+        )
     }
   }
   if (failures.length > 0)
