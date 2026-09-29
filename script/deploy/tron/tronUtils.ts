@@ -569,7 +569,7 @@ export function parseTroncastNestedArray(
  * Parse a troncast array / nested-array return value (e.g. getAllContractSelectorPairs's
  * `address[],bytes4[][]`) into a JS array.
  *
- * `callTronContract` prepends the troncast command echo (`$ bun run …`) and TronWeb's
+ * `callTronContract` prepends the troncast command echo (`$ bunx tsx …`) and TronWeb's
  * `⚙`-prefixed diagnostic lines to the actual return value — and one of those diagnostics
  * ("⚙ Formatted params: []") itself contains a `[`. So the payload cannot be read by trimming
  * the blob and taking the first bracket: the echo + diagnostic lines must be stripped first

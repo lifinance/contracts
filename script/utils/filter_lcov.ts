@@ -43,7 +43,7 @@ async function filterLcov(
 const args = process.argv.slice(2)
 if (args.length < 3) {
   console.error(
-    'Usage: bunx tsx filter_lcov.ts input_file output_file pattern1 [pattern2 ...]'
+    'Usage: bunx tsx script/utils/filter_lcov.ts input_file output_file pattern1 [pattern2 ...]'
   )
   process.exit(1)
 }
