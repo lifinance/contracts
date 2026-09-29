@@ -45,8 +45,10 @@ import {
   gradeIdentity,
   gradeState,
   gradeTargets,
+  installedAddresses,
   installsCode,
   stageOf,
+  type IAuthorityContext,
   type ICheckOutcome,
 } from './timelock-watcher-verdict'
 
@@ -388,10 +390,24 @@ describe('gradeDelegatecall', () => {
 })
 
 describe('gradeAuthority', () => {
+  const REFUND: Address = '0x156CeBba59DEB2cB23742F70dCb0a11cC775591F'
+  const WITHDRAW: Address = '0x08647cc950813966142A416D40C382e2c5DB73bB'
+  const PERIPHERY: Address = '0x0000000000000000000000000000000000001111'
+  const FEE_COLLECTOR: Address = '0x0000000000000000000000000000000000002222'
+  const OWNER_OF_FEES: Address = '0x0000000000000000000000000000000000003333'
+  const SIGNER: Address = '0x0000000000000000000000000000000000004444'
   const known = new Map([
     [SAFE.toLowerCase(), 'Safe'],
     [TIMELOCK.toLowerCase(), 'LiFiTimelockController'],
+    [DIAMOND.toLowerCase(), 'LiFiDiamond'],
+    [DEPLOYER.toLowerCase(), 'deployerWallet'],
+    [REFUND.toLowerCase(), 'refundWallet'],
+    [WITHDRAW.toLowerCase(), 'withdrawWallet'],
+    [PERIPHERY.toLowerCase(), 'ERC20Proxy'],
+    [FEE_COLLECTOR.toLowerCase(), 'FeeCollector'],
+    [OWNER_OF_FEES.toLowerCase(), 'feeCollectorOwner'],
   ])
+  const context = { known, safeOwners: new Set([SIGNER.toLowerCase()]) }
   const call = (signature: string, args: readonly unknown[]): Hex => {
     const item = parseAbiItem(`function ${signature}`) as AbiFunction
     return encodeFunctionData({
@@ -400,161 +416,213 @@ describe('gradeAuthority', () => {
       args,
     } as never)
   }
-  const role = pad('0x01', { size: 32 })
+  const one = (target: Address, data: Hex) => opOf([{ target, data }])
+  const grade = (
+    target: Address,
+    data: Hex,
+    ctx: IAuthorityContext = context
+  ) => gradeAuthority(one(target, data), ctx).status
+  const role = (name: string) => keccak256(toHex(name))
+  const owner = (to: Address) => call('transferOwnership(address)', [to])
+  const grant = (name: string, to: Address) =>
+    call('grantRole(bytes32,address)', [role(name), to])
 
   it('passes an operation that hands nothing to anyone', () => {
-    expect(
-      gradeAuthority(opOf([{ target: DIAMOND, data: '0x8da5cb5b' }]), known)
-        .status
-    ).toBe('pass')
+    expect(grade(DIAMOND, '0x8da5cb5b')).toBe('pass')
   })
 
-  it('fails ownership to an unknown address, and passes it to a known one', () => {
-    const to = (who: Address) =>
-      opOf([
-        { target: DIAMOND, data: call('transferOwnership(address)', [who]) },
-      ])
-    expect(gradeAuthority(to(STRANGER), known).status).toBe('fail')
-    const graded = gradeAuthority(to(SAFE), known)
-    expect(graded.status).toBe('pass')
-    expect(graded.detail).toContain('Safe')
+  it('lets the diamond be owned by the timelock only', () => {
+    expect(grade(DIAMOND, owner(TIMELOCK))).toBe('pass')
+    expect(grade(DIAMOND, owner(REFUND))).toBe('unknown')
+    expect(grade(DIAMOND, owner(STRANGER))).toBe('fail')
   })
 
-  it('fails a role granted to an unknown address, and passes one granted to a known one', () => {
-    const grant = (who: Address) =>
-      opOf([
-        {
-          target: TIMELOCK,
-          data: call('grantRole(bytes32,address)', [role, who]),
-        },
-      ])
-    expect(gradeAuthority(grant(STRANGER), known).status).toBe('fail')
-    expect(gradeAuthority(grant(SAFE), known).status).toBe('pass')
+  it('lets a periphery be owned by the timelock, the Safe or the refund wallet', () => {
+    expect(grade(PERIPHERY, owner(REFUND))).toBe('pass')
+    expect(grade(PERIPHERY, owner(SAFE))).toBe('pass')
+    expect(grade(PERIPHERY, owner(DEPLOYER))).toBe('unknown')
+    expect(grade(PERIPHERY, owner(STRANGER))).toBe('fail')
   })
 
-  it('fails an unknown executor, and ignores a revoked one', () => {
-    const setExec = (on: boolean) =>
-      opOf([
-        {
-          target: DIAMOND,
-          data: call('setCanExecute(bytes4,address,bool)', [
-            '0x12345678',
-            STRANGER,
-            on,
-          ]),
-        },
-      ])
-    expect(gradeAuthority(setExec(true), known).status).toBe('fail')
-    expect(gradeAuthority(setExec(false), known).status).toBe('pass')
-  })
-
-  it('fails a withdrawal to an unknown address, and passes one to a known one', () => {
-    const withdraw = (who: Address) =>
-      opOf([
-        {
-          target: DIAMOND,
-          data: call('withdraw(address,address,uint256)', [STRANGER, who, 1n]),
-        },
-      ])
-    expect(gradeAuthority(withdraw(STRANGER), known).status).toBe('fail')
-    expect(gradeAuthority(withdraw(SAFE), known).status).toBe('pass')
-  })
-
-  it('leaves an arbitrary call from the diamond unverified', () => {
-    const op = opOf([
-      {
-        target: DIAMOND,
-        data: call(
-          'executeCallAndWithdraw(address,bytes,address,address,uint256)',
-          [STRANGER, '0x', STRANGER, SAFE, 0n]
-        ),
-      },
-    ])
-    expect(gradeAuthority(op, known).status).toBe('unknown')
+  it('lets a fee collector be owned by the fee collector owner only', () => {
+    expect(grade(FEE_COLLECTOR, owner(OWNER_OF_FEES))).toBe('pass')
+    expect(grade(FEE_COLLECTOR, owner(REFUND))).toBe('unknown')
   })
 
   it('gives governing timelock roles only to the Safe or the timelock', () => {
-    const proposer = keccak256(toHex('PROPOSER_ROLE'))
-    const withHot = new Map([
-      ...known,
-      [DEPLOYER.toLowerCase(), 'deployerWallet'],
-    ])
-    const grant = (who: Address) =>
-      opOf([
-        {
-          target: TIMELOCK,
-          data: call('grantRole(bytes32,address)', [proposer, who]),
-        },
-      ])
-    expect(gradeAuthority(grant(DEPLOYER), withHot).status).toBe('fail')
-    expect(gradeAuthority(grant(SAFE), withHot).status).toBe('pass')
+    for (const name of [
+      'PROPOSER_ROLE',
+      'TIMELOCK_ADMIN_ROLE',
+      'EXECUTOR_ROLE',
+    ]) {
+      expect(grade(TIMELOCK, grant(name, SAFE))).toBe('pass')
+      expect(grade(TIMELOCK, grant(name, DEPLOYER))).toBe('fail')
+    }
   })
 
-  it('leaves a canceller grant to a not-yet-known address unverified, not failed', () => {
-    const canceller = keccak256(toHex('CANCELLER_ROLE'))
-    const op = opOf([
-      {
-        target: TIMELOCK,
-        data: call('grantRole(bytes32,address)', [canceller, STRANGER]),
-      },
-    ])
-    expect(gradeAuthority(op, known).status).toBe('unknown')
+  it('gives the canceller role to a known wallet or a Safe owner, and leaves a new one unverified', () => {
+    expect(grade(TIMELOCK, grant('CANCELLER_ROLE', DEPLOYER))).toBe('pass')
+    expect(grade(TIMELOCK, grant('CANCELLER_ROLE', SIGNER))).toBe('pass')
+    expect(grade(TIMELOCK, grant('CANCELLER_ROLE', STRANGER))).toBe('unknown')
   })
 
-  it('leaves ownership to a known address that is not an owner unverified', () => {
-    const withHot = new Map([
-      ...known,
-      [DEPLOYER.toLowerCase(), 'deployerWallet'],
-    ])
-    const op = opOf([
-      { target: DIAMOND, data: call('transferOwnership(address)', [DEPLOYER]) },
-    ])
-    expect(gradeAuthority(op, withHot).status).toBe('unknown')
-  })
-
-  it('reads an authority call made from a diamondCut _init', () => {
-    const cutWith = (to: Address) =>
-      call('diamondCut((address,uint8,bytes4[])[],address,bytes)', [
-        [],
-        STRANGER,
-        call('transferOwnership(address)', [to]),
-      ])
-    const attack = gradeAuthority(
-      opOf([{ target: DIAMOND, data: cutWith(STRANGER) }]),
-      known
-    )
-    expect(attack.status).toBe('fail')
-    expect(attack.detail).toContain('_init')
+  it('does not let a Safe owner be an executor or a withdrawal recipient', () => {
     expect(
-      gradeAuthority(
-        opOf([{ target: DIAMOND, data: cutWith(TIMELOCK) }]),
-        known
-      ).status
-    ).toBe('pass')
+      grade(
+        DIAMOND,
+        call('withdraw(address,address,uint256)', [STRANGER, SIGNER, 1n])
+      )
+    ).toBe('fail')
+    expect(
+      grade(
+        DIAMOND,
+        call('setCanExecute(bytes4,address,bool)', ['0x1458d7ad', SIGNER, true])
+      )
+    ).toBe('fail')
   })
 
-  it('counts an address the operation installs as known', () => {
-    const op = opOf([
-      {
-        target: DIAMOND,
-        data: call('setCanExecute(bytes4,address,bool)', [
-          '0x12345678',
+  it('fails a role this check has no rule for when the grantee is unknown', () => {
+    expect(
+      grade(
+        TIMELOCK,
+        call('grantRole(bytes32,address)', [
+          pad('0x01', { size: 32 }),
           STRANGER,
-          true,
-        ]),
-      },
-    ])
-    expect(gradeAuthority(op, known).status).toBe('fail')
+        ])
+      )
+    ).toBe('fail')
     expect(
-      gradeAuthority(op, known, new Set([STRANGER.toLowerCase()])).status
+      grade(
+        TIMELOCK,
+        call('grantRole(bytes32,address)', [pad('0x01', { size: 32 }), SAFE])
+      )
+    ).toBe('unknown')
+  })
+
+  it('lets a selector executor be the refund wallet or an installed contract only', () => {
+    const exec = (who: Address, on = true) =>
+      call('setCanExecute(bytes4,address,bool)', ['0x12345678', who, on])
+    expect(grade(DIAMOND, exec(REFUND))).toBe('pass')
+    expect(grade(DIAMOND, exec(DEPLOYER))).toBe('unknown')
+    expect(grade(DIAMOND, exec(STRANGER))).toBe('fail')
+    expect(grade(DIAMOND, exec(STRANGER, false))).toBe('pass')
+    expect(
+      grade(DIAMOND, exec(STRANGER), {
+        ...context,
+        installed: new Set([STRANGER.toLowerCase()]),
+      })
     ).toBe('pass')
+  })
+
+  it('lets a withdrawal go to the withdraw wallet only', () => {
+    const withdraw = (to: Address) =>
+      call('withdraw(address,address,uint256)', [STRANGER, to, 1n])
+    expect(grade(DIAMOND, withdraw(WITHDRAW))).toBe('pass')
+    expect(grade(DIAMOND, withdraw(DEPLOYER))).toBe('unknown')
+    expect(grade(DIAMOND, withdraw(STRANGER))).toBe('fail')
+  })
+
+  it('leaves an arbitrary call from the diamond unverified', () => {
+    expect(
+      grade(
+        DIAMOND,
+        call('executeCallAndWithdraw(address,bytes,address,address,uint256)', [
+          STRANGER,
+          '0x',
+          STRANGER,
+          WITHDRAW,
+          0n,
+        ])
+      )
+    ).toBe('unknown')
   })
 
   it('is unknown for a truncated authority call', () => {
+    expect(grade(DIAMOND, '0xf2fde38b')).toBe('unknown')
+  })
+
+  const cutWith = (init: Hex) =>
+    call('diamondCut((address,uint8,bytes4[])[],address,bytes)', [
+      [],
+      PERIPHERY,
+      init,
+    ])
+  const exec = (to: Address, data: Hex) =>
+    call(
+      'execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)',
+      [to, 0n, data, 0, 0n, 0n, 0n, STRANGER, STRANGER, '0x']
+    )
+  const multiSend = (to: Address, data: Hex) => {
+    const inner = concatHex([
+      numberToHex(0, { size: 1 }),
+      to,
+      numberToHex(0n, { size: 32 }),
+      numberToHex(BigInt((data.length - 2) / 2), { size: 32 }),
+      data,
+    ])
+    return call('multiSend(bytes)', [inner])
+  }
+
+  it('reads a diamondCut _init as a call on the diamond', () => {
+    const attack = gradeAuthority(one(DIAMOND, cutWith(owner(REFUND))), context)
+    expect(attack.status).toBe('unknown')
+    expect(attack.detail).toContain('_init')
+    expect(grade(DIAMOND, cutWith(owner(STRANGER)))).toBe('fail')
+    expect(grade(DIAMOND, cutWith(owner(TIMELOCK)))).toBe('pass')
+  })
+
+  it('reads calls a Safe execTransaction and a multiSend carry, against their own targets', () => {
+    expect(grade(SAFE, exec(TIMELOCK, grant('PROPOSER_ROLE', STRANGER)))).toBe(
+      'fail'
+    )
+    expect(grade(SAFE, exec(TIMELOCK, grant('PROPOSER_ROLE', SAFE)))).toBe(
+      'pass'
+    )
+    expect(grade(SAFE, multiSend(DIAMOND, owner(REFUND)))).toBe('unknown')
+    expect(grade(SAFE, multiSend(PERIPHERY, owner(REFUND)))).toBe('pass')
     expect(
-      gradeAuthority(opOf([{ target: DIAMOND, data: '0xf2fde38b' }]), known)
-        .status
-    ).toBe('unknown')
+      grade(
+        SAFE,
+        exec(SAFE, multiSend(TIMELOCK, grant('PROPOSER_ROLE', STRANGER)))
+      )
+    ).toBe('fail')
+  })
+
+  it('leaves calls nested past the depth it reads unverified, not passed', () => {
+    const deep = exec(
+      SAFE,
+      exec(
+        SAFE,
+        exec(SAFE, multiSend(TIMELOCK, grant('PROPOSER_ROLE', STRANGER)))
+      )
+    )
+    const graded = gradeAuthority(one(SAFE, deep), context)
+    expect(graded.status).toBe('unknown')
+    expect(graded.detail).toContain('deeper than this check reads')
+  })
+})
+
+describe('installedAddresses', () => {
+  it('lists cut facets and registrations, never the zero address of a removal', () => {
+    const zero = '0x0000000000000000000000000000000000000000'
+    const installed = installedAddresses({
+      calls: [
+        {
+          cuts: [
+            { facetAddress: STRANGER, action: 0 },
+            { facetAddress: zero, action: 2 },
+          ],
+          init: zero,
+        },
+      ],
+      registrations: [{ name: 'Executor', address: SAFE }],
+      refusals: [],
+      unopened: [],
+      knownCalls: [],
+    } as unknown as ICollectedDiamondCuts)
+    expect([...installed].sort()).toEqual(
+      [STRANGER.toLowerCase(), SAFE.toLowerCase()].sort()
+    )
   })
 })
 

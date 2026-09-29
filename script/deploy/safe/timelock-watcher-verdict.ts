@@ -14,6 +14,7 @@ import {
   keccak256,
   parseAbi,
   toHex,
+  type Address,
   type Hex,
 } from 'viem'
 
@@ -325,14 +326,14 @@ export const gradeTargets = (
  * Reads the inner transactions of a packed `multiSend` payload.
  *
  * @param packed - The `transactions` argument.
- * @returns Each inner transaction's operation byte and calldata, or `undefined`
+ * @returns Each inner transaction's operation byte, target and calldata, or `undefined`
  *   when the packing is malformed.
  */
 const multiSendEntries = (
   packed: Hex
-): { operation: number; data: Hex }[] | undefined => {
+): { operation: number; to: Address; data: Hex }[] | undefined => {
   const bytes = packed.slice(2)
-  const entries: { operation: number; data: Hex }[] = []
+  const entries: { operation: number; to: Address; data: Hex }[] = []
   let at = 0
   // operation (1 byte) | to (20) | value (32) | dataLength (32) | data
   while (at < bytes.length) {
@@ -341,6 +342,7 @@ const multiSendEntries = (
     if (at + 170 + length * 2 > bytes.length) return undefined
     entries.push({
       operation: parseInt(bytes.slice(at, at + 2), 16),
+      to: `0x${bytes.slice(at + 2, at + 42)}`,
       data: `0x${bytes.slice(at + 170, at + 170 + length * 2)}`,
     })
     at += 170 + length * 2
@@ -441,87 +443,161 @@ const GOVERNING_ROLES = new Map([
 ])
 const CANCELLER_ROLE = roleHash('CANCELLER_ROLE')
 const GOVERNORS = new Set(['Safe', 'LiFiTimelockController'])
-const OWNERS = new Set([
-  'Safe',
-  'LiFiTimelockController',
-  'refundWallet',
-  'feeCollectorOwner',
-])
+
+/** Deepest envelope `reachedCalls` opens; anything deeper is unverified. */
+const MAX_CALL_DEPTH = 3
 
 /** A call an operation makes, directly or from inside another call. */
 interface IReachedCall {
   label: string
+  /** The contract whose code or storage the call acts on. */
+  target: string
   data: Hex
 }
 
+const ENVELOPE_SELECTORS = new Set([
+  DIAMOND_CUT_SELECTOR,
+  SAFE_EXEC_SELECTOR,
+  MULTISEND_SELECTOR,
+])
+
 /**
  * Every call the operation makes, including the `_init` call of a
- * `diamondCut` and the calls a Safe `execTransaction` or `multiSend` carries,
- * down to a fixed depth.
+ * `diamondCut` (which runs on the diamond), and the calls a Safe
+ * `execTransaction` or `multiSend` carries.
+ *
+ * @param op - The operation.
+ * @returns The calls, and the labels of envelopes too deep to open.
  */
-const reachedCalls = (op: IScannedOperation): IReachedCall[] => {
-  const reached: IReachedCall[] = []
-  const visit = (label: string, data: Hex, depth: number): void => {
-    reached.push({ label, data })
-    if (depth >= 3) return
-    const selector = selectorOf(data)
+const reachedCalls = (
+  op: IScannedOperation
+): { calls: IReachedCall[]; tooDeep: string[] } => {
+  const calls: IReachedCall[] = []
+  const tooDeep: string[] = []
+  const visit = (call: IReachedCall, depth: number): void => {
+    calls.push(call)
+    const selector = selectorOf(call.data)
+    if (!ENVELOPE_SELECTORS.has(selector)) return
+    if (depth >= MAX_CALL_DEPTH) {
+      tooDeep.push(call.label)
+      return
+    }
     try {
       if (selector === DIAMOND_CUT_SELECTOR) {
-        const { args } = decodeFunctionData({ abi: DIAMOND_CUT_INIT_ABI, data })
+        const { args } = decodeFunctionData({
+          abi: DIAMOND_CUT_INIT_ABI,
+          data: call.data,
+        })
         if (args[1].toLowerCase() !== ZERO_ADDRESS && args[2].length > 2)
-          visit(`${label} → _init`, args[2], depth + 1)
+          visit(
+            {
+              label: `${call.label} → _init`,
+              target: call.target,
+              data: args[2],
+            },
+            depth + 1
+          )
       } else if (selector === SAFE_EXEC_SELECTOR) {
-        const { args } = decodeFunctionData({ abi: SAFE_EXEC_ABI, data })
+        const { args } = decodeFunctionData({
+          abi: SAFE_EXEC_ABI,
+          data: call.data,
+        })
         if (args[2].length > 2)
-          visit(`${label} → Safe call`, args[2], depth + 1)
-      } else if (selector === MULTISEND_SELECTOR) {
-        const { args } = decodeFunctionData({ abi: MULTISEND_ABI, data })
+          visit(
+            {
+              label: `${call.label} → Safe call`,
+              target: args[0],
+              data: args[2],
+            },
+            depth + 1
+          )
+      } else {
+        const { args } = decodeFunctionData({
+          abi: MULTISEND_ABI,
+          data: call.data,
+        })
         for (const [i, inner] of (multiSendEntries(args[0]) ?? []).entries())
           if (inner.data.length > 2)
-            visit(`${label} → multiSend ${i}`, inner.data, depth + 1)
+            visit(
+              {
+                label: `${call.label} → multiSend ${i}`,
+                target: inner.to,
+                data: inner.data,
+              },
+              depth + 1
+            )
       }
     } catch {
       // An undecodable envelope is the delegatecall check's finding.
     }
   }
-  for (const call of op.calls) visit(`call ${call.index}`, call.data, 0)
-  return reached
+  for (const call of op.calls)
+    visit(
+      { label: `call ${call.index}`, target: call.target, data: call.data },
+      0
+    )
+  return { calls, tooDeep }
+}
+
+/** Who an operation may hand something to: every name is an allowlist entry. */
+export interface IAuthorityContext {
+  /** Lowercased address → name: the deployments file at main, the network's
+   *  Safe, the timelock, and the wallets `config/global.json` names. */
+  known: ReadonlyMap<string, string>
+  /** Lowercased Safe owners, which may be granted the canceller role only. */
+  safeOwners?: ReadonlySet<string>
+  /** Lowercased addresses this operation installs, whose code gate K judges. */
+  installed?: ReadonlySet<string>
 }
 
 /**
  * Grades what an operation will hand authority or funds to, in every call it
  * reaches. Gate G reads the authorities as they stand, which a pending
- * operation has not changed yet, so this reads the arguments instead:
- * - a governing timelock role may only go to the Safe or the timelock;
- * - ownership may only go to the Safe, the timelock, the refund wallet or the
- *   fee collector owner (another address main knows is unverified);
- * - a canceller, a selector executor or a withdrawal recipient must be an
- *   address main knows; an unknown canceller is unverified, because a
- *   canceller can delay but not execute;
- * - an arbitrary call made from the diamond is unverified.
+ * operation has not changed yet, so this reads the arguments instead, against
+ * the shapes the repo's own flows produce:
+ * - the diamond's ownership may only go to the timelock; another contract's
+ *   to the timelock, the Safe or the refund wallet, and a fee collector's to
+ *   the fee collector owner;
+ * - a timelock admin, proposer or executor role only to the Safe or the
+ *   timelock; the canceller role to a wallet main names or a Safe owner;
+ * - a selector executor only to the refund wallet or a contract the operation
+ *   installs; a withdrawal only to the withdraw wallet.
+ *
+ * Anything else handed to an address main does not know fails; handed to one
+ * it knows, or made as an arbitrary call from the diamond, it is unverified.
  *
  * @param op - The operation.
- * @param known - Lowercased address → name: the call-target set, the wallets
- *   and Safe owners `config/global.json` names.
- * @param installed - Lowercased addresses this operation installs, whose code
- *   the codehash check judges.
+ * @param context - The names that make an address an allowed recipient.
  * @returns The check outcome.
  */
 export const gradeAuthority = (
   op: IScannedOperation,
-  known: ReadonlyMap<string, string>,
-  installed: ReadonlySet<string> = new Set()
+  context: IAuthorityContext
 ): ICheckOutcome => {
   const failures: string[] = []
   const unknown: string[] = []
   const granted: string[] = []
   const nameOf = (address: string): string | undefined =>
-    known.get(address.toLowerCase()) ??
-    (installed.has(address.toLowerCase())
-      ? 'a contract this operation installs'
-      : undefined)
+    context.known.get(address.toLowerCase())
+  const judge = (
+    label: string,
+    what: string,
+    to: string,
+    allowed: (name: string) => boolean
+  ): void => {
+    const name = nameOf(to)
+    if (name && allowed(name)) granted.push(`${label} ${what} ${name}`)
+    else if (name)
+      unknown.push(
+        `${label} ${what} ${name}, which no honest flow hands this to`
+      )
+    else failures.push(`${label} ${what} ${to}, which main does not know`)
+  }
 
-  for (const call of reachedCalls(op)) {
+  const { calls, tooDeep } = reachedCalls(op)
+  for (const label of tooDeep)
+    unknown.push(`${label} nests calls deeper than this check reads`)
+  for (const call of calls) {
     if (!AUTHORITY_SELECTORS.has(selectorOf(call.data))) continue
     let decoded: ReturnType<typeof decodeFunctionData<typeof AUTHORITY_ABI>>
     try {
@@ -534,27 +610,31 @@ export const gradeAuthority = (
       )
       continue
     }
+    const targetName = nameOf(call.target) ?? call.target
     switch (decoded.functionName) {
       case 'transferOwnership': {
-        const [to] = decoded.args
-        const name = nameOf(to)
-        if (name && OWNERS.has(name))
-          granted.push(`${call.label} transfers ownership to ${name}`)
-        else if (name)
-          unknown.push(
-            `${call.label} transfers ownership to ${name}, which is not an owner main uses`
-          )
-        else
-          failures.push(
-            `${call.label} transfers ownership to ${to}, which main does not know`
-          )
+        const allowed =
+          targetName === 'LiFiDiamond'
+            ? (name: string) => name === 'LiFiTimelockController'
+            : /FeeCollector/.test(targetName)
+            ? (name: string) => name === 'feeCollectorOwner'
+            : (name: string) =>
+                name === 'LiFiTimelockController' ||
+                name === 'Safe' ||
+                name === 'refundWallet'
+        judge(
+          call.label,
+          `transfers ${targetName} ownership to`,
+          decoded.args[0],
+          allowed
+        )
         break
       }
       case 'grantRole': {
         const [role, to] = decoded.args
-        const name = nameOf(to)
         const governing = GOVERNING_ROLES.get(role.toLowerCase())
         if (governing) {
+          const name = nameOf(to)
           if (name && GOVERNORS.has(name))
             granted.push(`${call.label} grants ${governing} to ${name}`)
           else
@@ -563,40 +643,45 @@ export const gradeAuthority = (
                 name ?? to
               }, which is neither the Safe nor the timelock`
             )
-        } else if (name)
-          granted.push(`${call.label} grants role ${role} to ${name}`)
-        else if (role.toLowerCase() === CANCELLER_ROLE)
-          unknown.push(
-            `${call.label} grants CANCELLER_ROLE to ${to}, which main does not know yet`
-          )
-        else
-          failures.push(
-            `${call.label} grants role ${role} to ${to}, which main does not know`
-          )
+        } else if (role.toLowerCase() === CANCELLER_ROLE) {
+          const name =
+            nameOf(to) ??
+            (context.safeOwners?.has(to.toLowerCase())
+              ? 'a Safe owner'
+              : undefined)
+          if (name)
+            granted.push(`${call.label} grants CANCELLER_ROLE to ${name}`)
+          else
+            unknown.push(
+              `${call.label} grants CANCELLER_ROLE to ${to}, which main does not know yet`
+            )
+        } else judge(call.label, `grants role ${role} to`, to, () => false)
         break
       }
       case 'setCanExecute': {
         const [selector, executor, canExecute] = decoded.args
         if (!canExecute) break
-        const name = nameOf(executor)
-        if (name)
-          granted.push(`${call.label} lets ${selector} be called by ${name}`)
+        if (context.installed?.has(executor.toLowerCase()))
+          granted.push(
+            `${call.label} lets ${selector} be called by a contract this operation installs`
+          )
         else
-          failures.push(
-            `${call.label} lets ${selector} be called by ${executor}, which main does not know`
+          judge(
+            call.label,
+            `lets ${selector} be called by`,
+            executor,
+            (name) => name === 'refundWallet'
           )
         break
       }
-      case 'withdraw': {
-        const [, to] = decoded.args
-        const name = nameOf(to)
-        if (name) granted.push(`${call.label} withdraws to ${name}`)
-        else
-          failures.push(
-            `${call.label} withdraws to ${to}, which main does not know`
-          )
+      case 'withdraw':
+        judge(
+          call.label,
+          'withdraws to',
+          decoded.args[1],
+          (name) => name === 'withdrawWallet'
+        )
         break
-      }
       case 'executeCallAndWithdraw':
         unknown.push(
           `${call.label} makes the diamond call ${decoded.args[0]} with arbitrary calldata`
@@ -625,6 +710,24 @@ export const gradeAuthority = (
         : 'hands no ownership, role, executor right or withdrawal to anyone',
   }
 }
+
+/**
+ * Addresses a cut or registration installs, for {@link IAuthorityContext}.
+ *
+ * @param collected - `collectDiamondCutTargets` over the operation.
+ * @returns Lowercased addresses, the zero address (a removal) excluded.
+ */
+export const installedAddresses = (
+  collected: ICollectedDiamondCuts
+): Set<string> =>
+  new Set(
+    [
+      ...collected.calls.flatMap((c) => c.cuts.map((cut) => cut.facetAddress)),
+      ...collected.registrations.map((r) => r.address),
+    ]
+      .map((a) => a.toLowerCase())
+      .filter((a) => a !== ZERO_ADDRESS)
+  )
 
 /**
  * Grades storage authorities (gate G) from the pre-broadcast gate's result.

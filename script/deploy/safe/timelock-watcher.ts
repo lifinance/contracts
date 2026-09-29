@@ -36,6 +36,7 @@ import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import timelockConfig from '../../../config/timelockController.json'
 import type { INetworksObject } from '../../common/types'
+import { sleep } from '../../utils/delay'
 import { isEntrypoint } from '../../utils/is-entrypoint'
 import { redactUrls } from '../../utils/redactUrls'
 import { SlackNotifier, isUnattendedRun } from '../../utils/slack-notifier'
@@ -113,6 +114,7 @@ import {
   gradeIdentity,
   gradeState,
   gradeTargets,
+  installedAddresses,
   installsCode,
   stageOf,
   type ICheckOutcome,
@@ -393,7 +395,7 @@ interface IRunContext {
   codehash: {
     budget: { left: number }
     deps: () => ISignTimeCodehashDeps
-    serialise: <T>(work: () => Promise<T>) => Promise<T>
+    running?: Promise<void>
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
   expired: Set<string>
@@ -493,39 +495,61 @@ const runCodehash = async (
       reason:
         'gate K is queued behind this run’s rebuild budget and will run on a later run',
     }
+
+  // One at a time, a timed-out one included: every rebuild shares one checkout
+  // root keyed by commit, and a timeout does not stop the build. A network that
+  // cannot get the slot defers rather than waiting out its own timeout.
+  const waitUntil = Date.now() + REBUILD_TIMEOUT_MS
+  while (ctx.codehash.running) {
+    if (Date.now() >= waitUntil)
+      return {
+        kind: 'deferred',
+        reason:
+          'another gate K rebuild is still running; this one runs on a later run',
+      }
+    await Promise.race([
+      ctx.codehash.running.catch(() => undefined),
+      sleep(1000),
+    ])
+  }
   ctx.codehash.budget.left--
 
   const reports: IGateReport[] = []
-  try {
-    // One at a time: every rebuild shares one checkout root keyed by commit, and
-    // two networks installing code from the same commit would build into it at once.
-    await ctx.codehash.serialise(() =>
-      withTimeout(
-        (async () => {
-          for (const call of installations)
-            reports.push(
-              await verifyCutTargets(
-                {
-                  cuts: call.cuts,
-                  init: call.init,
-                  network,
-                  ...('registrations' in call
-                    ? { registrations: call.registrations }
-                    : {}),
-                },
-                ctx.codehash.deps()
-              )
-            )
-        })(),
-        REBUILD_TIMEOUT_MS,
-        'gate K rebuild'
+  const rebuild = (async () => {
+    for (const call of installations)
+      reports.push(
+        await verifyCutTargets(
+          {
+            cuts: call.cuts,
+            init: call.init,
+            network,
+            ...('registrations' in call
+              ? { registrations: call.registrations }
+              : {}),
+          },
+          ctx.codehash.deps()
+        )
       )
-    )
+  })()
+  ctx.codehash.running = rebuild
+  void rebuild
+    .catch(() => undefined)
+    .finally(() => {
+      if (ctx.codehash.running === rebuild) ctx.codehash.running = undefined
+    })
+  try {
+    await withTimeout(rebuild, REBUILD_TIMEOUT_MS, 'gate K rebuild')
   } catch (error) {
-    return {
-      kind: 'error',
-      reason: `gate K could not be evaluated: ${describe(error)}`,
+    const reason = `gate K could not be evaluated: ${describe(error)}`
+    // Cached like an unverifiable result, so a rebuild that always overruns is
+    // retried daily rather than spending the budget every run.
+    ctx.state.codehash[key] = {
+      status: 'unknown',
+      detail: reason,
+      codeHashes,
+      checkedAt: new Date().toISOString(),
     }
+    return { kind: 'error', reason }
   }
 
   const result: TCodehashResult = { kind: 'evaluated', collected, reports }
@@ -539,17 +563,6 @@ const runCodehash = async (
       checkedAt: new Date().toISOString(),
     }
   return result
-}
-
-/** Addresses an operation installs, which the codehash check judges. */
-const installedBy = (op: IScannedOperation): Set<string> => {
-  const collected = collectDiamondCutTargets(encodeOperation(op))
-  return new Set(
-    [
-      ...collected.calls.flatMap((c) => c.cuts.map((cut) => cut.facetAddress)),
-      ...collected.registrations.map((r) => r.address),
-    ].map((a) => a.toLowerCase())
-  )
 }
 
 const knownAddresses = (
@@ -826,12 +839,16 @@ export const watchNetwork = async (
     )
   }
   const known = knownAddresses(deployments, network.safeAddress, timelock)
-  const knownForArguments = new Map(known)
+  // The call-target names go in last, so a wallet sharing an address with the
+  // Safe or the timelock can never relabel it.
+  const knownForArguments = new Map<string, string>()
   for (const [key, value] of Object.entries(globalConfig))
     if (typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value))
       knownForArguments.set(value.toLowerCase(), key)
-  for (const owner of globalConfig.safeOwners)
-    knownForArguments.set(owner.toLowerCase(), 'a Safe owner')
+  for (const [address, label] of known) knownForArguments.set(address, label)
+  const safeOwners = new Set(
+    globalConfig.safeOwners.map((owner) => owner.toLowerCase())
+  )
   const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
@@ -844,6 +861,9 @@ export const watchNetwork = async (
         abi: TIMELOCK_READ_ABI,
         functionName: 'getTimestamp',
         args: [op.id],
+        // Pinned, so a fallback endpoint behind this block errors instead of
+        // reading 0 for an operation it has not seen.
+        blockNumber: latestBlock,
       })
       stage = stageOf(readyAt, now)
       // A node behind the scheduling block reads 0 for an operation it has not
@@ -878,7 +898,13 @@ export const watchNetwork = async (
       gradeDelay(op, agreedMinimum, liveMinimum, timelock),
       gradeTargets(op, known),
       gradeDelegatecall(op),
-      gradeAuthority(op, knownForArguments, installedBy(op)),
+      gradeAuthority(op, {
+        known: knownForArguments,
+        safeOwners,
+        installed: installedAddresses(
+          collectDiamondCutTargets(encodeOperation(op))
+        ),
+      }),
     ]
 
     let signTimeRecordPresent = false
@@ -1101,7 +1127,6 @@ const command = defineCommand({
     const state = await loadWatcherState(stateFile)
     const readPinned = createPinnedBlobReader()
     let codehashDeps: ISignTimeCodehashDeps | undefined
-    let codehashQueue: Promise<unknown> = Promise.resolve()
     const store = await openWatcherStore()
     const ctx: IRunContext = {
       state,
@@ -1116,14 +1141,6 @@ const command = defineCommand({
           (codehashDeps ??= createSignTimeCodehashDeps({
             readPinnedBlob: readPinned,
           })),
-        serialise: <T>(work: () => Promise<T>): Promise<T> => {
-          const run = codehashQueue.then(work, work)
-          codehashQueue = run.then(
-            () => undefined,
-            () => undefined
-          )
-          return run
-        },
       },
       expired: new Set<string>(),
     }
