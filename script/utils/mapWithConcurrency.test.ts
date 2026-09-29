@@ -45,6 +45,42 @@ describe('mapWithConcurrency', () => {
     expect(peak).toBe(1)
   })
 
+  it('truncates a fractional limit to whole workers', async () => {
+    let inFlight = 0
+    let peak = 0
+    const out = await mapWithConcurrency(
+      Array.from({ length: 10 }, (_, i) => i),
+      2.5,
+      async (n) => {
+        inFlight++
+        peak = Math.max(peak, inFlight)
+        await new Promise((r) => setTimeout(r, 5))
+        inFlight--
+        return n * 2
+      }
+    )
+    expect(peak).toBe(2)
+    expect(out).toEqual(Array.from({ length: 10 }, (_, i) => i * 2))
+  })
+
+  it('caps an Infinity limit at the number of items', async () => {
+    let inFlight = 0
+    let peak = 0
+    const out = await mapWithConcurrency(
+      [1, 2, 3, 4, 5],
+      Infinity,
+      async (n) => {
+        inFlight++
+        peak = Math.max(peak, inFlight)
+        await new Promise((r) => setTimeout(r, 5))
+        inFlight--
+        return n * 2
+      }
+    )
+    expect(peak).toBe(5)
+    expect(out).toEqual([2, 4, 6, 8, 10])
+  })
+
   it('passes through undefined item values instead of skipping them', async () => {
     const items = [1, undefined, 3] as (number | undefined)[]
     const seen: (number | undefined)[] = []
