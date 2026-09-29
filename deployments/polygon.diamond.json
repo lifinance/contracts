@@ -109,9 +109,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+      "0x8f00E690a45e75D7A1A765163829Ad33244a1C33": {
         "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
+        "Version": "3.0.0"
       },
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
