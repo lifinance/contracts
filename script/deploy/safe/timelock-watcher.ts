@@ -157,7 +157,7 @@ const DEFAULT_HISTORY_MINUTES = 2
 /** History ranges read at once per network; the endpoints are slow per call, not per block. */
 const HISTORY_PARALLEL_RANGES = 8
 
-/** Time one network may take beyond its history budget before it counts as unreadable. */
+/** Time one network may take beyond its history budget and one gate K rebuild before it counts as unreadable. */
 const NETWORK_OVERHEAD_MS = 6 * 60 * 1000 // 6 minutes
 
 /**

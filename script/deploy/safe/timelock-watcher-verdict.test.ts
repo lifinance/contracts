@@ -455,6 +455,16 @@ describe('gradeAuthority', () => {
     expect(grade(TIMELOCK, grant('EXECUTOR_ROLE', STRANGER))).toBe('unknown')
   })
 
+  it('treats a fee forwarder like a fee collector', () => {
+    const FORWARDER: Address = '0x0000000000000000000000000000000000005555'
+    const ctx = {
+      ...context,
+      known: new Map([...known, [FORWARDER.toLowerCase(), 'FeeForwarder']]),
+    }
+    expect(grade(FORWARDER, owner(WITHDRAW), ctx)).toBe('pass')
+    expect(grade(FORWARDER, owner(REFUND), ctx)).toBe('unknown')
+  })
+
   it('does not let a fee collector be owned by the refund wallet', () => {
     expect(grade(FEE_COLLECTOR, owner(OWNER_OF_FEES))).toBe('pass')
     expect(grade(FEE_COLLECTOR, owner(REFUND))).toBe('unknown')
