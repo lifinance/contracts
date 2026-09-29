@@ -1,0 +1,557 @@
+/**
+ * Per-operation checks and the `ok` / `mismatch` / `unverified` verdict of the
+ * report-only timelock watcher.
+ *
+ * Import it from `timelock-watcher.ts`. Every function here is pure: the caller
+ * reads the chain and the existing gates, and this module grades what they
+ * returned. A check that could not run grades `unknown`, which can never
+ * produce `ok`.
+ */
+
+import {
+  decodeAbiParameters,
+  decodeFunctionData,
+  parseAbi,
+  type Hex,
+} from 'viem'
+
+import type { IGateReport } from '../codehash/verify-cut-targets'
+
+import type { IPreBroadcastGateResult } from './prebroadcast-rederive'
+import type { ICollectedDiamondCuts } from './safe-decode-utils'
+import type {
+  ICancelDecisionInput,
+  TProvingLegOutcome,
+} from './timelock-cancel-decision'
+import type { IRecomputedIds, IScannedOperation } from './timelock-watcher-scan'
+
+export type TWatcherVerdict = 'ok' | 'mismatch' | 'unverified'
+
+export type TCheckStatus = 'pass' | 'fail' | 'unknown' | 'skip'
+
+export type TCheckName =
+  | 'op-id'
+  | 'state'
+  | 'delay'
+  | 'targets'
+  | 'delegatecall'
+  | 'authorities'
+  | 'codehash'
+
+export interface ICheckOutcome {
+  check: TCheckName
+  status: TCheckStatus
+  detail: string
+}
+
+/** Every check a complete report carries, in display order. */
+export const REQUIRED_CHECKS: readonly TCheckName[] = [
+  'op-id',
+  'state',
+  'delay',
+  'targets',
+  'delegatecall',
+  'authorities',
+  'codehash',
+]
+
+const SAFE_EXEC_ABI = parseAbi([
+  'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+])
+const MULTISEND_ABI = parseAbi(['function multiSend(bytes transactions)'])
+const UPDATE_DELAY_ABI = parseAbi(['function updateDelay(uint256 newDelay)'])
+const DIAMOND_CUT_INIT_ABI = parseAbi([
+  'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
+])
+
+const SAFE_EXEC_SELECTOR = '0x6a761202'
+const MULTISEND_SELECTOR = '0x8d80ff0a'
+const UPDATE_DELAY_SELECTOR = '0x64d62353'
+const DIAMOND_CUT_SELECTOR = '0x1f931c1c'
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+const selectorOf = (data: Hex): string => data.slice(0, 10).toLowerCase()
+
+/**
+ * Classifies an operation from its check outcomes.
+ *
+ * A missing check counts as `unknown`: the verdict speaks for every required
+ * check or it does not say `ok`.
+ *
+ * @param checks - Outcomes the caller produced.
+ * @returns The verdict and the checks behind anything other than `ok`.
+ */
+export const classifyOperation = (
+  checks: readonly ICheckOutcome[]
+): { verdict: TWatcherVerdict; reasons: string[] } => {
+  const byName = new Map(checks.map((c) => [c.check, c]))
+  const graded: ICheckOutcome[] = REQUIRED_CHECKS.map(
+    (name) =>
+      byName.get(name) ?? {
+        check: name,
+        status: 'unknown',
+        detail: 'this check produced no outcome',
+      }
+  )
+  const failed = graded.filter((c) => c.status === 'fail')
+  if (failed.length > 0)
+    return {
+      verdict: 'mismatch',
+      reasons: failed.map((c) => `${c.check}: ${c.detail}`),
+    }
+  const unknown = graded.filter((c) => c.status === 'unknown')
+  if (unknown.length > 0)
+    return {
+      verdict: 'unverified',
+      reasons: unknown.map((c) => `${c.check}: ${c.detail}`),
+    }
+  return { verdict: 'ok', reasons: [] }
+}
+
+/**
+ * Grades the op-id: the logged parameters must hash to the id they were logged
+ * under.
+ *
+ * @param operationId - The id the timelock logged.
+ * @param recomputed - Ids recomputed from the logged parameters.
+ * @returns The check outcome and the proving-leg outcome the cancel matrix takes.
+ */
+export const gradeIdentity = (
+  operationId: Hex,
+  recomputed: IRecomputedIds | undefined
+): { outcome: ICheckOutcome; leg: TProvingLegOutcome } => {
+  if (!recomputed)
+    return {
+      leg: 'error',
+      outcome: {
+        check: 'op-id',
+        status: 'unknown',
+        detail:
+          'the logged calls are not indexed 0..n-1, so the parameters are incomplete',
+      },
+    }
+  const id = operationId.toLowerCase()
+  const matches =
+    recomputed.batch.toLowerCase() === id ||
+    recomputed.single?.toLowerCase() === id
+  return matches
+    ? {
+        leg: 'match',
+        outcome: {
+          check: 'op-id',
+          status: 'pass',
+          detail: 'the logged parameters hash to the scheduled id',
+        },
+      }
+    : {
+        leg: 'mismatch',
+        outcome: {
+          check: 'op-id',
+          status: 'fail',
+          detail: `the logged parameters hash to ${recomputed.batch}, not to the scheduled id`,
+        },
+      }
+}
+
+/** Where an operation stands, from `getTimestamp` and the block time. */
+export type TOperationStage = 'pending' | 'ready' | 'done' | 'unset'
+
+/**
+ * Maps a `getTimestamp` value onto the operation's stage.
+ *
+ * @param timestamp - `getTimestamp(id)`.
+ * @param now - Latest block timestamp, in seconds.
+ * @returns The stage.
+ */
+export const stageOf = (timestamp: bigint, now: bigint): TOperationStage =>
+  timestamp === 0n
+    ? 'unset'
+    : timestamp === 1n
+    ? 'done'
+    : timestamp <= now
+    ? 'ready'
+    : 'pending'
+
+/**
+ * Grades the schedule state of an operation the caller already knows is live.
+ *
+ * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
+ * @param readyAt - `getTimestamp(id)`, for the detail line.
+ * @returns The check outcome.
+ */
+export const gradeState = (
+  stage: TOperationStage | undefined,
+  readyAt: bigint | undefined
+): ICheckOutcome => {
+  if (stage === undefined)
+    return {
+      check: 'state',
+      status: 'unknown',
+      detail: 'getTimestamp could not be read, so the operation is unconfirmed',
+    }
+  if (stage === 'pending' || stage === 'ready')
+    return {
+      check: 'state',
+      status: 'pass',
+      detail: `${stage}, executable from ${
+        readyAt !== undefined
+          ? new Date(Number(readyAt) * 1000).toISOString()
+          : 'an unknown time'
+      }`,
+    }
+  return {
+    check: 'state',
+    status: 'fail',
+    detail: `the timelock reports this operation as ${stage}`,
+  }
+}
+
+/**
+ * Grades the delay: the scheduled delay, the timelock's live minimum, and any
+ * `updateDelay` the operation carries must all be at least the agreed minimum.
+ *
+ * @param op - The operation.
+ * @param agreedMinimum - `config/timelockController.json` `minDelay`, in seconds.
+ * @param liveMinimum - `getMinDelay()`, or `undefined` when it could not be read.
+ * @param timelock - The timelock's address, to spot `updateDelay` on itself.
+ * @returns The check outcome.
+ */
+export const gradeDelay = (
+  op: IScannedOperation,
+  agreedMinimum: bigint,
+  liveMinimum: bigint | undefined,
+  timelock: string
+): ICheckOutcome => {
+  const failures: string[] = []
+  if (BigInt(op.delay) < agreedMinimum)
+    failures.push(
+      `scheduled with a ${op.delay}s delay, below the agreed ${agreedMinimum}s`
+    )
+  if (liveMinimum !== undefined && liveMinimum < agreedMinimum)
+    failures.push(
+      `the timelock's minimum delay is ${liveMinimum}s, below the agreed ${agreedMinimum}s`
+    )
+  for (const call of op.calls)
+    if (
+      call.target.toLowerCase() === timelock.toLowerCase() &&
+      selectorOf(call.data) === UPDATE_DELAY_SELECTOR
+    ) {
+      try {
+        const { args } = decodeFunctionData({
+          abi: UPDATE_DELAY_ABI,
+          data: call.data,
+        })
+        if (args[0] < agreedMinimum)
+          failures.push(
+            `call ${call.index} lowers the timelock's minimum delay to ${args[0]}s`
+          )
+      } catch {
+        failures.push(`call ${call.index} carries an undecodable updateDelay`)
+      }
+    }
+  if (failures.length > 0)
+    return { check: 'delay', status: 'fail', detail: failures.join('; ') }
+  if (liveMinimum === undefined)
+    return {
+      check: 'delay',
+      status: 'unknown',
+      detail: `scheduled delay ${op.delay}s is at least the agreed ${agreedMinimum}s, but getMinDelay could not be read`,
+    }
+  return {
+    check: 'delay',
+    status: 'pass',
+    detail: `${op.delay}s, at least the agreed ${agreedMinimum}s`,
+  }
+}
+
+/**
+ * Grades the targets (gate E): every call must go to an address main knows.
+ *
+ * @param op - The operation.
+ * @param known - Lowercased address → name, from the deployments file at main,
+ *   the network's Safe and the timelock itself.
+ * @returns The check outcome.
+ */
+export const gradeTargets = (
+  op: IScannedOperation,
+  known: ReadonlyMap<string, string>
+): ICheckOutcome => {
+  const unknown = op.calls.filter((c) => !known.has(c.target.toLowerCase()))
+  if (unknown.length > 0)
+    return {
+      check: 'targets',
+      status: 'fail',
+      detail: `call(s) to address(es) main does not know: ${unknown
+        .map((c) => `${c.index}→${c.target}`)
+        .join(', ')}`,
+    }
+  return {
+    check: 'targets',
+    status: 'pass',
+    detail: op.calls
+      .map((c) => known.get(c.target.toLowerCase()) ?? c.target)
+      .join(', '),
+  }
+}
+
+/**
+ * Reads the operation bytes of a packed `multiSend` payload.
+ *
+ * @param packed - The `transactions` argument.
+ * @returns Each inner transaction's operation byte, or `undefined` when the
+ *   packing is malformed.
+ */
+const multiSendOperations = (packed: Hex): number[] | undefined => {
+  const bytes = packed.slice(2)
+  const operations: number[] = []
+  let at = 0
+  // operation (1 byte) | to (20) | value (32) | dataLength (32) | data
+  while (at < bytes.length) {
+    if (at + 170 > bytes.length) return undefined
+    operations.push(parseInt(bytes.slice(at, at + 2), 16))
+    const length = Number(BigInt(`0x${bytes.slice(at + 106, at + 170)}`))
+    at += 170 + length * 2
+  }
+  return at === bytes.length ? operations : undefined
+}
+
+/**
+ * Grades delegatecall-shaped payloads: a Safe `execTransaction` or `multiSend`
+ * with operation 1 is refused, an undecodable one is unknown, and a
+ * `diamondCut` with a non-zero `_init` is named so the reader can see that the
+ * diamond will delegatecall it; the code there is judged by the codehash check.
+ *
+ * @param op - The operation.
+ * @returns The check outcome.
+ */
+export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
+  const failures: string[] = []
+  const unknown: string[] = []
+  const notes: string[] = []
+  for (const call of op.calls) {
+    const selector = selectorOf(call.data)
+    try {
+      if (selector === SAFE_EXEC_SELECTOR) {
+        const { args } = decodeFunctionData({
+          abi: SAFE_EXEC_ABI,
+          data: call.data,
+        })
+        if (args[3] !== 0)
+          failures.push(`call ${call.index} is a Safe delegatecall`)
+        const inner = selectorOf(args[2])
+        if (inner === MULTISEND_SELECTOR) {
+          const [packed] = decodeAbiParameters(
+            [{ type: 'bytes' }],
+            `0x${args[2].slice(10)}`
+          )
+          const operations = multiSendOperations(packed)
+          if (!operations)
+            unknown.push(`call ${call.index} carries a malformed multiSend`)
+          else if (operations.some((o) => o !== 0))
+            failures.push(`call ${call.index} multiSends a delegatecall`)
+        }
+      } else if (selector === MULTISEND_SELECTOR) {
+        const { args } = decodeFunctionData({
+          abi: MULTISEND_ABI,
+          data: call.data,
+        })
+        const operations = multiSendOperations(args[0])
+        if (!operations)
+          unknown.push(`call ${call.index} carries a malformed multiSend`)
+        else if (operations.some((o) => o !== 0))
+          failures.push(`call ${call.index} multiSends a delegatecall`)
+      } else if (selector === DIAMOND_CUT_SELECTOR) {
+        const { args } = decodeFunctionData({
+          abi: DIAMOND_CUT_INIT_ABI,
+          data: call.data,
+        })
+        if (args[1].toLowerCase() !== ZERO_ADDRESS)
+          notes.push(
+            `call ${call.index} makes the diamond delegatecall ${args[1]}`
+          )
+      }
+    } catch {
+      unknown.push(
+        `call ${call.index} carries selector ${selector} that could not be decoded`
+      )
+    }
+  }
+  if (failures.length > 0)
+    return {
+      check: 'delegatecall',
+      status: 'fail',
+      detail: [...failures, ...unknown].join('; '),
+    }
+  if (unknown.length > 0)
+    return {
+      check: 'delegatecall',
+      status: 'unknown',
+      detail: unknown.join('; '),
+    }
+  return {
+    check: 'delegatecall',
+    status: 'pass',
+    detail:
+      notes.length > 0
+        ? `${notes.join('; ')} (code judged by codehash)`
+        : 'no delegatecall-shaped payload',
+  }
+}
+
+/**
+ * Grades storage authorities (gate G) from the pre-broadcast gate's result.
+ *
+ * @param result - The gate's result, or the error that stopped it.
+ * @returns The check outcome.
+ */
+export const gradeAuthorities = (
+  result: IPreBroadcastGateResult | { error: string }
+): ICheckOutcome => {
+  if ('error' in result)
+    return {
+      check: 'authorities',
+      status: 'unknown',
+      detail: `the pre-broadcast gate could not run: ${result.error}`,
+    }
+  const status: TCheckStatus =
+    result.disposition === 'PROCEED'
+      ? 'pass'
+      : result.disposition === 'BLOCK'
+      ? 'fail'
+      : 'unknown'
+  return {
+    check: 'authorities',
+    status,
+    detail:
+      status === 'pass'
+        ? result.reason
+        : result.findings.join('; ') || result.reason,
+  }
+}
+
+/** Gate K's result over one operation, or why it did not produce one. */
+export type TCodehashResult =
+  | { kind: 'not-applicable'; collected: ICollectedDiamondCuts }
+  | { kind: 'deferred'; reason: string }
+  | { kind: 'error'; reason: string }
+  | { kind: 'cached'; status: 'pass' | 'fail'; detail: string }
+  | {
+      kind: 'evaluated'
+      collected: ICollectedDiamondCuts
+      reports: IGateReport[]
+    }
+
+/**
+ * Whether an operation wires code in, so that gate K must judge it.
+ *
+ * @param collected - `collectDiamondCutTargets` over the operation.
+ * @returns True when a cut, a registration or an undecodable frame is present.
+ */
+export const installsCode = (collected: ICollectedDiamondCuts): boolean =>
+  collected.calls.length > 0 ||
+  collected.registrations.length > 0 ||
+  collected.refusals.length > 0
+
+/**
+ * Grades gate K: live code at every address the operation wires in must match
+ * a rebuild of its recorded commit.
+ *
+ * @param result - What gate K produced for the operation.
+ * @returns The check outcome.
+ */
+export const gradeCodehash = (result: TCodehashResult): ICheckOutcome => {
+  if (result.kind === 'not-applicable')
+    return {
+      check: 'codehash',
+      status: 'pass',
+      detail:
+        result.collected.unopened.length > 0
+          ? `installs nothing this decoder can see (unopened: ${result.collected.unopened.join(
+              ', '
+            )})`
+          : 'installs no code',
+    }
+  if (result.kind === 'deferred' || result.kind === 'error')
+    return { check: 'codehash', status: 'unknown', detail: result.reason }
+  if (result.kind === 'cached')
+    return {
+      check: 'codehash',
+      status: result.status,
+      detail: `${result.detail} (from an earlier run; the code is unchanged)`,
+    }
+
+  const targets = result.reports.flatMap((r) => r.targets)
+  const mismatched = targets.filter((t) => t.verdict === 'MISMATCH')
+  if (mismatched.length > 0)
+    return {
+      check: 'codehash',
+      status: 'fail',
+      detail: mismatched.map((t) => `${t.address}: ${t.reason}`).join('; '),
+    }
+  const refusals = [
+    ...result.collected.refusals,
+    ...result.reports.flatMap((r) => r.refusals),
+  ]
+  const unverifiable = targets.filter((t) => t.verdict !== 'MATCH')
+  if (refusals.length > 0 || unverifiable.length > 0)
+    return {
+      check: 'codehash',
+      status: 'unknown',
+      detail: [
+        ...refusals,
+        ...unverifiable.map((t) => `${t.address}: ${t.reason}`),
+      ].join('; '),
+    }
+  return {
+    check: 'codehash',
+    status: 'pass',
+    detail: `${targets.length} address(es) match a rebuild of their recorded commit`,
+  }
+}
+
+const legOf = (status: TCheckStatus): TProvingLegOutcome =>
+  status === 'pass'
+    ? 'match'
+    : status === 'fail'
+    ? 'mismatch'
+    : status === 'skip'
+    ? 'unsupported'
+    : 'error'
+
+/**
+ * Builds the cancel matrix input the watcher can honestly state. Shown for
+ * information only: nothing acts on it.
+ *
+ * @param input - The graded checks and the facts the matrix needs.
+ * @returns The matrix input.
+ */
+export const buildWatcherCancelInput = (input: {
+  identity: TProvingLegOutcome
+  codehash: ICheckOutcome
+  authorities: ICheckOutcome
+  stage: TOperationStage | undefined
+  signTimeRecordPresent: boolean
+}): ICancelDecisionInput => {
+  const codehashLeg = legOf(input.codehash.status)
+  const authoritiesLeg = legOf(input.authorities.status)
+  const integrity: TProvingLegOutcome =
+    codehashLeg === 'mismatch' || authoritiesLeg === 'mismatch'
+      ? 'mismatch'
+      : codehashLeg === 'error' || authoritiesLeg === 'error'
+      ? 'error'
+      : 'match'
+  return {
+    integrity,
+    opIdentity: input.identity,
+    verdictProvenance: 'anchors',
+    agreeingProviders: 1,
+    executability: 'error',
+    deploymentRecord: input.codehash.status === 'unknown' ? 'error' : 'present',
+    signTimeVerdictRecord: input.signTimeRecordPresent ? 'present' : 'missing',
+    operationState: input.stage ?? 'unset',
+    cancellerAuthority: 'unknown',
+    revertAttempts: 0,
+    revertBlockThreshold: Number.MAX_SAFE_INTEGER,
+  }
+}

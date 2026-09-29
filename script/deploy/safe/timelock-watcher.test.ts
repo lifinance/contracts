@@ -1,0 +1,138 @@
+/**
+ * Tests for the timelock watcher CLI's state loading and finding assembly. The
+ * chain-facing path is exercised on an anvil fork, not here.
+ */
+import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
+import {
+  afterAll,
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
+
+import { findingsOf, loadWatcherState } from './timelock-watcher'
+import type { INetworkReport } from './timelock-watcher-report'
+
+const dir = mkdtempSync(join(tmpdir(), 'timelock-watcher-test-'))
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+const write = (name: string, content: string): string => {
+  const path = join(dir, name)
+  writeFileSync(path, content)
+  return path
+}
+
+describe('loadWatcherState', () => {
+  it('starts afresh when there is no state file', async () => {
+    const state = await loadWatcherState(join(dir, 'absent.json'))
+    expect(state).toEqual({
+      version: 1,
+      networks: {},
+      alerts: {},
+      codehash: {},
+    })
+  })
+
+  it('reads back a state an earlier run saved', async () => {
+    const saved = {
+      version: 1,
+      networks: { base: { timelock: '0x1', operations: {} } },
+      alerts: {
+        'base:network': {
+          verdict: 'unverified',
+          alertedAt: '2026-09-29T00:00:00.000Z',
+        },
+      },
+      codehash: {},
+    }
+    const state = await loadWatcherState(
+      write('valid.json', JSON.stringify(saved))
+    )
+    expect(state).toEqual(saved as typeof state)
+  })
+
+  it('fills sections an older writer left out', async () => {
+    const state = await loadWatcherState(
+      write('partial.json', JSON.stringify({ version: 1 }))
+    )
+    expect(state.networks).toEqual({})
+    expect(state.alerts).toEqual({})
+    expect(state.codehash).toEqual({})
+  })
+
+  it('starts afresh on another schema version, losing alert records rather than trusting them', async () => {
+    const state = await loadWatcherState(
+      write(
+        'old.json',
+        JSON.stringify({ version: 0, alerts: { x: { verdict: 'mismatch' } } })
+      )
+    )
+    expect(state.alerts).toEqual({})
+  })
+
+  it('starts afresh on a corrupt file', async () => {
+    const state = await loadWatcherState(write('corrupt.json', '{ nope'))
+    expect(state.networks).toEqual({})
+  })
+})
+
+describe('findingsOf', () => {
+  const report = (overrides: Partial<INetworkReport>): INetworkReport => ({
+    network: 'base',
+    status: 'watched',
+    verdict: 'ok',
+    operations: [],
+    notes: [],
+    ...overrides,
+  })
+
+  it('emits one network finding per report, carrying its reason and notes', () => {
+    const findings = findingsOf([
+      report({
+        network: 'Sei',
+        verdict: 'unverified',
+        reason: 'history incomplete',
+        notes: ['floor unknown'],
+      }),
+    ])
+    expect(findings).toEqual([
+      {
+        key: 'sei:network',
+        network: 'Sei',
+        verdict: 'unverified',
+        reasons: ['history incomplete', 'floor unknown'],
+      },
+    ])
+  })
+
+  it('emits one finding per pending operation, beside the network', () => {
+    const findings = findingsOf([
+      report({
+        operations: [
+          {
+            id: '0xABC',
+            calls: 1,
+            scheduledInBlock: '1',
+            verdict: 'mismatch',
+            checks: [],
+            reasons: ['targets: unknown'],
+            cancelRecommendation: '',
+            notes: [],
+          },
+        ],
+      }),
+    ])
+    expect(findings.map((f) => [f.key, f.verdict])).toEqual([
+      ['base:network', 'ok'],
+      ['base:0xabc', 'mismatch'],
+    ])
+  })
+
+  it('emits nothing for no reports', () => {
+    expect(findingsOf([])).toEqual([])
+  })
+})

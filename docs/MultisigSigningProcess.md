@@ -633,6 +633,15 @@ on-chain `isOperationReady`, then broadcasts `executeBatch`; the row flips to
 (`confirm-timelock-execution.ts`). `backfill-timelock-queue.ts` repairs
 missed enqueues.
 
+**Timelock watch (report-only):** a second 10-minute cron,
+`timelock-watcher.ts`, finds every pending operation on each production
+timelock from its `CallScheduled` logs, so a schedule made outside
+`confirm-safe-tx` is seen too, and re-checks it well before it matures: op-id,
+schedule state, delay, known targets, delegatecall-shaped payloads, storage
+authorities and, for an operation that installs code, the codehash gate. It
+alerts Slack on a mismatch or a new unverified finding and never cancels or
+executes. See the "Timelock watch" row in §5.
+
 ### 4.5 Bookkeeping
 
 `script/deploy/safe/reconcile.ts` (`reconcileAllSubmittedSafeTxs`, also run at
@@ -674,6 +683,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
 | Execute | Signature format + sorting; threshold gating of the Execute option | Block / hide option | `safe-utils.ts` |
 | Timelock exec | operationId re-derived from row params; timelock address vs deploy log; on-chain `isOperationReady`/`isOperationDone` | Block, mark failed | `execute-pending-timelock-tx.ts`, `timelock-queue.ts`, `confirm-timelock-execution.ts` |
+| Timelock watch | Every pending operation on every production timelock, found from `CallScheduled`/`CallSalt` logs rather than the queue, and checked within one 10-minute interval of being scheduled: the logged parameters must hash to the scheduled id; `getTimestamp` must show it pending or ready; the delay, the live `getMinDelay()` and any `updateDelay` it carries must be at least `config/timelockController.json` `minDelay`; every target must be an address `deployments/<network>.json` at `origin/main` names, the network's Safe, or the timelock; a Safe `execTransaction` or `multiSend` with operation 1 fails; storage authorities are graded by the pre-broadcast gate (`BLOCK` fails, `HOLD` is unverified); and an operation that installs code goes through the codehash gate's `verifyCutTargets`, capped at three rebuilds a run and cached while the code at each judged address is unchanged. Timelock addresses come from `deployments/<network>.json` at `origin/main`, checked on chain against `LiFiDiamond.owner()`. The cancel matrix is evaluated for its recommendation only. History is backfilled from the timelock's creation block within a per-run budget, and a network whose history is not yet covered is unverified. **Tron is not covered** and is reported as such on every run; RPC quorum (gate J) is not run | Report: Slack on mismatch, on a new unverified finding and on a change of verdict (a standing mismatch every 6 hours, unverified every 24), job summary every run; the job fails when a network cannot be read or an operation mismatches. Never cancels or executes | `timelock-watcher.ts` with `timelock-watcher-scan.ts`, `timelock-watcher-verdict.ts`, `timelock-watcher-alerts.ts`, `timelock-watcher-report.ts`, run by `.github/workflows/timelockWatcher.yml` (EXSC-1111) |
 | Housekeeping | Receipt-based status reconcile with grace period; nonce-gap log scan | Auto-heal | `reconcile.ts` |
 | CI (PR gate) | Version bump required for audit-relevant `src/` changes; audit-log entry + report + auditor verified | Block PR | `.github/workflows/versionControlAndAuditCheck.yml` (labels protected by `protectAuditLabels.yml`) |
 | CI (PR gate) | ≥ 1 approval from the SC core team | Block merge | Repository ruleset `main protection` — `required_reviewers` on the `smart-contract-core` team |
@@ -791,6 +801,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env key or `--ledger`) |
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
+| `script/deploy/safe/timelock-watcher.ts` / `.github/workflows/timelockWatcher.yml` | Report-only watch of every pending timelock operation, 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
 | `.github/workflows/enforceProposalFunnel.yml` | Fence: no propose route outside `proposeSafeTx` |
 | `.github/workflows/mintBuildAttestations.yml` | Verifies the committed build manifest on every PR; mints its build-provenance attestation on push to `main` |
