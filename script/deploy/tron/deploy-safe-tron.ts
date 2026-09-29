@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 /**
  * Deploy a Safe (Gnosis Safe–style) multisig contract on Tron.
  *
@@ -6,7 +6,8 @@
  * SafeProxyFactory(singleton), then create a Safe proxy via
  * createProxyWithNonce(singleton, initializer, salt) and run setup(owners, threshold, ...).
  *
- * Uses Safe v1.4.1 artifacts from safe/london/ (Tron uses targetEvmVersion: london).
+ * Uses Safe v1.4.1 artifacts from the fixed safe/london/ path, which is where
+ * they are built; it does not follow the network's configured EVM version.
  * TVM is largely EVM-compatible; if deployment or execution fails, consider compiling
  * the Safe contracts with Tron’s solc and replacing the artifact paths.
  *
@@ -38,6 +39,7 @@ import type { TronWeb } from 'tronweb'
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getEnvVar } from '../../utils/utils'
 import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
 import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
@@ -770,6 +772,6 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
 
 export { run }

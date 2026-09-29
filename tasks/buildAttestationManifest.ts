@@ -28,6 +28,7 @@ import {
   type IMintProfile,
 } from '../script/deploy/codehash/build-manifest'
 import { parseBuildProfiles } from '../script/deploy/codehash/lineage-scope'
+import { readContractVersion } from '../script/deploy/shared/contract-version'
 
 const TARGET = 'script/deploy/resources/buildAttestations.json'
 // Every location `script/deploy/shared/getContractVersion.ts` resolves a
@@ -37,7 +38,6 @@ const TARGET = 'script/deploy/resources/buildAttestations.json'
 // also non-recursive, so a contract in a nested directory is invisible the same
 // way.
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
-const VERSION_RE = /@custom:version\s+(\S+)/
 const PROFILE = 'default'
 
 /**
@@ -65,15 +65,26 @@ const versionedContracts = (): {
           .readdirSync(dir)
           .filter((entry) => entry.endsWith('.sol'))
           .flatMap((entry) => {
-            const version = VERSION_RE.exec(
-              fs.readFileSync(path.join(dir, entry), 'utf8')
-            )?.[1]
+            const file = path.join(dir, entry)
+            const read = readContractVersion(fs.readFileSync(file, 'utf8'))
+            // Minting under a value that only looks like a version would file
+            // the build under a version nothing declares, so refuse instead.
+            if (read.kind === 'malformed')
+              throw new Error(
+                `${file} declares "${read.raw}", which is not a version`
+              )
             // A source with no `@custom:version` is not a deployable unit here;
             // the key requires a version and inventing one would file a build
             // under a version nothing declares.
-            return version === undefined
-              ? []
-              : [{ name: entry.replace(/\.sol$/, ''), file: entry, version }]
+            return read.kind === 'ok'
+              ? [
+                  {
+                    name: entry.replace(/\.sol$/, ''),
+                    file: entry,
+                    version: read.version,
+                  },
+                ]
+              : []
           })
       : []
   )

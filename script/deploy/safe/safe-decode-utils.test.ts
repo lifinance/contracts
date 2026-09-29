@@ -27,6 +27,8 @@ import {
   formatDecodedArg,
   formatDecodedTxDataForDisplay,
   formatTimelockScheduleBatch,
+  collectedInstallsSomething,
+  type ICollectedDiamondCuts,
 } from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
@@ -943,5 +945,94 @@ describe('formatDecodedArg — a decoded string is proposer-controlled', () => {
   it('leaves a benign string exactly as it was', () => {
     expect(formatDecodedArg('GasZipPeriphery')).toBe('GasZipPeriphery')
     expect(formatDecodedArg(['a', 1n])).toBe('["a","1"]')
+  })
+})
+
+/**
+ * Gate G renders `false` here as "this proposal installs no contract, so there
+ * is no authority to read". That is an affirmative claim about bytes, so every
+ * case below is about which readings of a calldata may make it.
+ */
+describe('collectedInstallsSomething', () => {
+  const ZERO = '0x0000000000000000000000000000000000000000'
+  const FACET = '0x1111111111111111111111111111111111111111'
+
+  const collected = (
+    over: Partial<ICollectedDiamondCuts>
+  ): ICollectedDiamondCuts => ({
+    calls: [],
+    registrations: [],
+    refusals: [],
+    unopened: [],
+    knownCalls: [],
+    ...over,
+  })
+
+  const cut = (action: number) => ({
+    cuts: [{ facetAddress: FACET, action: action as never }],
+    init: ZERO,
+  })
+
+  it('reads an empty calldata as installing nothing', () => {
+    expect(collectedInstallsSomething(collected({}))).toBe(false)
+  })
+
+  it.each([
+    ['Add', 0],
+    ['Replace', 1],
+  ])('counts a %s cut', (_name, action) => {
+    expect(
+      collectedInstallsSomething(collected({ calls: [cut(action)] }))
+    ).toBe(true)
+  })
+
+  it('does not count a Remove-only cut', () => {
+    expect(collectedInstallsSomething(collected({ calls: [cut(2)] }))).toBe(
+      false
+    )
+  })
+
+  it('counts an init target on a cut that installs no facet', () => {
+    expect(
+      collectedInstallsSomething(
+        collected({ calls: [{ cuts: [], init: FACET }] })
+      )
+    ).toBe(true)
+  })
+
+  it('counts a periphery registration', () => {
+    expect(
+      collectedInstallsSomething(
+        collected({ registrations: [{ name: 'Executor', address: FACET }] })
+      )
+    ).toBe(true)
+  })
+
+  // A proposal that only unregisters installs nothing, and asking its signer
+  // to acknowledge an installation it does not make is the noise this avoids.
+  it('does not count an unregistration to the zero address', () => {
+    expect(
+      collectedInstallsSomething(
+        collected({ registrations: [{ name: 'Executor', address: ZERO }] })
+      )
+    ).toBe(false)
+  })
+
+  // The Tron case: a scheduleBatch carrying a frame the decoder cannot open
+  // and no diamondCut selector bytes anywhere emits no refusal, so a predicate
+  // reading only calls and registrations would answer "installs nothing" when
+  // the honest answer is that nobody knows.
+  it('counts an unopened frame as an install set it cannot rule out', () => {
+    expect(
+      collectedInstallsSomething(collected({ unopened: ['0xdeadbeef'] }))
+    ).toBe(true)
+  })
+
+  it('counts a refusal the same way', () => {
+    expect(
+      collectedInstallsSomething(
+        collected({ refusals: ['calldata is not well-formed hex'] })
+      )
+    ).toBe(true)
   })
 })

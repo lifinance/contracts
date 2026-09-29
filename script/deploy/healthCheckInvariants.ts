@@ -60,7 +60,10 @@ import {
   collectImmutableBindingChecks,
   isFacetContract,
   isZeroAddressValue,
+  liveVersionPredatingGetter,
+  loadDiamondLog,
   TRON_ZERO_ADDRESS_BASE58,
+  type DiamondFacetLog,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
@@ -164,6 +167,12 @@ export interface IHealthCheckContext {
    * (the default); injectable so the registry/log sync check is testable without fixture files.
    */
   diamondLogPeripheryNames?: string[]
+  /**
+   * Facet address → name and version, from `deployments/<network>.diamond.json`. Undefined = read
+   * from disk (the default); injectable so the version-aware skip is testable without pinning a
+   * test to whatever version the fleet happens to be running.
+   */
+  diamondFacetLog?: DiamondFacetLog
   /**
    * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
    * name. Undefined = read from the build output (the default); injectable so both invariants
@@ -1182,11 +1191,6 @@ async function readPeripheryRegistryUncached(
   return address === zeroAddress ? null : getAddress(address)
 }
 
-/** Network keys compose into a path, so anything outside this shape is refused outright. */
-function isValidNetworkName(name: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(name)
-}
-
 /**
  * Read the periphery names recorded in `deployments/<network>.diamond.json`.
  *
@@ -1198,22 +1202,7 @@ function isValidNetworkName(name: string): boolean {
  * @returns the recorded periphery names, or an empty list when the log cannot be read
  */
 function loadDiamondLogPeripheryNames(networkLower: string): string[] {
-  if (!isValidNetworkName(networkLower)) return []
-  const deploymentsDir = path.resolve(process.cwd(), 'deployments')
-  const logPath = path.resolve(deploymentsDir, `${networkLower}.diamond.json`)
-  const relativeToDir = path.relative(deploymentsDir, logPath)
-  if (relativeToDir.startsWith('..') || path.isAbsolute(relativeToDir))
-    return []
-  if (!existsSync(logPath)) return []
-
-  try {
-    const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
-      LiFiDiamond?: { Periphery?: Record<string, string> }
-    }
-    return Object.keys(parsed.LiFiDiamond?.Periphery ?? {})
-  } catch {
-    return []
-  }
+  return Object.keys(loadDiamondLog(networkLower)?.Periphery ?? {})
 }
 
 /**
@@ -1595,6 +1584,13 @@ async function readAddressGetter(
 }
 
 /**
+ * The two error shapes that mean "this build has no such function": a revert, and viem's
+ * zero-data error when the call returns "0x". An unreachable RPC matches neither, which is the
+ * point — both callers have to tell a build that cannot answer from a node that did not.
+ */
+const ABSENT_FUNCTION_ERROR_PATTERN = /revert|returned no data/i
+
+/**
  * Read a binding's value, falling back to earlier names of the same getter when the current one
  * is absent from the live build.
  *
@@ -1615,11 +1611,8 @@ async function readBindingValue(
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    // Two error shapes mean "this build has no such function": a revert, and viem's zero-data
-    // error when the call returns "0x". Matching only reverts skips the fallback for the second,
-    // leaving the binding unverified. An unreachable RPC matches neither and must not retry.
     if (
-      !/revert|returned no data/i.test(message) ||
+      !ABSENT_FUNCTION_ERROR_PATTERN.test(message) ||
       check.legacyGetters.length === 0
     )
       throw error
@@ -2306,14 +2299,42 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               }`
             )
         } catch (error: unknown) {
-          // A revert here usually means the live build predates a rename of the getter, so the
-          // binding stays unverified rather than wrong — say so, because a bare read failure
-          // reads like a transient RPC blip instead of a hole in this check's coverage.
+          const rawMessage =
+            error instanceof Error ? error.message : String(error)
           const errorMessage = redactUrls(
-            (error instanceof Error ? error.message : String(error)).split(
-              '\n'
-            )[0] ?? 'unknown error'
+            rawMessage.split('\n')[0] ?? 'unknown error'
           )
+
+          // The one revert this does not report: a build the deploy log records as older than the
+          // version that introduced the getter has no such function, so its revert describes a
+          // pending upgrade rather than anything wrong with this chain's config. Classified here
+          // rather than skipping the read, because `Version` in the diamond log is what this repo
+          // wrote at cut time, not what is deployed — a stale checkout or a hand-edited entry can
+          // label a live address older than its bytecode, and skipping on that would retire an
+          // error-severity binding check silently. A build that answers is still compared either
+          // way; only its revert is reclassified. Transient RPC failures are not reverts and keep
+          // warning, whatever the log says about the version.
+          const versionPredatingGetter = ABSENT_FUNCTION_ERROR_PATTERN.test(
+            rawMessage
+          )
+            ? liveVersionPredatingGetter(
+                check,
+                address,
+                ctx.networkLower,
+                ctx.diamondFacetLog
+              )
+            : null
+          if (versionPredatingGetter !== null) {
+            consola.info(
+              `${check.contractName}.${check.getter}() reverted and is not reported: ${address} is v${versionPredatingGetter}, and the getter arrived in v${check.getterSinceVersion}`
+            )
+            continue
+          }
+
+          // Every other failure stays a finding. A revert usually means the live build predates
+          // a rename of the getter, so the binding is unverified rather than wrong — say so,
+          // because a bare read failure reads like a transient RPC blip instead of a hole in
+          // this check's coverage.
           ctx.logWarn(
             `${check.contractName}.${check.getter}() left unverified — read failed: ${errorMessage}`
           )

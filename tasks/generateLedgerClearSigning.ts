@@ -4,6 +4,7 @@ import path from 'path'
 import { defineCommand, runMain } from 'citty'
 
 import { flagIsOn } from '../script/deploy/safe/cli-flags'
+import { isEntrypoint } from '../script/utils/is-entrypoint'
 
 type Json = Record<string, unknown>
 
@@ -25,6 +26,17 @@ function installEpipeHandler(): void {
 interface INetworkConfig {
   chainId: number
   status?: string
+  type?: string
+  isZkEVM?: boolean
+}
+
+export interface IDeployment {
+  chainId: number
+  address: string
+}
+
+export interface IRepoDeployment extends IDeployment {
+  network: string
 }
 
 interface IClearSigningProposal {
@@ -33,7 +45,7 @@ interface IClearSigningProposal {
   formats: Record<string, Json>
 }
 
-interface ILedgerDisplay {
+export interface ILedgerDisplay {
   formats?: Record<string, Json>
   // ERC-7730 also allows `definitions`, `screens`, etc. — preserve via [k: string]
   [k: string]: unknown
@@ -44,7 +56,7 @@ interface ILedgerRegistryFile {
   context?: {
     $id?: string
     contract?: {
-      deployments?: Array<{ chainId: number; address: string }>
+      deployments?: IDeployment[]
       // [Deprecated] Present in older registry files; stripped on every sync.
       abi?: unknown[]
     }
@@ -93,50 +105,82 @@ function writePrettyJson(filePath: string, data: unknown): void {
 // that omits `fields` may legally inherit them from a file the registry pulls in
 // via the top-level `includes` key, so it renders fine and is not ours to drop.
 function isResidualTitleOnlyEntry(formatKey: string, entry: unknown): boolean {
-  const parenIndex = formatKey.indexOf('(')
-  const functionName =
-    parenIndex === -1 ? formatKey : formatKey.slice(0, parenIndex)
-  if (!/(Packed|Min)$/u.test(functionName)) return false
+  if (!/(Packed|Min)$/u.test(functionNameOf(formatKey))) return false
   if (!isObject(entry)) return false
   return Array.isArray(entry.fields) && entry.fields.length === 0
 }
 
-// Merges `display.formats` entries from the local proposal into the registry's
-// existing display block.
-//
-// Rules:
-//  - Selectors present in the proposal: REPLACE in the registry. The proposal
-//    is the source of truth for our diamond's UX (CI-validated current).
-//  - Selectors present in the registry but not in the proposal: PRESERVE.
-//    These may be registry-only entries the EF working group adds, or stale
-//    entries for selectors we deprecated but older deployments still expose.
-//    The one exception is our own title-only `*Packed` / `*Min` residue — see
-//    `isResidualTitleOnlyEntry`.
-//  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
-//
-// Returns the next `display` object. Pass `proposalFilePath = null` to skip
-// merging (preserves the registry's display untouched).
-function mergeDisplayFormats(
-  existing: ILedgerDisplay | undefined,
-  proposalFilePath: string | null
-): ILedgerDisplay {
-  const next: ILedgerDisplay = { ...(existing ?? {}) }
-  if (!proposalFilePath) return next
+function functionNameOf(formatKey: string): string {
+  const parenIndex = formatKey.indexOf('(')
+  return parenIndex === -1 ? formatKey : formatKey.slice(0, parenIndex)
+}
 
+// LI.FI functions whose source is deleted but whose entries earlier syncs
+// pushed. The merge preserves unowned entries, so these stay unless named.
+//  - swapTokensGeneric (deprecated GenericSwapFacet): the entry labels
+//    `_minAmount`, but the only published diamond still routing the function
+//    (Mantle) names it `_minAmountOut`, so `erc7730 lint` rejects the whole
+//    descriptor, and no published chain renders the entry correctly.
+const RETIRED_LIFI_FUNCTIONS = new Set(['swapTokensGeneric'])
+
+function isRetiredLifiEntry(formatKey: string): boolean {
+  return RETIRED_LIFI_FUNCTIONS.has(functionNameOf(formatKey))
+}
+
+// Returns the proposal's `formats`, or none (with a warning) when the file is
+// missing or has no `formats` object.
+function readProposalFormats(
+  proposalFilePath: string
+): IClearSigningProposal['formats'] {
   const absPath = resolveWithinCwd(proposalFilePath)
   if (!fs.existsSync(absPath)) {
     console.warn(
-      `Proposal file not found at ${absPath}; preserving display.* unchanged.`
+      `Proposal file not found at ${absPath}; merging no proposal formats.`
     )
-    return next
+    return {}
   }
   const proposal = readJsonFile<IClearSigningProposal>(absPath)
   if (!proposal.formats || typeof proposal.formats !== 'object') {
     console.warn(
-      `Proposal at ${absPath} has no .formats object; preserving display.* unchanged.`
+      `Proposal at ${absPath} has no .formats object; merging no proposal formats.`
     )
-    return next
+    return {}
   }
+  return proposal.formats
+}
+
+/**
+ * Merges `display.formats` entries from the local proposal into the registry's
+ * existing display block.
+ *
+ * Rules:
+ *  - Selectors present in the proposal: REPLACE in the registry. The proposal
+ *    is the source of truth for our diamond's UX (CI-validated current).
+ *  - Selectors present in the registry but not in the proposal: PRESERVE.
+ *    These may be registry-only entries the EF working group adds, or stale
+ *    entries for selectors we deprecated but older deployments still expose.
+ *    The exceptions are our own title-only `*Packed` / `*Min` residue (see
+ *    `isResidualTitleOnlyEntry`) and entries for retired LI.FI functions (see
+ *    `RETIRED_LIFI_FUNCTIONS`), dropped even when no proposal is merged: the
+ *    registry lint rejects both.
+ *  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
+ *
+ * @param existing - The registry's current `display` block
+ * @param proposalFilePath - Proposal JSON path inside the working directory, or
+ *   `null` to skip the proposal merge
+ * @returns The next `display` object
+ * @throws If `proposalFilePath` resolves outside the working directory
+ */
+export function mergeDisplayFormats(
+  existing: ILedgerDisplay | undefined,
+  proposalFilePath: string | null
+): ILedgerDisplay {
+  const next: ILedgerDisplay = { ...(existing ?? {}) }
+  const proposalFormats = proposalFilePath
+    ? readProposalFormats(proposalFilePath)
+    : {}
+  if (!existing?.formats && Object.keys(proposalFormats).length === 0)
+    return next
 
   const existingFormats: Record<string, Json> =
     (existing?.formats as Record<string, Json> | undefined) ?? {}
@@ -144,38 +188,47 @@ function mergeDisplayFormats(
 
   let replaced = 0
   let added = 0
-  for (const [sig, entry] of Object.entries(proposal.formats)) {
+  for (const [sig, entry] of Object.entries(proposalFormats)) {
     if (sig in nextFormats) replaced++
     else added++
-    nextFormats[sig] = entry as Json
+    nextFormats[sig] = entry
   }
   const dropped: string[] = []
-  for (const [sig, entry] of Object.entries(nextFormats))
-    if (isResidualTitleOnlyEntry(sig, entry)) {
+  for (const [sig, entry] of Object.entries(nextFormats)) {
+    const retired = isRetiredLifiEntry(sig) && !(sig in proposalFormats)
+    if (retired || isResidualTitleOnlyEntry(sig, entry)) {
       delete nextFormats[sig]
       dropped.push(sig)
     }
+  }
 
   const preserved = Object.keys(nextFormats).filter(
-    (k) => !(k in proposal.formats)
+    (k) => !(k in proposalFormats)
   ).length
 
   console.log(
-    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${dropped.length} dropped (title-only Packed/Min residue)`
+    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${dropped.length} dropped (title-only Packed/Min residue, retired LI.FI functions)`
   )
   for (const sig of dropped) console.log(`  dropped: ${sig}`)
   next.formats = nextFormats
   return next
 }
 
-function buildDeploymentsFromRepo(
+/**
+ * Lists the LiFiDiamond deployment of every active mainnet network that is not
+ * a zkEVM chain: the set the registry descriptor can carry.
+ * @param deploymentsDir - Directory of per-network deployment logs
+ * @param networksJsonPath - Path to `config/networks.json`
+ * @returns One deployment per chain ID, sorted by chain ID
+ */
+export function buildDeploymentsFromRepo(
   deploymentsDir: string,
   networksJsonPath: string
-): Array<{ chainId: number; address: string }> {
+): IRepoDeployment[] {
   const networks =
     readJsonFile<Record<string, INetworkConfig>>(networksJsonPath)
 
-  const entries: Array<{ chainId: number; address: string }> = []
+  const entries: IRepoDeployment[] = []
   const files = fs
     .readdirSync(deploymentsDir)
     .filter((f) => f.endsWith('.json'))
@@ -188,6 +241,10 @@ function buildDeploymentsFromRepo(
     // Catches networks marked inactive whose deployment files are still present
     if (cfg.status && cfg.status !== 'active') continue
 
+    // The registry lints with `--require-verified`, which Sourcify can never
+    // satisfy for zksolc bytecode, and testnet diamonds do not belong in it.
+    if (cfg.type === 'testnet' || cfg.isZkEVM) continue
+
     const deploymentPath = path.resolve(deploymentsDir, file)
     const data = readJsonFile<Record<string, unknown>>(deploymentPath)
 
@@ -195,16 +252,124 @@ function buildDeploymentsFromRepo(
     if (typeof diamondAddr !== 'string') continue
     if (!diamondAddr.startsWith('0x') || diamondAddr.length !== 42) continue
 
-    entries.push({ chainId: cfg.chainId, address: diamondAddr })
+    entries.push({
+      network: networkName,
+      chainId: cfg.chainId,
+      address: diamondAddr,
+    })
   }
 
   // de-dupe by chainId (prefer last-read file in case of duplicates)
-  const byChainId = new Map<number, string>()
-  for (const e of entries) byChainId.set(e.chainId, e.address)
+  const byChainId = new Map<number, IRepoDeployment>()
+  for (const e of entries) byChainId.set(e.chainId, e)
 
-  return Array.from(byChainId.entries())
-    .map(([chainId, address]) => ({ chainId, address }))
-    .sort((a, b) => a.chainId - b.chainId)
+  return Array.from(byChainId.values()).sort((a, b) => a.chainId - b.chainId)
+}
+
+// The titles `erc7730 lint --require-verified` gives a deployment Sourcify does
+// not verify (the diamond, or any facet behind it) or a chain it does not
+// support (python-erc7730, `lint/v2/lint_validate_display_fields.py`). Only
+// these drop a deployment. Every other lint error fails the run, including
+// "Could not fetch ABI", which is how a rate limit or Sourcify outage surfaces:
+// reading it as "unverified" would propose removing a live chain.
+const LINT_UNVERIFIED_TITLES = new Set([
+  'Contract not verified',
+  'Proxy implementation not verified',
+  'Chain not supported',
+])
+
+interface ILintError {
+  title: string
+  message: string
+}
+
+// Parses the `::error file=…,title=…::message` lines of `erc7730 lint --gha`.
+function parseLintErrors(lintOutput: string): ILintError[] {
+  const errors: ILintError[] = []
+  for (const line of lintOutput.split('\n')) {
+    const match = /^::error (?<params>.*?)::(?<message>.*)$/u.exec(line.trim())
+    if (!match?.groups) continue
+    const title = /(?:^|,)title=(?<title>[^,]*)$/u.exec(
+      match.groups.params ?? ''
+    )
+    errors.push({
+      title: title?.groups?.title ?? '',
+      message: (match.groups.message ?? '').replace(/%0A/gu, '\n'),
+    })
+  }
+  return errors
+}
+
+/**
+ * Leaves out the deployments a lint of this descriptor, run with every
+ * deployment in it, reports as not verifiable on Sourcify. Logs each one with
+ * the lint's reason, which names the contract to verify to bring it back.
+ * @param deployments - Every deployment the descriptor was linted with
+ * @param lintOutput - Output of `erc7730 lint --require-verified --gha`
+ * @returns The deployments the lint did not report, in input order
+ * @throws If the output has no errors, has any error other than the
+ *   `LINT_UNVERIFIED_TITLES`, or names a chain none of `deployments` is on
+ */
+export function excludeLintUnverified(
+  deployments: IRepoDeployment[],
+  lintOutput: string
+): IDeployment[] {
+  const errors = parseLintErrors(lintOutput)
+  if (errors.length === 0)
+    throw new Error(
+      'erc7730 lint exited non-zero without any `::error` annotations; see its output above.'
+    )
+
+  const other = errors.filter((e) => !LINT_UNVERIFIED_TITLES.has(e.title))
+  if (other.length > 0)
+    throw new Error(
+      `erc7730 lint reported errors that Sourcify verification does not explain, so no deployment is dropped:\n${other
+        .map((e) => `  ${e.title || '(no title)'}: ${e.message}`)
+        .join('\n')}`
+    )
+
+  const reasons = new Map<number, string>()
+  for (const e of errors) {
+    const chainId = Number(/\bchain (?<id>\d+)\b/u.exec(e.message)?.groups?.id)
+    if (!deployments.some((d) => d.chainId === chainId))
+      throw new Error(
+        `erc7730 lint reported "${e.title}" for no deployment in this descriptor: ${e.message}`
+      )
+    reasons.set(chainId, `${e.title}: ${e.message}`)
+  }
+
+  const kept: IDeployment[] = []
+  for (const d of deployments) {
+    const reason = reasons.get(d.chainId)
+    if (reason === undefined)
+      kept.push({ chainId: d.chainId, address: d.address })
+    else
+      console.warn(
+        `Excluding ${d.network} (${d.chainId}) ${d.address}: ${reason}`
+      )
+  }
+  console.log(
+    `Sourcify: ${kept.length}/${deployments.length} deployments fully verified`
+  )
+  return kept
+}
+
+function resolveDeployments(
+  deploymentsDir: string,
+  networksJson: string,
+  lintOutputFilePath: string | undefined
+): IDeployment[] {
+  const deployments = buildDeploymentsFromRepo(
+    resolveWithinCwd(deploymentsDir),
+    resolveWithinCwd(networksJson)
+  )
+  if (!lintOutputFilePath)
+    return deployments.map(({ chainId, address }) => ({ chainId, address }))
+  const lintOutput = fs.readFileSync(
+    resolveWithinCwd(lintOutputFilePath),
+    'utf8'
+  )
+  return excludeLintUnverified(deployments, lintOutput)
 }
 
 function normalizeLedgerFile(input: unknown): ILedgerRegistryFile {
@@ -239,12 +404,12 @@ function safeLogEmptyLine(): void {
 
 function diffLedgerVsLocalDeployments(params: {
   ledger: ILedgerRegistryFile
-  localDeployments: Array<{ chainId: number; address: string }>
+  localDeployments: IDeployment[]
 }): {
   ledgerCount: number
   localCount: number
-  added: Array<{ chainId: number; address: string }>
-  removed: Array<{ chainId: number; address: string }>
+  added: IDeployment[]
+  removed: IDeployment[]
   changed: Array<{ chainId: number; from: string; to: string }>
 } {
   const ledgerDeployments = params.ledger.context?.contract?.deployments ?? []
@@ -257,8 +422,8 @@ function diffLedgerVsLocalDeployments(params: {
   for (const d of params.localDeployments)
     localByChainId.set(d.chainId, normalizeAddress(d.address))
 
-  const added: Array<{ chainId: number; address: string }> = []
-  const removed: Array<{ chainId: number; address: string }> = []
+  const added: IDeployment[] = []
+  const removed: IDeployment[] = []
   const changed: Array<{ chainId: number; from: string; to: string }> = []
 
   for (const [chainId, addr] of localByChainId.entries()) {
@@ -290,7 +455,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo, strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains and, with --lintOutputFilePath, the deployments that lint reports as not verified on Sourcify), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {
@@ -332,7 +497,7 @@ const main = defineCommand({
     skipDisplayMerge: {
       type: 'boolean',
       description:
-        'Do not merge display.formats from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
+        'Do not merge display.formats from the proposal file (title-only Packed/Min residue and retired LI.FI entries are still dropped). Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
     },
     printDiff: {
       type: 'boolean',
@@ -343,6 +508,11 @@ const main = defineCommand({
       type: 'boolean',
       description:
         'Only compute/print diffs (and/or derived counts); do not write any output file.',
+    },
+    lintOutputFilePath: {
+      type: 'string',
+      description:
+        'Output of `erc7730 lint --require-verified --gha` run on this descriptor with every deployment in it. Deployments it reports as not verified on Sourcify, or on a chain Sourcify does not support, are left out; any other lint error fails the run.',
     },
   },
   async run({ args }) {
@@ -373,9 +543,10 @@ const main = defineCommand({
 
     const nextDeployments = skipDeployments
       ? undefined
-      : buildDeploymentsFromRepo(
-          resolveWithinCwd(deploymentsDir),
-          resolveWithinCwd(networksJson)
+      : resolveDeployments(
+          deploymentsDir,
+          networksJson,
+          args.lintOutputFilePath
         )
 
     if (printDiff && nextDeployments) {
@@ -432,8 +603,9 @@ const main = defineCommand({
     //  - selectors removed from our diamond (in registry but not in proposal):
     //    preserve. Some older deployments may still expose them; dropping the
     //    entry would break clear-signing for those signers. Dead entries are
-    //    a cheap cost. The exception is title-only `*Packed` / `*Min` residue we
-    //    pushed ourselves, which the registry rejects (`isResidualTitleOnlyEntry`).
+    //    a cheap cost. The exceptions are title-only `*Packed` / `*Min` residue we
+    //    pushed ourselves (`isResidualTitleOnlyEntry`) and entries for retired
+    //    LI.FI functions (`RETIRED_LIFI_FUNCTIONS`), which the registry rejects.
     //
     // Other `display.*` keys (definitions, screens, etc.) are preserved verbatim.
     const nextDisplay = mergeDisplayFormats(
@@ -476,4 +648,4 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

@@ -22,14 +22,16 @@ const CODEHASH: ICheckDefinition = {
   checkId: 'codehash',
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Deployed codehash matches the attested build',
+  gate: 'X',
+  title: 'Deployed codehash',
 }
 
 const TARGET_STATE: ICheckDefinition = {
   checkId: 'target-state',
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'Y',
+  title: 'Facet version',
 }
 
 const ledgerOf = (
@@ -119,6 +121,18 @@ describe('recordCheck', () => {
       expect(stored.status).toBe('error')
       expect(stored.detail).toMatch(/cannot decide a pass/)
     }
+  })
+
+  it('refuses to let an assumed correspondence produce a pass', () => {
+    // Every value behind `A-ASSUMED` came from a source that decides. What is
+    // assumed is which value answers for which name, so what the values agree
+    // with is not established either, and a pass would claim it was.
+    const ledger = ledgerOf(['mainnet'])
+
+    const stored = recordCheck(ledger, result({ anchor: 'A-ASSUMED' }))
+
+    expect(stored.status).toBe('error')
+    expect(stored.detail).toMatch(/cannot decide a pass/)
   })
 
   it('leaves a non-pass from a non-authoritative anchor as recorded', () => {
@@ -320,6 +334,7 @@ describe('summariseLedger', () => {
       error: 0,
       needsAck: 0,
       missing: 1,
+      notApplicable: 0,
     })
   })
 })
@@ -547,6 +562,7 @@ describe('buildReviewAttestation', () => {
         checkId: 'codehash',
         checkClass: 'integrity',
         expected: 2,
+        notApplicable: 0,
         passed: 1,
         failed: 1,
         needsAck: 0,
@@ -857,6 +873,7 @@ describe('a result that reached the log without recordCheck', () => {
       error: 0,
       needsAck: 0,
       missing: 0,
+      notApplicable: 0,
     })
   })
 
@@ -1038,5 +1055,274 @@ describe('nothing that would soften the verdict may erase a mismatch', () => {
 
     expect(rollup?.errored).toBe(1)
     expect(rollup?.unverified).toBe(1)
+  })
+})
+
+describe('a network that had nothing to grade', () => {
+  /**
+   * The row `confirm-safe-tx.ts` writes for a network it positively established
+   * carries no proposal for this signer — a pending proposal the signer has
+   * already signed is the case that produced it in production.
+   */
+  const nothingToGrade = (network: string): Partial<ICheckResult> => ({
+    network,
+    status: 'not-applicable',
+    expected: 'every proposal this run would sign graded before signing',
+    actual: `no proposal was graded on ${network} — nothing actionable was left once the network was prepared`,
+    anchor: 'A-LOCAL',
+  })
+
+  it('is recorded as its own state, not as a pass', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    expect(ledger.results.map((entry) => entry.status)).toEqual([
+      'not-applicable',
+    ])
+  })
+
+  it('satisfies no verified counter', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.notApplicable).toBe(1)
+    // The denominator the verified count is measured against, so `0/0` is what
+    // a vacuous check reads as rather than a full house.
+    expect(rollup?.graded).toBe(0)
+    expect(rollup?.green).toBe(false)
+  })
+
+  it('leaves the run unblocked while saying nothing was verified', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const verdict = summariseLedger(ledger)
+
+    // Unblocked because nothing was wrong, and `nothingGraded` because nothing
+    // was right either: the two facts a single boolean cannot carry.
+    expect(verdict.hardBlocked).toBe(false)
+    expect(verdict.nothingGraded).toBe(true)
+    expect(verdict.totals.pass).toBe(0)
+    expect(verdict.totals.notApplicable).toBe(1)
+    expect(verdict.requiresAcknowledgement).toHaveLength(0)
+  })
+
+  it('does not suppress the verdict of a run that did grade something', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result({ network: 'polygon' }))
+
+    const verdict = summariseLedger(ledger)
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(verdict.nothingGraded).toBe(false)
+    expect(verdict.totals.pass).toBe(2)
+    expect(verdict.totals.notApplicable).toBe(0)
+    expect(rollup?.graded).toBe(2)
+    expect(rollup?.green).toBe(true)
+  })
+
+  it('measures the graded networks against themselves, not against the fleet', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result(nothingToGrade('polygon')))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(1)
+    expect(rollup?.graded).toBe(1)
+    expect(rollup?.notApplicable).toBe(1)
+    // Still the declared denominator, so the shrink is recoverable from the
+    // rollup rather than lost.
+    expect(rollup?.expected).toBe(2)
+    expect(rollup?.green).toBe(true)
+    expect(summariseLedger(ledger).nothingGraded).toBe(false)
+  })
+
+  it('never erases a mismatch the same network already recorded', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.failed).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.nothingGraded).toBe(false)
+  })
+
+  it('never erases a result the same network could not grade', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(
+      ledger,
+      result({ status: 'error', actual: 'unread', detail: 'rpc down' })
+    )
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.errored).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.totals.error).toBe(1)
+  })
+
+  it('never erases an acknowledgement the same network is owed', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'needs-ack' })
+    )
+    recordCheck(
+      ledger,
+      result({ ...nothingToGrade('mainnet'), checkId: 'target-state' })
+    )
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.needsAck).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.requiresAcknowledgement).toHaveLength(1)
+    expect(verdict.nothingGraded).toBe(false)
+  })
+
+  it('is itself superseded by a result that did grade the network', () => {
+    // The paired positive: the guard protects what was graded, so it must not
+    // freeze a network the run went on to reach.
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+    recordCheck(ledger, result({ status: 'pass' }))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(rollup?.green).toBe(true)
+  })
+
+  it('is recorded in the attestation as a check that went ungraded', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [attested] = buildReviewAttestation(ledger, {
+      reviewer: '0xsigner',
+      reviewedAt: '2026-09-13T00:00:00.000Z',
+    }).checks
+
+    expect(attested?.passed).toBe(0)
+    expect(attested?.notApplicable).toBe(1)
+    expect(attested?.green).toBe(false)
+  })
+})
+
+describe('undecidableIsAcknowledgeable', () => {
+  // A gate that reads live state against an expectation the proposer writes can
+  // neither decide a green nor honestly refuse: the operator has no way to make
+  // a record-sourced expectation into a repo-sourced one. The opt-in gives that
+  // one case a signer to answer it, and nothing else.
+  const AUTHORITIES: ICheckDefinition = {
+    checkId: 'storage-authority',
+    section: 'Deployed state',
+    checkClass: 'integrity',
+    gate: 'Z',
+    title: 'Storage authorities',
+    undecidableIsAcknowledgeable: true,
+  }
+
+  const row = (over: Partial<ICheckResult> = {}): ICheckResult => ({
+    checkId: 'storage-authority',
+    network: 'mainnet',
+    status: 'needs-ack',
+    expected: 'the address main declares',
+    actual: 'the address main declares',
+    anchor: 'A-MONGO',
+    ...over,
+  })
+
+  const verdictOf = (
+    definition: ICheckDefinition,
+    over: Partial<ICheckResult> = {}
+  ) => {
+    const ledger = ledgerOf(['mainnet'], [definition])
+    recordCheck(ledger, row(over))
+    return summariseLedger(ledger)
+  }
+
+  it('keeps needs-ack on an integrity check whose anchor only reports', () => {
+    const ledger = ledgerOf(['mainnet'], [AUTHORITIES])
+
+    expect(recordCheck(ledger, row()).status).toBe('needs-ack')
+
+    const verdict = verdictOf(AUTHORITIES)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(verdict.requiresAcknowledgement).toHaveLength(1)
+  })
+
+  it('does nothing without the flag', () => {
+    const { undecidableIsAcknowledgeable: _optIn, ...plain } = AUTHORITIES
+
+    expect(verdictOf(plain).hardBlocked).toBe(true)
+  })
+
+  it('refuses the exemption on A-UNRESOLVED, where nothing answered', () => {
+    const ledger = ledgerOf(['mainnet'], [AUTHORITIES])
+
+    expect(recordCheck(ledger, row({ anchor: 'A-UNRESOLVED' })).status).toBe(
+      'fail'
+    )
+    expect(verdictOf(AUTHORITIES, { anchor: 'A-UNRESOLVED' }).hardBlocked).toBe(
+      true
+    )
+  })
+
+  it('refuses the exemption on an anchor that could have decided', () => {
+    // `A-LOCAL` can grade a pass, so a `needs-ack` on it is not an undecidable
+    // expectation — it is an integrity check asking to be clicked through.
+    expect(verdictOf(AUTHORITIES, { anchor: 'A-LOCAL' }).hardBlocked).toBe(true)
+  })
+
+  it('leaves a real mismatch hard-blocking, on the same anchor', () => {
+    const verdict = verdictOf(AUTHORITIES, {
+      status: 'fail',
+      actual: '0xattacker',
+    })
+
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.requiresAcknowledgement).toHaveLength(0)
+  })
+
+  it('is not what reclassifying the check as semantic would do', () => {
+    // The measured false green this flag exists to avoid: `semantic` sends the
+    // mismatch to acknowledgement too, turning a storage-authority swap into a
+    // prompt.
+    const asSemantic = verdictOf(
+      { ...AUTHORITIES, checkClass: 'semantic' },
+      { status: 'fail', actual: '0xattacker' }
+    )
+
+    expect(asSemantic.hardBlocked).toBe(false)
+    expect(asSemantic.requiresAcknowledgement).toHaveLength(1)
+  })
+
+  it('moves the ledger digest, so it cannot be added off the record', () => {
+    const { undecidableIsAcknowledgeable: _optIn, ...plain } = AUTHORITIES
+    const attest = (definition: ICheckDefinition) => {
+      const ledger = ledgerOf(['mainnet'], [definition])
+      recordCheck(ledger, row({ status: 'pass', anchor: 'A-CHAIN' }))
+      return buildReviewAttestation(ledger, {
+        reviewer: 'signer-1',
+        reviewedAt: '2026-09-13T00:00:00.000Z',
+      }).ledgerDigest
+    }
+
+    expect(attest(AUTHORITIES)).not.toBe(attest(plain))
   })
 })

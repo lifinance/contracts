@@ -35,7 +35,10 @@
   "hyperevm": {
     "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
+  "arc": {
+    "portal": "0xEC002CA16cE20c2a9F3C6200EF04E7d92a3dfBD8"
+  },
   "tron": {
-    "portal": "TBhZw2sb5DuqGXf3PcxMKDaqxtoZVUUtR7"
+    "portal": "TT6jKgnBXoj7vZ7m2Yioq5mxTfrDpgir44"
   }
 }

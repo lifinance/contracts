@@ -2,6 +2,10 @@
  * Reduces a git remote URL to the repository identity a deployment record
  * stores. Import it wherever a record is written or a recorded repository is
  * compared; the shapes git accepts for one repository are not comparable as-is.
+ *
+ * The gates that read a comparison point out of `origin` decide on the same
+ * identity, through {@link isTrustedRemote} — one parser, so hardening it
+ * hardens every caller at once.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -147,9 +151,13 @@ export const normalizeRepoUrl = (remoteUrl: string): string => {
 
   // A trailing dot is the same host; left alone it splits the identity in two.
   const host = parsed.host.toLowerCase().replace(/\.$/, '')
+  // Both spellings git clones from have to land on the same identity, and each
+  // strip can expose what the other was meant to remove: `…/contracts.git/`
+  // hides the suffix behind a slash, `…/contracts/.git` leaves one behind.
   const path = parsed.path
-    .replace(/\.git$/i, '')
     .replace(/^\/+|\/+$/g, '')
+    .replace(/\.git$/i, '')
+    .replace(/\/+$/, '')
     .toLowerCase()
 
   const identity = `${HOST_ALIASES.get(host) ?? host}/${path}`
@@ -166,4 +174,56 @@ export const normalizeRepoUrl = (remoteUrl: string): string => {
 export const readRepoIdentity = (runGit: GitRunner = defaultRunner): string => {
   const remoteUrl = runGit(['remote', 'get-url', 'origin'])
   return remoteUrl === undefined ? REPO_UNKNOWN : normalizeRepoUrl(remoteUrl)
+}
+
+/**
+ * Repository identities the signing and deploy gates compare a remote against.
+ *
+ * Tron cut proposals are run from the fork rather than from this repo (see
+ * `docs/TronFork.md`), so the deploy gate has to admit it; the target-state
+ * anchor does not, and passes only {@link REPO_CONTRACTS}.
+ */
+export const REPO_CONTRACTS = 'github.com/lifinance/contracts'
+export const REPO_CONTRACTS_TRON = 'github.com/lifinance/contracts-tron'
+
+/**
+ * Schemes a gate may read a remote over.
+ *
+ * Narrower than {@link ALLOWED_SCHEMES}, which says what git can fetch over:
+ * a cleartext remote carries no evidence that what came back is what the
+ * repository holds, and the commit a gate compares against arrives over it.
+ */
+const AUTHENTICATED_SCHEMES = new Set(['https', 'ssh'])
+
+/**
+ * Whether a remote names a repository a gate may take its comparison point from.
+ *
+ * `origin` is whatever the clone happens to point at, so a ref alone does not
+ * establish where its content came from: against a fork remote a proposer can
+ * author the very state the gate grades them against.
+ *
+ * What this settles is the URL, not the transport. A gate runs on the
+ * proposer's own machine, where `GIT_SSH_COMMAND` or a `git` earlier on `PATH`
+ * reaches a different repository while `git remote get-url` still reports this
+ * one — so read a `true` as "the clone is not pointed somewhere else", never as
+ * proof of what the fetch returned.
+ * @param remoteUrl - output of `git remote get-url origin`
+ * @param allowedRepos - identities as {@link normalizeRepoUrl} returns them
+ * @returns `true` only for an authenticated scheme naming one of those repositories
+ */
+export const isTrustedRemote = (
+  remoteUrl: string,
+  allowedRepos: readonly string[]
+): boolean => {
+  const trimmed = remoteUrl.trim()
+  const schemeEnd = trimmed.indexOf('://')
+  // No scheme is the scp-style form, which git fetches over ssh.
+  if (
+    schemeEnd !== -1 &&
+    !AUTHENTICATED_SCHEMES.has(trimmed.slice(0, schemeEnd).toLowerCase())
+  )
+    return false
+
+  const identity = normalizeRepoUrl(trimmed)
+  return identity !== REPO_UNKNOWN && allowedRepos.includes(identity)
 }

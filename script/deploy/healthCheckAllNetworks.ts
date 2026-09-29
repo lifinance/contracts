@@ -14,6 +14,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { INetwork } from '../common/types'
+import { isEntrypoint } from '../utils/is-entrypoint'
 import { mapWithConcurrency } from '../utils/mapWithConcurrency'
 import { redactUrls } from '../utils/redactUrls'
 import { getAllActiveNetworks } from '../utils/viemScriptHelpers'
@@ -529,4 +530,4 @@ const main = defineCommand({
 })
 
 // Guard so importing this module (e.g. from tests, for the pure helpers) does not execute the CLI.
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

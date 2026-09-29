@@ -9,8 +9,8 @@
 
 # Load required dependencies
 source script/helperFunctions.sh
-# EVM-version grouping + foundry.toml management (getNetworkEvmVersion,
-# getNetworkGroup, groupNetworksByExecutionGroup, updateFoundryTomlForGroup, ...)
+# EVM-version grouping + group build selection (getNetworkEvmVersion,
+# getNetworkGroup, groupNetworksByExecutionGroup, prepareGroupBuild, ...)
 source script/deploy/resources/deployGroupingHelpers.sh
 source script/tasks/diamondUpdateFacet.sh
 source script/tasks/diamondUpdatePeriphery.sh

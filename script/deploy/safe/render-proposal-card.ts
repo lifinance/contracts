@@ -18,6 +18,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
 import { renderProposalCard } from './proposal-card'
 import { selectProposals } from './proposal-selection'
 import type { SafeTxStatus } from './safe-utils'
@@ -72,6 +73,7 @@ const main = defineCommand({
   async run({ args }) {
     if (!process.env.SC_MONGODB_URI)
       throw new Error('SC_MONGODB_URI environment variable is required')
+    assertStoreCredentialsAreEncrypted(process.env.SC_MONGODB_URI)
 
     // Deduped: a repeated name would count twice, print the same review
     // command twice, and silence the shortfall check by matching the row count.

@@ -696,7 +696,7 @@ describe('install_foundry_zksync is the chokepoint every zk build passes', () =>
 })
 
 describe('the ungated forge build sites', () => {
-  it('refuses the per-group build before foundry.toml is rewritten', () => {
+  it('refuses the per-group build before selecting a profile or building', () => {
     const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
     writeStub(
       join(farm.root, 'bin', 'forge'),
@@ -709,7 +709,7 @@ describe('the ungated forge build sites', () => {
     const output = runInFarm(farm, [
       `source script/helperFunctions.sh >/dev/null 2>&1`,
       `source script/deploy/resources/deployGroupingHelpers.sh`,
-      `updateFoundryTomlForGroup "$GROUP_LONDON" true`,
+      `prepareGroupBuild "$GROUP_LONDON" true`,
       `echo "GROUP_RC=$?"`,
     ])
 
@@ -718,19 +718,17 @@ describe('the ungated forge build sites', () => {
     expect(farm.argv().some((argv) => argv.startsWith('forge build'))).toBe(
       false
     )
-    // A refusal that had already rewritten the profile would leave the checkout pointed at
-    // a group whose build never ran.
     expect(farm.foundryToml()).toBe(before)
   })
 
-  it('rewrites foundry.toml and builds once the forge matches', () => {
+  it('builds once the forge matches, without touching foundry.toml', () => {
     const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
     const before = farm.foundryToml()
 
     const output = runInFarm(farm, [
       `source script/helperFunctions.sh >/dev/null 2>&1`,
       `source script/deploy/resources/deployGroupingHelpers.sh`,
-      `updateFoundryTomlForGroup "$GROUP_LONDON" true`,
+      `prepareGroupBuild "$GROUP_LONDON" true`,
       `echo "GROUP_RC=$?"`,
     ])
 
@@ -738,11 +736,13 @@ describe('the ungated forge build sites', () => {
     expect(farm.argv().some((argv) => argv.startsWith('forge build'))).toBe(
       true
     )
-    expect(farm.foundryToml()).not.toBe(before)
+    // The production tree-reproducibility guard refuses a deploy over a modified
+    // foundry.toml, so the profile has to be selected through the environment.
+    expect(farm.foundryToml()).toBe(before)
   })
 
   it('leaves the tolerant group path tolerant, as #2325 decided', () => {
-    // updateFoundryTomlForGroup's default mode swallows build failures for the
+    // prepareGroupBuild's default mode swallows build failures for the
     // playground runner, and multiNetworkExecution.sh's two callers rely on that
     // return contract. Refusing here would abort a whole multi-network group on a
     // mismatch the per-network gate in deploySingleContract refuses anyway, which is
@@ -758,7 +758,7 @@ describe('the ungated forge build sites', () => {
     const output = runInFarm(farm, [
       `source script/helperFunctions.sh >/dev/null 2>&1`,
       `source script/deploy/resources/deployGroupingHelpers.sh`,
-      `updateFoundryTomlForGroup "$GROUP_LONDON"`,
+      `prepareGroupBuild "$GROUP_LONDON"`,
       `echo "GROUP_RC=$?"`,
     ])
 

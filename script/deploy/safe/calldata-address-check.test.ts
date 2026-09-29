@@ -26,9 +26,9 @@ import {
   AddressGradeEnum,
   AddressRoleEnum,
   DeploymentIndexSourceEnum,
-  assertCalldataAddressesResolve,
   evaluateCalldataAddresses,
   renderCalldataAddresses,
+  REPORT_ONLY_HEADING,
   type IAddressReference,
   type IDeploymentIndex,
   type IDeploymentIndexEntry,
@@ -137,6 +137,8 @@ const recordIndex = (
   entries,
 })
 
+const ZERO = '0x0000000000000000000000000000000000000000'
+
 const facetAdd = (
   address: string,
   path = 'call[0].cuts[0]'
@@ -148,7 +150,7 @@ const facetAdd = (
 
 /** `registerPeripheryContract(name, address(0))` — the deregistration call. */
 const unregister = (registeredName: string): IAddressReference => ({
-  address: '0x0000000000000000000000000000000000000000',
+  address: ZERO,
   role: AddressRoleEnum.PeripheryRegistration,
   path: 'call[0].registerPeripheryContract[0]',
   registeredName,
@@ -190,7 +192,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
       AddressGradeEnum.Resolved,
       AddressGradeEnum.Resolved,
     ])
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 
   it('refuses an address the record holds nowhere', () => {
@@ -212,9 +213,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.refuses).toBe(true)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Unknown)
     expect(verdict.reason).toContain('no deployment record on any network')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('refuses a real address deployed on another network', () => {
@@ -273,9 +271,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.errors.join(' ')).toContain('reported and not verified')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('reports rather than verifies the identity of a removal target', () => {
@@ -300,7 +295,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.error).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.warnings.join(' ')).toContain('reported and not verified')
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 })
 
@@ -418,9 +412,6 @@ describe('the expectations map is checked before it is trusted', () => {
     expect(verdict.errors.join(' ')).toContain(
       'keyed with "CBridgeFacet", which is not a 20-byte hex address'
     )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('errors when two keys for one address disagree about its identity', () => {
@@ -465,9 +456,6 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.error).toBe(true)
     expect(verdict.refuses).toBe(false)
     expect(verdict.errors.join(' ')).toContain('merges to main only after')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('will not decide on the deployment-log export, which omits recent contracts', () => {
@@ -512,9 +500,6 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.error).toBe(true)
     expect(verdict.errors.join(' ')).toContain(
       '"attested-build-index" is not a source this check has a provenance argument for'
-    )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
     )
   })
 
@@ -614,9 +599,6 @@ describe('a question that cannot be answered is not answered yes', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.errors.join(' ')).toContain('timed out')
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('errors on an address the store was never asked about, rather than calling it unknown', () => {
@@ -649,7 +631,6 @@ describe('a question that cannot be answered is not answered yes', () => {
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
     expect(verdict.error).toBe(true)
     expect(verdict.errors.join(' ')).toContain('may reference others')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow()
   })
 
   it('refuses a value that is not an address instead of skipping it', () => {
@@ -882,7 +863,6 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.errors).toHaveLength(0)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
     expect(verdict.warnings.join(' ')).toContain('never looked up')
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 
   it('errors on a role it has no refusal policy for, rather than warning', () => {
@@ -907,9 +887,6 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.warnings).toHaveLength(0)
     expect(verdict.errors.join(' ')).toContain(
       'is in role "timelock-admin-grant", which this check has no refusal policy for'
-    )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
     )
   })
 
@@ -971,8 +948,127 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('1 of 1')
+    expect(lines).toHaveLength(4)
+    expect(lines[1]).toContain(REPORT_ONLY_HEADING)
+    // The address and what it had to be, above the tally that counts it. A
+    // signer comparing one address against the proposal has nothing to read a
+    // count against.
+    expect(lines[2]).toContain(MAINNET_ONLY_FACET)
+    expect(lines[2]).toContain('CBridgeFacet@1.0.0')
+    expect(lines[2]).toContain('call[0].cuts[0]')
+    expect(lines[3]).toContain('1 of 1')
+  })
+
+  // A tally over a proposal that installs several facets says how many were
+  // looked up and names none of them, so the one thing a signer can act on —
+  // is *this* address the contract it claims — is the one thing it withholds.
+  it('names every address it resolved, not only how many', () => {
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]'),
+            facetAdd(FLEET_WIDE_FACET, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations(
+            [MAINNET_ONLY_FACET, { contractName: 'CBridgeFacet' }],
+            [FLEET_WIDE_FACET, { contractName: 'DexManagerFacet' }]
+          ),
+        },
+        recordIndex([MAINNET_ONLY_FACET, FLEET_WIDE_FACET])
+      )
+    ).join('\n')
+
+    for (const address of [MAINNET_ONLY_FACET, FLEET_WIDE_FACET])
+      expect(plain).toContain(address)
+    expect(plain).toContain('call[0].cuts[0]')
+    expect(plain).toContain('call[0].cuts[1]')
+    expect(plain).toContain('2 of 2')
+  })
+
+  // The addresses a clean verdict never looked up are the ones whose line the
+  // summary cannot carry: it says every one was a legal zero, and which call
+  // slot each sat in is what says the cut removes what it claims to.
+  it('names each address it deliberately did not look up', () => {
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            {
+              address: ZERO,
+              role: AddressRoleEnum.CutInit,
+              path: 'call[0]._init',
+            },
+          ],
+        },
+        recordIndex([])
+      )
+    ).join('\n')
+
+    expect(plain).toContain('call[0].cuts[0] is the zero address')
+    expect(plain).toContain('call[0]._init is the zero address')
+    expect(plain).toContain('facet-remove')
+    expect(plain).toContain('cut-init')
+  })
+
+  // The mixed proposal, where naming only the refusal would leave the signer
+  // unable to tell an unchecked address from a checked one.
+  it('still names the addresses that resolved when another one refuses', () => {
+    // The same typo class the refusal cases above use: one hex digit changed,
+    // which the record holds no deployment for.
+    const typo = FLEET_WIDE_FACET.replace(/9$/, 'a')
+    expect(typo).not.toBe(FLEET_WIDE_FACET)
+    expect(
+      realProductionEntries.some(
+        (entry) => entry.address.toLowerCase() === typo.toLowerCase()
+      )
+    ).toBe(false)
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]'),
+            facetAdd(typo, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations([
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet' },
+          ]),
+        },
+        recordIndex([MAINNET_ONLY_FACET, typo])
+      )
+    ).join('\n')
+
+    expect(plain).toContain('REFUSED')
+    expect(plain).toContain(MAINNET_ONLY_FACET)
+    expect(plain).toContain('CBridgeFacet')
+  })
+
+  // Each grade reaches the page through exactly one path — `errors`,
+  // `warnings`, the refusal, or the per-address line — and a second line for
+  // the same finding would read as two findings about one address.
+  it('prints a finding once, however many paths could carry it', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]')],
+        },
+        recordIndex([MAINNET_ONLY_FACET])
+      )
+    )
+
+    expect(
+      lines.filter((line) => line.includes('call[0].cuts[0]'))
+    ).toHaveLength(1)
   })
 
   it('says nothing needed resolving rather than ticking zero of zero', () => {
@@ -983,10 +1079,15 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toMatch(
-      /^\S+ Calldata address check skipped: no call in this proposal references an address\.$/
+    expect(lines).toHaveLength(3)
+    // The claim is about the roles this check grades, not about the proposal
+    // carrying no address: a whitelist proposal carries one in every call and
+    // reaches here with no reference collected, and the wider sentence would
+    // put a tick over addresses nothing looked at.
+    expect(lines[2]).toMatch(
+      /^ {4}\S+ Calldata address check skipped: this proposal references no address in a role this check grades — a facet cut, a cut's `_init`, or a periphery registration\.$/
     )
+    expect(lines[2]).not.toContain('references an address.')
   })
 
   it('names the refused address and the record it contradicts', () => {
@@ -1000,6 +1101,9 @@ describe('renderCalldataAddresses', () => {
     expect(lines.join('\n')).toContain('REFUSED')
     expect(lines.join('\n')).toContain(MAINNET_ONLY_FACET)
     expect(lines.join('\n')).toContain('not on arbitrum')
+    // The path the heading is for: a `⛔` here is the same glyph gate K refuses
+    // with, and this one does not block, so the block has to say so above it.
+    expect(lines[1]).toContain(REPORT_ONLY_HEADING)
   })
 
   it('prints what an unregistration deletes, which no other grade would surface', () => {
@@ -1021,6 +1125,66 @@ describe('renderCalldataAddresses', () => {
     expect(lines.join('\n')).not.toContain('REFUSED')
   })
 
+  // What a facet removal is: a zero facet address and a zero `_init`, both
+  // legal, neither looked up. Counted in the denominator they produced
+  // "✓ 0 of 2 calldata addresses resolved to the deployment record" — a green
+  // tick on a verification that never happened, under a proposal that installs
+  // nothing to verify.
+  it('does not tally an address it never looked up', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            {
+              address: ZERO,
+              role: AddressRoleEnum.CutInit,
+              path: 'call[0]._init',
+            },
+          ],
+        },
+        recordIndex([])
+      )
+    )
+
+    expect(lines.join('\n')).not.toContain('0 of 2')
+    expect(lines.join('\n')).not.toContain('resolved to the deployment record')
+    expect(lines.join('\n')).toContain('no address in this proposal')
+  })
+
+  // The paired positive: the exclusion must not swallow a real lookup that sits
+  // beside a legal zero. A cut that removes one facet and installs another has
+  // one address to resolve, and the line has to say one.
+  it('still tallies the addresses it did look up beside a legal zero', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations([
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet', version: '1.0.0' },
+          ]),
+        },
+        recordIndex([MAINNET_ONLY_FACET])
+      )
+    )
+
+    expect(lines.join('\n')).toContain('1 of 1')
+  })
+
   it('distinguishes a check that could not run from one that passed', () => {
     const lines = renderCalldataAddresses(
       evaluateCalldataAddresses(
@@ -1037,6 +1201,10 @@ describe('renderCalldataAddresses', () => {
 
     expect(lines.join('\n')).toContain('CANNOT CHECK')
     expect(lines.join('\n')).not.toContain('resolved to the deployment record')
+    // Report-only, so never the red stop sign a blocking gate uses, and never
+    // an emoji, whose cell width differs per terminal.
+    expect(lines.join('\n')).not.toContain('\u26d4')
+    expect(lines.join('\n')).not.toContain('\u001b[31m')
   })
 })
 

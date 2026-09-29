@@ -1,6 +1,6 @@
 /**
  * Tron-specific deployment utilities: deployment recording,
- * health-check helpers (ownership, facet/whitelist verification), and on-chain cost helpers.
+ * health-check helpers (ownership), and on-chain cost helpers.
  * Generic deployment utilities (file I/O, environment, selectors) live in `../../utils/utils.ts`.
  */
 
@@ -14,7 +14,6 @@ import {
   getTronWebCodecOnlyForNetwork,
   loadForgeArtifact,
   tronAddressToHex,
-  tryTronFacetLoupeAddressToBase58,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
@@ -355,35 +354,6 @@ export async function estimateDiamondCutEnergy(
     // costs 720 TRX against a 5000 TRX limit and was refused.
     safetyMargin: DEFAULT_SAFETY_MARGIN,
   })
-}
-
-/**
- * Verify facet registration after diamondCut
- */
-export async function verifyFacetRegistration(
-  diamond: any,
-  facetAddress: string,
-  facetName: string,
-  tronWeb: any
-): Promise<boolean> {
-  consola.info('Verifying registration...')
-
-  const facetsResponse = await diamond.facets().call()
-  const facets = Array.isArray(facetsResponse[0])
-    ? facetsResponse[0]
-    : facetsResponse
-
-  for (const facet of facets) {
-    const facetBase58 = tryTronFacetLoupeAddressToBase58(tronWeb, facet[0])
-    if (facetBase58 === facetAddress) {
-      consola.success(
-        `${facetName} registered successfully with ${facet[1].length} functions`
-      )
-      return true
-    }
-  }
-
-  return false
 }
 
 /**

@@ -63,6 +63,7 @@ import {
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
 import { getDeployedFacetVersionFromLog } from './facet-version-utils'
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
 import { printableField } from './printable-field'
 import {
   firstSupplied,
@@ -78,9 +79,8 @@ import {
 import { getSignTimeTransportConfig } from './sign-time-transport'
 import {
   TIMELOCK_OPERATION_STATE_ABI,
-  TIMELOCK_ZERO_PREDECESSOR,
-  classifyTimelockOperation,
-  deriveTimelockSalt,
+  pickTimelockSaltWith,
+  type IPickTimelockSaltAction,
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
 
@@ -1745,7 +1745,7 @@ const NONCE_KEY_PATH = 'safeTx.data.nonce'
  * checksummed form, so one Safe has two spellings in this collection. Comparing
  * raw makes a nonce collision on Tron deterministic rather than merely possible.
  */
-const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
+export const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
 
 /** Which unique index rejected an insert, when one did. */
 export type DuplicateKeyKind =
@@ -2095,7 +2095,8 @@ async function ensureInFlightNonceIndex(
  * tunnel (`lifi-connect prod smart-contracts`); SC_MONGODB_URI must point at the
  * forwarded localhost port.
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if SC_MONGODB_URI is unset or the database cannot be reached
+ * @throws Error if SC_MONGODB_URI is unset, carries credentials over an
+ *   unencrypted connection, or the database cannot be reached
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
@@ -2103,6 +2104,7 @@ export async function getSafeMongoCollection(): Promise<{
 }> {
   if (!process.env.SC_MONGODB_URI)
     throw new Error('SC_MONGODB_URI environment variable is required')
+  assertStoreCredentialsAreEncrypted(process.env.SC_MONGODB_URI)
 
   // The Safe proposal database sits behind the lifi-connect tunnel; fail fast
   // with an actionable message when the tunnel isn't up instead of hanging on
@@ -2619,6 +2621,27 @@ export async function getNetworksWithPendingTransactions(
 }
 
 /**
+ * Picks the Safe the ownership scan reads, mirroring
+ * `prepareConfirmSafeTxNetwork`: the address `networks.json` names wins, and the
+ * proposal document's claim is only the fallback for a network that names none.
+ * The document's field is proposer-controlled, so letting it answer here would
+ * let one row naming a foreign Safe decide whether its whole network is offered
+ * at all — before the integrity assertions that exist to refuse that row ever
+ * run.
+ * @param network - Network the pending rows belong to
+ * @param documentSafeAddress - Safe address claimed by the network's first row
+ * @returns The Safe to read owners and threshold from, or undefined when
+ * neither source names one
+ */
+export function resolveOwnershipScanSafeAddress(
+  network: string,
+  documentSafeAddress?: string
+): Address | undefined {
+  const configured = networks[network.toLowerCase()]?.safeAddress
+  return (configured || documentSafeAddress || undefined) as Address | undefined
+}
+
+/**
  * Gets networks where the user can take action (is a Safe owner AND has actionable transactions).
  * Ownership is read from the chain with a read-only client, so no signer material is needed here.
  * @param pendingTransactions - MongoDB collection
@@ -2655,18 +2678,21 @@ export async function getNetworksWithActionableTransactions(
         return { network, actionable: false, reason: 'no_pending_txs' }
       }
 
-      // Use the Safe address from the transaction document (not networks.json)
-      // This matches the behavior in processTxs
-      const txSafeAddress = networkTxs[0]?.safeAddress as Address
-      if (!txSafeAddress) {
-        consola.debug(`No Safe address in transaction document for ${network}`)
+      const scanSafeAddress = resolveOwnershipScanSafeAddress(
+        network,
+        networkTxs[0]?.safeAddress
+      )
+      if (!scanSafeAddress) {
+        consola.debug(
+          `Neither networks.json nor the pending rows name a Safe for ${network}`
+        )
         return { network, actionable: false, reason: 'no_safe_address_in_tx' }
       }
 
       const publicClient = buildReadOnlyClient(network, rpcUrl)
       const normalizedSafeAddress = normalizeAddressForNetwork(
         network,
-        txSafeAddress
+        scanSafeAddress
       )
 
       let owners: Address[]
@@ -2694,7 +2720,7 @@ export async function getNetworksWithActionableTransactions(
       const isOwner = isAddressASafeOwner(owners, signerAddress)
       if (!isOwner) {
         consola.warn(
-          `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
+          `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${scanSafeAddress}`
         )
         consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
         return { network, actionable: false, reason: 'not_owner' }
@@ -2854,7 +2880,7 @@ export async function getNetworksWithActionableTransactions(
  * @param address - Contract address
  * @returns Contract name if found, otherwise "Unknown"
  */
-function getContractNameFromNetworkDeployments(
+export function getContractNameFromNetworkDeployments(
   network: string,
   address: string
 ): string {
@@ -2886,7 +2912,7 @@ function getContractNameFromNetworkDeployments(
  *   facet, or exactly one artifact is the smallest strict superset of the facet's selectors. Otherwise
  *   "Unknown" (including multiple exact matches or a tie for smallest superset).
  */
-function getContractNameFromSelectorsInOut(
+export function getContractNameFromSelectorsInOut(
   selectors: (string | Uint8Array)[]
 ): string {
   const projectRoot = process.cwd()
@@ -2959,7 +2985,7 @@ function getContractNameFromSelectorsInOut(
  * Normalizes a diamondCut selector entry (hex string or byte array) to a
  * lowercase 0x-prefixed string for map lookups.
  */
-function normalizeDiamondCutSelector(selector: unknown): string {
+export function normalizeDiamondCutSelector(selector: unknown): string {
   if (typeof selector === 'string')
     return (
       selector.startsWith('0x') ? selector : `0x${selector}`
@@ -2978,7 +3004,7 @@ let cachedDiamondSelectorMap:
  * Creates a mapping of function selectors to function names from diamond ABI
  * @returns Map of selector to function info
  */
-async function createSelectorMap(): Promise<Map<
+export async function createSelectorMap(): Promise<Map<
   string,
   { name: string; signature: string }
 > | null> {
@@ -3279,38 +3305,14 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   return safeInfo
 }
 
-/** How many salts to try before giving up on finding an unused operation id. */
-const MAX_SALT_ATTEMPTS = 16
-
-export interface IPickTimelockSaltInput {
+export interface IPickTimelockSaltInput extends IPickTimelockSaltAction {
   client: PublicClient
-  chainId: number
-  timelockAddress: Address
-  targetAddresses: Address[]
-  originalCalldatas: Hex[]
-  /**
-   * The values the caller will schedule. Probing an assumed all-zero array would
-   * ask about a different operation than the one being created, so a taken id
-   * could read as free.
-   */
-  values: bigint[]
 }
 
 /**
- * Picks the first action-derived salt whose operation the timelock does not
- * already know.
- *
- * OZ's `_schedule` rejects any id it already has a timestamp for, and it keeps
- * one after execute, so the action's first candidate salt is unusable for an
- * action that has run before — scheduling it would revert only after signatures
- * had been collected and the delay had elapsed.
- *
- * A pending hit refuses. Advancing past one would schedule the same batch twice
- * under two operation ids, and the second proposal's intentHash would differ, so
- * neither the timelock nor the duplicate index would stop a double execution.
- *
- * The scan is deterministic given chain state, so two proposers racing on the
- * same repeat converge on the same salt and stay deduplicated.
+ * `pickTimelockSaltWith` over a viem client: the timelock's own
+ * `hashOperationBatch` and `getTimestamp`, read at the address being
+ * scheduled against.
  *
  * @param input - the action, its chain, and a client to read the timelock with.
  * @returns the salt to schedule under.
@@ -3319,76 +3321,23 @@ export interface IPickTimelockSaltInput {
 export const pickTimelockSalt = async (
   input: IPickTimelockSaltInput
 ): Promise<Hex> => {
-  const {
-    client,
-    chainId,
-    timelockAddress,
-    targetAddresses,
-    originalCalldatas,
-    values,
-  } = input
-
-  // A mismatched length probes an id `scheduleBatch` can never create, so a taken
-  // id reads as free and the revert lands after signatures and the full delay.
-  if (originalCalldatas.length !== targetAddresses.length)
-    throw new Error(
-      `pickTimelockSalt: originalCalldatas (${originalCalldatas.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
-    )
-  if (values.length !== targetAddresses.length)
-    throw new Error(
-      `pickTimelockSalt: values (${values.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
-    )
-
-  for (let attempt = 0; attempt < MAX_SALT_ATTEMPTS; attempt++) {
-    const salt = deriveTimelockSalt({
-      chainId,
-      timelockAddress,
-      targets: targetAddresses,
-      payloads: originalCalldatas,
-      attempt,
-    })
-
-    const operationId = await client.readContract({
-      address: timelockAddress,
-      abi: TIMELOCK_OPERATION_STATE_ABI,
-      functionName: 'hashOperationBatch',
-      args: [
-        targetAddresses,
-        values,
-        originalCalldatas,
-        TIMELOCK_ZERO_PREDECESSOR,
-        salt,
-      ],
-    })
-
-    const state = classifyTimelockOperation(
-      await client.readContract({
-        address: timelockAddress,
+  const { client, ...action } = input
+  return pickTimelockSaltWith(action, {
+    hashOperationBatch: (targets, values, payloads, predecessor, salt) =>
+      client.readContract({
+        address: action.timelockAddress,
+        abi: TIMELOCK_OPERATION_STATE_ABI,
+        functionName: 'hashOperationBatch',
+        args: [targets, values, payloads, predecessor, salt],
+      }),
+    getTimestamp: (operationId) =>
+      client.readContract({
+        address: action.timelockAddress,
         abi: TIMELOCK_OPERATION_STATE_ABI,
         functionName: 'getTimestamp',
         args: [operationId],
-      })
-    )
-
-    if (state === 'unknown') return salt
-
-    if (state === 'pending')
-      throw new Error(
-        `Timelock operation ${operationId} for this exact batch is already scheduled on ${timelockAddress} ` +
-          `and has not executed. This proposal duplicates work already in flight — execute or cancel the ` +
-          `existing operation instead of scheduling a second one. Nothing was proposed.`
-      )
-
-    consola.info(
-      `Timelock operation ${operationId} for this batch has already executed; deriving the next salt.`
-    )
-  }
-
-  throw new Error(
-    `Could not find an unused timelock operation id for this batch after ${MAX_SALT_ATTEMPTS} attempts ` +
-      `on ${timelockAddress}. That means this exact batch has been scheduled ${MAX_SALT_ATTEMPTS} times ` +
-      `already — refusing to schedule rather than guess.`
-  )
+      }),
+  })
 }
 
 /**

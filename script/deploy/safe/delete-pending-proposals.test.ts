@@ -149,7 +149,7 @@ describe('deletePendingProposals', () => {
       force: false,
     })
     expect(results).toEqual([
-      { hash: '0xaaa', outcome: 'deleted', sigCount: 0 },
+      { hash: '0xaaa', outcome: 'deleted', sigCount: 0, deletedCount: 1 },
     ])
     expect(col.rows).toHaveLength(0)
     expect(col.deleteCalls).toHaveLength(1)
@@ -176,7 +176,12 @@ describe('deletePendingProposals', () => {
       force: false,
     })
     expect(results).toEqual([
-      { hash: '0xaaa', outcome: 'skipped-signed', sigCount: 2 },
+      {
+        hash: '0xaaa',
+        outcome: 'skipped-signed',
+        sigCount: 2,
+        deletedCount: 0,
+      },
     ])
     expect(col.rows).toHaveLength(1)
     expect(col.deleteCalls).toHaveLength(0)
@@ -218,7 +223,7 @@ describe('deletePendingProposals', () => {
       force: false,
     })
     expect(results).toEqual([
-      { hash: '0xmissing', outcome: 'not-found', sigCount: 0 },
+      { hash: '0xmissing', outcome: 'not-found', sigCount: 0, deletedCount: 0 },
     ])
     expect(col.rows).toHaveLength(1)
     expect(col.deleteCalls).toHaveLength(0)

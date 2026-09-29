@@ -48,6 +48,14 @@
       "0xcf934e2402a5e072928a39a956964eb8f2b5b79c"
     ]
   },
+  "arc": {
+    "chainId": 5042,
+    "acrossSpokePool": "0x9b4A302A548c7e313c2b74C461db7b84d3074A84",
+    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
+  },
   "base": {
     "chainId": 8453,
     "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
@@ -311,6 +319,30 @@
     "chainId": 4217,
     "acrossSpokePool": "0x2d4710F04Da90184255782d3715224A6C776955D",
     "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
+  },
+  "sepolia": {
+    "chainId": 11155111,
+    "acrossSpokePool": "0x5ef6C01E11889d86803e0B23e3cB3F9E9d97B662",
+    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
+  },
+  "basesepolia": {
+    "chainId": 84532,
+    "acrossSpokePool": "0x82B564983aE7274c86695917BBf8C99ECb6F0F8F",
+    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
+  },
+  "arbitrumsepolia": {
+    "chainId": 421614,
+    "acrossSpokePool": "0x7E63A5f1a8F0B4d0934B2f2327DAED3F6bb2ee75",
+    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "tokensToApprove": []

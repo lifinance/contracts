@@ -14,6 +14,18 @@
  * masking path at all.
  */
 
+import { spawnSync } from 'child_process'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs'
+import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
@@ -26,18 +38,36 @@ import {
 import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
+import type { IBuildProfile, IToolchainScope } from '../codehash/lineage-scope'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
+import {
+  readImmutableDeclarations,
+  type IImmutableDeclaration,
+} from '../immutables/immutable-ast'
+import type { DeployRequirements } from '../immutables/registry-schema'
 
 import {
+  buildRecordQuery,
   createForgeRebuildRunner,
+  createImmutableSimulatorReader,
+  createRecordedImmutableDeclarations,
+  createSignTimeCodehashDeps,
+  type IDeclaredImmutables,
+  type IForgeRebuildRunner,
+  createOffCodeImmutablesReader,
+  createImmutablePricer,
   createImmutableReferencesResolver,
   createDeployedCodeReader,
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
+  createArtifactCache,
+  createPinnedImmutableExpectations,
   defaultCheckoutRoot,
   readToolchainConfig,
+  resolveDeploymentRecord,
 } from './codehash-sign-gate-deps'
+import type { PinnedJsonRead } from './pinned-target-state'
 
 /** Real tail of `out/AccessManagerFacet.sol/AccessManagerFacet.json`: 51-byte CBOR trailer plus its length word. */
 const REAL_TRAILER =
@@ -59,6 +89,19 @@ const REFS = {
 }
 
 const ADDRESS = '0x1111111111111111111111111111111111111111'
+
+const NO_DECLARATIONS: IDeclaredImmutables = {
+  declarations: [],
+  definitions: new Map(),
+}
+
+/** Contract name → the files defining it, as `readImmutableDeclarations` reports it. */
+const defined = (
+  entries: Record<string, string[]>
+): ReadonlyMap<string, ReadonlySet<string>> =>
+  new Map(
+    Object.entries(entries).map(([name, files]) => [name, new Set(files)])
+  )
 
 /** The message a rejected promise carried, or '' when it resolved. */
 const rejection = async (promise: Promise<unknown>): Promise<string> => {
@@ -93,9 +136,16 @@ describe('createToolchainScopeResolver', () => {
   })
 
   it('resolves a london network to the floor profile', () => {
-    const scope = resolve('tron')
+    const scope = resolve('fuse')
 
     expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+  })
+
+  it('resolves Tron to the default profile its fork builds with', () => {
+    const scope = resolve('tron')
+
+    expect(scope.isClosedSet).toBe(true)
+    expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
   it('resolves a zkEVM network to the zksolc profile', () => {
@@ -130,6 +180,7 @@ describe('createRuntimeCodeObserver', () => {
     createRuntimeCodeObserver({
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: (over.profiles ?? [
           { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
         ]) as never,
@@ -169,6 +220,7 @@ describe('createRuntimeCodeObserver', () => {
     const zk = createRuntimeCodeObserver({
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [
           {
             profile: 'zksync',
@@ -264,10 +316,359 @@ describe('createRecordReader', () => {
   })
 })
 
+describe('resolveDeploymentRecord', () => {
+  const row = (fields: Record<string, string>) => ({
+    contractName: 'AllBridgeFacet',
+    version: '2.1.1',
+    gitCommitHash: 'a'.repeat(40),
+    ...fields,
+  })
+
+  it('returns null when nothing matches', () => {
+    expect(resolveDeploymentRecord([], ADDRESS, 'mainnet')).toBeNull()
+  })
+
+  it('returns the single record unchanged', () => {
+    const only = row({})
+
+    expect(resolveDeploymentRecord([only], ADDRESS, 'tron')).toBe(only)
+  })
+
+  it('returns the record when duplicates agree on every field', () => {
+    const first = row({})
+
+    expect(resolveDeploymentRecord([first, row({})], ADDRESS, 'tron')).toBe(
+      first
+    )
+  })
+
+  // The commit is what the rebuild is keyed on, so two of them is the same
+  // disagreement as two versions, and the query is unsorted — picking either
+  // would attest against a different source on an otherwise identical run.
+  it('refuses duplicates that agree on version but name different commits', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({}), row({ gitCommitHash: 'b'.repeat(40) })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/commit/)
+  })
+
+  // The verification step rewrites the row it verified and loses `version` on
+  // the way through, so the blank row is the checked one. Comparing commits
+  // only across what survives the blank-version collapse let the row that can
+  // fill in a version vouch for a commit nobody verified.
+  it('refuses when a blank-version row names a different commit', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ version: '', gitCommitHash: 'c'.repeat(40) }),
+          row({ gitCommitHash: 'd'.repeat(40) }),
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/commit/)
+  })
+
+  // `UNKNOWN` is what the record writer stores when it could not read a commit,
+  // and the downstream readers already treat it as absence. Counting it as a
+  // claim would refuse a pair whose one real commit is the rebuild key.
+  it('treats an UNKNOWN commit as absent rather than as a second claim', () => {
+    const unknown = row({ gitCommitHash: 'UNKNOWN' })
+    const withCommit = row({})
+
+    expect(
+      resolveDeploymentRecord([unknown, withCommit], ADDRESS, 'tron')
+    ).toBe(withCommit)
+    expect(
+      resolveDeploymentRecord([withCommit, unknown], ADDRESS, 'tron')
+    ).toBe(withCommit)
+  })
+
+  // The blank-version row is the one the verification step rewrote, so it can
+  // be the only row naming a commit. Dropping it in the collapse and then
+  // picking from the survivors returned a row with no commit, which reads
+  // downstream as UNVERIFIABLE for an address whose one commit is right here.
+  it('keeps the commit when the collapse drops the only row naming it', () => {
+    const blank = row({ version: '', gitCommitHash: 'c'.repeat(40) })
+    const versioned = row({ gitCommitHash: '' })
+
+    const resolved = resolveDeploymentRecord(
+      [blank, versioned],
+      ADDRESS,
+      'tron'
+    )
+
+    expect(resolved?.contractName).toBe('AllBridgeFacet')
+    expect(resolved?.version).toBe('2.1.1')
+    expect(resolved?.gitCommitHash).toBe('c'.repeat(40))
+    expect(versioned.gitCommitHash).toBe('')
+  })
+
+  it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
+    const withCommit = row({})
+    const blank = row({ gitCommitHash: '' })
+
+    expect(resolveDeploymentRecord([blank, withCommit], ADDRESS, 'tron')).toBe(
+      withCommit
+    )
+    expect(resolveDeploymentRecord([withCommit, blank], ADDRESS, 'tron')).toBe(
+      withCommit
+    )
+  })
+
+  // Most production rows carry no commit field at all, so absence must stay a
+  // resolvable answer rather than a refusal.
+  it('resolves duplicates that carry no commit at all', () => {
+    const first = { contractName: 'TokenWrapper', version: '1.1.0' }
+
+    expect(
+      resolveDeploymentRecord(
+        [first, { contractName: 'TokenWrapper', version: '1.1.0' }],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  it('treats a whitespace-only version as blank', () => {
+    const versioned = row({ contractName: 'GasZipPeriphery', version: '1.0.2' })
+
+    expect(
+      resolveDeploymentRecord(
+        [row({ contractName: 'GasZipPeriphery', version: '  ' }), versioned],
+        ADDRESS,
+        'moonbeam'
+      )
+    ).toBe(versioned)
+  })
+
+  // Blankness was judged trimmed while the identity key used the raw string, so
+  // a single space split one deploy into two identities and refused it.
+  it('collapses a whitespace-only version against a blank sibling', () => {
+    const first = row({ contractName: 'PolymerCCTPFacet', version: '  ' })
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ contractName: 'PolymerCCTPFacet', version: '' })],
+        ADDRESS,
+        'base'
+      )
+    ).toBe(first)
+  })
+
+  it('does not split one version across rows that pad it differently', () => {
+    const first = row({ version: '2.1.1' })
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ version: ' 2.1.1 ' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  // `version` is optional on the record interface, and a row omitting it used
+  // to surface at the signer as "could not be read: undefined is not an object".
+  it('treats an absent version as blank rather than throwing', () => {
+    const named = { contractName: 'TokenWrapper', version: '1.1.0' }
+
+    expect(
+      resolveDeploymentRecord(
+        [{ contractName: 'TokenWrapper' }, named],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(named)
+  })
+
+  // Optional chaining defends against an absent field, not against a stored
+  // number, which reached the signer as "could not be read: r.version.trim is
+  // not a function" — the unactionable message this resolver exists to replace.
+  it('coerces a non-string version instead of dying on its type', () => {
+    const numeric = {
+      contractName: 'TokenWrapper',
+      version: 2 as unknown as string,
+    }
+
+    expect(resolveDeploymentRecord([numeric], ADDRESS, 'tron')).toBe(numeric)
+  })
+
+  it('names the conflict when a non-string version disagrees with a real one', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          { contractName: 'TokenWrapper', version: 2 as unknown as string },
+          { contractName: 'TokenWrapper', version: '1.1.0' },
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/TokenWrapper@1\.1\.0/)
+  })
+
+  it('refuses a three-row group where only one row dissents', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({}), row({}), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/2\.1\.2/)
+  })
+
+  it('resolves a group of blank-version rows that name one contract', () => {
+    const first = row({ version: '' })
+
+    expect(
+      resolveDeploymentRecord([first, row({ version: '' })], ADDRESS, 'base')
+    ).toBe(first)
+  })
+
+  // The verification step rewrites the row it just verified and drops `version`
+  // on the way through, leaving two rows for one deploy that differ only there.
+  // Both describe the same contract, so the versioned one is the answer.
+  it('ignores a blank-version duplicate of a named contract', () => {
+    const versioned = row({
+      contractName: 'PolymerCCTPFacet',
+      version: '2.0.0',
+    })
+    const blank = row({ contractName: 'PolymerCCTPFacet', version: '' })
+
+    expect(resolveDeploymentRecord([blank, versioned], ADDRESS, 'base')).toBe(
+      versioned
+    )
+  })
+
+  it('keeps a blank-version row when no other row names that contract', () => {
+    const blank = row({ contractName: 'GasZipPeriphery', version: '' })
+
+    expect(resolveDeploymentRecord([blank], ADDRESS, 'moonbeam')).toBe(blank)
+  })
+
+  // The real tron/AllBridgeFacet pair: one address, two versions. Whichever way
+  // a sort broke the tie it would name a version to rebuild, and one of the two
+  // is wrong, so the gate must refuse rather than pick.
+  it('refuses two versions of one contract at one address', () => {
+    const conflict = () =>
+      resolveDeploymentRecord(
+        [row({ version: '2.1.1' }), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+
+    expect(conflict).toThrow(/2\.1\.1/)
+    expect(conflict).toThrow(/2\.1\.2/)
+  })
+
+  it('refuses two contracts at one address', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ contractName: 'LiFuelFeeCollector', version: '1.0.1' }),
+          row({ contractName: 'TokenWrapper', version: '1.0.1' }),
+        ],
+        ADDRESS,
+        'metis'
+      )
+    ).toThrow(/TokenWrapper/)
+  })
+
+  it('names the address and network it could not resolve', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({ version: '2.1.1' }), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(new RegExp(`${ADDRESS}.*tron|tron.*${ADDRESS}`))
+  })
+
+  it('refuses a conflict that a blank-version row cannot collapse', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ contractName: 'TokenWrapper', version: '' }),
+          row({ contractName: 'AllBridgeFacet', version: '2.1.1' }),
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/TokenWrapper/)
+  })
+})
+
+/**
+ * Reports every rebuild output directory absent, the state a fresh checkout is
+ * in before the run's first restore or build, and defers everything else —
+ * the artifact inside it included — to the fake a test supplies.
+ */
+const freshOutDirs =
+  (exists: (path: string) => boolean) =>
+  (path: string): boolean =>
+    /\/(zkout|out-codehash-[^/]+)$/.test(path) ? false : exists(path)
+
 describe('createForgeRebuildRunner', () => {
   const artifact = JSON.stringify({
     deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
+    ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
   })
+  /** The repo's own `foundry.toml` stands in for the checkout's. */
+  const CHECKOUT_TOML = readFileSync(
+    join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+    'utf8'
+  )
+  /**
+   * Serves the checkout's `foundry.toml` so the rebuild can resolve its profile
+   * there, and hands every other path (the artifact, the repo root's own toml
+   * that the zk pin is read from) to the reader a test supplies.
+   */
+  const readCheckoutFiles =
+    (readRest: (path: string) => string) =>
+    (path: string): string =>
+      path.startsWith('/tmp/rebuilds/') && path.endsWith('foundry.toml')
+        ? CHECKOUT_TOML
+        : readRest(path)
+  const readCheckoutFile = readCheckoutFiles(() => artifact)
+
+  /**
+   * What zksolc actually emits: the whole contract under `bytecode`, with no
+   * `deployedBytecode` and no `ast`. Verified against every artifact under
+   * `zkout/`, and byte-for-byte against the deployed `FraxFacet` on zksync.
+   */
+  const zkArtifact = JSON.stringify({ bytecode: { object: DEPLOYED } })
+
+  const PINNED_ZK_RELEASE = 'v0.0.32'
+
+  /** Only the section the pin reader walks, in the shape `foundry.toml` carries it. */
+  const pinnedToml = [
+    '[external.zksync]',
+    'zksolc = "1.5.15"',
+    `foundry_zksync = "${PINNED_ZK_RELEASE}"`,
+    '',
+  ].join('\n')
+
+  /** What the pinned binary prints, verbatim. */
+  const zkVersionOutput = `forge Version: 1.3.5-foundry-zksync-${PINNED_ZK_RELEASE}\nCommit SHA: 742672d7d51ed77b434bffb03804a59a760ce5fe`
+
+  const readZkFiles = (artifactJson: string): ((path: string) => string) =>
+    readCheckoutFiles((path) =>
+      path.endsWith('foundry.toml') ? pinnedToml : artifactJson
+    )
+
+  const zkRequest = {
+    contractName: 'AccessManagerFacet',
+    commit: 'a'.repeat(40),
+    profile: {
+      profile: 'zksync',
+      solcVersion: '0.8.29',
+      evmVersion: 'cancun',
+      zksolcVersion: '1.5.15',
+    },
+  }
 
   const runner = (
     over: {
@@ -278,6 +679,14 @@ describe('createForgeRebuildRunner', () => {
       ) => { ok: boolean; output: string }
       exists?: (path: string) => boolean
       readFile?: (path: string) => string
+      readDeclarations?: (
+        outDir: string,
+        sourceRoot: string
+      ) => IDeclaredImmutables
+      artifactCache?: {
+        restore: (key: string, outDir: string) => boolean
+        save: (key: string, outDir: string) => void
+      }
       calls?: unknown[]
     } = {}
   ) => {
@@ -299,8 +708,10 @@ describe('createForgeRebuildRunner', () => {
             calls.push({ command, args, env: options.env, cwd: options.cwd })
             return { ok: true, output: '' }
           }),
-        exists: over.exists ?? ((path) => path.endsWith('.json')),
-        readFile: over.readFile ?? (() => artifact),
+        exists: freshOutDirs(over.exists ?? ((path) => path.endsWith('.json'))),
+        readFile: over.readFile ?? readCheckoutFile,
+        readDeclarations: over.readDeclarations ?? (() => NO_DECLARATIONS),
+        ...(over.artifactCache ? { artifactCache: over.artifactCache } : {}),
       }),
     }
   }
@@ -320,6 +731,181 @@ describe('createForgeRebuildRunner', () => {
 
     expect(built.runtimeHex).toBe(DEPLOYED)
     expect(built.immutableReferences).toEqual(REFS)
+  })
+
+  // A cold compile of the whole tree is the minute a signer waits before zone 2
+  // appears, and the checkout it lands in dies with the process — so the same
+  // commit was recompiled from scratch once per signing session.
+  it('takes a cached build instead of compiling, and does not init submodules for it', () => {
+    let restored = false
+    const calls: unknown[] = []
+    const harness = runner({
+      calls,
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? restored : !path.endsWith('.env')
+      ),
+      artifactCache: {
+        restore: () => {
+          restored = true
+          return true
+        },
+        save: () => undefined,
+      },
+    })
+
+    const built = harness.runner.build(request)
+
+    expect(built.runtimeHex).toBe(DEPLOYED)
+    expect(calls).toHaveLength(0)
+    expect(harness.gitCalls.some(([verb]) => verb === 'submodule')).toBe(false)
+  })
+
+  it('keys the cache on the commit and the profile, and saves what it built', () => {
+    const saved: string[] = []
+    const harness = runner({
+      exists: freshOutDirs(
+        (path) => !path.endsWith('.json') && !path.endsWith('.env')
+      ),
+      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+    })
+
+    // `exists` reports the artifact absent throughout, which the runner treats
+    // as a build that produced nothing — the throw is what proves the save is
+    // reached only for an artifact this run can vouch for.
+    expect(() => harness.runner.build(request)).toThrow('produced no artifact')
+    expect(saved).toHaveLength(0)
+
+    let compiled = false
+    const ok = runner({
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? compiled : !path.endsWith('.env')
+      ),
+      run: (_command, args) => {
+        // The zk leg of this case runs the pinned-release check first, which
+        // spawns the binary before any build.
+        if (args.includes('--version'))
+          return { ok: true, output: zkVersionOutput }
+        compiled = true
+        return { ok: true, output: '' }
+      },
+      // Both spellings, so the one build here stands in for either toolchain:
+      // zksolc writes the runtime under `bytecode`, everything else under
+      // `deployedBytecode`.
+      readFile: readZkFiles(
+        JSON.stringify({
+          bytecode: { object: DEPLOYED },
+          deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
+          ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
+        })
+      ),
+      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+    })
+    ok.runner.build(request)
+    compiled = false
+    // A real zk profile, which writes to the fixed `zkout` whatever it is
+    // called — so the profile has to be in the key rather than only in the
+    // directory the key is spelled from.
+    ok.runner.build({
+      ...request,
+      profile: {
+        ...request.profile,
+        profile: 'zksync',
+        zksolcVersion: '1.5.15',
+      },
+    })
+
+    expect(saved).toEqual([
+      `${'a'.repeat(40)}-default-out-codehash-default`,
+      `${'a'.repeat(40)}-zksync-zkout`,
+    ])
+  })
+
+  it('builds with --ast, so the ids keying the offsets come from this compilation', () => {
+    let built = false
+    const calls: unknown[] = []
+    const harness = runner({
+      calls,
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? built : !path.endsWith('.env')
+      ),
+      run: (command, args) => {
+        built = true
+        calls.push({ command, args })
+        return { ok: true, output: '' }
+      },
+    })
+    harness.runner.build(request)
+
+    expect((calls[0] as { args: string[] }).args).toContain('--ast')
+  })
+
+  it("returns the graded contract's declarations, resolved against its own checkout", () => {
+    const seen: { outDir: string; sourceRoot: string }[] = []
+    const built = runner({
+      readDeclarations: (outDir, sourceRoot) => {
+        seen.push({ outDir, sourceRoot })
+        return {
+          definitions: defined({
+            AccessManagerFacet: ['src/a.sol'],
+            SomeOtherFacet: ['src/b.sol'],
+          }),
+          declarations: [
+            {
+              file: 'src/a.sol',
+              contract: 'AccessManagerFacet',
+              line: 4,
+              astId: 8938,
+              type: 'address',
+              name: 'EXECUTOR',
+            },
+            {
+              file: 'src/b.sol',
+              contract: 'SomeOtherFacet',
+              line: 9,
+              astId: 41,
+              type: 'address',
+              name: 'OTHER',
+            },
+          ],
+        }
+      },
+    }).runner.build(request)
+
+    expect(built.immutableDeclarations?.map((one) => one.name)).toEqual([
+      'EXECUTOR',
+    ])
+    expect(seen[0]?.sourceRoot).toBe(`/tmp/rebuilds/${'a'.repeat(40)}`)
+    expect(seen[0]?.outDir).toBe(
+      `/tmp/rebuilds/evm-out/${'a'.repeat(40)}/out-codehash-default`
+    )
+  })
+
+  it('rebuilds an artifact that carries no AST rather than pricing nothing against it', () => {
+    const astless = JSON.stringify({
+      deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
+    })
+    // The artifact is present throughout, so the missing AST is the only thing
+    // that can make this rebuild.
+    const calls: unknown[] = []
+    const harness = runner({
+      calls,
+      exists: freshOutDirs((path) => !path.endsWith('.env')),
+      readFile: readCheckoutFiles(() => astless),
+      run: (command, args) => {
+        calls.push({ command, args })
+        return { ok: true, output: '' }
+      },
+    })
+    harness.runner.build(request)
+
+    expect(calls).toHaveLength(1)
+  })
+
+  it('does not rebuild when the artifact this run holds already carries its AST', () => {
+    const harness = runner({ exists: (path) => path.endsWith('.json') })
+    harness.runner.build(request)
+
+    expect(harness.calls).toHaveLength(0)
   })
 
   it('checks the commit out in its own worktree, never in the repo it runs from', () => {
@@ -356,12 +942,14 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: (path) => (path.endsWith('.json') ? built : false),
-      readFile: () => artifact,
+      exists: freshOutDirs((path) => (path.endsWith('.json') ? built : false)),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
     }).build(request)
 
     expect(gitCalls[0]?.slice(0, 3)).toEqual(['worktree', 'add', '--detach'])
-    expect(gitCalls[1]).toEqual([
+    expect(gitCalls[1]?.slice(2)).toEqual(['ls-files', '-z'])
+    expect(gitCalls[2]).toEqual([
       '-C',
       `/tmp/rebuilds/${request.commit}`,
       'submodule',
@@ -369,7 +957,7 @@ describe('createForgeRebuildRunner', () => {
       '--init',
       '--recursive',
     ])
-    expect(gitCalls[2]?.slice(0, 4)).toEqual([
+    expect(gitCalls[3]?.slice(0, 4)).toEqual([
       '-C',
       `/tmp/rebuilds/${request.commit}`,
       'submodule',
@@ -395,7 +983,8 @@ describe('createForgeRebuildRunner', () => {
         },
         run: () => ({ ok: true, output: '' }),
         exists: () => false,
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
+        readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
     ).toThrow(/submodule pins are not clean/)
   })
@@ -414,13 +1003,183 @@ describe('createForgeRebuildRunner', () => {
         expect(options.env.FOUNDRY_PROFILE).toBe('default')
         return { ok: true, output: '' }
       },
-      exists: (path) => !path.endsWith('.json') || built,
-      readFile: () => artifact,
+      exists: freshOutDirs(
+        (path) => (!path.endsWith('.json') && !path.endsWith('.env')) || built
+      ),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
     })
 
     withRun.build(request)
     expect(built).toBe(true)
     expect(harness.calls).toEqual([])
+  })
+
+  describe('resolves the profile against the checkout, not HEAD', () => {
+    const londonProfile = {
+      profile: 'solc_floor',
+      solcVersion: '0.8.17',
+      evmVersion: 'london',
+    }
+    const buildWithToml = (
+      toml: string,
+      profile: IBuildProfile = londonProfile,
+      checkoutHasDotenv = false
+    ): { env: Record<string, string>[]; build: () => void } => {
+      const env: Record<string, string>[] = []
+      const harness = createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: () => '',
+        run: (_command, args, options) => {
+          // The pin check runs ahead of the profile resolution, so a zk
+          // request has to pass it before the toml can be judged.
+          if (args[0] === '--version')
+            return { ok: true, output: zkVersionOutput }
+          env.push(options.env)
+          return { ok: true, output: '' }
+        },
+        exists: freshOutDirs((path) => {
+          if (path.endsWith('.json')) return env.length > 0
+          if (path.endsWith('/.env')) return checkoutHasDotenv
+          return true
+        }),
+        readFile: (path) => {
+          if (path.endsWith('foundry.toml')) return toml
+          return profile.zksolcVersion === undefined ? artifact : zkArtifact
+        },
+        readDeclarations: () => NO_DECLARATIONS,
+      })
+      return { env, build: () => harness.build({ ...request, profile }) }
+    }
+
+    it('exports the name the checkout gives the pair when it differs from HEAD', () => {
+      // Two fuse deployments were made from a branch that spelled the london
+      // profile `london`; HEAD spells it `solc_floor`. Both must rebuild.
+      const renamed = CHECKOUT_TOML.replace(
+        '[profile.solc_floor]',
+        '[profile.london]'
+      )
+      expect(renamed).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(renamed)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual(['london'])
+    })
+
+    it('exports the HEAD name when the checkout spells it the same', () => {
+      const harness = buildWithToml(CHECKOUT_TOML)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual([
+        'solc_floor',
+      ])
+    })
+
+    it('refuses instead of building when no profile in the checkout pins the pair', () => {
+      // forge would answer the unknown name with [profile.default] and exit 0.
+      const withoutLondon = CHECKOUT_TOML.replace(
+        "solc_version = '0.8.17'",
+        "solc_version = '0.8.19'"
+      )
+      expect(withoutLondon).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(withoutLondon)
+
+      expect(() => harness.build()).toThrow(/declares no profile pinning/)
+      expect(harness.env).toEqual([])
+    })
+
+    it('does not admit the zk profile as a cancun lineage for a non-zk request', () => {
+      // [profile.zksync] pins the default pair too, and is excluded by name: a
+      // checkout with no zksolc pin must not see it as a second cancun profile.
+      const unpinnedZk = CHECKOUT_TOML.replace(/^zksolc = .*$/m, '')
+      expect(unpinnedZk).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(unpinnedZk, request.profile)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual(['default'])
+    })
+
+    it('refuses a zk rebuild in a checkout without [profile.zksync]', () => {
+      const withoutZk = CHECKOUT_TOML.replace(
+        '[profile.zksync]',
+        '[profile.renamed_away]'
+      ).replace(/^zksolc = .*$/m, '')
+      const harness = buildWithToml(withoutZk, {
+        ...request.profile,
+        profile: 'zksync',
+        zksolcVersion: '1.5.15',
+      })
+
+      expect(() => harness.build()).toThrow(/declares no \[profile\.zksync\]/)
+      expect(harness.env).toEqual([])
+    })
+
+    it('pins the compiler through FOUNDRY_SOLC to the version the matched profile names', () => {
+      const london = buildWithToml(CHECKOUT_TOML)
+      london.build()
+      const cancun = buildWithToml(CHECKOUT_TOML, request.profile)
+      cancun.build()
+
+      expect(london.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.17'])
+      expect(cancun.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.29'])
+    })
+
+    it("pins a zk rebuild to the checkout's zk solc, not HEAD's", () => {
+      // The zk profile is matched by name, so its solc can differ from HEAD's;
+      // one commit on main pinned 0.8.17 there.
+      const older = CHECKOUT_TOML.replace(
+        /(\[profile\.zksync\]\n)solc_version = '0\.8\.29'/,
+        "$1solc_version = '0.8.26'"
+      )
+      expect(older).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(older, zkRequest.profile)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.26'])
+    })
+
+    it('refuses a checkout whose foundry.toml selects a compiler binary, before forge runs', () => {
+      const pathed = CHECKOUT_TOML.replace(
+        "solc_version = '0.8.17'",
+        "solc_version = '0.8.17'\nsolc = './fake-solc'"
+      )
+      expect(pathed).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(pathed)
+
+      expect(() => harness.build()).toThrow(
+        /could choose what the rebuild executes: profile\.solc_floor\.solc/
+      )
+      expect(harness.env).toEqual([])
+    })
+
+    it('refuses a zk rebuild whose checkout sets zksync.solc_path, before forge runs', () => {
+      const pathed = CHECKOUT_TOML.replace(
+        'out = "out/zksync"',
+        'out = "out/zksync"\nzksync = { solc_path = "./fake-solc" }'
+      )
+      expect(pathed).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(pathed, zkRequest.profile)
+
+      expect(() => harness.build()).toThrow(
+        /profile\.zksync\.zksync\.solc_path/
+      )
+      expect(harness.env).toEqual([])
+    })
+
+    it('refuses a checkout carrying a .env, before forge runs', () => {
+      const clean = buildWithToml(CHECKOUT_TOML)
+      clean.build()
+      const harness = buildWithToml(CHECKOUT_TOML, londonProfile, true)
+
+      expect(clean.env).toHaveLength(1)
+      expect(() => harness.build()).toThrow(/the commit carries a \.env/)
+      expect(harness.env).toEqual([])
+    })
   })
 
   it('builds a zk lineage with the pinned foundry-zksync binary', () => {
@@ -432,27 +1191,148 @@ describe('createForgeRebuildRunner', () => {
       checkoutRoot: '/tmp/rebuilds',
       git: () => '',
       run: (command, args, options) => {
+        if (args[0] === '--version')
+          return { ok: true, output: zkVersionOutput }
         seen = { command, args, env: options.env }
         built = true
         return { ok: true, output: '' }
       },
-      exists: (path) => (path.endsWith('.json') ? built : true),
-      readFile: () => artifact,
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? built : !path.endsWith('.env')
+      ),
+      readFile: readZkFiles(zkArtifact),
+      readDeclarations: () => NO_DECLARATIONS,
     })
 
-    zk.build({
-      ...request,
-      profile: {
-        ...request.profile,
-        profile: 'zksync',
-        zksolcVersion: '1.5.15',
-      },
-    })
+    zk.build(zkRequest)
 
     expect(seen.command).toContain('foundry-zksync')
     expect(seen.args).toContain('--zksync')
     expect(seen.env.FOUNDRY_ZKSYNC).toContain('1.5.15')
     expect(seen.env.FOUNDRY_PROFILE).toBe('zksync')
+    expect(seen.env.FOUNDRY_SOLC).toBe('0.8.29')
+  })
+
+  describe('zk toolchain preflight', () => {
+    const zkRunner = (over: {
+      exists?: (path: string) => boolean
+      readFile?: (path: string) => string
+      version?: { ok: boolean; output: string }
+      onBuild?: () => void
+    }) =>
+      createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: () => '',
+        run: (_command, args) => {
+          if (args[0] === '--version')
+            return over.version ?? { ok: true, output: zkVersionOutput }
+          over.onBuild?.()
+          return { ok: true, output: '' }
+        },
+        exists: freshOutDirs(
+          over.exists ??
+            ((path) => !path.endsWith('.json') && !path.endsWith('.env'))
+        ),
+        readFile: over.readFile
+          ? readCheckoutFiles(over.readFile)
+          : readZkFiles(zkArtifact),
+        readDeclarations: () => NO_DECLARATIONS,
+      })
+
+    it('refuses when the untracked foundry-zksync binary is absent', () => {
+      let compiled = false
+      expect(() =>
+        zkRunner({
+          exists: freshOutDirs(
+            (path) =>
+              !path.endsWith('.json') &&
+              !path.endsWith('.env') &&
+              !path.endsWith('forge')
+          ),
+          onBuild: () => {
+            compiled = true
+          },
+        }).build(zkRequest)
+      ).toThrow(/toolchain problem, not a codehash verdict/)
+      expect(compiled).toBe(false)
+    })
+
+    it('names the install path a signer can act on', () => {
+      expect(() =>
+        zkRunner({
+          exists: freshOutDirs(
+            (path) =>
+              !path.endsWith('.json') &&
+              !path.endsWith('.env') &&
+              !path.endsWith('forge')
+          ),
+        }).build(zkRequest)
+      ).toThrow(/source script\/helperFunctions\.sh && install_foundry_zksync/)
+    })
+
+    it('refuses a binary that is not the pinned release', () => {
+      expect(() =>
+        zkRunner({
+          version: {
+            ok: true,
+            output: 'forge Version: 1.3.5-foundry-zksync-v0.0.31',
+          },
+        }).build(zkRequest)
+      ).toThrow(/foundry-zksync v0\.0\.31 but foundry\.toml pins v0\.0\.32/)
+    })
+
+    it('refuses a binary whose version it cannot read', () => {
+      expect(() =>
+        zkRunner({ version: { ok: false, output: 'bad CPU type' } }).build(
+          zkRequest
+        )
+      ).toThrow(/did not report a foundry-zksync release/)
+    })
+
+    it('refuses when foundry.toml pins no release to hold the rebuild to', () => {
+      expect(() =>
+        zkRunner({
+          readFile: (path) =>
+            path.endsWith('foundry.toml')
+              ? '[external.zksync]\nzksolc = "1.5.15"\n'
+              : zkArtifact,
+        }).build(zkRequest)
+      ).toThrow(/pins no foundry_zksync release/)
+    })
+
+    it('reads the pin from the section it lives in, not from anywhere in the file', () => {
+      expect(() =>
+        zkRunner({
+          readFile: (path) =>
+            path.endsWith('foundry.toml')
+              ? '[profile.zksync]\nfoundry_zksync = "v0.0.32"\n\n[external.zksync]\nzksolc = "1.5.15"\n'
+              : zkArtifact,
+        }).build(zkRequest)
+      ).toThrow(/pins no foundry_zksync release/)
+    })
+
+    it('leaves a vanilla forge build unchecked', () => {
+      const probed: string[][] = []
+      let built = false
+      createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: () => '',
+        run: (_command, args) => {
+          probed.push(args)
+          built = true
+          return { ok: true, output: '' }
+        },
+        exists: freshOutDirs((path) =>
+          path.endsWith('.json') ? built : !path.endsWith('.env')
+        ),
+        readFile: readCheckoutFile,
+        readDeclarations: () => NO_DECLARATIONS,
+      }).build(request)
+
+      expect(probed.every((args) => args[0] === 'build')).toBe(true)
+    })
   })
 
   it('keeps each profile in its own output directory', () => {
@@ -465,15 +1345,20 @@ describe('createForgeRebuildRunner', () => {
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
         git: () => '',
-        run: () => {
+        run: (_command, args) => {
+          if (args[0] === '--version')
+            return { ok: true, output: zkVersionOutput }
           built = true
           return { ok: true, output: '' }
         },
-        exists: (path) => {
+        exists: freshOutDirs((path) => {
           paths.push(path)
-          return path.endsWith('.json') ? built : true
-        },
-        readFile: () => artifact,
+          return path.endsWith('.json') ? built : !path.endsWith('.env')
+        }),
+        readFile: readZkFiles(
+          profile.zksolcVersion === undefined ? artifact : zkArtifact
+        ),
+        readDeclarations: () => NO_DECLARATIONS,
       }).build({
         ...request,
         profile: { ...request.profile, ...profile },
@@ -487,7 +1372,9 @@ describe('createForgeRebuildRunner', () => {
     // Two non-zk profiles share `out/` in foundry's own layout, and this runner
     // builds several profiles inside one checkout, so a shared directory would
     // hand the second profile the first one's artifact.
-    expect(zk[0]).toContain('zksync')
+    // zk is not profile-named: foundry-zksync ignores `--out` and always writes
+    // `zkout/`, so the runner must read there or find nothing.
+    expect(zk[0]).toContain('zkout')
     expect(floor[0]).toContain('solc_floor')
     expect(zk[0]).not.toBe(floor[0])
   })
@@ -503,7 +1390,8 @@ describe('createForgeRebuildRunner', () => {
           output: 'Compiler run failed: stack too deep',
         }),
         exists: () => false,
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
+        readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
     ).toThrow(/stack too deep/)
   })
@@ -521,7 +1409,8 @@ describe('createForgeRebuildRunner', () => {
             'backend error: https://rpc.example.com/ogrpc?dkey=SUPERSECRET',
         }),
         exists: () => false,
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
+        readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
     } catch (error) {
       thrown = error instanceof Error ? error.message : String(error)
@@ -538,8 +1427,11 @@ describe('createForgeRebuildRunner', () => {
         checkoutRoot: '/tmp/rebuilds',
         git: () => '',
         run: () => ({ ok: true, output: '' }),
-        exists: (path) => !path.endsWith('.json'),
-        readFile: () => artifact,
+        exists: freshOutDirs(
+          (path) => !path.endsWith('.json') && !path.endsWith('.env')
+        ),
+        readFile: readCheckoutFile,
+        readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
     ).toThrow(/artifact/)
   })
@@ -547,7 +1439,11 @@ describe('createForgeRebuildRunner', () => {
   it('throws when the artifact carries no runtime bytecode', () => {
     expect(() =>
       runner({
-        readFile: () => JSON.stringify({ deployedBytecode: {} }),
+        readFile: (path) =>
+          path.endsWith('foundry.toml')
+            ? CHECKOUT_TOML
+            : JSON.stringify({ deployedBytecode: {} }),
+        readDeclarations: () => NO_DECLARATIONS,
       }).runner.build(request)
     ).toThrow(/runtime bytecode/)
   })
@@ -564,8 +1460,11 @@ describe('createForgeRebuildRunner', () => {
         built = true
         return { ok: true, output: '' }
       },
-      exists: (path) => (path.endsWith('.json') ? built : true),
-      readFile: () => artifact,
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? built : !path.endsWith('.env')
+      ),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
     })
 
     cached.build(request)
@@ -584,8 +1483,9 @@ describe('createForgeRebuildRunner', () => {
         return ''
       },
       run: () => ({ ok: true, output: '' }),
-      exists: (path) => path.endsWith('.json'),
-      readFile: () => artifact,
+      exists: freshOutDirs((path) => path.endsWith('.json')),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
     })
 
     withCleanup.build(request)
@@ -595,8 +1495,365 @@ describe('createForgeRebuildRunner', () => {
       gitCalls.some((args) => args[0] === 'worktree' && args[1] === 'remove')
     ).toBe(true)
   })
+
+  describe('declarationsAt', () => {
+    const COMMIT = 'a'.repeat(40)
+    const CHECKOUT = `/tmp/rebuilds/${COMMIT}`
+    const BUILD_ROOT = `/tmp/rebuilds/zk-declarations/${COMMIT}-zksync`
+    const OUT = `${BUILD_ROOT}/out`
+
+    const harness = (
+      over: {
+        run?: (
+          command: string,
+          args: string[],
+          options: { cwd: string; env: Record<string, string> }
+        ) => { ok: boolean; output: string }
+        writesOutput?: boolean
+        /** The output path answers as present before any build has run. */
+        preexisting?: boolean
+        /** The checkout's `foundry.toml`, in place of the repo's own. */
+        toml?: string
+        /** The checkout carries a `.env`. */
+        dotenv?: boolean
+        artifactCache?: {
+          restore: (key: string, outDir: string) => boolean
+          save: (key: string, outDir: string) => void
+        }
+      } = {}
+    ) => {
+      let written = over.preexisting ?? false
+      const { toml } = over
+      const calls: {
+        command: string
+        args: string[]
+        cwd: string
+        env: Record<string, string>
+      }[] = []
+      const reads: { outDir: string; sourceRoot: string }[] = []
+      const made = runner({
+        exists: (path) =>
+          (path === OUT && written) ||
+          (path === `${CHECKOUT}/.env` && over.dotenv === true),
+        ...(toml === undefined ? {} : { readFile: () => toml }),
+        run: (command, args, options) => {
+          calls.push({ command, args, ...options })
+          const result = over.run?.(command, args, options) ?? {
+            ok: true,
+            output: '',
+          }
+          if (result.ok && over.writesOutput !== false) written = true
+          return result
+        },
+        readDeclarations: (outDir, sourceRoot) => {
+          reads.push({ outDir, sourceRoot })
+          return {
+            declarations: [
+              {
+                file: 'src/Facets/CentrifugeFacet.sol',
+                contract: 'CentrifugeFacet',
+                line: 30,
+                type: 'address',
+                name: 'TOKEN_BRIDGE',
+              },
+            ],
+            definitions: defined({
+              CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+            }),
+          }
+        },
+        ...(over.artifactCache
+          ? {
+              artifactCache: {
+                restore: (key: string, outDir: string) => {
+                  const hit = over.artifactCache?.restore(key, outDir) ?? false
+                  if (hit) written = true
+                  return hit
+                },
+                save: over.artifactCache.save,
+              },
+            }
+          : {}),
+      })
+      return { ...made, calls, reads }
+    }
+
+    it("builds the AST in the recorded commit's own checkout, never the repo it runs from", () => {
+      const made = harness()
+
+      const read = made.runner.declarationsAt(COMMIT, zkRequest.profile)
+
+      expect(read.definitions.has('CentrifugeFacet')).toBe(true)
+      expect(made.calls).toHaveLength(1)
+      expect(made.calls[0]).toEqual({
+        command: 'forge',
+        args: [
+          'build',
+          '--skip',
+          'test/**',
+          '--skip',
+          'script/**',
+          '--offline',
+          '--ast',
+          '--out',
+          OUT,
+        ],
+        cwd: CHECKOUT,
+        env: {
+          FOUNDRY_PROFILE: 'zksync',
+          FOUNDRY_SOLC: '0.8.29',
+          FOUNDRY_CACHE_PATH: `${BUILD_ROOT}/cache`,
+        },
+      })
+      expect(made.reads).toEqual([{ outDir: OUT, sourceRoot: CHECKOUT }])
+      expect(
+        made.gitCalls.some(
+          (args) =>
+            args[0] === 'worktree' && args[1] === 'add' && args.includes(COMMIT)
+        )
+      ).toBe(true)
+      expect(
+        made.gitCalls.some(
+          (args) => args[1] === CHECKOUT && args[2] === 'submodule'
+        )
+      ).toBe(true)
+    })
+
+    it('refuses a checkout that could choose the compiler before building its AST', () => {
+      const planted = harness({
+        toml: CHECKOUT_TOML.replace(
+          /(\[profile\.zksync\]\n)/,
+          "$1solc = './fake-solc'\n"
+        ),
+      })
+      expect(() =>
+        planted.runner.declarationsAt(COMMIT, zkRequest.profile)
+      ).toThrow(/could choose what the rebuild executes/)
+      expect(planted.calls).toHaveLength(0)
+
+      const dotenv = harness({ dotenv: true })
+      expect(() =>
+        dotenv.runner.declarationsAt(COMMIT, zkRequest.profile)
+      ).toThrow(/carries a \.env/)
+      expect(dotenv.calls).toHaveLength(0)
+    })
+
+    it('compiles once per commit and profile for the life of the run', () => {
+      const made = harness()
+
+      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+
+      expect(made.calls).toHaveLength(1)
+      expect(made.reads).toHaveLength(1)
+    })
+
+    it('neither reads nor writes the cross-run cache, which nothing checks here', () => {
+      // A bytecode build restored from the cache still has to match the chain.
+      // Declarations do not, so a cached set with one stripped would pass.
+      const touched: string[] = []
+      const made = harness({
+        artifactCache: {
+          restore: (key) => {
+            touched.push(`restore ${key}`)
+            return true
+          },
+          save: (key) => touched.push(`save ${key}`),
+        },
+      })
+
+      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+
+      expect(made.calls).toHaveLength(1)
+      expect(made.reads).toHaveLength(1)
+      expect(touched).toEqual([])
+    })
+
+    it('empties its build root first, so a stale artifact is never read', () => {
+      const stale = `${OUT}/Stale.sol/Stale.json`
+      mkdirSync(join(stale, '..'), { recursive: true })
+      writeFileSync(stale, '{}')
+      try {
+        harness().runner.declarationsAt(COMMIT, zkRequest.profile)
+
+        expect(existsSync(stale)).toBe(false)
+        expect(existsSync('/tmp/rebuilds/zk-declarations')).toBe(true)
+      } finally {
+        rmSync('/tmp/rebuilds/zk-declarations', {
+          recursive: true,
+          force: true,
+        })
+      }
+    })
+
+    it('builds even when its output path already holds something', () => {
+      // A commit is proposer-chosen, and anything it tracks is checked out.
+      // Output found on disk is not evidence this build produced it.
+      const made = harness({ preexisting: true })
+
+      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+
+      expect(made.calls).toHaveLength(1)
+    })
+
+    it('retries after a failed build rather than reading what it left behind', () => {
+      let attempt = 0
+      const made = harness({
+        run: () => {
+          attempt += 1
+          return attempt === 1
+            ? { ok: false, output: 'Compiler run failed' }
+            : { ok: true, output: '' }
+        },
+      })
+
+      expect(() =>
+        made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      ).toThrow('Compiler run failed')
+      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+
+      expect(made.calls).toHaveLength(2)
+      expect(made.reads).toHaveLength(1)
+    })
+
+    it('throws when the AST build fails, or reports success and writes nothing', () => {
+      expect(() =>
+        harness({
+          run: () => ({ ok: false, output: 'Compiler run failed' }),
+        }).runner.declarationsAt(COMMIT, zkRequest.profile)
+      ).toThrow('Compiler run failed')
+      expect(() =>
+        harness({ writesOutput: false }).runner.declarationsAt(
+          COMMIT,
+          zkRequest.profile
+        )
+      ).toThrow('wrote nothing')
+    })
+
+    it('refuses an EVM profile, whose declarations come from its own rebuild', () => {
+      expect(() =>
+        harness().runner.declarationsAt(COMMIT, request.profile)
+      ).toThrow('not a zk lineage')
+    })
+
+    it('refuses a commit that is not a full SHA before it reaches git', () => {
+      const made = harness()
+      expect(() =>
+        made.runner.declarationsAt('main', zkRequest.profile)
+      ).toThrow('full 40-character')
+      expect(made.gitCalls).toHaveLength(0)
+    })
+  })
 })
 
+describe('createPinnedImmutableExpectations', () => {
+  const REQUIREMENTS = 'script/deploy/resources/deployRequirements.json'
+  const REGISTRY = 'script/deploy/resources/immutableRegistry.json'
+
+  const pinned = (blobs: Record<string, PinnedJsonRead>) => {
+    const asked: string[] = []
+    const source = createPinnedImmutableExpectations((repoPath) => {
+      asked.push(repoPath)
+      return blobs[repoPath] ?? { ok: false, reason: 'blob-unreadable' }
+    })
+    return { source, asked }
+  }
+
+  it('joins the registry and the requirements as the pinned commit has them', () => {
+    const { source, asked } = pinned({
+      [REQUIREMENTS]: {
+        ok: true,
+        value: {
+          OnlyOnMainFacet: {
+            configData: {
+              _bridge: { configFileName: 'x.json', keyInConfigFile: '.a' },
+            },
+          },
+        },
+      },
+      [REGISTRY]: {
+        ok: true,
+        value: {
+          OnlyOnMainFacet: {
+            BRIDGE: { source: 'config', configData: '_bridge' },
+          },
+        },
+      },
+    })
+
+    const requirements = source.loadRequirements()
+
+    expect(asked).toEqual([REQUIREMENTS, REGISTRY])
+    expect(requirements.OnlyOnMainFacet?.immutables?.BRIDGE).toEqual({
+      source: 'config',
+      configData: '_bridge',
+    })
+    // The checkout's own registry declares GasZipFacet; the pinned one here
+    // does not, so finding it would mean the working tree was read.
+    expect(
+      readFileSync(join(import.meta.dir, '..', '..', '..', REGISTRY), 'utf8')
+    ).toContain('"GasZipFacet"')
+    expect(requirements.GasZipFacet).toBeUndefined()
+  })
+
+  it('throws when an expectation file cannot be read at the pinned commit', () => {
+    const { source } = pinned({
+      [REQUIREMENTS]: { ok: true, value: {} },
+      [REGISTRY]: { ok: false, reason: 'fetch-failed' },
+    })
+
+    expect(() => source.loadRequirements()).toThrow(
+      `${REGISTRY} could not be read at origin/main (fetch-failed)`
+    )
+  })
+
+  it('reads a config file from config/ at the pinned commit', () => {
+    const { source, asked } = pinned({
+      'config/centrifuge.json': {
+        ok: true,
+        value: { tokenBridge: { mainnet: '0xpinned' } },
+      },
+    })
+
+    expect(source.loadConfigFile('centrifuge.json')).toEqual({
+      tokenBridge: { mainnet: '0xpinned' },
+    })
+    expect(asked).toEqual(['config/centrifuge.json'])
+  })
+
+  it('answers "expected value unknown" for a config file main does not carry', () => {
+    // centrifuge.json exists in this checkout, so a fallback to the working
+    // tree would return its contents instead.
+    const { source } = pinned({})
+
+    expect(
+      readFileSync(
+        join(import.meta.dir, '..', '..', '..', 'config', 'centrifuge.json'),
+        'utf8'
+      )
+    ).toContain('tokenBridge')
+    expect(source.loadConfigFile('centrifuge.json')).toBeNull()
+  })
+
+  it('never asks for a config name that is not a plain basename', () => {
+    const { source, asked } = pinned({})
+
+    expect(source.loadConfigFile('../foundry.json')).toBeNull()
+    expect(asked).toEqual([])
+  })
+
+  it('throws rather than answering "unknown" when the anchor itself failed', () => {
+    // A null here would grade as unpriceable with a reason blaming the config
+    // file, when nothing about the file was learned.
+    const { source } = pinned({
+      'config/centrifuge.json': { ok: false, reason: 'remote-unexpected' },
+    })
+
+    expect(() => source.loadConfigFile('centrifuge.json')).toThrow(
+      'config/centrifuge.json could not be read at origin/main (remote-unexpected)'
+    )
+  })
+})
 describe('createImmutableReferencesResolver', () => {
   const PROFILE = {
     profile: 'default',
@@ -612,7 +1869,11 @@ describe('createImmutableReferencesResolver', () => {
   ) =>
     createImmutableReferencesResolver({
       readRecord: async () => record,
-      scopeFor: () => ({ isClosedSet: true, profiles: [PROFILE] }),
+      scopeFor: () => ({
+        isClosedSet: true,
+        holdsImmutablesOffCode: false,
+        profiles: [PROFILE],
+      }),
       build: (request) => {
         builds.push(request.commit)
         return { runtimeHex: DEPLOYED, immutableReferences: REFS }
@@ -689,6 +1950,7 @@ describe('createForgeRebuildRunner refuses a commit it cannot trust', () => {
       run: () => ({ ok: true, output: '' }),
       exists: () => false,
       readFile: () => '{}',
+      readDeclarations: () => NO_DECLARATIONS,
     })
 
     expect(() =>
@@ -708,6 +1970,351 @@ describe('createForgeRebuildRunner refuses a commit it cannot trust', () => {
   })
 })
 
+describe('createForgeRebuildRunner never reads output it did not write', () => {
+  const COMMIT = 'b'.repeat(40)
+  const evmRequest = {
+    contractName: 'GlacisFacet',
+    commit: COMMIT,
+    profile: {
+      profile: 'default',
+      solcVersion: '0.8.29',
+      evmVersion: 'cancun',
+    },
+  }
+  const zkRequest = {
+    ...evmRequest,
+    profile: {
+      ...evmRequest.profile,
+      profile: 'zksync',
+      zksolcVersion: '1.5.15',
+    },
+  }
+  const FORGED = JSON.stringify({
+    bytecode: { object: '0xdeadbeef' },
+    deployedBytecode: { object: '0xdeadbeef' },
+    ast: {},
+  })
+
+  const harness = (over: {
+    tracked?: readonly string[]
+    exists?: (path: string) => boolean
+  }) => {
+    const spawned: string[] = []
+    const restored: string[] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: (args) =>
+        args.includes('ls-files') ? (over.tracked ?? []).join('\0') : '',
+      run: (command) => {
+        spawned.push(command)
+        return { ok: true, output: '' }
+      },
+      exists: over.exists ?? ((path) => path.endsWith('.json')),
+      readFile: () => FORGED,
+      readDeclarations: () => NO_DECLARATIONS,
+      artifactCache: {
+        restore: (key) => {
+          restored.push(key)
+          return false
+        },
+        save: () => undefined,
+      },
+    })
+    return { runner, spawned, restored }
+  }
+
+  it.each([
+    ['a zk artifact', 'zkout/GlacisFacet.sol/GlacisFacet.json', zkRequest],
+    ['a case variant', 'ZKOUT/GlacisFacet.sol/GlacisFacet.json', zkRequest],
+    ['a Unicode case variant', 'z\u212Aout/x', zkRequest],
+    ['a symlink or gitlink at the output root', 'zkout', zkRequest],
+    [
+      'an EVM artifact',
+      'out-codehash-default/GlacisFacet.sol/GlacisFacet.json',
+      evmRequest,
+    ],
+    [
+      'another profile’s EVM output',
+      'out-codehash-solc_floor/x.json',
+      evmRequest,
+    ],
+    [
+      'a long-s variant',
+      'out-codeha\u017Fh-default/GlacisFacet.sol/GlacisFacet.json',
+      evmRequest,
+    ],
+    ['a zk compile cache', 'zkcache/zksolc-files-cache.json', zkRequest],
+    ['a solc compile cache', 'cache/solidity-files-cache.json', evmRequest],
+  ])(
+    'refuses a commit tracking %s before reading or building anything',
+    (_label, path, request) => {
+      const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
+
+      expect(() => h.runner.build(request)).toThrow(/tracks build output/)
+      expect(h.spawned).toEqual([])
+      expect(h.restored).toEqual([])
+    }
+  )
+
+  it.each([
+    ['a nested directory of the same name', 'src/zkout/Thing.sol'],
+    ['a name that only starts like one', 'zkoutput/x.json'],
+    ['the default forge output', 'out/x.json'],
+  ])('admits a commit tracking %s', (_label, path) => {
+    const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
+
+    expect(() => h.runner.build(evmRequest)).not.toThrow()
+  })
+
+  it.each([
+    ['zk', zkRequest, `/tmp/rebuilds/${COMMIT}/zkout`],
+    ['EVM', evmRequest, `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`],
+  ])(
+    'refuses a %s output directory already present before this run wrote to it',
+    (_label, request, outPath) => {
+      const h = harness({
+        exists: (path) => path === outPath || path.endsWith('.json'),
+      })
+
+      expect(() => h.runner.build(request)).toThrow(/this run did not write it/)
+      expect(h.spawned).toEqual([])
+      expect(h.restored).toEqual([])
+    }
+  )
+
+  it('builds EVM output outside the checkout, where no tracked path can alias it', () => {
+    const outs: string[] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: () => '',
+      run: (_command, args) => {
+        outs.push(args[args.indexOf('--out') + 1] as string)
+        return { ok: true, output: '' }
+      },
+      exists: (path) => (path.endsWith('.json') ? outs.length > 0 : false),
+      readFile: (path) =>
+        path.endsWith('foundry.toml')
+          ? readFileSync(
+              join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+              'utf8'
+            )
+          : FORGED,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    runner.build(evmRequest)
+
+    expect(outs).toEqual([
+      `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`,
+    ])
+    expect(outs[0]?.startsWith(`/tmp/rebuilds/${COMMIT}`)).toBe(false)
+  })
+
+  it('reads a directory it vetted absent for a second contract at the same commit', () => {
+    let builds = 0
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: () => '',
+      run: () => {
+        builds++
+        return { ok: true, output: '' }
+      },
+      // The first build is what makes the directory exist, so the second
+      // request sees it present and must not take it for a checked-in one.
+      exists: (path) =>
+        path.endsWith('/out-codehash-default') || path.endsWith('.json')
+          ? builds > 0
+          : false,
+      readFile: (path) =>
+        path.endsWith('foundry.toml')
+          ? readFileSync(
+              join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+              'utf8'
+            )
+          : FORGED,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    runner.build(evmRequest)
+    expect(builds).toBe(1)
+    expect(
+      runner.build({ ...evmRequest, contractName: 'Other' }).runtimeHex
+    ).toBe('0xdeadbeef')
+    expect(builds).toBe(1)
+  })
+
+  describe('against a real checkout', () => {
+    let root: string
+    afterEach(() => rmSync(root, { recursive: true, force: true }))
+
+    const git = (cwd: string, args: string[]): string => {
+      const result = spawnSync(
+        'git',
+        [
+          '-c',
+          'user.name=t',
+          '-c',
+          'user.email=t@t',
+          '-c',
+          'commit.gpgsign=false',
+          ...args,
+        ],
+        { cwd, encoding: 'utf8' }
+      )
+      if (result.status !== 0)
+        throw new Error(`git ${args.join(' ')}: ${result.stderr}`)
+      return result.stdout
+    }
+
+    /** A repo whose one commit is honest source plus whatever `plant` adds. */
+    const commitWith = (
+      plant: (repo: string) => void
+    ): { repo: string; commit: string } => {
+      root = mkdtempSync(join(tmpdir(), 'codehash-planted-'))
+      const repo = join(root, 'repo')
+      mkdirSync(join(repo, 'src'), { recursive: true })
+      git(repo, ['init', '-q'])
+      writeFileSync(
+        join(repo, 'foundry.toml'),
+        readFileSync(
+          join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+          'utf8'
+        )
+      )
+      writeFileSync(
+        join(repo, '.gitignore'),
+        'zkout/\nout-codehash-*/\ncache/\nzkcache/\n'
+      )
+      writeFileSync(
+        join(repo, 'src', 'GlacisFacet.sol'),
+        'contract GlacisFacet {}\n'
+      )
+      plant(repo)
+      git(repo, ['add', '-A'])
+      git(repo, ['add', '-f', '.'])
+      git(repo, ['commit', '-q', '-m', 'planted'])
+      return { repo, commit: git(repo, ['rev-parse', 'HEAD']).trim() }
+    }
+
+    const realRunner = (repo: string, spawned: string[]) =>
+      createForgeRebuildRunner({
+        repoRoot: repo,
+        checkoutRoot: join(root, 'checkouts'),
+        git: (args) => git(repo, args),
+        run: (command, args, options) => {
+          spawned.push(command)
+          // Stands in for forge: writes an artifact to `--out` for each
+          // contract `src/` defines, and leaves anything else where it lies.
+          const out = args[args.indexOf('--out') + 1] as string
+          for (const file of readdirSync(join(options.cwd, 'src'))) {
+            const dir = join(out, file)
+            mkdirSync(dir, { recursive: true })
+            writeFileSync(
+              join(dir, file.replace(/\.sol$/, '.json')),
+              JSON.stringify({
+                deployedBytecode: { object: '0xc0de' },
+                ast: {},
+              })
+            )
+          }
+          return { ok: true, output: '' }
+        },
+        exists: existsSync,
+        readFile: (path) => readFileSync(path, 'utf8'),
+        readDeclarations: () => NO_DECLARATIONS,
+      })
+
+    it('compiles an honest commit', () => {
+      const { repo, commit } = commitWith(() => undefined)
+      const spawned: string[] = []
+
+      expect(
+        realRunner(repo, spawned).build({ ...evmRequest, commit }).runtimeHex
+      ).toBe('0xc0de')
+      expect(spawned).toEqual(['forge'])
+    })
+
+    it('refuses a force-added artifact that would otherwise be read as the build', () => {
+      const { repo, commit } = commitWith((dir) => {
+        const artifactDir = join(dir, 'out-codehash-default', 'GlacisFacet.sol')
+        mkdirSync(artifactDir, { recursive: true })
+        writeFileSync(join(artifactDir, 'GlacisFacet.json'), FORGED)
+      })
+      const spawned: string[] = []
+
+      expect(() =>
+        realRunner(repo, spawned).build({ ...evmRequest, commit })
+      ).toThrow(
+        /tracks build output \(out-codehash-default\/GlacisFacet\.sol\/GlacisFacet\.json\)/
+      )
+      expect(spawned).toEqual([])
+    })
+
+    // The route that got past the first cut of these guards on APFS: the link
+    // dangles while the checkout is vetted, and the submodule update that runs
+    // just before the compile is what fills its target.
+    it.each([
+      ['EVM', evmRequest, 'out-codeha\u017Fh-default'],
+      ['zk', zkRequest, 'z\u212Aout'],
+    ])(
+      'refuses a %s look-alike symlink into a submodule that is filled after vetting',
+      (_label, request, name) => {
+        const { repo, commit } = commitWith((dir) => {
+          const evil = join(root, 'evil')
+          mkdirSync(join(evil, 'out', 'Planted.sol'), { recursive: true })
+          writeFileSync(
+            join(evil, 'out', 'Planted.sol', 'Planted.json'),
+            FORGED
+          )
+          git(evil, ['init', '-q'])
+          git(evil, ['add', '-f', '.'])
+          git(evil, ['commit', '-q', '-m', 'evil'])
+          git(dir, [
+            '-c',
+            'protocol.file.allow=always',
+            'submodule',
+            'add',
+            '-q',
+            evil,
+            'lib/evil',
+          ])
+          symlinkSync('lib/evil/out', join(dir, name))
+        })
+        const spawned: string[] = []
+
+        expect(() =>
+          realRunner(repo, spawned).build({
+            ...request,
+            contractName: 'Planted',
+            commit,
+          })
+        ).toThrow(`tracks build output (${name})`)
+        expect(spawned).toEqual([])
+      }
+    )
+
+    it('refuses a tracked symlink where the output directory goes', () => {
+      const { repo, commit } = commitWith((dir) => {
+        mkdirSync(join(dir, 'planted', 'GlacisFacet.sol'), { recursive: true })
+        writeFileSync(
+          join(dir, 'planted', 'GlacisFacet.sol', 'GlacisFacet.json'),
+          FORGED
+        )
+        symlinkSync('planted', join(dir, 'out-codehash-default'))
+      })
+      const spawned: string[] = []
+
+      expect(() =>
+        realRunner(repo, spawned).build({ ...evmRequest, commit })
+      ).toThrow(/tracks build output \(out-codehash-default\)/)
+      expect(spawned).toEqual([])
+    })
+  })
+})
+
 describe('createImmutableReferencesResolver refuses several lineages', () => {
   it('does not pick one profile when the network has two', async () => {
     const builds: string[] = []
@@ -719,6 +2326,7 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
       }),
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [
           { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
           { profile: 'other', solcVersion: '0.8.29', evmVersion: 'cancun' },
@@ -850,5 +2458,789 @@ describe('createDeployedCodeReader', () => {
     })(ADDRESS, 'arbitrum')
 
     expect(asked).toEqual(['arbitrum'])
+  })
+
+  // The same read discipline over `ImmutableSimulator`, which gate L trusts on
+  // exactly the same terms: it decides whether a signer is asked to confirm a
+  // value, so one endpoint may not decide it alone.
+  describe('createImmutableSimulatorReader', () => {
+    const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
+
+    it('takes the primary answer when the primary answers', async () => {
+      stub({ [PRIMARY]: WORD, [SECOND]: `0x${'33'.repeat(32)}` })
+      const read = createImmutableSimulatorReader(() =>
+        chainWith([PRIMARY, SECOND])
+      )
+
+      expect(await read('arbitrum', ADDRESS, 0)).toBe(WORD)
+    })
+
+    it('refuses a lone fallback answer when the primary is down', async () => {
+      stub({ [PRIMARY]: undefined, [SECOND]: WORD })
+      const read = createImmutableSimulatorReader(() =>
+        chainWith([PRIMARY, SECOND])
+      )
+
+      let threw = false
+      try {
+        await read('arbitrum', ADDRESS, 0)
+      } catch {
+        threw = true
+      }
+      expect(threw).toBe(true)
+    })
+
+    it('rejects rather than returning a zero when nothing could be read', async () => {
+      // Zero is a value an immutable legitimately holds, so a failed read that
+      // resolved to it would be compared against an unset config entry and
+      // reported as agreement.
+      stub({})
+      const read = createImmutableSimulatorReader(() => chainWith([PRIMARY]))
+
+      let threw = false
+      try {
+        await read('arbitrum', ADDRESS, 0)
+      } catch {
+        threw = true
+      }
+      expect(threw).toBe(true)
+    })
+  })
+})
+
+/**
+ * The zk half of layer 2, which reads the values out of a system contract
+ * rather than out of the code. Every refusal below leaves gate L reporting "the
+ * values were not established", which is a different row from "they disagree" —
+ * so nothing here may collapse into a pricing that decided.
+ */
+describe('createImmutablePricer', () => {
+  const BRIDGE = `${'22'.repeat(20)}`
+  const RUNTIME = `0x${'5b'.repeat(32)}${'00'.repeat(12)}${BRIDGE}`
+
+  const requirements: DeployRequirements = {
+    CentrifugeFacet: {
+      configData: {
+        _tokenBridge: {
+          configFileName: 'centrifuge.json',
+          keyInConfigFile: '.tokenBridge.<NETWORK>',
+        },
+      },
+      immutables: {
+        TOKEN_BRIDGE: { source: 'config', configData: '_tokenBridge' },
+      },
+    },
+  }
+
+  const price = (configured: string) =>
+    createImmutablePricer({
+      readRecord: async () => ({
+        contractName: 'CentrifugeFacet',
+        version: '1.0.0',
+        gitCommitHash: 'a'.repeat(40),
+      }),
+      scopeFor: () =>
+        ({
+          isClosedSet: true,
+          holdsImmutablesOffCode: false,
+          profiles: [
+            { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
+          ],
+        } as unknown as IToolchainScope),
+      build: () => ({
+        runtimeHex: RUNTIME,
+        immutableReferences: { '7': [{ start: 32, length: 32 }] },
+        immutableDeclarations: [
+          {
+            file: 'src/Facets/CentrifugeFacet.sol',
+            contract: 'CentrifugeFacet',
+            line: 33,
+            astId: 7,
+            type: 'address',
+            name: 'TOKEN_BRIDGE',
+          },
+        ],
+      }),
+      loadRequirements: () => requirements,
+      loadConfigFile: (fileName) =>
+        fileName === 'centrifuge.json'
+          ? { tokenBridge: { mainnet: configured } }
+          : null,
+    })(ADDRESS, 'mainnet', RUNTIME)
+
+  it('prices against the config the expectation source supplies', async () => {
+    // config/centrifuge.json on disk names a different mainnet bridge, so both
+    // verdicts below can only come from the injected loader.
+    const agrees = await price(`0x${BRIDGE}`)
+    const differs = await price(`0x${'33'.repeat(20)}`)
+
+    if (agrees.decided) expect(agrees.slots[0]?.status).toBe('verified')
+    else throw new Error(`expected a decided pricing: ${agrees.reason}`)
+    if (differs.decided) expect(differs.slots[0]?.status).toBe('disagrees')
+    else throw new Error(`expected a decided pricing: ${differs.reason}`)
+  })
+})
+
+describe('createOffCodeImmutablesReader', () => {
+  const ADDRESS = '0x1111111111111111111111111111111111111111'
+  const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
+
+  const declaration = (name: string, line: number): IImmutableDeclaration => ({
+    file: 'src/Facets/GasZipFacet.sol',
+    contract: 'GasZipFacet',
+    line,
+    type: 'address',
+    name,
+  })
+
+  const reader = (over: {
+    record?: { contractName: string; version: string; gitCommitHash: string }
+    declarations?: readonly IImmutableDeclaration[]
+    covered?: boolean
+    getImmutable?: (
+      network: string,
+      address: string,
+      index: number
+    ) => Promise<string>
+    loadRequirements?: () => DeployRequirements
+    loadConfigFile?: (fileName: string) => unknown
+  }) =>
+    createOffCodeImmutablesReader({
+      readRecord: async () =>
+        over.record ?? {
+          contractName: 'GasZipFacet',
+          version: '1.0.0',
+          gitCommitHash: 'a'.repeat(40),
+        },
+      declarationsFor: () => ({
+        covered: over.covered ?? true,
+        declarations: over.declarations ?? [declaration('router', 22)],
+      }),
+      getImmutable: over.getImmutable ?? (async () => WORD),
+      loadRequirements: over.loadRequirements ?? (() => ({})),
+      loadConfigFile: over.loadConfigFile ?? (() => null),
+    })
+
+  it('reports a contract declaring no immutables as nothing to grade', async () => {
+    const read = await reader({ declarations: [] })(ADDRESS, 'zksync')
+
+    expect(read).toEqual({ declared: 'none' })
+  })
+
+  it('refuses when the recorded commit does not define the contract', async () => {
+    // The same empty list a contract with no immutables produces. Grading it
+    // `none` would pass a deployment whose values were never looked at.
+    const read = await reader({ covered: false, declarations: [] })(
+      ADDRESS,
+      'zksync'
+    )
+
+    if (read.declared === 'some' && !read.pricing.decided)
+      expect(read.pricing.reason).toContain('does not define it')
+    else throw new Error('expected a refusal')
+  })
+
+  it('hands the declarations resolver the record and network, and refuses when it throws', async () => {
+    const seen: { commit: string; network: string }[] = []
+    const read = await createOffCodeImmutablesReader({
+      readRecord: async () => ({
+        contractName: 'GasZipFacet',
+        version: '1.0.0',
+        gitCommitHash: 'b'.repeat(40),
+      }),
+      declarationsFor: (record, network) => {
+        seen.push({ commit: record.gitCommitHash, network })
+        throw new Error('the AST build failed')
+      },
+      getImmutable: async () => WORD,
+      loadRequirements: () => ({}),
+      loadConfigFile: () => null,
+    })(ADDRESS, 'zksync')
+
+    expect(seen).toEqual([{ commit: 'b'.repeat(40), network: 'zksync' }])
+    if (read.declared === 'some' && !read.pricing.decided)
+      expect(read.pricing.reason).toContain('the AST build failed')
+    else throw new Error('expected a refusal')
+  })
+
+  it('prices the value the simulator returned, and names its slot', async () => {
+    const read = await reader({})(ADDRESS, 'zksync')
+
+    expect(read).toMatchObject({
+      declared: 'some',
+      slotByName: { router: 0 },
+    })
+    if (read.declared === 'some' && read.pricing.decided)
+      expect(read.pricing.slots[0]?.observed).toBe(WORD)
+    else throw new Error('expected a decided pricing')
+  })
+
+  it('addresses the simulator by ordinal scaled to a whole word', async () => {
+    const asked: number[] = []
+    await reader({
+      declarations: [
+        declaration('backendSigner', 41),
+        declaration('router', 22),
+      ],
+      getImmutable: async (_network, _address, index) => {
+        asked.push(index)
+        return WORD
+      },
+    })(ADDRESS, 'zksync')
+
+    expect(asked).toEqual([0, 32])
+  })
+
+  it('refuses rather than pricing when the record says nothing', async () => {
+    const read = await createOffCodeImmutablesReader({
+      readRecord: async () => undefined,
+      declarationsFor: () => ({
+        covered: true,
+        declarations: [declaration('router', 22)],
+      }),
+      getImmutable: async () => WORD,
+      loadRequirements: () => ({}),
+      loadConfigFile: () => null,
+    })(ADDRESS, 'zksync')
+
+    expect(read).toMatchObject({ declared: 'some' })
+    if (read.declared === 'some') expect(read.pricing.decided).toBe(false)
+  })
+
+  it('refuses rather than defaulting when a slot could not be read', async () => {
+    // Zero is a value an immutable legitimately holds, so a failed read that
+    // defaulted to it would compare against an unset config entry and match.
+    const read = await reader({
+      getImmutable: async () => {
+        throw new Error('ImmutableSimulator unreachable')
+      },
+    })(ADDRESS, 'zksync')
+
+    if (read.declared === 'some' && !read.pricing.decided)
+      expect(read.pricing.reason).toContain('unreachable')
+    else throw new Error('expected a refusal')
+  })
+
+  it('prices against the config the expectation source supplies', async () => {
+    const requirements: DeployRequirements = {
+      GasZipFacet: {
+        configData: {
+          _router: {
+            configFileName: 'fixture.json',
+            keyInConfigFile: '.routers.<NETWORK>',
+          },
+        },
+        immutables: { router: { source: 'config', configData: '_router' } },
+      },
+    }
+    const priced = (configured: string) =>
+      reader({
+        loadRequirements: () => requirements,
+        loadConfigFile: (fileName) =>
+          fileName === 'fixture.json'
+            ? { routers: { zksync: configured } }
+            : null,
+      })(ADDRESS, 'zksync')
+
+    const agrees = await priced(`0x${'22'.repeat(20)}`)
+    const differs = await priced(`0x${'33'.repeat(20)}`)
+
+    if (agrees.declared === 'some' && agrees.pricing.decided)
+      expect(agrees.pricing.slots[0]?.status).toBe('verified')
+    else throw new Error('expected a decided pricing')
+    if (differs.declared === 'some' && differs.pricing.decided)
+      expect(differs.pricing.slots[0]?.status).toBe('disagrees')
+    else throw new Error('expected a decided pricing')
+  })
+
+  it('refuses when declaration order does not determine a numbering', async () => {
+    const read = await reader({
+      declarations: [declaration('router', 22), declaration('signer', 22)],
+    })(ADDRESS, 'zksync')
+
+    if (read.declared === 'some') expect(read.pricing.decided).toBe(false)
+    else throw new Error('expected a refusal')
+  })
+})
+
+describe('createRecordedImmutableDeclarations', () => {
+  const COMMIT = 'c'.repeat(40)
+  const record = (gitCommitHash: string) => ({
+    contractName: 'CentrifugeFacet',
+    version: '1.0.0',
+    gitCommitHash,
+  })
+  const scopeFor = createToolchainScopeResolver(readToolchainConfig())
+
+  const resolver = (all: IDeclaredImmutables) => {
+    const asked: { commit: string; profile: string }[] = []
+    return {
+      asked,
+      declarationsFor: createRecordedImmutableDeclarations({
+        scopeFor,
+        declarationsAt: (commit, profile) => {
+          asked.push({ commit, profile: profile.profile })
+          return all
+        },
+      }),
+    }
+  }
+
+  it("asks the rebuild of the record's commit, under the network's zk lineage", () => {
+    const made = resolver({
+      declarations: [
+        {
+          file: 'src/Facets/CentrifugeFacet.sol',
+          contract: 'CentrifugeFacet',
+          line: 30,
+          type: 'address',
+          name: 'TOKEN_BRIDGE',
+        },
+        {
+          file: 'src/Facets/OtherFacet.sol',
+          contract: 'OtherFacet',
+          line: 10,
+          type: 'address',
+          name: 'OTHER',
+        },
+      ],
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+        OtherFacet: ['src/Facets/OtherFacet.sol'],
+      }),
+    })
+
+    const read = made.declarationsFor(record(COMMIT), 'zksync')
+
+    expect(made.asked).toEqual([{ commit: COMMIT, profile: 'zksync' }])
+    expect(read.covered).toBe(true)
+    expect(read.declarations.map((one) => one.name)).toEqual(['TOKEN_BRIDGE'])
+  })
+
+  it('separates a contract the AST defined from one it never saw', () => {
+    const made = resolver({
+      declarations: [],
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+      }),
+    })
+    expect(made.declarationsFor(record(COMMIT), 'zksync')).toEqual({
+      covered: true,
+      declarations: [],
+    })
+
+    const empty = resolver(NO_DECLARATIONS)
+    expect(empty.declarationsFor(record(COMMIT), 'zksync').covered).toBe(false)
+  })
+
+  it('refuses a name defined twice, since layer 1 cannot say which one it matched', () => {
+    // A stub under `src/` beside the real contract in `lib/`: the stub alone
+    // declares nothing, and reading it would grade the real one's immutables
+    // as absent.
+    const made = resolver({
+      declarations: [],
+      definitions: defined({
+        CentrifugeFacet: [
+          'src/Facets/Stub.sol',
+          'lib/vendor/src/CentrifugeFacet.sol',
+        ],
+      }),
+    })
+
+    expect(() => made.declarationsFor(record(COMMIT), 'zksync')).toThrow(
+      'defined in 2 source files'
+    )
+  })
+
+  it('refuses a contract defined only outside src/', () => {
+    // The commit's own `src` setting pointing elsewhere puts every artifact
+    // outside `src/`.
+    const made = resolver({
+      declarations: [],
+      definitions: defined({
+        CentrifugeFacet: ['src2/Facets/CentrifugeFacet.sol'],
+      }),
+    })
+
+    expect(() => made.declarationsFor(record(COMMIT), 'zksync')).toThrow(
+      'outside the src/ tree'
+    )
+  })
+
+  it('reads declarations only from the file defining the contract', () => {
+    const made = resolver({
+      declarations: [
+        {
+          file: 'src/Facets/CentrifugeFacet.sol',
+          contract: 'CentrifugeFacet',
+          line: 30,
+          type: 'address',
+          name: 'TOKEN_BRIDGE',
+        },
+        {
+          file: 'src/Elsewhere.sol',
+          contract: 'CentrifugeFacet',
+          line: 3,
+          type: 'address',
+          name: 'PLANTED',
+        },
+      ],
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+      }),
+    })
+
+    expect(
+      made
+        .declarationsFor(record(COMMIT), 'zksync')
+        .declarations.map((one) => one.name)
+    ).toEqual(['TOKEN_BRIDGE'])
+  })
+
+  it('covers nothing when the AST build produced no readable artifacts', () => {
+    const made = resolver(
+      readImmutableDeclarations(join(tmpdir(), 'codehash-no-such-ast-out'))
+    )
+
+    expect(made.declarationsFor(record(COMMIT), 'zksync').covered).toBe(false)
+  })
+
+  it('throws for a record that names no commit, before any build', () => {
+    for (const hash of ['', '  ', 'UNKNOWN']) {
+      const made = resolver(NO_DECLARATIONS)
+      expect(() => made.declarationsFor(record(hash), 'zksync')).toThrow(
+        'carries no commit'
+      )
+      expect(made.asked).toHaveLength(0)
+    }
+  })
+
+  it('throws when the network does not resolve to exactly one lineage', () => {
+    const declarationsFor = createRecordedImmutableDeclarations({
+      scopeFor: (network) => ({ ...scopeFor(network), profiles: [] }),
+      declarationsAt: () => NO_DECLARATIONS,
+    })
+
+    expect(() => declarationsFor(record(COMMIT), 'zksync')).toThrow(
+      '0 build profiles'
+    )
+
+    const zk = scopeFor('zksync').profiles[0] as IBuildProfile
+    const twoLineages = createRecordedImmutableDeclarations({
+      scopeFor: (network) => ({ ...scopeFor(network), profiles: [zk, zk] }),
+      declarationsAt: () => NO_DECLARATIONS,
+    })
+    expect(() => twoLineages(record(COMMIT), 'zksync')).toThrow(
+      '2 build profiles'
+    )
+  })
+})
+
+describe('createSignTimeCodehashDeps sources zk declarations from the rebuild', () => {
+  // The gate's own wiring, not a stand-in for it. Whether a zk slot exists is
+  // decided by these declarations, so a working-tree source would let a branch
+  // that drops `immutable` grade `none`, which gate L ranks best.
+  const COMMIT = 'd'.repeat(40)
+  const roots: string[] = []
+  afterEach(() => {
+    for (const root of roots.splice(0))
+      rmSync(root, { recursive: true, force: true })
+  })
+
+  const wired = (all: IDeclaredImmutables) => {
+    const asked: { commit: string; profile: string }[] = []
+    const root = mkdtempSync(join(tmpdir(), 'codehash-wiring-'))
+    roots.push(root)
+    const rebuild: IForgeRebuildRunner = {
+      build: () => {
+        throw new Error('the off-code read must not need a bytecode rebuild')
+      },
+      declarationsAt: (commit, profile) => {
+        asked.push({ commit, profile: profile.profile })
+        return all
+      },
+      cleanup: () => undefined,
+    }
+    const deps = createSignTimeCodehashDeps({
+      recordSource: {
+        findByAddress: async () => ({
+          contractName: 'CentrifugeFacet',
+          version: '1.0.0',
+          gitCommitHash: COMMIT,
+        }),
+      },
+      checkoutRoot: join(root, 'checkouts'),
+      artifactCacheRoot: join(root, 'cache'),
+      readPinnedBlob: () => ({ ok: false, reason: 'blob-unreadable' }),
+      rebuild,
+    })
+    return { asked, deps }
+  }
+
+  it("grades `none` only on the recorded commit's word", async () => {
+    const { asked, deps } = wired({
+      declarations: [],
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+      }),
+    })
+    try {
+      const read = await deps.readOffCodeImmutables(ADDRESS, 'zksync')
+
+      expect(read).toEqual({ declared: 'none' })
+      expect(asked).toEqual([{ commit: COMMIT, profile: 'zksync' }])
+    } finally {
+      await deps.close()
+    }
+  })
+
+  it('refuses a contract the rebuild did not cover instead of grading `none`', async () => {
+    const { asked, deps } = wired(NO_DECLARATIONS)
+    try {
+      const read = await deps.readOffCodeImmutables(ADDRESS, 'zksync')
+
+      expect(asked).toHaveLength(1)
+      if (read.declared === 'some' && !read.pricing.decided)
+        expect(read.pricing.reason).toContain('does not define it')
+      else throw new Error(`expected a refusal, got ${JSON.stringify(read)}`)
+    } finally {
+      await deps.close()
+    }
+  })
+})
+
+describe('createArtifactCache', () => {
+  const roots: string[] = []
+  const tempRoot = (): string => {
+    const root = mkdtempSync(join(tmpdir(), 'codehash-artifact-cache-'))
+    roots.push(root)
+    return root
+  }
+
+  afterEach(() => {
+    for (const root of roots.splice(0))
+      rmSync(root, { recursive: true, force: true })
+  })
+
+  it('serves a later run the build an earlier one made', () => {
+    const cache = createArtifactCache(tempRoot())
+    const built = tempRoot()
+    mkdirSync(join(built, 'AccessManagerFacet.sol'), { recursive: true })
+    writeFileSync(
+      join(built, 'AccessManagerFacet.sol', 'AccessManagerFacet.json'),
+      '{"deployedBytecode":{"object":"0xdead"}}'
+    )
+
+    cache.save('commit-out-codehash-default', built)
+    const restoredInto = join(tempRoot(), 'out-codehash-default')
+
+    expect(cache.restore('commit-out-codehash-default', restoredInto)).toBe(
+      true
+    )
+    expect(
+      readFileSync(
+        join(restoredInto, 'AccessManagerFacet.sol', 'AccessManagerFacet.json'),
+        'utf8'
+      )
+    ).toContain('0xdead')
+  })
+
+  // The gate must reach "build it again", never "the gate could not run": every
+  // way the cache can fail is an optimisation missing, not a signing outage.
+  it('reports a miss rather than throwing, for a key and a source it cannot read', () => {
+    const cache = createArtifactCache(tempRoot())
+
+    expect(cache.restore('nothing-was-ever-saved-here', tempRoot())).toBe(false)
+    expect(() =>
+      cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
+    ).not.toThrow()
+    expect(cache.restore('unbuilt', tempRoot())).toBe(false)
+  })
+})
+
+/**
+ * A real production Tron facet, in the two spellings the lookup has to join:
+ * base58 as the deployment record holds it, checksummed hex as a decoded cut
+ * carries it. Taken from `tron-address-spellings.test.ts`, where the mapping is
+ * corroborated on chain rather than against this repo's own codec.
+ */
+const TRON_BASE58 = 'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
+const TRON_HEX = '0x8A07DD6cA9EA2DcCfF2A0015811C895ac1Abfcc5'
+
+/**
+ * Whether a record would be returned by a filter, over the operators the record
+ * query is built from and no others.
+ *
+ * The query is asserted by running rows through it rather than by reading its
+ * shape: "the base58 branch carries no `$options`" is a fact about this object,
+ * while "a base58 spelled in another case is not found" is the property the
+ * gate depends on. An operator this does not model throws instead of being
+ * ignored, so a filter that grew one cannot be reported as behaving like the
+ * filter that did not.
+ */
+const wouldMatch = (query: object, row: Record<string, string>): boolean =>
+  Object.entries(query).every(([field, condition]) => {
+    if (field === '$or') {
+      if (!Array.isArray(condition)) throw new Error('$or is not a list')
+      return condition.some((branch) => wouldMatch(branch as object, row))
+    }
+    if (field.startsWith('$')) throw new Error(`unmodelled operator ${field}`)
+    if (typeof condition !== 'object' || condition === null)
+      throw new Error(`unmodelled condition on ${field}`)
+
+    const operators = condition as Record<string, unknown>
+    const value = row[field]
+    return Object.entries(operators).every(([operator, operand]) => {
+      switch (operator) {
+        case '$eq':
+          return value === operand
+        case '$in':
+          return (operand as string[]).includes(value ?? '')
+        case '$regex': {
+          const options = operators.$options
+          if (options !== undefined && options !== 'i')
+            throw new Error(`unmodelled regex options ${String(options)}`)
+          return new RegExp(
+            asJsPattern(operand as string),
+            options === 'i' ? 'i' : ''
+          ).test(value ?? '')
+        }
+        case '$options':
+          return true
+        default:
+          throw new Error(`unmodelled operator ${operator}`)
+      }
+    })
+  })
+
+/**
+ * A PCRE2 pattern as the JavaScript engine has to spell it to mean the same.
+ *
+ * Only the two end-of-subject anchors differ here, and they differ the way the
+ * query turns on: PCRE2 `$` also matches before a trailing newline while the
+ * JavaScript `$` does not, and PCRE2 `\z` is the strict one JavaScript spells
+ * `$`. Running the pattern unchanged would read `\z` as a literal `z` and read
+ * a regressed `$` as if it were strict — the assertion would pass against the
+ * bug it exists to catch.
+ */
+const asJsPattern = (pattern: string): string =>
+  pattern.replace(/\\.|[$]/g, (token) =>
+    token === '$' ? '(?=\\n?$)' : token === '\\z' ? '$' : token
+  )
+
+/** The same base58 address with its first lowercase letter upper-cased. */
+const caseFlipped = (base58: string): string => {
+  const letter = [...base58].find((c) => c >= 'a' && c <= 'z')
+  if (!letter) throw new Error('no letter to flip')
+  const at = base58.indexOf(letter)
+  const flipped =
+    base58.slice(0, at) + letter.toUpperCase() + base58.slice(at + 1)
+  if (flipped === base58) throw new Error('flipping changed nothing')
+  return flipped
+}
+
+describe('buildRecordQuery', () => {
+  it('finds the hex spelling whatever case the record was written in', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_HEX })).toBe(true)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX.toLowerCase() })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: '0x' + TRON_HEX.slice(2).toUpperCase(),
+      })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: '0x0e07d966239d00a7fb445d4cb06b478a0e538b3b',
+      })
+    ).toBe(false)
+  })
+
+  // base58check is case-sensitive, so a folded comparison answers about an
+  // address nobody asked about.
+  it('finds the base58 spelling exactly, and never case-folded', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_BASE58 })).toBe(
+      true
+    )
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: caseFlipped(TRON_BASE58),
+      })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_BASE58.toUpperCase() })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_BASE58.toLowerCase() })
+    ).toBe(false)
+  })
+
+  it('offers no base58 spelling on a network that spells addresses one way', () => {
+    const query = buildRecordQuery(TRON_HEX, 'mainnet')
+
+    expect(
+      wouldMatch(query, { network: 'mainnet', address: TRON_HEX.toLowerCase() })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, { network: 'mainnet', address: TRON_BASE58 })
+    ).toBe(false)
+  })
+
+  // The deploy path writes `network` from the config key, so it is lowercase by
+  // construction and a fold there would widen the lookup for nothing.
+  it('matches the network exactly', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_HEX })).toBe(true)
+    expect(wouldMatch(query, { network: 'Tron', address: TRON_HEX })).toBe(
+      false
+    )
+    expect(
+      wouldMatch(query, { network: 'tronshasta', address: TRON_HEX })
+    ).toBe(false)
+  })
+
+  it('matches the whole address, as a literal', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX + '00' })
+    ).toBe(false)
+    // PCRE2 `$` matches before a trailing newline too, so the anchor has to be
+    // `\z`: a row padded with one is a different stored value.
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX + '\n' })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: '00' + TRON_HEX })
+    ).toBe(false)
+    expect(
+      wouldMatch(buildRecordQuery('0x.a', 'mainnet'), {
+        network: 'mainnet',
+        address: '0xba',
+      })
+    ).toBe(false)
+  })
+
+  // Self-check on the harness above: every assertion here is an observation
+  // made through it, so a filter it silently mis-read would report the gate as
+  // safe.
+  it('is asserted through a matcher that refuses what it cannot model', () => {
+    expect(() =>
+      wouldMatch(
+        { address: { $not: { $eq: TRON_HEX } } },
+        {
+          address: TRON_HEX,
+        }
+      )
+    ).toThrow('unmodelled operator $not')
   })
 })

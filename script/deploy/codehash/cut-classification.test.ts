@@ -138,6 +138,33 @@ describe('classifyCut', () => {
     expect(verdict.gated).toEqual([A])
   })
 
+  it('gates the address a periphery registration installs', () => {
+    const verdict = classifyCut({ cuts: [], init: ZERO, registrations: [B] })
+    expect(verdict.gated).toEqual([B])
+    expect(verdict.refusals).toEqual([])
+  })
+
+  it('refuses a registration of the zero address rather than gating it', () => {
+    const verdict = classifyCut({ cuts: [], init: ZERO, registrations: [ZERO] })
+    expect(verdict.gated).toEqual([])
+    expect(verdict.refusals).toHaveLength(1)
+    expect(verdict.refusals[0]).toMatch(/zero address/)
+  })
+
+  it('does not let a registration justify a removal-only cut\u2019s _init', () => {
+    // `_init` is delegatecalled in the diamond's storage context; a periphery
+    // registration beside it installs nothing into that context, so it cannot
+    // stand in for the install the refusal is looking for.
+    const verdict = classifyCut({
+      cuts: [remove(A)],
+      init: INIT,
+      registrations: [B],
+    })
+    expect(verdict.refusals).toHaveLength(1)
+    expect(verdict.refusals[0]).toMatch(/removal-only cut/)
+    expect(verdict.gated).toEqual([])
+  })
+
   it('reports every refusal rather than only the first', () => {
     // A signer fixing one and re-running should not discover the next one at a
     // time; and a caller that only shows the first would hide the rest.

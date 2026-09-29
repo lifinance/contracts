@@ -329,9 +329,7 @@ describe('a funnel that offers --ticket reads it', () => {
 })
 
 // The source side of the classification, over every funnel including the two
-// spawned above. It is the only cover the Tron funnel gets — its check sits
-// past the timelock reads inside `runPropose`, so reaching it costs a live
-// chain. A source check passes against a rewrite of the same bug, so these
+// spawned above. A source check passes against a rewrite of the same bug, so these
 // assert only the shape the ticket has to travel in — declared, forwarded to
 // the check, forwarded to the store, and given no `default`. The last three
 // cases are the fail-closed set, one per claim §4.2 makes exhaustively.

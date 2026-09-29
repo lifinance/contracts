@@ -20,6 +20,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
+
 const DEFAULT_DB = 'sc_private'
 const DEFAULT_COLLECTION = 'pendingTransactions'
 
@@ -43,6 +45,7 @@ const main = defineCommand({
   async run() {
     if (!process.env.SC_MONGODB_URI)
       throw new Error('SC_MONGODB_URI environment variable is required')
+    assertStoreCredentialsAreEncrypted(process.env.SC_MONGODB_URI)
 
     const client = new MongoClient(process.env.SC_MONGODB_URI, {
       serverSelectionTimeoutMS: 10_000,

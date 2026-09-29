@@ -24,14 +24,17 @@
 
 import type { Hex } from 'viem'
 
+import type { IFacetCutEntry } from '../codehash/cut-classification'
 import {
   verifyCutTargets,
   type ITargetVerdict,
   type IVerifyCutDeps,
 } from '../codehash/verify-cut-targets'
+import { ZERO_ADDRESS } from '../shared/constants'
 
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
+import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
 
 export interface ICodehashSignGate {
   /**
@@ -61,18 +64,33 @@ export interface ICodehashSignGate {
   /** The whole outcome as a signer should read it. */
   summary: string
   /**
-   * True when the gate reached no verdict about anything — no cut was found and
-   * nothing was refused. It is NOT a pass: an envelope this decoder cannot open
+   * True when the gate reached no verdict about anything — no cut and no
+   * periphery registration was found, and nothing was refused. It is NOT a pass: an envelope this decoder cannot open
    * lands here, and rendering it green claimed the bytes had been read.
    */
   madeNoClaim?: boolean
+  /**
+   * The frames the decoder could not open, when it could not open any.
+   *
+   * Carried structurally because it is the field that separates the two things
+   * `madeNoClaim` covers: a payload read to the end that installs nothing, and
+   * a payload nobody could read. The first has nothing to check and the second
+   * has not been checked, and a consumer that told them apart by reading
+   * `summary` would be deciding on a sentence the proposer's calldata shapes.
+   */
+  unopened?: readonly string[]
+  /**
+   * Function names of the calls the decoder resolved and found to install
+   * nothing, so a gate standing down can say what the proposal does instead.
+   */
+  knownCalls?: readonly string[]
 }
 
 /**
  * The state every proposal starts in, and the one a failed evaluation stays in.
  *
  * `blocksSigning` is false and `evaluated` is false together: a proposal that
- * installs no facet code is the common case and must remain signable. A caller
+ * installs no contract code is the common case and must remain signable. A caller
  * that needs "we never got as far as looking" to block spreads this and sets
  * `blocksSigning`, which is what the confirmation flow does per proposal.
  */
@@ -95,7 +113,7 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
   ...unevaluatedCodehashSignGate(),
   blocksSigning: true,
   summary:
-    'the codehash gate did not run for this proposal, so what this cut installs was never checked',
+    'the codehash gate did not run for this proposal, so what it installs was never checked',
 })
 
 /**
@@ -241,13 +259,33 @@ export const evaluateCodehashSignGate = async (
   // re-derived.
   let anyCutBlocks = false
 
-  // Every cut is judged even when a frame was already refused: a batch pairing
-  // one readable cut with one unreadable frame must show both, or the readable
-  // half renders green beside a hole.
-  for (const call of collected.calls)
+  // A registration performs no `FacetCut`, so it is judged as an installation of
+  // its own rather than folded into one: the addresses are gated the same way,
+  // but nothing about a registration may justify a cut's `_init`.
+  const installations: {
+    cuts: IFacetCutEntry[]
+    init: string
+    registrations?: readonly string[]
+  }[] = [...collected.calls]
+  if (collected.registrations.length > 0)
+    installations.push({
+      cuts: [],
+      init: ZERO_ADDRESS,
+      registrations: collected.registrations.map((one) => one.address),
+    })
+
+  // Every installation is judged even when a frame was already refused: a batch
+  // pairing one readable cut with one unreadable frame must show both, or the
+  // readable half renders green beside a hole.
+  for (const call of installations)
     try {
       const report = await verifyCutTargets(
-        { cuts: call.cuts, init: call.init, network },
+        {
+          cuts: call.cuts,
+          init: call.init,
+          network,
+          ...(call.registrations ? { registrations: call.registrations } : {}),
+        },
         resolveDeps()
       )
       refusals.push(...report.refusals)
@@ -260,18 +298,18 @@ export const evaluateCodehashSignGate = async (
       // be resolved is the real case. It blocks: "we could not check" is the
       // one thing that must never render as a pass.
       refusals.push(
-        `The codehash gate could not be evaluated for this cut: ${message(
+        `The codehash gate could not be evaluated for this call: ${message(
           error
         )}`
       )
       summaries.push(
-        `This cut will not be signed: the codehash gate could not be evaluated — ${message(
+        `This call will not be signed: the codehash gate could not be evaluated — ${message(
           error
         )}`
       )
     }
 
-  if (collected.calls.length === 0 && refusals.length === 0)
+  if (installations.length === 0 && refusals.length === 0)
     return {
       gradedKey: proposalKeyOf(input.struct.data),
       gradedData: data,
@@ -280,12 +318,18 @@ export const evaluateCodehashSignGate = async (
       refusals: [],
       targets: [],
       madeNoClaim: true,
+      unopened: collected.unopened,
+      knownCalls: collected.knownCalls,
       summary:
         collected.unopened.length > 0
-          ? `No diamondCut was decoded, but this decoder could not open ${collected.unopened.join(
+          ? `Nothing installing code was decoded, but this decoder could not open ${collected.unopened.join(
               ', '
-            )} — so it cannot state whether a cut is present. Nothing here has been verified.`
-          : 'No diamondCut was decoded from this calldata, so there is no facet bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
+            )} — so it cannot state whether an installation is present. Nothing here has been verified.`
+          : collected.knownCalls.length > 0
+          ? `This proposal calls ${collected.knownCalls.join(
+              ', '
+            )} and installs no code, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.`
+          : 'No diamondCut and no periphery registration was decoded from this calldata, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
     }
 
   return {
@@ -307,6 +351,34 @@ export const evaluateCodehashSignGate = async (
     summary: summaries.length > 0 ? summaries.join(' ') : refusals.join(' '),
   }
 }
+
+/**
+ * The heading this block prints under.
+ *
+ * The gate's own letter and title, not a name of its own: a block headed
+ * "Codehash gate" sits under a manifest that lists the same gate by its letter
+ * and its assertion, so nothing on the page connects the two. Declared here
+ * rather than imported from the registry, which imports this module;
+ * `confirm-check-registry.test.ts` holds the two to the same string.
+ */
+export const CODEHASH_GATE_HEADING =
+  'Gate K · Installed bytecode matches the attested build'
+
+/**
+ * Whether the gate reached no per-address verdict and refused nothing.
+ *
+ * Covers both the payload with no cut in it and the cut that installs no code —
+ * a removal, whose every facet address is zero. Both leave this block with
+ * nothing but the sentence the ledger row carries.
+ *
+ * @param gate - The evaluated gate.
+ * @returns True when the gate judged nothing and blocks nothing.
+ */
+const nothingWasJudged = (gate: ICodehashSignGate): boolean =>
+  gate.evaluated &&
+  !gate.blocksSigning &&
+  gate.targets.length === 0 &&
+  gate.refusals.length === 0
 
 /** Glyph, colour and word are all different per bucket, on purpose. */
 const BUCKETS = {
@@ -332,35 +404,37 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
   // refusal a signer then hits has no explanation on screen.
   if (!gate.evaluated && !gate.blocksSigning) return []
 
-  const lines = ['    Codehash gate:']
+  // A gate that compared nothing has one sentence to say, and its ledger row
+  // already says it under NOT APPLICABLE — where the manifest also counts it,
+  // which a free-standing block is not.
+  if (nothingWasJudged(gate)) return []
+
+  const lines = ['', `${GATE_TITLE_INDENT}${CODEHASH_GATE_HEADING}`]
+  // The per-address reasons hang one step inside their verdict line.
+  const reasonIndent = `${GATE_BODY_INDENT}    `
 
   // A different glyph from MISMATCH's, or the rule this file states — that no
   // two buckets differ by only one of word, glyph and colour — is broken by its
   // own renderer. Both are blocking red, so this is legibility, not safety.
   if (!gate.evaluated)
-    lines.push(`        \u001b[31m⛔ REFUSED\u001b[0m ${gate.summary}`)
+    lines.push(
+      `${GATE_BODY_INDENT}\u001b[31m× REFUSED\u001b[0m ${gate.summary}`
+    )
 
   for (const refusal of gate.refusals)
-    lines.push(`        \u001b[31m⛔ REFUSED\u001b[0m ${refusal}`)
+    lines.push(`${GATE_BODY_INDENT}\u001b[31m× REFUSED\u001b[0m ${refusal}`)
 
   for (const target of gate.targets) {
     const bucket = BUCKETS[target.verdict]
     lines.push(
-      `        \u001b[${bucket.colour}m${bucket.glyph} ${target.verdict}\u001b[0m ${target.address}`
+      `${GATE_BODY_INDENT}\u001b[${bucket.colour}m${bucket.glyph} ${target.verdict}\u001b[0m ${target.address}`
     )
-    lines.push(`            ${target.reason}`)
+    lines.push(`${reasonIndent}${target.reason}`)
     if (target.excludedByteCount > 0)
       lines.push(
-        `            \u001b[33m${target.excludedByteCount} bytes were excluded as immutables and are not covered by this verdict — their values still need checking.\u001b[0m`
+        `${reasonIndent}\u001b[33m${target.excludedByteCount} bytes were excluded as immutables and are not covered by this verdict — their values still need checking.\u001b[0m`
       )
   }
-
-  // Deliberately neither green nor MATCH. "We found no cut" and "we checked the
-  // cut and it is clean" are different facts, and a signer skimming glyphs
-  // cannot tell them apart if both are a green tick — which is how an envelope
-  // this decoder could not open was rendered as an affirmative pass.
-  if (gate.evaluated && gate.targets.length === 0 && gate.refusals.length === 0)
-    lines.push(`        \u001b[36m· NO CLAIM\u001b[0m ${gate.summary}`)
 
   return lines
 }

@@ -16,12 +16,19 @@
  */
 
 import { spawnSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
-import { MongoClient } from 'mongodb'
+import { MongoClient, type Filter } from 'mongodb'
 import { createPublicClient, http, type Address, type Chain } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
@@ -29,10 +36,19 @@ import { redactUrls } from '../../utils/redactUrls'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
+import { readCheckoutProfiles } from '../codehash/checkout-foundry-config'
+import {
+  observeEvmImmutables,
+  observeZkImmutables,
+  priceImmutables,
+  type ImmutablePricing,
+} from '../codehash/immutable-expectations'
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
+import type { IOffCodeImmutables } from '../codehash/immutable-verdict'
 import {
   deriveToolchainScope,
   parseBuildProfiles,
+  ZK_PROFILE,
   type IBuildProfile,
   type IToolchainScope,
 } from '../codehash/lineage-scope'
@@ -43,12 +59,32 @@ import {
   type IRebuildRequest,
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
+import { resolveSourceRemote } from '../codehash/source-remote'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
+import {
+  readZkImmutables,
+  zkImmutableOrdinals,
+  IMMUTABLE_SIMULATOR_ADDRESS,
+} from '../codehash/zk-immutables'
+import {
+  readImmutableDeclarations,
+  type IImmutableDeclaration,
+} from '../immutables/immutable-ast'
+import type {
+  DeployRequirements,
+  IImmutableEntry,
+} from '../immutables/registry-schema'
+import { mergeRequirements } from '../immutables/verify-immutable-registry'
+import { isValidConfigFileName } from '../shared/immutableBindings'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
+import { PINNED_REF, type PinnedJsonRead } from './pinned-target-state'
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
   collectProviderObservations,
   createCodeReader,
+  createPinnedBlock,
+  createPinnedValueReader,
 } from './rpc-quorum-collector'
 import { getSignTimeTransportConfig } from './sign-time-transport'
 
@@ -57,6 +93,31 @@ const FULL_SHA = /^[0-9a-f]{40}$/
 
 /** What the record writer stores when it could not read a commit. */
 const UNKNOWN_COMMIT = 'UNKNOWN'
+
+/**
+ * Where foundry-zksync writes artifacts. Fixed: it honours neither `--out` nor
+ * the profile's `out`, and exposes no flag of its own to redirect it.
+ */
+const ZK_OUT_DIR = 'zkout'
+
+/** Prefix of the per-profile directory an EVM rebuild writes to via `--out`. */
+const EVM_OUT_PREFIX = 'out-codehash-'
+
+/**
+ * Where EVM rebuilds write, under the checkout root and beside the commit's
+ * checkout rather than inside it, so no path the commit tracks can alias it.
+ */
+const EVM_OUT_ROOT = 'evm-out'
+
+/** Compile caches the rebuild's forge reads by default, beside its output. */
+const BUILD_CACHE_DIRS = ['cache', 'zkcache']
+
+/**
+ * Where a zk lineage's declarations build writes, under the checkout root and
+ * beside the commit's checkout rather than inside it. Inside, a commit tracking
+ * that path would be checked out as the build's output before the build ran.
+ */
+const ZK_DECLARATIONS_DIR = 'zk-declarations'
 
 /** Repo root, resolved from this module so a caller's cwd cannot change it. */
 const REPO_ROOT = join(
@@ -180,25 +241,38 @@ export const createRuntimeCodeObserver = (
       rawHash: normalized.rawHash,
       rawByteLength: normalized.rawByteLength,
       maskedByteCount: normalized.maskedByteCount,
+      runtimeCode: code,
       // Proposer-controlled, and consulted by the comparison only where the
       // legitimate set is open. Carried so a reason can name it, never to
       // decide anything on a closed set.
       ...(trailer.present && trailer.solcVersion
         ? { solcVersion: trailer.solcVersion }
         : {}),
+      // Also proposer-written, and compared rather than believed: an attested
+      // build that records a triple requires this one to equal it, so a forged
+      // value can only move a verdict towards MISMATCH.
+      ...(trailer.present && trailer.toolchain
+        ? { toolchain: trailer.toolchain }
+        : {}),
     }
   }
 }
 
-/** The slice of the deployment-record store this needs. */
+/**
+ * The slice of the deployment-record store this needs.
+ *
+ * `version` and `gitCommitHash` are optional because the stored rows make them
+ * so — declaring them required does not make them present, it only moves the
+ * absence to a `TypeError` the signer reads as an unreadable record.
+ */
 export interface IRecordSource {
   findByAddress: (
     address: string,
     network: string
   ) => Promise<{
     contractName: string
-    version: string
-    gitCommitHash: string
+    version?: string
+    gitCommitHash?: string
   } | null>
 }
 
@@ -235,8 +309,8 @@ export const createRecordReader = (
     if (!row) return undefined
     return {
       contractName: row.contractName,
-      version: row.version,
-      gitCommitHash: row.gitCommitHash ?? '',
+      version: text(row.version),
+      gitCommitHash: text(row.gitCommitHash),
     }
   }
 }
@@ -294,6 +368,17 @@ export const createImmutableReferencesResolver = (deps: {
   }
 }
 
+/**
+ * One AST enumeration. {@link definitions} is what makes an empty declaration
+ * list mean "declares none" rather than "was never compiled", and says which
+ * file a name was compiled from.
+ */
+export interface IDeclaredImmutables {
+  declarations: readonly IImmutableDeclaration[]
+  /** Contract name → every source file defining it, `lib/` included. */
+  definitions: ReadonlyMap<string, ReadonlySet<string>>
+}
+
 export interface IForgeRebuildDeps {
   repoRoot: string
   /** Where the per-commit checkouts go. */
@@ -306,6 +391,149 @@ export interface IForgeRebuildDeps {
   ) => { ok: boolean; output: string }
   exists: (path: string) => boolean
   readFile: (path: string) => string
+  /**
+   * Immutable declarations out of a directory of AST-carrying artifacts,
+   * with repo-relative source paths resolved against `sourceRoot`, and every
+   * contract those artifacts define.
+   */
+  readDeclarations: (outDir: string, sourceRoot: string) => IDeclaredImmutables
+  /**
+   * Where a build survives between runs, keyed on commit and profile.
+   *
+   * Optional because nothing about the gate's verdict depends on it: a miss on
+   * both calls is the behaviour without a cache at all, which is what the tests
+   * that omit it exercise. Both sides are best-effort and must not throw — a
+   * cache that cannot be read is a slow run, and a cache that makes the gate
+   * fail is a signing outage.
+   */
+  artifactCache?: {
+    /** Puts a cached build at `outDir`. Returns false when it holds none. */
+    restore: (key: string, outDir: string) => boolean
+    /** Keeps `outDir` for the next run. */
+    save: (key: string, outDir: string) => void
+  }
+}
+
+/**
+ * Whether an artifact on disk carries the AST layer 2 needs.
+ *
+ * A parse failure answers false rather than throwing: the caller's response is
+ * to rebuild, which is also the right response to an artifact it cannot read.
+ *
+ * @param deps - the file primitives
+ * @param artifactPath - the artifact to inspect
+ * @returns true when an `ast` node is present
+ */
+const carriesAst = (
+  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+  artifactPath: string
+): boolean => {
+  try {
+    return (
+      (JSON.parse(deps.readFile(artifactPath)) as { ast?: unknown }).ast !==
+      undefined
+    )
+  } catch {
+    return false
+  }
+}
+
+const EXTERNAL_ZKSYNC_SECTION = /^\s*\[external\.zksync\]\s*$/
+const TOML_SECTION = /^\s*\[[^\]]+\]\s*$/
+const FOUNDRY_ZKSYNC_PIN = /^\s*foundry_zksync\s*=\s*['"]([^'"]+)['"]/
+
+/** Same shape `install_foundry_zksync` compares against: `vX.Y.Z` and `nightly-<sha>` alike. */
+const REPORTED_ZK_RELEASE = /foundry-zksync-(\S+)/
+
+/**
+ * How an operator installs the pinned release. Verified by sourcing the script:
+ * `install_foundry_zksync` is a shell function, so it exists only after the source.
+ */
+const ZK_INSTALL_HINT =
+  'run `source script/helperFunctions.sh && install_foundry_zksync` in the repository root'
+
+/**
+ * The foundry-zksync release pinned in `foundry.toml` `[external.zksync]`.
+ *
+ * `parseBuildProfiles` reads the neighbouring `zksolc` key but not this one, and
+ * neither pin can live in a profile table — vanilla forge warns on an unknown
+ * `zksync` key — so the section has to be walked directly.
+ *
+ * @param toml - contents of `foundry.toml`
+ * @returns The pinned release tag, or undefined when the section does not pin one
+ */
+const parseFoundryZksyncPin = (toml: string): string | undefined => {
+  let inSection = false
+  for (const line of toml.split('\n')) {
+    if (EXTERNAL_ZKSYNC_SECTION.test(line)) {
+      inSection = true
+      continue
+    }
+    if (TOML_SECTION.test(line)) {
+      inSection = false
+      continue
+    }
+    if (!inSection) continue
+    const pin = FOUNDRY_ZKSYNC_PIN.exec(line)
+    if (pin) return pin[1]
+  }
+  return undefined
+}
+
+/**
+ * Refuses a zk rebuild unless the binary about to compile is the pinned release.
+ *
+ * `foundry-zksync/` is untracked, so a fresh clone or worktree has none at all.
+ * Without this the spawn fails inside the build and surfaces as "the attested
+ * build could not be produced", which reads to a signer as a fact about the
+ * deployment rather than about their machine. A binary that is present but off
+ * the pin is worse: it compiles, produces different bytecode and grades an
+ * honest deployment MISMATCH.
+ *
+ * Mirrors `assertZkToolchainOrFail` (`script/deploy/shared/assertZkToolchain.sh`)
+ * on the bash deploy path. Only the observed leg is mirrored: the zksolc request
+ * is built by this module from the same pin it would be compared against.
+ *
+ * @param deps - the file and process primitives, and the repo to read the pin from
+ * @param command - the foundry-zksync forge this build would invoke
+ * @throws when the binary is absent, unreadable, or off the pin
+ */
+const assertZkToolchainPinned = (
+  deps: Pick<IForgeRebuildDeps, 'repoRoot' | 'run' | 'exists' | 'readFile'>,
+  command: string
+): void => {
+  const refusal = (why: string): Error =>
+    new Error(
+      `zkEVM toolchain problem, not a codehash verdict: ${why}. Nothing about the deployment has been established — to make this checkable, ${ZK_INSTALL_HINT}.`
+    )
+
+  const pin = parseFoundryZksyncPin(
+    deps.readFile(join(deps.repoRoot, 'foundry.toml'))
+  )
+  if (pin === undefined)
+    throw refusal(
+      'foundry.toml [external.zksync] pins no foundry_zksync release, so there is nothing to hold the rebuild to'
+    )
+
+  if (!deps.exists(command))
+    throw refusal(`no foundry-zksync forge at ${command}`)
+
+  const probe = deps.run(command, ['--version'], {
+    cwd: deps.repoRoot,
+    env: {},
+  })
+  const reported = REPORTED_ZK_RELEASE.exec(probe.output)?.[1]
+  if (!probe.ok || reported === undefined)
+    throw refusal(
+      `\`${command} --version\` did not report a foundry-zksync release: ${redactUrls(
+        probe.output
+      )}`
+    )
+
+  if (reported !== pin)
+    throw refusal(
+      `${command} is foundry-zksync ${reported} but foundry.toml pins ${pin}, and a rebuild under the wrong release would not reproduce the deployed bytecode`
+    )
 }
 
 /**
@@ -338,6 +566,164 @@ const assertSubmodulesPinned = (
 }
 
 /**
+ * Whether a top-level name in a checkout is one the rebuild writes its output
+ * to or reads a compile cache from.
+ *
+ * Folded through upper case before comparing, because a case-insensitive
+ * filesystem resolves `ZKOUT`, and `ſ` (U+017F) for `s`, to the directory
+ * the artifact is read from; lower-casing alone leaves `ſ` as it is.
+ *
+ * @param name - first component of a tracked path
+ * @returns true when content at that name could stand in for a compile
+ */
+const isBuildOutputName = (name: string): boolean => {
+  const folded = name.toUpperCase().toLowerCase()
+  return (
+    folded === ZK_OUT_DIR ||
+    folded.startsWith(EVM_OUT_PREFIX) ||
+    BUILD_CACHE_DIRS.includes(folded)
+  )
+}
+
+/**
+ * Refuses a checkout whose commit tracks anything where the rebuild writes.
+ *
+ * The commit comes from the deployment record and need only be fetchable, and
+ * `worktree add` checks out every tracked file — force-added past
+ * `.gitignore`, symlinked, or a submodule gitlink alike. A tracked artifact
+ * would be read as the rebuild's result without anything having compiled, and a
+ * tracked cache could let forge skip the compile that should overwrite it.
+ *
+ * @param git - runs git with the same cwd/env the runner uses
+ * @param checkout - absolute path of the detached worktree
+ * @throws when any tracked path sits under a build output or cache directory
+ */
+const assertNoTrackedBuildOutput = (
+  git: (args: string[]) => string,
+  checkout: string
+): void => {
+  const tracked = git(['-C', checkout, 'ls-files', '-z'])
+    .split('\0')
+    .filter(
+      (path) => path.length > 0 && isBuildOutputName(path.split('/')[0] ?? '')
+    )
+  if (tracked.length === 0) return
+  const shown = tracked.slice(0, 5).join(', ')
+  const more = tracked.length > 5 ? ` and ${tracked.length - 5} more` : ''
+  throw new Error(
+    `refusing to rebuild at ${checkout}: the commit tracks build output (${shown}${more}), which would be read as this rebuild's result without the source having been compiled. No honest deployment commit tracks these paths; treat the deployment record as suspect.`
+  )
+}
+
+/**
+ * Names the profile in a checkout's own `foundry.toml` that pins the requested
+ * compiler pair, and pins the compiler forge runs for it.
+ *
+ * The request carries a profile from HEAD's `foundry.toml`, but the build runs
+ * at the deployment commit, whose file may spell the same pair under another
+ * name or not declare it at all. Forge answers an unknown `FOUNDRY_PROFILE`
+ * with `[profile.default]`, a warning and exit 0, so passing HEAD's name through
+ * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
+ *
+ * A non-zk pair is matched by its versions, so either spelling of the london
+ * profile resolves. The zk profile is matched by name: older commits carry no
+ * zksolc pin at all, and the rebuild exports HEAD's through `FOUNDRY_ZKSYNC`.
+ *
+ * The solc binary is pinned through `FOUNDRY_SOLC` to the plain version the
+ * matched profile names, so the checkout chooses a version but never a binary.
+ * Measured on forge 1.7.1 and foundry-zksync v0.0.32: that variable outranks
+ * every `foundry.toml` spelling of a compiler and `--use` alike, and a version
+ * is looked up in svm's own directory. What outranks it is a `.env` in the
+ * checkout, which forge loads into its own environment and so into the
+ * compiler it spawns — hence the refusal of any such file.
+ *
+ * @param deps - the file primitives the runner reads the checkout with
+ * @param checkout - absolute path of the detached worktree
+ * @param requested - HEAD's profile for the lineage being rebuilt
+ * @returns The `FOUNDRY_PROFILE` and `FOUNDRY_SOLC` to build that checkout under
+ * @throws when the checkout could choose what executes, declares no such pair,
+ * or declares more than one profile for it
+ */
+const resolveCheckoutBuildEnv = (
+  deps: Pick<IForgeRebuildDeps, 'readFile' | 'exists'>,
+  checkout: string,
+  requested: IBuildProfile
+): { FOUNDRY_PROFILE: string; FOUNDRY_SOLC: string } => {
+  // Runs after the submodule update, so a `.env` symlinked into `lib/`
+  // resolves here the same way it would for forge.
+  if (deps.exists(join(checkout, '.env')))
+    throw new Error(
+      `refusing to rebuild at ${checkout}: the commit carries a .env, which forge loads into the environment of the compiler it runs. No honest deployment commit tracks one; treat the deployment record as suspect.`
+    )
+  const tomlPath = join(checkout, 'foundry.toml')
+  let toml: string
+  try {
+    toml = deps.readFile(tomlPath)
+  } catch (error) {
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml could not be read (${
+        error instanceof Error ? error.message : String(error)
+      }), so nothing says which profile pins solc ${
+        requested.solcVersion
+      } / evm ${requested.evmVersion} there.`
+    )
+  }
+  let profiles: ReturnType<typeof readCheckoutProfiles>
+  try {
+    profiles = readCheckoutProfiles(toml)
+  } catch (error) {
+    throw new Error(
+      `refusing to rebuild at ${checkout}: ${
+        error instanceof Error ? error.message : String(error)
+      }. Treat the deployment record as suspect.`
+    )
+  }
+
+  if (requested.zksolcVersion !== undefined) {
+    const zk = profiles[ZK_PROFILE]
+    if (zk !== undefined)
+      return { FOUNDRY_PROFILE: zk.profile, FOUNDRY_SOLC: zk.solcVersion }
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml declares no [profile.${ZK_PROFILE}], so forge would build the zk lineage under [profile.default] with a warning and exit 0.`
+    )
+  }
+
+  const matching = Object.values(profiles).filter(
+    (candidate) =>
+      candidate.profile !== ZK_PROFILE &&
+      candidate.solcVersion === requested.solcVersion &&
+      candidate.evmVersion === requested.evmVersion
+  )
+  const [only] = matching
+  if (matching.length === 1 && only)
+    return { FOUNDRY_PROFILE: only.profile, FOUNDRY_SOLC: only.solcVersion }
+  const pair = `solc ${requested.solcVersion} / evm ${requested.evmVersion}`
+  if (matching.length === 0)
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml declares no profile pinning ${pair} (HEAD calls it "${requested.profile}"), so forge would build under [profile.default] with a warning and exit 0 and the comparison would run against the wrong compiler.`
+    )
+  throw new Error(
+    `refusing to rebuild at ${checkout}: its foundry.toml declares ${
+      matching.length
+    } profiles pinning ${pair} (${matching
+      .map((candidate) => candidate.profile)
+      .join(
+        ', '
+      )}), so the one the deployment was built with cannot be told apart.`
+  )
+}
+
+export interface IForgeRebuildRunner {
+  build: (request: IRebuildRequest) => IRebuiltArtifact
+  /** Throws for a non-zk profile, and when the AST build fails. */
+  declarationsAt: (
+    commit: string,
+    profile: IBuildProfile
+  ) => IDeclaredImmutables
+  cleanup: () => void
+}
+
+/**
  * Compiles one contract at one commit under one profile.
  *
  * The commit is built in its own detached checkout, never in the tree the
@@ -345,72 +731,140 @@ const assertSubmodulesPinned = (
  * operator's working tree, and a build in place would compile whatever is
  * checked out rather than what was deployed.
  *
+ * `FOUNDRY_PROFILE` is the name the checkout's own `foundry.toml` gives the
+ * requested compiler pair, not HEAD's, and `FOUNDRY_SOLC` pins the compiler
+ * (`resolveCheckoutBuildEnv`).
+ *
  * Each profile gets its own output directory. Foundry puts `default` and
  * `solc_floor` in the same `out/`, and one run can need both — a fleet rollout
  * covering a cancun network and a london one — so a shared directory would hand
  * the second profile the first one's artifact.
  *
  * @param deps - the checkout locations and the git, process and file primitives
- * @returns The `build` dependency, and a cleanup for the checkouts it made
+ * @returns The `build` dependency, the zk declarations read from the same
+ * checkouts, and a cleanup for the checkouts it made
  */
 export const createForgeRebuildRunner = (
   deps: IForgeRebuildDeps
-): {
-  build: (request: IRebuildRequest) => IRebuiltArtifact
-  cleanup: () => void
-} => {
+): IForgeRebuildRunner => {
   const created = new Set<string>()
+  const vettedCheckouts = new Set<string>()
+  // Output directories seen absent before this run's first restore or build
+  // into them, so everything they hold since was written by this run.
+  const vettedOutDirs = new Set<string>()
 
-  const build = (request: IRebuildRequest): IRebuiltArtifact => {
+  const checkoutAt = (commit: string): string => {
     // The commit comes from a Mongo row and reaches both a path join and git's
     // argv. `ensureCommitAvailable` checks the same shape, but it runs in a
     // different module on a different call, so this does not rely on ordering.
-    if (!FULL_SHA.test(request.commit))
+    if (!FULL_SHA.test(commit))
       throw new Error(
-        `refusing to rebuild at "${request.commit}": a commit must be a full 40-character lowercase SHA before it reaches a path or a git argument.`
+        `refusing to rebuild at "${commit}": a commit must be a full 40-character lowercase SHA before it reaches a path or a git argument.`
       )
-    const checkout = join(deps.checkoutRoot, request.commit)
+    const checkout = join(deps.checkoutRoot, commit)
     if (!deps.exists(checkout)) {
-      deps.git(['worktree', 'add', '--detach', checkout, request.commit])
+      deps.git(['worktree', 'add', '--detach', checkout, commit])
       created.add(checkout)
     }
+    return checkout
+  }
 
-    const outDir = `out-codehash-${request.profile.profile}`
+  const pinSubmodules = (checkout: string): void => {
+    // `worktree add --detach` does not populate `lib/`. Without pinning,
+    // forge's auto-install clones at tip revisions and the rebuilt runtime
+    // cannot match what was deployed — every cut grades MISMATCH.
+    deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
+    assertSubmodulesPinned(deps.git, checkout)
+  }
+
+  const build = (request: IRebuildRequest): IRebuiltArtifact => {
+    const checkout = checkoutAt(request.commit)
+
+    // The zk toolchain writes to `zkout/` and ignores `--out`, so the path the
+    // artifact is read from has to follow the toolchain rather than the flag,
+    // and sits inside the checkout where only the guards below protect it.
+    const isZk = request.profile.zksolcVersion !== undefined
+    const outDir = isZk
+      ? ZK_OUT_DIR
+      : `${EVM_OUT_PREFIX}${request.profile.profile}`
+    const outPath = isZk
+      ? join(checkout, outDir)
+      : join(deps.checkoutRoot, EVM_OUT_ROOT, request.commit, outDir)
     const artifactPath = join(
-      checkout,
-      outDir,
+      outPath,
       `${request.contractName}.sol`,
       `${request.contractName}.json`
     )
 
-    if (!deps.exists(artifactPath)) {
-      // `worktree add --detach` does not populate `lib/`. Without pinning,
-      // forge's auto-install clones at tip revisions and the rebuilt runtime
-      // cannot match what was deployed — every cut grades MISMATCH.
-      deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
-      assertSubmodulesPinned(deps.git, checkout)
+    if (!vettedCheckouts.has(checkout)) {
+      assertNoTrackedBuildOutput(deps.git, checkout)
+      vettedCheckouts.add(checkout)
+    }
+    // Catches what the tracked listing cannot: a checkout left behind under
+    // the same root by an earlier process, or a name the filesystem resolves
+    // to this directory that the case fold above does not.
+    if (!vettedOutDirs.has(outPath)) {
+      if (deps.exists(outPath))
+        throw new Error(
+          `refusing to rebuild at ${checkout}: ${outDir}/ already exists and this run did not write it, so what it holds cannot be told from a compile. If an earlier run left it, remove ${deps.checkoutRoot} and re-run; otherwise the commit put it there, and the deployment record is suspect.`
+        )
+      vettedOutDirs.add(outPath)
+    }
 
-      const isZk = request.profile.zksolcVersion !== undefined
+    // An artifact left by a build that predates `--ast` satisfies an
+    // existence check while carrying no declarations, which would report every
+    // immutable as unpriceable instead of rebuilding. Treat it as absent.
+    // zksolc emits no AST at all, so requiring one there would rebuild on every
+    // call and never be satisfied. The names a simulator slot needs come from
+    // `declarationsAt` instead.
+    const usable = (): boolean =>
+      deps.exists(artifactPath) && (isZk || carriesAst(deps, artifactPath))
+
+    // A build this machine already made of this commit under this profile. The
+    // checkout is per process and its output dies with the run, so without this
+    // every signing session recompiles the same tree from cold — which is the
+    // whole of the minute a signer waits before the checks appear.
+    //
+    // The profile is in the key as well as the directory it writes to: the zk
+    // toolchain sends every profile to `zkout`, so a key spelled from the
+    // directory alone would serve one zksolc version's build as another's.
+    const cacheKey = `${request.commit}-${request.profile.profile}-${outDir}`
+    if (!usable()) deps.artifactCache?.restore(cacheKey, outPath)
+
+    if (!usable()) {
+      pinSubmodules(checkout)
+
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
+      // The pin check first: a missing or off-pin zk toolchain names the drift
+      // precisely, and a profile refusal in front of it would mask that.
+      if (isZk) assertZkToolchainPinned(deps, command)
+      const checkoutEnv = resolveCheckoutBuildEnv(
+        deps,
+        checkout,
+        request.profile
+      )
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
-      // path globs match `[profile.solc_floor]` and skip the whole trees.
+      // path globs skip the whole trees. Only src/ is attested.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
       // silently substituted mid-build.
       const args = [
         'build',
-        '--out',
-        outDir,
-        ...(isZk ? ['--zksync'] : []),
+        ...(isZk ? ['--zksync'] : ['--out', outPath]),
         '--skip',
         'test/**',
         '--skip',
         'script/**',
         '--offline',
+        // Layer 2 keys the deployment's immutables by AST id, and an id is
+        // only meaningful inside the compilation that assigned it. Emitting
+        // the AST here is what makes the ids and the offsets come from one
+        // build; a second compile to obtain them would not.
+        '--ast',
       ]
       const env: Record<string, string> = {
-        FOUNDRY_PROFILE: request.profile.profile,
+        ...checkoutEnv,
         ...(isZk
           ? {
               FOUNDRY_ZKSYNC: `{ zksolc = "${request.profile.zksolcVersion}" }`,
@@ -435,6 +889,11 @@ export const createForgeRebuildRunner = (
             9
           )} reported success but produced no artifact at ${artifactPath}`
         )
+
+      // Only a build this run made and can vouch for. Keyed on the commit and
+      // the profile, which is what determines the output — a key that named
+      // neither would serve one commit's bytecode as another's.
+      if (usable()) deps.artifactCache?.save(cacheKey, outPath)
     }
 
     let parsed: {
@@ -442,6 +901,8 @@ export const createForgeRebuildRunner = (
         object?: string
         immutableReferences?: ImmutableReferences
       }
+      bytecode?: { object?: string }
+      ast?: unknown
     }
     try {
       parsed = JSON.parse(deps.readFile(artifactPath))
@@ -453,22 +914,124 @@ export const createForgeRebuildRunner = (
       )
     }
 
-    const runtimeHex = parsed.deployedBytecode?.object
+    // EraVM has no constructor/runtime split: what it stores at the address is
+    // the whole `bytecode.object`, and the artifact carries no
+    // `deployedBytecode` at all. Confirmed byte-for-byte against the deployed
+    // `FraxFacet` on zksync.
+    const runtimeHex = isZk
+      ? parsed.bytecode?.object
+      : parsed.deployedBytecode?.object
     if (!runtimeHex || runtimeHex === '0x')
       throw new Error(
         `the rebuilt artifact for ${request.contractName} carries no runtime bytecode`
       )
+
+    // Read from the build's own output directory and resolved against its own
+    // checkout, so both the ids and the line numbers describe the commit being
+    // graded rather than whatever the operator has checked out.
+    const declarations = deps
+      .readDeclarations(outPath, checkout)
+      .declarations.filter((one) => one.contract === request.contractName)
 
     return {
       runtimeHex,
       ...(parsed.deployedBytecode?.immutableReferences
         ? { immutableReferences: parsed.deployedBytecode.immutableReferences }
         : {}),
+      ...(declarations.length > 0
+        ? { immutableDeclarations: declarations }
+        : {}),
     }
+  }
+
+  const zkDeclarations = new Map<string, IDeclaredImmutables>()
+
+  /**
+   * The immutables `src/` declares at the commit a zk lineage was rebuilt at.
+   *
+   * zksolc emits no AST, `--ast` included (checked against foundry-zksync
+   * v0.0.32), so {@link build} has none to read on this path. A vanilla solc
+   * `--ast` build of the same checkout supplies it instead: same commit, same
+   * submodule pins, so the names describe the source whose bytes layer 1
+   * matched rather than whatever the signer has checked out. Nothing from this
+   * build is ever compared as bytecode.
+   *
+   * Kept out of {@link IForgeRebuildDeps.artifactCache}, which is safe only
+   * because a tampered bytecode build fails against the chain. Nothing checks
+   * these declarations against anything, so a cached set with a declaration
+   * stripped would grade `none` on every later run.
+   */
+  const declarationsAt = (
+    commit: string,
+    profile: IBuildProfile
+  ): IDeclaredImmutables => {
+    if (profile.zksolcVersion === undefined)
+      throw new Error(
+        `profile ${profile.profile} is not a zk lineage, and an EVM lineage's declarations come from its own rebuild`
+      )
+    const key = `${commit}-${profile.profile}`
+    const memoised = zkDeclarations.get(key)
+    if (memoised) return memoised
+
+    const checkout = checkoutAt(commit)
+    const buildRoot = join(deps.checkoutRoot, ZK_DECLARATIONS_DIR, key)
+    const outPath = join(buildRoot, 'out')
+
+    // Emptied and rebuilt on every call the memo misses: nothing re-checks
+    // these declarations, so no artifact this build did not just write — a
+    // partial one from a failed attempt included — may be read with them.
+    rmSync(buildRoot, { recursive: true, force: true })
+    pinSubmodules(checkout)
+    // The same sources the zksolc build compiles: no path argument, so the
+    // commit's own `src` setting applies to both. Naming `src` here while its
+    // profile points elsewhere would read declarations from a tree layer 1 never
+    // built.
+    const result = deps.run(
+      'forge',
+      [
+        'build',
+        '--skip',
+        'test/**',
+        '--skip',
+        'script/**',
+        '--offline',
+        '--ast',
+        '--out',
+        outPath,
+      ],
+      {
+        cwd: checkout,
+        env: {
+          ...resolveCheckoutBuildEnv(deps, checkout, profile),
+          // The zk profile's `cache_path` is the one the zksolc build uses,
+          // and a solc build sharing it would invalidate that one's cache.
+          FOUNDRY_CACHE_PATH: join(buildRoot, 'cache'),
+        },
+      }
+    )
+    if (!result.ok)
+      throw new Error(
+        `the AST build naming the immutables of ${commit.slice(
+          0,
+          9
+        )} failed: ${redactUrls(result.output)}`
+      )
+    if (!deps.exists(outPath))
+      throw new Error(
+        `the AST build of ${commit.slice(
+          0,
+          9
+        )} reported success but wrote nothing to ${outPath}`
+      )
+
+    const read = deps.readDeclarations(outPath, checkout)
+    zkDeclarations.set(key, read)
+    return read
   }
 
   return {
     build,
+    declarationsAt,
     cleanup: (): void => {
       for (const checkout of created)
         try {
@@ -517,6 +1080,65 @@ const memoisePerTarget = <T>(
  */
 export const defaultCheckoutRoot = (pid = process.pid): string =>
   join(tmpdir(), `lifi-codehash-rebuilds-${pid}`)
+
+/**
+ * Where a rebuild's artifacts outlive the checkout that produced them.
+ *
+ * Shared across runs, unlike {@link defaultCheckoutRoot}: a build is a pure
+ * function of the commit and the profile, both of which are in the key, so one
+ * run's output is another's answer. What must not be shared is the git
+ * worktree — that is what `close()` removes, and what the per-process root
+ * keeps one run from deleting under another.
+ *
+ * Artifacts only. Nothing here is trusted as evidence: the gate re-reads the
+ * bytecode out of the restored artifact and compares it against the chain, so a
+ * tampered cache produces a MISMATCH and blocks, never a false match.
+ */
+export const defaultArtifactCacheRoot = (): string =>
+  join(tmpdir(), 'lifi-codehash-artifacts')
+
+/**
+ * The cross-run artifact store, as the rebuild runner consumes it.
+ *
+ * Both sides swallow their failures. A cache is an optimisation on a path that
+ * decides whether a signature may be taken, so every way it can go wrong has to
+ * end in "build it again", never in a gate that could not run.
+ *
+ * @param root - where cached builds live
+ * @returns The `artifactCache` dependency
+ */
+export const createArtifactCache = (
+  root: string = defaultArtifactCacheRoot()
+): NonNullable<IForgeRebuildDeps['artifactCache']> => ({
+  restore: (key, outDir) => {
+    const cached = join(root, key)
+    try {
+      if (!existsSync(cached)) return false
+      cpSync(cached, outDir, { recursive: true })
+      return true
+    } catch {
+      return false
+    }
+  },
+  save: (key, outDir) => {
+    // Staged under this process and moved into place in one step, so a run that
+    // dies mid-copy cannot leave a half-written build where the next run reads
+    // a whole one. The rename loses to whichever process got there first, and
+    // losing is fine — both copies are builds of the same commit.
+    const staged = join(root, `.staging-${process.pid}-${key}`)
+    try {
+      mkdirSync(root, { recursive: true })
+      cpSync(outDir, staged, { recursive: true })
+      renameSync(staged, join(root, key))
+    } catch {
+      try {
+        rmSync(staged, { recursive: true, force: true })
+      } catch {
+        // Disk, not correctness, and the next save overwrites the staging path.
+      }
+    }
+  },
+})
 
 export interface ISignTimeCodehashDeps extends IVerifyCutDeps {
   /** Releases the record store and removes the rebuild checkouts. */
@@ -606,14 +1228,308 @@ export const createDeployedCodeReader =
     )
   }
 
-export const createSignTimeCodehashDeps = (overrides?: {
+/** The one function of `ImmutableSimulator` this reads. */
+const IMMUTABLE_SIMULATOR_ABI = [
+  {
+    type: 'function',
+    name: 'getImmutable',
+    stateMutability: 'view',
+    inputs: [
+      { name: '_dest', type: 'address' },
+      { name: '_index', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bytes32' }],
+  },
+] as const
+
+/**
+ * Reads one immutable out of `ImmutableSimulator`, on the same terms as the
+ * code read this gate already trusts.
+ *
+ * Trusted anchor, so the fallbacks never decide alone: the primary answers and
+ * its answer stands, and only when it cannot do the remaining endpoints get the
+ * question, under the same quorum. A value nobody could read is an error and
+ * never a zero — zero is a value an immutable legitimately holds, and
+ * defaulting to it would compare a failed read against a config entry that
+ * happens to be unset and call the pair a match.
+ *
+ * @param resolveChain - Resolves a network name to its viem chain; injectable for tests.
+ * @returns A reader from `(network, address, index)` to the 32-byte word held there.
+ * @throws When the primary is unavailable and the fallbacks do not agree.
+ */
+export const createImmutableSimulatorReader = (
+  resolveChain: (network: string) => Chain = getViemChainForNetworkName
+): ((network: string, address: string, index: number) => Promise<string>) => {
+  const pins = new Map<string, () => Promise<bigint>>()
+
+  return async (network, address, index) => {
+    const chain = resolveChain(network)
+    const [primary, ...fallbacks] = chain.rpcUrls.default.http
+
+    if (primary)
+      try {
+        const { url, fetchOptions, retryCount, retryDelay } =
+          getSignTimeTransportConfig(primary)
+        const client = createPublicClient({
+          chain,
+          transport: http(url, {
+            ...(fetchOptions ? { fetchOptions } : {}),
+            retryCount,
+            retryDelay,
+          }),
+        })
+        return await client.readContract({
+          address: IMMUTABLE_SIMULATOR_ADDRESS as Address,
+          abi: IMMUTABLE_SIMULATOR_ABI,
+          functionName: 'getImmutable',
+          args: [address as Address, BigInt(index)],
+        })
+      } catch (error) {
+        if (fallbacks.length === 0) throw error
+      }
+
+    if (fallbacks.length === 0)
+      throw new Error(
+        `No RPC endpoint is configured for ${network}, so slot ${index} of ${address} could not be read from ${IMMUTABLE_SIMULATOR_ADDRESS}`
+      )
+
+    // One pin per network for every slot of every address, because a fan-out
+    // that picks its own head per call reads each slot at a different block and
+    // the quorum grades that as unaligned rather than as agreement.
+    let pinnedBlock = pins.get(network)
+    if (!pinnedBlock) {
+      pinnedBlock = createPinnedBlock(fallbacks, chain.id)
+      pins.set(network, pinnedBlock)
+    }
+
+    const verdict = evaluateRpcQuorum(
+      await collectProviderObservations(
+        fallbacks,
+        createPinnedValueReader(
+          chain.id,
+          async (client, blockNumber) =>
+            client.readContract({
+              address: IMMUTABLE_SIMULATOR_ADDRESS as Address,
+              abi: IMMUTABLE_SIMULATOR_ABI,
+              functionName: 'getImmutable',
+              args: [address as Address, BigInt(index)],
+              blockNumber,
+            }),
+          undefined,
+          pinnedBlock
+        )
+      )
+    )
+
+    if (verdict.reachesQuorum && verdict.agreedValue !== undefined)
+      return verdict.agreedValue
+
+    throw new Error(
+      `The primary RPC for ${network} could not answer and its fallbacks did not agree on slot ${index} of ${address} (${verdict.status}), so nothing here is verified`
+    )
+  }
+}
+
+/**
+ * What the recorded commit's AST says about one contract.
+ *
+ * An empty {@link declarations} means "declares no immutables" only when
+ * {@link covered} is true; otherwise it means the enumeration never reached that
+ * contract, which is not a fact about the deployment at all.
+ */
+export interface IRecordedImmutableDeclarations {
+  covered: boolean
+  declarations: readonly IImmutableDeclaration[]
+}
+
+/**
+ * The immutables a zk deployment's own source declares, at the commit its
+ * record names — the commit layer 1 rebuilt and matched.
+ *
+ * Never from the tree the signer runs in. Whether a slot exists at all is
+ * decided here, so a checkout that drops an `immutable` keyword would report
+ * `none`, which gate L ranks best. The commit layer 1 attested is the one
+ * source whose declarations describe the bytes on chain.
+ *
+ * Throws rather than answering for anything it cannot pin to one commit and
+ * one lineage; the reader turns that into a refusal.
+ *
+ * @param deps - the lineage resolver and the rebuild runner's AST read
+ * @returns A resolver from a deployment record to its contract's declarations
+ */
+export const createRecordedImmutableDeclarations = (deps: {
+  scopeFor: (network: string) => IToolchainScope
+  declarationsAt: IForgeRebuildRunner['declarationsAt']
+}): ((
+  record: IDeploymentRecordRef,
+  network: string
+) => IRecordedImmutableDeclarations) => {
+  return (record, network) => {
+    const commit = record.gitCommitHash.trim()
+    if (commit === '' || commit === UNKNOWN_COMMIT)
+      throw new Error(
+        `the deployment record for ${record.contractName} carries no commit, so there is no source whose declarations describe it`
+      )
+    const { profiles } = deps.scopeFor(network)
+    const profile = profiles[0]
+    if (profiles.length !== 1 || !profile)
+      throw new Error(
+        `${network} resolves to ${profiles.length} build profiles, so no single rebuild says which immutables ${record.contractName} declares`
+      )
+    const all = deps.declarationsAt(commit, profile)
+    const files = [...(all.definitions.get(record.contractName) ?? [])]
+    const [file] = files
+    if (file === undefined) return { covered: false, declarations: [] }
+    // Layer 1's artifact path names the contract, not the file it came from.
+    // Two definitions of that name — a stub under `src/` beside the real one
+    // in `lib/` — leave no way to tell which one it matched, and naming the
+    // stub here would grade the real contract's immutables as absent.
+    if (files.length > 1)
+      throw new Error(
+        `${record.contractName} is defined in ${
+          files.length
+        } source files at its recorded commit (${files.join(
+          ', '
+        )}), so which one layer 1 matched cannot be told`
+      )
+    if (!file.startsWith('src/'))
+      throw new Error(
+        `${record.contractName} is defined in ${file} at its recorded commit, outside the src/ tree whose declarations are read`
+      )
+    return {
+      covered: true,
+      declarations: all.declarations.filter(
+        (one) => one.contract === record.contractName && one.file === file
+      ),
+    }
+  }
+}
+
+/**
+ * Reads and prices the immutables of a contract that keeps them off its code.
+ *
+ * Every value comes from the chain, every declaration from the rebuild of the
+ * recorded commit and every expectation from `origin/main`, so the pricing is
+ * exactly the one the inlined path performs. What it cannot take from any of
+ * them is which slot belongs to which name — see
+ * {@link zkImmutableOrdinals} — so gate L grades the result as assumed and puts
+ * the table to the signer.
+ *
+ * Refusing is the normal answer for anything it cannot establish, and it is
+ * carried as an undecided pricing rather than thrown: gate L reports "the
+ * values were not established", which is a different row from "they disagree".
+ *
+ * @param deps - the record read, the recorded commit's declarations, the simulator read and the config source
+ * @returns The `readOffCodeImmutables` dependency of `verifyCutTargets`
+ */
+export const createOffCodeImmutablesReader = (deps: {
+  readRecord: (
+    address: string,
+    network: string
+  ) => Promise<IDeploymentRecordRef | undefined>
+  declarationsFor: (
+    record: IDeploymentRecordRef,
+    network: string
+  ) => IRecordedImmutableDeclarations
+  getImmutable: (
+    network: string,
+    address: string,
+    index: number
+  ) => Promise<string>
+  loadRequirements: () => DeployRequirements
+  loadConfigFile: (fileName: string) => unknown
+}): ((address: string, network: string) => Promise<IOffCodeImmutables>) => {
+  const refused = (reason: string): IOffCodeImmutables => ({
+    declared: 'some',
+    pricing: { decided: false, reason },
+    slotByName: {},
+  })
+
+  return async (
+    address: string,
+    network: string
+  ): Promise<IOffCodeImmutables> => {
+    const record = await deps.readRecord(address, network)
+    if (!record)
+      return refused(
+        `the deployment record says nothing about ${address} on ${network}, so there is no contract whose immutables could be looked up`
+      )
+
+    let recorded: IRecordedImmutableDeclarations
+    try {
+      recorded = deps.declarationsFor(record, network)
+    } catch (error) {
+      return refused(
+        `which immutables ${
+          record.contractName
+        } declares at its recorded commit was not established: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+    // "I found nothing" is not "there is nothing": a contract the AST build
+    // never reached — a record naming a contract its commit does not define, or
+    // a build that produced no artifacts at all — contributes the same empty
+    // list as one that genuinely declares no immutables, and grading that as
+    // `none` passes a contract whose values were never looked at.
+    if (!recorded.covered)
+      return refused(
+        `the AST of ${record.contractName}'s recorded commit does not define it, so whether it declares immutables was never established`
+      )
+    const { declarations } = recorded
+    if (declarations.length === 0) return { declared: 'none' }
+
+    const numbered = zkImmutableOrdinals(declarations)
+    if (!numbered.ok) return refused(numbered.reason)
+
+    const read = await readZkImmutables({
+      address,
+      ordinals: numbered.ordinals,
+      getImmutable: (target, index) =>
+        deps.getImmutable(network, target, index),
+    })
+    if (!read.ok) return refused(read.reason)
+
+    const observed = observeZkImmutables(read.values)
+    if (!('ok' in observed))
+      return { declared: 'some', pricing: observed, slotByName: {} }
+
+    return {
+      declared: 'some',
+      pricing: priceImmutables(
+        {
+          contractName: record.contractName,
+          observed: observed.observed,
+          network,
+          environment: EnvironmentEnum.production,
+          address,
+        },
+        deps.loadRequirements(),
+        deps.loadConfigFile
+      ),
+      slotByName: numbered.ordinals,
+    }
+  }
+}
+
+export const createSignTimeCodehashDeps = (overrides: {
   recordSource?: IRecordSource
   checkoutRoot?: string
+  artifactCacheRoot?: string
+  /**
+   * The caller's pinned reader, so every sign-time gate grades against one
+   * commit. Required so that a caller cannot fall back to a second anchor.
+   */
+  readPinnedBlob: (repoPath: string) => PinnedJsonRead
+  rebuild?: IForgeRebuildRunner
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
+  const expectations = createPinnedImmutableExpectations(
+    overrides.readPinnedBlob
+  )
   // Outside the repo: a `git worktree` under the checkout would show up as an
   // untracked path in the tree the deploy flow refuses to record from.
-  const checkoutRoot = overrides?.checkoutRoot ?? defaultCheckoutRoot()
+  const checkoutRoot = overrides.checkoutRoot ?? defaultCheckoutRoot()
   mkdirSync(checkoutRoot, { recursive: true })
 
   const git = (args: string[]): string => {
@@ -630,7 +1546,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
     return result.stdout ?? ''
   }
 
-  const rebuild = createForgeRebuildRunner({
+  const forgeRebuild = createForgeRebuildRunner({
     repoRoot: REPO_ROOT,
     checkoutRoot,
     git,
@@ -647,9 +1563,12 @@ export const createSignTimeCodehashDeps = (overrides?: {
     },
     exists: existsSync,
     readFile: (path) => readFileSync(path, 'utf8'),
+    readDeclarations: readImmutableDeclarations,
+    artifactCache: createArtifactCache(overrides.artifactCacheRoot),
   })
+  const rebuild = overrides.rebuild ?? forgeRebuild
 
-  const recordSource = overrides?.recordSource ?? createMongoRecordSource()
+  const recordSource = overrides.recordSource ?? createMongoRecordSource()
   // One read per (address, network), shared by the attestation side and the
   // offsets side: two reads of a mutable source is the failure this design
   // exists to prevent, even where the worst outcome is a mask asymmetry.
@@ -660,6 +1579,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
     toolchainScope: scopeFor,
     build: rebuild.build,
     git,
+    sourceRemote: (network: string) => resolveSourceRemote(network, { git }),
   })
 
   const observe = createRuntimeCodeObserver({
@@ -675,9 +1595,31 @@ export const createSignTimeCodehashDeps = (overrides?: {
     readDeployedCode: createDeployedCodeReader(),
   })
 
+  // Same record read and same rebuild cache as the observer, and the deployed
+  // bytes are handed over by the observer rather than fetched again, so the two
+  // layers cannot grade different readings of one address. The expectations are
+  // the one input taken from somewhere else: `origin/main`, which the proposer
+  // does not reach.
+  const price = createImmutablePricer({
+    readRecord,
+    scopeFor,
+    build: rebuild.build,
+    ...expectations,
+  })
+
   return {
     scope: (network: string): ILineageScope => scopeFor(network),
     observe,
+    price,
+    readOffCodeImmutables: createOffCodeImmutablesReader({
+      readRecord,
+      declarationsFor: createRecordedImmutableDeclarations({
+        scopeFor,
+        declarationsAt: rebuild.declarationsAt,
+      }),
+      getImmutable: createImmutableSimulatorReader(),
+      ...expectations,
+    }),
     attestationsFor: attestations.attestationsFor,
     close: async (): Promise<void> => {
       rebuild.cleanup()
@@ -696,6 +1638,164 @@ let client: MongoClient | undefined
 /** Escapes a string for use as a literal inside a MongoDB regex pattern. */
 const escapeRegexLiteral = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * A stored field as trimmed text, whatever the row actually holds.
+ *
+ * Coerced rather than optional-chained: a row storing a number reaches the
+ * signer as `record-unreadable`, which is the unactionable message this
+ * resolver exists to replace, and the store's shape is not ours to assume.
+ */
+const text = (value: unknown): string =>
+  value === undefined || value === null ? '' : String(value).trim()
+
+/** The fields the gate reads off a production deployment record. */
+interface IDeploymentRecordFields {
+  contractName: string
+  version?: string
+  gitCommitHash?: string
+}
+
+/**
+ * The filter that finds every production record for one address on one network.
+ *
+ * The decoded cut supplies checksummed addresses (`classifyCut` returns
+ * `getAddress`), and records were written in either case over the years, so an
+ * exact match alone can miss on case. Do not "simplify" this by lowercasing one
+ * side: the stored case is not ours to assume. `network` is matched exactly on
+ * purpose — the deploy path writes it from the config key, so it is lowercase
+ * by construction, unlike an address that a human or an older script may have
+ * written either way.
+ *
+ * A Tron record stores base58 while the cut carries 20-byte hex, so the address
+ * as decoded matches nothing there. Those spellings are matched exactly and
+ * never case-insensitively: base58check is case-sensitive, so folding case
+ * there would match an address that is not the one asked about.
+ *
+ * `\z` rather than `$` on the hex spelling: this is PCRE2, where `$` also
+ * matches before a trailing newline, so `$` would let `<address>\n` answer for
+ * the address.
+ *
+ * @param address - the address as the calldata carries it
+ * @param network - key in `config/networks.json`
+ * @returns The filter both spellings are looked up through
+ */
+export const buildRecordQuery = (
+  address: string,
+  network: string
+): Filter<IDeploymentRecordFields> => {
+  const spellings =
+    createTronAddressSpellings(network)?.forCalldataAddress(address)
+  return {
+    network: { $eq: network },
+    $or: [
+      {
+        address: {
+          $regex: `^${escapeRegexLiteral(address)}\\z`,
+          $options: 'i',
+        },
+      },
+      ...(spellings ? [{ address: { $in: spellings } }] : []),
+    ],
+  }
+}
+
+/**
+ * Picks the one record that describes an address, or refuses.
+ *
+ * There is no "latest wins" here to implement. An address holds one contract
+ * for its whole life, so two records that disagree about it are not a history —
+ * one of them is wrong, and every ordering picks the wrong one somewhere. The
+ * production collection carries both shapes today: `TCyAJzp…` on tron is
+ * AllBridgeFacet 2.1.1 per the diamond log that recorded the cut, while a later
+ * backfill row claims 2.1.2 at the same address, and `0x851450…` on metis
+ * carries LiFuelFeeCollector and TokenWrapper at once. Every caller grades a
+ * refusal fail-closed — `record-unreadable` through `refsFor`, `unestablished`
+ * through the off-code immutables reader, `stillMasked` through the pricer —
+ * so no path reads it as a clean answer.
+ *
+ * The one collapse is a blank field alongside a filled one: the verification
+ * step rewrites the row it just verified and loses `version` on the way
+ * through, and most rows carry no commit at all, so a blank is absence of
+ * evidence rather than a competing claim. Two *filled* values disagreeing is
+ * the refusal, for the commit as much as for the version — the commit is what
+ * the rebuild is keyed on, so picking between two would choose which source to
+ * attest against. The query is unsorted, so picking either would also vary
+ * between runs on identical data.
+ *
+ * @param candidates - every record matching the address and network
+ * @param address - the address being resolved, for the refusal message
+ * @param network - the network being resolved, for the refusal message
+ * @returns The single record, or null when there is none
+ * @throws When the surviving records disagree on contract, version or commit
+ */
+export const resolveDeploymentRecord = <
+  T extends { contractName: string; version?: string; gitCommitHash?: string }
+>(
+  candidates: T[],
+  address: string,
+  network: string
+): T | null => {
+  if (candidates.length === 0) return null
+
+  // Trimmed everywhere, and the identity key below is built from this rather
+  // than from the raw field: a row whose version differs from its twin's by a
+  // space describes the same deploy, and comparing raw strings would refuse
+  // exactly the duplicates this collapses. `version` is optional on the record
+  // interface, so a missing one must read as blank rather than throw.
+  const versionOf = (record: T): string => text(record.version)
+
+  const named = new Set(
+    candidates.filter((r) => versionOf(r) !== '').map((r) => r.contractName)
+  )
+  const kept = candidates.filter(
+    (r) => versionOf(r) !== '' || !named.has(r.contractName)
+  )
+
+  const refuse = (what: string, values: string[]): never => {
+    throw new Error(
+      `the production deployment records disagree about ${what} at ${address} on ${network}: ${values
+        .sort()
+        .join(
+          ', '
+        )}. An address holds one contract, so one of these records is wrong and no ordering of them is a safe guess — fix the records before signing against this address.`
+    )
+  }
+
+  const identities = new Set(
+    kept.map((r) => `${r.contractName}@${versionOf(r)}`)
+  )
+  if (identities.size > 1) refuse('what is', [...identities])
+
+  // Every candidate, not `kept`: the blank-version collapse above drops the row
+  // the verification step rewrote, and that row is the one whose commit was
+  // actually verified. Comparing only what survives the collapse lets a row
+  // that can fill in a version outrank the row that was checked.
+  //
+  // `UNKNOWN` is what the record writer stores when it could not read a commit,
+  // so it is absence of evidence like a blank field is, not a competing claim.
+  // Counting it would refuse a pair whose only real commit is usable, and let
+  // it outrank that commit in the pick below.
+  const namesCommit = (record: T): boolean => {
+    const commit = text(record.gitCommitHash)
+    return commit !== '' && commit !== UNKNOWN_COMMIT
+  }
+
+  const commits = new Set(
+    candidates.filter(namesCommit).map((r) => text(r.gitCommitHash))
+  )
+  if (commits.size > 1) refuse('which commit built what is', [...commits])
+
+  // Commits are compared across every candidate but the row is picked from
+  // `kept`, so the collapse can discard the only row naming the commit and
+  // leave the pick answering "no commit" for an address whose one commit claim
+  // is right here. Carrying it over keeps both halves: the version the collapse
+  // exists to preserve, and the commit it agreed on.
+  const chosen = (kept.find(namesCommit) ?? kept[0]) as T
+  const [agreed] = [...commits]
+  if (agreed === undefined || namesCommit(chosen)) return chosen
+  return { ...chosen, gitCommitHash: agreed }
+}
 
 /**
  * The production deployment-log collection, connected on first use.
@@ -720,35 +1820,14 @@ const createMongoRecordSource = (): IRecordSource => ({
       client = new MongoClient(uri)
       await client.connect()
     }
-    const collection = client.db('contract-deployments').collection<{
-      contractName: string
-      version: string
-      gitCommitHash: string
-    }>(EnvironmentEnum.production)
+    const collection = client
+      .db('contract-deployments')
+      .collection<IDeploymentRecordFields>(EnvironmentEnum.production)
 
-    // Latest first: one address can carry several records over its life, and
-    // what is meant to be there now is the most recent of them.
-    const sort = { timestamp: -1 } as const
-    const exact = await collection.findOne(
-      { address: { $eq: address }, network: { $eq: network } },
-      { sort }
-    )
-    if (exact) return exact
-
-    // The decoded cut supplies checksummed addresses (`classifyCut` returns
-    // `getAddress`), and records were written in either case over the years, so
-    // the exact match above can miss on case alone. Do not "simplify" this by
-    // lowercasing one side: the stored case is not ours to assume. `network` is
-    // matched exactly on purpose — the deploy path writes it from the config
-    // key, so it is lowercase by construction, unlike an address that a human
-    // or an older script may have written either way.
-    return collection.findOne(
-      {
-        network: { $eq: network },
-        address: { $regex: `^${escapeRegexLiteral(address)}$`, $options: 'i' },
-      },
-      { sort }
-    )
+    const matches = await collection
+      .find(buildRecordQuery(address, network))
+      .toArray()
+    return resolveDeploymentRecord(matches, address, network)
   },
 })
 
@@ -757,4 +1836,179 @@ const closeMongoRecordSource = async (): Promise<void> => {
   const open = client
   client = undefined
   await open.close(true).catch(() => undefined)
+}
+
+const REQUIREMENTS_REPO_PATH = 'script/deploy/resources/deployRequirements.json'
+
+const REGISTRY_REPO_PATH = 'script/deploy/resources/immutableRegistry.json'
+
+/** What layer 2 prices against: the joined requirements and the config they point into. */
+export interface IImmutableExpectationSource {
+  loadRequirements: () => DeployRequirements
+  loadConfigFile: (fileName: string) => unknown
+}
+
+/**
+ * The immutable expectations as `origin/main` has them.
+ *
+ * Never the signer's checkout: signing from the deploy PR's branch would grade a
+ * deployment against a registry entry and a config value its own proposer wrote
+ * and nobody has reviewed yet.
+ *
+ * Read once per run at the anchor's commit, not per call: a merge to `main`
+ * mid-run is not picked up, so every proposal in the run is graded against the
+ * same expectations.
+ *
+ * A file that could not be read at all throws, which the gate reports as the
+ * immutables not having been checked. A config file `main` does not carry, or
+ * carries as something other than a JSON object, reads as `null`: the loader's
+ * existing "expected value unknown".
+ *
+ * @param readPinnedBlob - Reader for JSON blobs at the pinned commit.
+ * @returns The `loadRequirements` and `loadConfigFile` layer 2 prices through
+ */
+export const createPinnedImmutableExpectations = (
+  readPinnedBlob: (repoPath: string) => PinnedJsonRead
+): IImmutableExpectationSource => {
+  const unavailable = (repoPath: string, reason: string): Error =>
+    new Error(
+      `${repoPath} could not be read at ${PINNED_REF} (${reason}), so no immutable expectation could be established`
+    )
+
+  const read = (repoPath: string): Record<string, unknown> => {
+    const blob = readPinnedBlob(repoPath)
+    if (!blob.ok) throw unavailable(repoPath, blob.reason)
+    return blob.value
+  }
+
+  return {
+    loadRequirements: () =>
+      mergeRequirements(
+        read(REQUIREMENTS_REPO_PATH) as DeployRequirements,
+        read(REGISTRY_REPO_PATH) as Record<
+          string,
+          Record<string, IImmutableEntry>
+        >
+      ),
+    loadConfigFile: (fileName: string): unknown => {
+      if (!isValidConfigFileName(fileName)) return null
+      const repoPath = `config/${fileName}`
+      const blob = readPinnedBlob(repoPath)
+      if (blob.ok) return blob.value
+      if (blob.reason === 'blob-unreadable' || blob.reason === 'invalid-shape')
+        return null
+      throw unavailable(repoPath, blob.reason)
+    },
+  }
+}
+
+/**
+ * Prices the bytes layer 1 masked, for one address on one network.
+ *
+ * Every input comes from a side the proposer does not control: the runtime code
+ * from the chain, the offsets and declarations from a rebuild of the commit the
+ * record names, and the expectations from `immutableRegistry.json` plus
+ * `deployRequirements.json` plus `config/` **at `origin/main`**.
+ * The rebuild's checkout sits at a commit the proposer influences, so reading
+ * the expectations from there would let a proposal declare what it should be
+ * compared against.
+ *
+ * `production` for the same reason {@link createMongoRecordSource} uses it: this
+ * judges proposals against a production Safe, and a staging config describes a
+ * different deploy.
+ *
+ * Refusing is the normal answer for anything it cannot establish — no record, no
+ * commit, no immutables in the artifact — because layer 1's masked verdict then
+ * stands exactly as it did before this layer ran. Nothing here can turn a
+ * refusal into a pass.
+ *
+ * @param deps - the record read, the toolchain scope, the rebuild, the chain read and the config source
+ * @returns The `price` dependency of `verifyCutTargets`
+ */
+export const createImmutablePricer = (deps: {
+  readRecord: (
+    address: string,
+    network: string
+  ) => Promise<IDeploymentRecordRef | undefined>
+  scopeFor: (network: string) => IToolchainScope
+  build: (request: IRebuildRequest) => IRebuiltArtifact
+  loadRequirements: () => DeployRequirements
+  loadConfigFile: (fileName: string) => unknown
+}): ((
+  address: string,
+  network: string,
+  runtimeCode: string
+) => Promise<ImmutablePricing>) => {
+  return async (
+    address: string,
+    network: string,
+    runtimeCode: string
+  ): Promise<ImmutablePricing> => {
+    const record = await deps.readRecord(address, network)
+    if (!record)
+      return {
+        decided: false,
+        reason: `the deployment record says nothing about ${address} on ${network}, so there is no contract whose immutables could be looked up`,
+      }
+
+    const commit = record.gitCommitHash.trim()
+    if (commit === '' || commit === UNKNOWN_COMMIT)
+      return {
+        decided: false,
+        reason: `the record for ${record.contractName} at ${address} carries no commit, so no build of it can supply the offsets its immutables sit at`,
+      }
+
+    const profiles = deps.scopeFor(network).profiles
+    if (profiles.length !== 1)
+      return {
+        decided: false,
+        reason: `${network} resolves to ${profiles.length} build profiles, and immutable offsets are per lineage, so there is no single build to read them from`,
+      }
+
+    const profile = profiles[0]
+    if (!profile)
+      return {
+        decided: false,
+        reason: `${network} resolves to no build profile, so there is no build to read immutable offsets from`,
+      }
+
+    const artifact = deps.build({
+      contractName: record.contractName,
+      commit,
+      profile,
+    })
+
+    // Both come from that one build, which is what makes the ids line up. A
+    // contract with no immutables reaches here with neither, and its masked
+    // count is zero, so layer 1 never needed this layer for it.
+    if (!artifact.immutableReferences || !artifact.immutableDeclarations)
+      return {
+        decided: false,
+        reason: `the rebuild of ${record.contractName} at ${commit.slice(
+          0,
+          9
+        )} reports no immutables, so the bytes masked in the deployed code cannot be named`,
+      }
+
+    const observed = observeEvmImmutables(
+      runtimeCode,
+      artifact.immutableReferences,
+      artifact.immutableDeclarations
+    )
+    // Discriminated on the property the ok branch carries, matching how
+    // `immutable-expectations` narrows the same union.
+    if (!('ok' in observed)) return observed
+
+    return priceImmutables(
+      {
+        contractName: record.contractName,
+        observed: observed.observed,
+        network,
+        environment: EnvironmentEnum.production,
+        address,
+      },
+      deps.loadRequirements(),
+      deps.loadConfigFile
+    )
+  }
 }

@@ -1,4 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
+
+import { readFile } from 'node:fs/promises'
 
 import {
   MIN_BALANCE_WARNING,
@@ -97,7 +99,9 @@ async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
 
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    const escrowConfig = await Bun.file('config/lifiintentescrow.json').json()
+    const escrowConfig = JSON.parse(
+      await readFile('config/lifiintentescrow.json', 'utf8')
+    )
     const tronEscrowConfig = escrowConfig[networkName]
 
     if (!tronEscrowConfig)

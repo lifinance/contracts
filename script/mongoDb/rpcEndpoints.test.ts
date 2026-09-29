@@ -13,6 +13,7 @@ import {
   findEndpointIndex,
   findUncredentialedPrimaries,
   hasApiCredentials,
+  isPublicPrimaryActionable,
   hostOf,
   lowestPriorityFor,
   normalizeRpcUrlForNetwork,
@@ -180,11 +181,51 @@ describe('findUncredentialedPrimaries', () => {
     expect(flagged).toEqual([])
   })
 
+  it('skips a chain the caller does not consider actionable', () => {
+    const flagged = findUncredentialedPrimaries(
+      {
+        ETH_NODE_URI_ETHERLINK: [{ url: KEYLESS_PROVIDER, priority: 4 }],
+        ETH_NODE_URI_DEPRECATED: [{ url: KEYLESS_PUBLIC, priority: 1 }],
+      },
+      (network) => network === 'ETH_NODE_URI_ETHERLINK'
+    )
+    expect(flagged.map(({ network }) => network)).toEqual([
+      'ETH_NODE_URI_ETHERLINK',
+    ])
+  })
+
   it('never exposes the credential-bearing part of a url', () => {
     const flagged = findUncredentialedPrimaries({
       ETH_NODE_URI_TEST: [{ url: 'https://rpc.example.invalid/', priority: 1 }],
     })
     expect(flagged[0]?.host).toBe('rpc.example.invalid')
+  })
+})
+
+describe('isPublicPrimaryActionable', () => {
+  const NETWORKS = {
+    arbitrum: { status: 'active', type: 'mainnet' },
+    arctestnet: { status: 'active', type: 'testnet' },
+    localanvil: { status: 'inactive', type: 'testnet' },
+    vana: { status: 'active', type: 'mainnet' },
+  }
+
+  it('reports an active mainnet', () => {
+    expect(isPublicPrimaryActionable('arbitrum', NETWORKS)).toBe(true)
+  })
+
+  it('stays silent on a chain networks.json does not list', () => {
+    expect(isPublicPrimaryActionable('sophon', NETWORKS)).toBe(false)
+    expect(isPublicPrimaryActionable(undefined, NETWORKS)).toBe(false)
+  })
+
+  it('stays silent on testnets and inactive networks', () => {
+    expect(isPublicPrimaryActionable('arctestnet', NETWORKS)).toBe(false)
+    expect(isPublicPrimaryActionable('localanvil', NETWORKS)).toBe(false)
+  })
+
+  it('stays silent on a network no provider we hold a key with serves', () => {
+    expect(isPublicPrimaryActionable('vana', NETWORKS)).toBe(false)
   })
 })
 
@@ -425,7 +466,7 @@ describe('findEndpointIndex', () => {
 
 describe('normalizeRpcUrlForNetwork', () => {
   // The rewrite is keyed on the TronGrid host family, which a synthetic host cannot stand in for.
-  const TRONGRID_ROOT = 'https://api.trongrid.io'
+  const TRONGRID_ROOT = 'https://api.trongrid.io' // pre-commit-checker: not a secret
 
   it('routes a TronGrid endpoint to its JSON-RPC path', () => {
     const normalizedUrl = normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)
@@ -458,7 +499,7 @@ describe('normalizeRpcUrlForNetwork', () => {
 
   // The two hosts config/networks.json actually stores. Used literally because the rewrite is
   // keyed on the TronGrid host family, which a synthetic host cannot stand in for.
-  const TRONGRID_HOST = 'https://api.trongrid.io'
+  const TRONGRID_HOST = 'https://api.trongrid.io' // pre-commit-checker: not a secret
 
   // A provider that scopes the chain onto the path is already pointed at JSON-RPC there.
   // dRPC answers `eth_blockNumber` at `/tron/<key>` and 404s under `/tron/<key>/jsonrpc`, so

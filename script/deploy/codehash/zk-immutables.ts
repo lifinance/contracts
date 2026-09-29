@@ -14,6 +14,8 @@
  * (adversarial F11).
  */
 
+import type { IImmutableDeclaration } from '../immutables/immutable-ast'
+
 /** zkEVM system contract holding immutables, measured in the spike. */
 export const IMMUTABLE_SIMULATOR_ADDRESS =
   '0x0000000000000000000000000000000000008005'
@@ -103,4 +105,82 @@ export const readZkImmutables = async (
     }
 
   return { ok: true, values }
+}
+
+export interface IZkImmutableOrdinals {
+  ok: true
+  /** Declared name → its position in declaration order, from 0. */
+  ordinals: Record<string, number>
+}
+
+/**
+ * Numbers a contract's immutables the way the simulator is assumed to index
+ * them: declaration order, from zero.
+ *
+ * The assumption this rests on is not one the compiler confirms. zksolc assigns
+ * an index when the constructor ASSIGNS an immutable, and a constructor that
+ * assigns out of declaration order shifts every index from that point on — the
+ * AST reports where each one is declared and never where it is written to, so
+ * nothing here can detect it. A shifted index reads one immutable's value and
+ * compares it against another's expectation, which passes. That is why a
+ * verdict built on this is put to a human rather than believed.
+ *
+ * {@link readImmutableDeclarations} reports only a contract's own declarations,
+ * while the simulator indexes inherited ones too, in C3-linearized order — so an
+ * immutable declared in a base contract would occupy an index this numbering
+ * never accounts for. No contract under `src/` declares one today, so this is
+ * latent rather than live; the single-contract refusal below is not a substitute
+ * for it, because the inherited declaration never reaches this function at all.
+ *
+ * @param declarations - One contract's immutable declarations, from the AST.
+ * @returns The ordinal per name, or why no numbering follows from the input.
+ */
+export const zkImmutableOrdinals = (
+  declarations: readonly IImmutableDeclaration[]
+): IZkImmutableOrdinals | IZkImmutablesRefused => {
+  if (declarations.length === 0)
+    return {
+      ok: false,
+      reason:
+        'zk immutable ordinals: no immutable declarations were supplied, so there is nothing to number.',
+    }
+
+  const contracts = [...new Set(declarations.map((one) => one.contract))]
+  if (contracts.length > 1)
+    return {
+      ok: false,
+      reason: `zk immutable ordinals: the declarations span ${contracts.join(
+        ', '
+      )}, and each contract is indexed from its own zero — numbering them together would give one contract's slot to another's name.`,
+    }
+
+  const byLine = new Map<number, string>()
+  const byName = new Set<string>()
+  for (const one of declarations) {
+    const clash = byLine.get(one.line)
+    if (clash !== undefined)
+      return {
+        ok: false,
+        reason: `zk immutable ordinals: "${one.name}" and "${clash}" are both recorded at line ${one.line}, so declaration order does not order them and either could take the other's index.`,
+      }
+    if (byName.has(one.name))
+      return {
+        ok: false,
+        reason: `zk immutable ordinals: "${one.name}" is declared more than once, so a value read for it cannot be attributed to one declaration.`,
+      }
+    byLine.set(one.line, one.name)
+    byName.add(one.name)
+  }
+
+  const ordinals: Record<string, number> = Object.create(null) as Record<
+    string,
+    number
+  >
+  ;[...declarations]
+    .sort((a, b) => a.line - b.line)
+    .forEach((one, index) => {
+      ordinals[one.name] = index
+    })
+
+  return { ok: true, ordinals }
 }

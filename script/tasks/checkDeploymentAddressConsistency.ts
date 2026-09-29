@@ -19,6 +19,7 @@ import { consola } from 'consola'
 
 import type { WhitelistNetworkScope } from '../common/whitelistScope'
 import { isNetworkInScope } from '../common/whitelistScope'
+import { isEntrypoint } from '../utils/is-entrypoint'
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -530,7 +531,7 @@ export function getChangedWhitelistNetworksSince(
   )
 }
 
-if (import.meta.main) {
+if (isEntrypoint(import.meta.url)) {
   try {
     const baseFlagIndex = process.argv.indexOf('--base')
     const baseRef =

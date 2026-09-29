@@ -211,10 +211,10 @@ The registry stores these prettier-formatted at `printWidth: 120`. Prettier keep
 
 Optional sanity checks before opening a PR that touches templates:
 
-1. `pip install erc7730 && erc7730 lint <patched-descriptor>` — schema validation against `specs/erc7730-v2.schema.json` (splice the proposal into a working copy of the registry file first).
+1. Install the `erc7730` the sync workflow pins (`ERC7730_REQUIREMENT` in `syncLedgerClearSigning.yml`; PyPI's `erc7730` lacks `--require-verified`) and run `erc7730 lint --require-verified <patched-descriptor>` — schema validation against `specs/erc7730-v2.schema.json` plus the registry's Sourcify check (splice the proposal into a working copy of the registry file first).
 2. Paste 3-5 real LIFIDiamond calldata samples (one per template class, from [Etherscan](https://etherscan.io/address/0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE)) into the [Sourcify playground](https://clear-signing.sourcify.dev/) — visual check of the rendered sentence.
 
-The sync bot does not run these checks itself; they are tools for the dev editing templates locally before pushing.
+The sync bot runs the lint (step 1) before every push, but not the playground check; both are tools for the dev editing templates locally before pushing.
 
 ## Pipeline integration
 
@@ -237,12 +237,20 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
   - runs generateLedgerClearSigning.ts
     - strips the deprecated context.contract.abi (the v2 registry infers
       the ABI from the display.formats keys)
-    - regenerates context.contract.deployments from deployments/* (all active
-      networks, testnets included)
+    - regenerates context.contract.deployments from deployments/* (active
+      mainnets, zkEVM chains excluded)
     - merges display.formats from config/clearSigningProposal.json,
-      scrubbing our own title-only Packed/Min residue
+      scrubbing our own title-only Packed/Min residue and entries for
+      retired LI.FI functions (RETIRED_LIFI_FUNCTIONS)
+  - runs the registry's `erc7730 lint --require-verified --gha`, then reruns
+    the generator with `--lintOutputFilePath`: deployments the lint reports
+    as not verified on Sourcify (the diamond or any facet) or on an
+    unsupported chain are left out and logged with the contract to verify;
+    any other lint error fails the run
+  - runs `erc7730 lint --require-verified` again; stops without pushing on
+    any error
   - pushes PR to ethereum/clear-signing-erc7730-registry
   - pings #sc-general via SLACK_WEBHOOK_SC_GENERAL on new upstream PRs
 ```
 
-The generator boundary is the single integration point: anything in `display.formats` here is treated as LI.FI-owned and replaces same-selector entries in the registry; everything else is preserved, except the title-only `*Packed` / `*Min` residue described above.
+The generator boundary is the single integration point: anything in `display.formats` here is treated as LI.FI-owned and replaces same-selector entries in the registry; everything else is preserved, except the title-only `*Packed` / `*Min` residue described above and entries for the retired LI.FI functions named in `RETIRED_LIFI_FUNCTIONS` (a proposal entry for the same key still wins).

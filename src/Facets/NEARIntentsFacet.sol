@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title NEARIntentsFacet
 /// @author LI.FI (https://li.fi)
@@ -17,7 +17,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @notice WARNING: This facet does NOT support fee-on-transfer tokens (e.g., SafeMoon, PAXG).
 ///         Using such tokens will result in the quote ID being consumed without proper bridging,
 ///         as the contract does not validate destination balances after transfer.
-/// @custom:version 1.0.0
+/// @custom:version 3.0.0
 contract NEARIntentsFacet is
     ILiFi,
     ReentrancyGuard,
@@ -31,9 +31,9 @@ contract NEARIntentsFacet is
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.nearintents");
 
-    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut)");
+    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut,bytes32 destinationAsset,address refundRecipient)");
     bytes32 private constant NEARINTENTS_PAYLOAD_TYPEHASH =
-        0x26e3f312476209e792e713eef13bd95c5da5292aba26e299c7d8e7c647d7903e;
+        0x4d5a33c4af83dbad79b202811c07cdb5ba5794247bde504fc57a9da2df04bb0d;
 
     /// @notice The address of the backend signer that is authorized to sign the NEARIntentsPayload
     address internal immutable BACKEND_SIGNER;
@@ -42,14 +42,27 @@ contract NEARIntentsFacet is
 
     /// @notice NEAR Intents specific parameters
     /// @param nonEVMReceiver Set only if bridging to non-EVM chain (e.g., NEAR account ID) - receiver field per convention
+    /// @param destinationAsset The asset the quote settles in on the destination chain, as bytes32.
+    ///        For an EVM destination: the ERC20 token address left-padded to 32 bytes
+    ///        (`bytes32(uint256(uint160(token)))`), native represented by the non-zero native
+    ///        sentinel `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` padded the same way.
+    ///        For a non-EVM destination: the same bytes32 codec used for `nonEVMReceiver` on that VM.
+    ///        The facet does not interpret this value; it only binds it into the backend signature so
+    ///        that the destination asset a 1Click quote settles in is committed to in calldata and
+    ///        cannot be swapped behind `quoteId`. Must be non-zero.
     /// @param depositAddress EVM address to send tokens (from Bridge API) - receiver field per convention
     /// @param quoteId Unique identifier from 1Click API quote response
     /// @param deadline Unix timestamp when quote expires (refunds begin if unfulfilled)
     /// @param minAmountOut Minimum output amount on destination (slippage protection)
-    /// @param refundRecipient Address that will receive positive slippage from swaps
+    /// @param refundRecipient Address that receives excess native, swap leftovers and positive
+    ///        slippage. Bound into the backend signature, which the backend only produces when
+    ///        this address equals the `refundTo` of the 1Click quote, so the signed value is also
+    ///        where 1Click refunds the deposit if the intent is not filled. Must be non-zero and
+    ///        able to accept native transfers.
     /// @param signature The signature of the NEARIntentsPayload signed by the backend signer using EIP-712 standard
     struct NEARIntentsData {
         bytes32 nonEVMReceiver;
+        bytes32 destinationAsset;
         address depositAddress;
         bytes32 quoteId;
         uint256 deadline;
@@ -69,7 +82,6 @@ contract NEARIntentsFacet is
     /// Events ///
 
     /// @notice Emitted when a bridge operation starts via NEAR Intents
-    /// @notice Required by NEAR off-chain infrastructure to track deposits and initiate intent settlement
     /// @param transactionId Unique transaction identifier
     /// @param quoteId NEAR Intents quote identifier
     /// @param depositAddress Address tokens were sent to
@@ -77,6 +89,7 @@ contract NEARIntentsFacet is
     /// @param amount Amount being bridged
     /// @param deadline Quote expiration timestamp
     /// @param minAmountOut Minimum amount expected on destination chain (slippage protection from NEAR Intents)
+    /// @param destinationAsset Destination asset the quote settles in, as bytes32 (see `NEARIntentsData`)
     event NEARIntentsBridgeStarted(
         bytes32 indexed transactionId,
         bytes32 indexed quoteId,
@@ -84,7 +97,8 @@ contract NEARIntentsFacet is
         address sendingAssetId,
         uint256 amount,
         uint256 deadline,
-        uint256 minAmountOut
+        uint256 minAmountOut,
+        bytes32 destinationAsset
     );
 
     /// Errors ///
@@ -97,6 +111,9 @@ contract NEARIntentsFacet is
 
     /// @notice Thrown when the signature is invalid
     error InvalidSignature();
+
+    /// @notice Thrown when the destination asset is not set
+    error InvalidDestinationAsset();
 
     /// Constructor ///
 
@@ -130,6 +147,17 @@ contract NEARIntentsFacet is
             revert QuoteExpired();
         }
 
+        // Ensure the signed destination asset is set
+        if (_nearData.destinationAsset == bytes32(0)) {
+            revert InvalidDestinationAsset();
+        }
+
+        // refundExcessNative sends to refundRecipient only when an excess exists; without this
+        // check a zero recipient would revert late and only on some inputs.
+        if (_nearData.refundRecipient == address(0)) {
+            revert InvalidCallData();
+        }
+
         // Ensure nonEVMReceiver is not empty when bridging to non-EVM chain
         if (
             _bridgeData.receiver == NON_EVM_ADDRESS &&
@@ -144,8 +172,6 @@ contract NEARIntentsFacet is
     /// External Methods ///
 
     /// @notice Bridges tokens via NEAR Intents
-    /// @dev TODO (next iteration): excess native below is refunded to msg.sender (which may
-    ///      be a relayer), not _nearData.refundRecipient. Align to refundRecipient.
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
     function startBridgeTokensViaNEARIntents(
@@ -156,7 +182,7 @@ contract NEARIntentsFacet is
         payable
         nonReentrant
         onlyValidQuote(_bridgeData, _nearData)
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_nearData.refundRecipient))
         validateBridgeData(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -170,10 +196,6 @@ contract NEARIntentsFacet is
     }
 
     /// @notice Performs a swap before bridging via NEAR Intents
-    /// @dev TODO (next iteration): unused swap leftovers and excess native below are refunded
-    ///      to msg.sender (which may be a relayer), not _nearData.refundRecipient, unlike the
-    ///      positive slippage refund further down, which already uses refundRecipient. Align
-    ///      the two msg.sender-based refunds to refundRecipient as well.
     /// @param _bridgeData The core information needed for bridging
     /// @param _swapData An array of swap related data for performing swaps
     /// @param _nearData Data specific to NEAR Intents
@@ -186,7 +208,7 @@ contract NEARIntentsFacet is
         payable
         nonReentrant
         onlyValidQuote(_bridgeData, _nearData)
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_nearData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         validateBridgeData(_bridgeData)
@@ -197,7 +219,7 @@ contract NEARIntentsFacet is
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_nearData.refundRecipient)
         );
 
         if (actualAmountAfterSwap > _bridgeData.minAmount) {
@@ -253,7 +275,8 @@ contract NEARIntentsFacet is
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
             _nearData.deadline,
-            _nearData.minAmountOut
+            _nearData.minAmountOut,
+            _nearData.destinationAsset
         );
 
         // Emit special event if bridging to non-EVM chain
@@ -291,7 +314,9 @@ contract NEARIntentsFacet is
                 _bridgeData.sendingAssetId,
                 _nearData.deadline,
                 _nearData.quoteId,
-                _nearData.minAmountOut
+                _nearData.minAmountOut,
+                _nearData.destinationAsset,
+                _nearData.refundRecipient
             )
         );
 

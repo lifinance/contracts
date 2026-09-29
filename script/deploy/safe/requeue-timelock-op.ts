@@ -33,6 +33,7 @@ import { createPublicClient, http, parseAbi, type Hex } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
@@ -388,4 +389,4 @@ const cmd = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(cmd)
+if (isEntrypoint(import.meta.url)) runMain(cmd)

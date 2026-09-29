@@ -1,6 +1,6 @@
 ---
 name: finish-rollout
-description: Finishes a production multisig rollout after its timelock ops have executed — verifies execution (MongoDB timelock queue + on-chain isOperationDone), closes the #dev-sc-multisig-proposals Slack thread ("Executed" reply + rocket reaction), syncs the diamond logs for the impacted chains onto the rollout PR, and takes that PR through /pr-ready → ready-for-review → /post-pr-for-review. If the ops are executable but the cron hasn't run yet, it dispatches the Timelock Auto Execution workflow and waits before proceeding. Use when the user says "finish the rollout", "the timelock executed, wrap it up", "close out the deployment", or supplies a #dev-sc-multisig-proposals thread link with finishing intent. This is the tail of `multisig-rollout` (which ends at "timelock ops execute via the scheduled pipeline"); it never executes or cancels timelock ops itself — direct execution stays with the workflow / `execute-pending-timelock-tx.ts`. Requires gh and the Slack MCP server. No VPN needed.
+description: Finishes a production multisig rollout after its timelock ops have executed — verifies execution (MongoDB timelock queue + on-chain isOperationDone), closes the #dev-sc-multisig-proposals Slack thread ("Executed" reply + rocket reaction), syncs the diamond logs for the impacted chains onto the rollout PR, and takes that PR through self-review → ready-for-review → /post-pr-for-review. If the ops are executable but the cron hasn't run yet, it dispatches the Timelock Auto Execution workflow and waits before proceeding. Use when the user says "finish the rollout", "the timelock executed, wrap it up", "close out the deployment", or supplies a #dev-sc-multisig-proposals thread link with finishing intent. This is the tail of `multisig-rollout` (which ends at "timelock ops execute via the scheduled pipeline"); it never executes or cancels timelock ops itself — direct execution stays with the workflow / `execute-pending-timelock-tx.ts`. Requires gh and the Slack MCP server. No lifi-connect tunnel needed.
 usage: /finish-rollout <slack thread link>
 ---
 
@@ -21,8 +21,8 @@ by inserting a `.` before the last 6 digits (`p1783082088092039` → `1783082088
   mutation until Phase 2 verifies every op of THIS rollout as executed (all-or-nothing).
 - **Op-level scope.** The gate covers only ops correlated to this rollout. Unrelated
   queued/unexecuted ops on the same networks are never stoppers (mention as FYI at most).
-- **No VPN.** Verification uses the non-gated `MONGODB_URI` timelock queue plus public RPCs.
-  Do not call `list-pending-proposals.ts` (VPN-gated `SC_MONGODB_URI`) as part of this skill.
+- **No lifi-connect tunnel.** Verification uses the non-gated `MONGODB_URI` timelock queue plus public RPCs.
+  Do not call `list-pending-proposals.ts` (lifi-connect-gated `SC_MONGODB_URI`) as part of this skill.
 - The thread must live in `#dev-sc-multisig-proposals` (`C09DKGYQ1GC`). Anything else: stop
   and ask.
 
@@ -55,6 +55,9 @@ Correlate queue rows to this rollout by **deployed address in the scheduled payl
      `deployments/<net>.json` diff in the PR.
    - whitelist mode: the added/removed addresses from the whitelist PR's
      `config/whitelist.json` diff.
+   - Tron (`tron`/`tronshasta`): `--payloadContains` matches hex only, so a base58 `T…`
+     address matches nothing. Convert first:
+     `bun troncast address to-hex <base58 csv>` → `0x…` csv to pass as-is.
 2. Run:
 
    ```bash
@@ -112,9 +115,14 @@ that's now. Regenerate it from on-chain state:
 
 ```bash
 gh pr checkout <N>
-source script/helperFunctions.sh
-updateDiamondLogs "production" "<network>"   # once per impacted network
+# once per impacted network
+bash -c 'source script/helperFunctions.sh && updateDiamondLogs "production" "<network>"'
 ```
+
+`script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion, `read -ra`), so
+sourcing it from the zsh this session runs dies on bashisms and ends in
+`[error] [<network>] Failed to generate valid diamond JSON` — a false failure that reads
+exactly like the contradiction case below. Run it through `bash -c` from the repo root.
 
 The diff MUST show the new contract/version in each impacted `<net>.diamond.json` — this is a
 second, independent execution proof. If it doesn't, that contradicts Phase 2: stop, flag,
@@ -135,7 +143,7 @@ delete that entry with the rest of the cut.
 
 ## Phase 5 — PR finish (deploy mode only)
 
-1. `/pr-ready` (mandatory local review gate — resolve findings first).
+1. Self-review the full diff (the local review gate — resolve findings first).
 2. `gh pr ready <N>` (draft → ready for review).
 3. `/post-pr-for-review` (posts to `#dev-sc-review`, tags the team, enables auto-merge).
 

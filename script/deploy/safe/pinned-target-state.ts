@@ -16,12 +16,15 @@ import { fileURLToPath } from 'node:url'
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { type Hex } from 'viem'
 
+import { readContractVersion } from '../shared/contract-version'
 import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
+import { isTrustedRemote, REPO_CONTRACTS } from '../shared/repo-identity'
 
 import {
   resolveDeployedContractByAddress,
   type DeployedContractLookup,
 } from './facet-version-utils'
+import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
 
 // Resolved from this module rather than `process.cwd()`: the anchor has to be
 // this repository's `origin/main` no matter which directory the reviewer ran the
@@ -42,9 +45,6 @@ export const PINNED_REF = 'origin/main'
 // the clone would be read instead of the ref the fetch just wrote.
 const PINNED_READ_REF = 'refs/remotes/origin/main'
 
-/** The repository the anchor must come from. */
-export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
-
 /**
  * The refspec the anchor is fetched with.
  *
@@ -55,15 +55,22 @@ export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
  */
 export const PINNED_FETCH_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
 
-// `origin` is whatever the clone happens to point at, so the ref alone does not
-// establish where the anchor came from: a fork remote would let a proposer author
-// the expected state. ssh.github.com and an explicit port are admitted because
-// they are GitHub's own SSH-over-443 spelling, which a restricted network needs.
-const EXPECTED_REMOTE_URL =
-  /^(?:https?:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|ssh:\/\/(?:[^@/]+@)?(?:ssh\.)?github\.com(?::\d+)?\/|(?:[^@/]+@)?(?:ssh\.)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
-
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
+
+/**
+ * The target-state value meaning "follow the repo".
+ *
+ * A network declaring this expects whatever `@custom:version` says at
+ * {@link PINNED_REF}; any other value is a pin that holds the network back.
+ */
+export const TARGET_STATE_VERSION_LATEST = 'latest'
+
+/** Where a contract's source may live, in the order `getContractVersion` looks. */
+const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
+
+/** Solidity-style contract name, so a read stays inside `src/`. */
+const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 /** `network → environment → diamond → contract → version`, as `main` declares it. */
 export type PinnedTargetState = Record<
@@ -71,17 +78,22 @@ export type PinnedTargetState = Record<
   Record<string, Record<string, Record<string, unknown>>>
 >
 
+export type PinnedReadFailure =
+  | 'fetch-failed'
+  | 'revision-unresolvable'
+  | 'remote-unreadable'
+  | 'remote-unexpected'
+  | 'blob-unreadable'
+  | 'invalid-shape'
+
 export type PinnedTargetStateRead =
   | { ok: true; state: PinnedTargetState }
-  | {
-      ok: false
-      reason:
-        | 'fetch-failed'
-        | 'remote-unreadable'
-        | 'remote-unexpected'
-        | 'blob-unreadable'
-        | 'invalid-shape'
-    }
+  | { ok: false; reason: PinnedReadFailure }
+
+/** Any JSON object read at the pinned ref. */
+export type PinnedJsonRead =
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; reason: PinnedReadFailure }
 
 /** `LibDiamond.FacetCutAction`. */
 const CUT_ACTION_ADD = 0
@@ -99,6 +111,9 @@ export type TargetStateStatus =
   | 'not-previously-targeted'
   | 'matches-main'
   | 'ahead-of-main'
+  | 'matches-pin'
+  | 'pinned-mismatch'
+  | 'expected-version-unresolved'
   | 'downgrade'
   | 'version-not-comparable'
   | 'proposed-version-unresolved'
@@ -125,7 +140,32 @@ export const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
     'not-previously-targeted',
     'matches-main',
     'ahead-of-main',
+    'matches-pin',
   ])
+
+/**
+ * The statuses whose finding never reached `origin/main` at all.
+ *
+ * A removal returns before the anchor is read, and a payload with no cut in it
+ * never gets that far either. Both leave this block with a provenance line
+ * naming a file the run did not open, over findings saying there was nothing to
+ * compare — which is the gate's own stand-down, already printed as its row.
+ *
+ * Named by what consulted nothing rather than by what may proceed: the two sets
+ * are not the same, and `matches-main` belongs only to the second.
+ */
+export const STATUSES_THAT_CONSULTED_NOTHING: ReadonlySet<TargetStateStatus> =
+  new Set<TargetStateStatus>(['no-diamond-cut', 'removal'])
+
+/**
+ * The heading this block prints under.
+ *
+ * The gate's own letter and title. Declared here rather than imported from the
+ * registry, which imports this module; `confirm-check-registry.test.ts` holds
+ * the two to the same string.
+ */
+export const TARGET_STATE_GATE_HEADING =
+  'Gate H · Contract version matches target state'
 
 /** One graded element of a proposal. */
 export interface ITargetStateFinding {
@@ -137,7 +177,7 @@ export interface ITargetStateFinding {
   proposedVersion: string | null
   /** Version `origin/main` declares for this contract on this network. */
   mainVersion: string | null
-  /** Networks whose pinned target state already declares this contract at `proposedVersion`. */
+  /** Networks whose pinned target state declares this contract. */
   crossFleetCount: number | null
   detail: string
 }
@@ -161,8 +201,8 @@ export const compareSemanticVersions = (
   left: string,
   right: string
 ): number | null => {
-  const a = SEMVER.exec(left.trim())
-  const b = SEMVER.exec(right.trim())
+  const a = SEMVER.exec(baseSemanticVersion(left))
+  const b = SEMVER.exec(baseSemanticVersion(right))
   if (!a || !b) return null
   for (let part = 1; part <= 3; part++) {
     const diff = Number(a[part]) - Number(b[part])
@@ -170,6 +210,14 @@ export const compareSemanticVersions = (
   }
   return 0
 }
+
+/**
+ * Removes a deployment-record build suffix before target-state comparison.
+ * @param version - version as source or a deployment record stores it
+ * @returns The `major.minor.patch` portion, or the original value when unsuffixed
+ */
+export const baseSemanticVersion = (version: string): string =>
+  version.trim().split('-', 1)[0] ?? ''
 
 /**
  * Reads the version `main` declares for one contract on one network.
@@ -191,29 +239,77 @@ export const readDeclaredVersion = (
 }
 
 /**
- * Counts the networks whose pinned target state declares a contract at a version.
+ * Counts the networks whose pinned target state declares a contract at all.
  *
  * Corroboration for a first-time add, which by construction has no entry of its
- * own on `main`: a version already declared across the fleet is a rollout, one
- * declared nowhere is a genuinely new build.
+ * own on `main`: a contract already declared across the fleet is a rollout
+ * reaching one more chain, one declared nowhere is a genuinely new build.
+ *
+ * @remarks Counts membership rather than a matching version. Since versions read
+ *   `latest` fleet-wide, a version-matched count would report 0 everywhere and be
+ *   read as "no corroboration" when it means "nobody pins this".
  * @param state - the pinned target state
  * @param contractName - contract name as the target state spells it
- * @param version - version to count
- * @returns How many networks declare that contract at that version
+ * @returns How many networks declare that contract
  */
 export const countNetworksDeclaring = (
   state: PinnedTargetState,
-  contractName: string,
-  version: string
+  contractName: string
 ): number =>
   Object.keys(state).filter(
-    (network) => readDeclaredVersion(state, network, contractName) === version
+    (network) => readDeclaredVersion(state, network, contractName) !== null
   ).length
 
-/** The two reads this check needs, injectable so the policy is testable. */
+/** What `origin/main` expects of one contract on one network. */
+export type ExpectedVersion =
+  /** No entry: the contract is not declared for this network. */
+  | { kind: 'absent' }
+  /** The network is pinned to this exact version. */
+  | { kind: 'pin'; version: string }
+  /** The network follows the repo, which is at this version. */
+  | { kind: 'latest'; version: string }
+  /** The network follows the repo, but the repo's version could not be read. */
+  | { kind: 'unresolved'; detail: string }
+
+/**
+ * Resolves what {@link PINNED_REF} expects, for one contract on one network.
+ *
+ * A declared semver is a pin and is returned as written. `latest` delegates to
+ * the contract's `@custom:version` **at the same pinned ref** — never this
+ * checkout, which the proposer controls.
+ * @param state - the pinned target state
+ * @param network - network the proposal targets
+ * @param contractName - contract name as the target state spells it
+ * @param readSourceVersion - reads a contract's version at the pinned ref
+ * @returns What the network expects, or why it could not be established
+ */
+export const resolveExpectedVersion = (
+  state: PinnedTargetState,
+  network: string,
+  contractName: string,
+  readSourceVersion: (contractName: string) => SourceVersionRead
+): ExpectedVersion => {
+  const declared = readDeclaredVersion(state, network, contractName)
+  if (declared === null) return { kind: 'absent' }
+  if (declared !== TARGET_STATE_VERSION_LATEST)
+    return { kind: 'pin', version: declared }
+
+  const read = readSourceVersion(contractName)
+  if (read.ok) return { kind: 'latest', version: read.version }
+  return { kind: 'unresolved', detail: read.detail }
+}
+
+/** A contract's `@custom:version` at the pinned ref, or why it is not available. */
+export type SourceVersionRead =
+  | { ok: true; version: string }
+  | { ok: false; detail: string }
+
+/** The reads this check needs, injectable so the policy is testable. */
 export interface ITargetStateDeps {
   /** The expected state, read at {@link PINNED_REF}. */
   readPinnedState: () => PinnedTargetStateRead
+  /** A contract's `@custom:version`, read at {@link PINNED_REF}. */
+  readSourceVersion: (contractName: string) => SourceVersionRead
   /** What the deployment record says a facet address is. */
   resolveDeployed: (facetAddress: string) => DeployedContractLookup
 }
@@ -228,10 +324,12 @@ export const describeTargetStateUnavailable = (
 ): string => {
   if (reason === 'fetch-failed')
     return `could not refresh ${PINNED_REF} — the expected version can only come from the remote, and a stale local copy is not an anchor. Restore network access to the git remote and re-run.`
+  if (reason === 'revision-unresolvable')
+    return `refreshed ${PINNED_REF} but could not resolve it to a commit. The remote is reachable, so this is a fault in this clone's refs rather than the network: check \`git rev-parse ${PINNED_REF}\` and re-run.`
   if (reason === 'remote-unreadable')
-    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${EXPECTED_REMOTE_REPO}.`
+    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${REPO_CONTRACTS}.`
   if (reason === 'remote-unexpected')
-    return `this clone's \`origin\` is not ${EXPECTED_REMOTE_REPO} — the anchor would be read from a repository the proposer could control. Re-run from a clone whose origin is ${EXPECTED_REMOTE_REPO}.`
+    return `this clone's \`origin\` is not ${REPO_CONTRACTS} over https or SSH — the anchor would be read from a repository the proposer could control, or over a scheme that carries no evidence of what that repository holds. Re-run from a clone whose origin is ${REPO_CONTRACTS} over https or SSH.`
   if (reason === 'blob-unreadable')
     return `could not read ${PINNED_REF}:${TARGET_STATE_REPO_PATH} — the ref or the file is missing from this clone.`
   return `${PINNED_REF}:${TARGET_STATE_REPO_PATH} did not parse as a target-state object.`
@@ -369,22 +467,39 @@ export const evaluateTargetStateIntent = (
       continue
     }
 
-    const mainVersion = readDeclaredVersion(read.state, network, contractName)
+    const expected = resolveExpectedVersion(
+      read.state,
+      network,
+      contractName,
+      deps.readSourceVersion
+    )
 
-    if (!mainVersion) {
+    if (expected.kind === 'absent') {
       findings.push({
         facetAddress,
         contractName,
         proposedVersion,
         mainVersion: null,
-        crossFleetCount: proposedVersion
-          ? countNetworksDeclaring(read.state, contractName, proposedVersion)
-          : null,
+        crossFleetCount: countNetworksDeclaring(read.state, contractName),
         status: 'not-previously-targeted',
-        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
+        detail: `${contractName} is not declared for ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
       })
       continue
     }
+
+    if (expected.kind === 'unresolved') {
+      findings.push({
+        ...blank,
+        facetAddress,
+        contractName,
+        proposedVersion,
+        status: 'expected-version-unresolved',
+        detail: `${network} follows the repo for ${contractName}, but ${expected.detail} — with no expected version, a downgrade cannot be ruled out.`,
+      })
+      continue
+    }
+
+    const mainVersion = expected.version
 
     if (!proposedVersion) {
       findings.push({
@@ -395,6 +510,27 @@ export const evaluateTargetStateIntent = (
         crossFleetCount: null,
         status: 'proposed-version-unresolved',
         detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record — the blank is in the record, not in the cut.`,
+      })
+      continue
+    }
+
+    // A pin is a deliberate statement that this network is held back, so it is
+    // graded as equality rather than as an ordering: "newer than the pin" is
+    // still not what the pin asked for.
+    if (expected.kind === 'pin') {
+      const matches =
+        baseSemanticVersion(proposedVersion) ===
+        baseSemanticVersion(mainVersion)
+      findings.push({
+        facetAddress,
+        contractName,
+        proposedVersion,
+        mainVersion,
+        crossFleetCount: null,
+        status: matches ? 'matches-pin' : 'pinned-mismatch',
+        detail: matches
+          ? `v${proposedVersion} matches the v${mainVersion} ${PINNED_REF} pins ${contractName} to on ${network}.`
+          : `${PINNED_REF} pins ${contractName} to v${mainVersion} on ${network}, but this cut installs v${proposedVersion}. Either the pin is stale or the proposal is wrong — both are fixed by a PR to main, not here.`,
       })
       continue
     }
@@ -445,6 +581,8 @@ export interface IPinnedStateGit {
   remoteUrl: () => string
   fetch: () => void
   show: (revSpec: string) => string
+  /** Resolves a ref to the commit it points at. */
+  revParse: (ref: string) => string
 }
 
 const defaultGit = (repoRoot: string): IPinnedStateGit => ({
@@ -463,13 +601,185 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
       timeout: 60_000, // 60 seconds — a hung remote must not hold up a review
     })
   },
+  revParse: (ref) =>
+    execFileSync('git', ['rev-parse', ref], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 60_000,
+    }),
   show: (revSpec) =>
     execFileSync('git', ['show', revSpec], {
       cwd: repoRoot,
       encoding: 'utf8',
+      // A source lookup tries each candidate directory in turn, so a miss is routine
+      // rather than an incident; without this every miss prints a raw `fatal:` into the
+      // signer's terminal mid-ceremony. The throw still carries the failure.
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 60_000, // 60 seconds — matches the other git seams
       maxBuffer: 16 * 1024 * 1024, // 16 MB — the target state is ~74 KB today
     }),
 })
+
+/**
+ * Establishes that the anchor may be trusted, and refreshes it.
+ *
+ * Shared by every pinned read so the remote check exists in exactly one place: a
+ * reader that skipped it would take its answer from whatever repository `origin`
+ * happens to point at.
+ *
+ * `memoizable` separates a refusal that will not change within the process (this
+ * clone's `origin` is the wrong repository) from one that might (an exec that
+ * could not run), so a caller never caches a transient failure.
+ * @param git - the git seam to read and fetch through
+ * @returns That the ref is refreshed, or why it is not and whether to cache that
+ */
+const verifyRemoteAndFetch = (
+  git: IPinnedStateGit
+):
+  | { ok: true }
+  | { ok: false; reason: PinnedReadFailure; memoizable: boolean } => {
+  let remote: string
+  try {
+    remote = git.remoteUrl()
+  } catch {
+    // Not memoizable, for the same reason a failed fetch is not: an exec that
+    // could not run says nothing about what the remote is.
+    return { ok: false, reason: 'remote-unreadable', memoizable: false }
+  }
+  if (!isTrustedRemote(remote, [REPO_CONTRACTS]))
+    return { ok: false, reason: 'remote-unexpected', memoizable: true }
+
+  try {
+    git.fetch()
+  } catch {
+    // A transient fetch must not pin the rest of the process to a refusal —
+    // the sibling cache reader in facet-version-utils.ts makes the same call.
+    return { ok: false, reason: 'fetch-failed', memoizable: false }
+  }
+  return { ok: true }
+}
+
+/** A verified, fetched `origin/main`, pinned to the commit every read resolves against. */
+export type PinnedAnchor = () =>
+  | { ok: true; revision: string }
+  | { ok: false; reason: PinnedReadFailure }
+
+/**
+ * Establishes the anchor once and hands back the exact commit to read from.
+ *
+ * Every file this gate grades against must come from ONE commit. Two readers each
+ * resolving `origin/main` for themselves can straddle a merge — an older target state
+ * read with a newer source version, which is a combination that never existed on main
+ * and whose verdict belongs to neither snapshot.
+ *
+ * Refuses when the fetched ref cannot be resolved to an immutable commit.
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A memoized resolver for the commit to read, or why it is unavailable
+ */
+export const createPinnedAnchor = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+}): PinnedAnchor => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  let memo: ReturnType<PinnedAnchor> | undefined
+
+  return () => {
+    // Failures are memoized only when they cannot change within the process, so a
+    // stored one is as final as a success.
+    if (memo) return memo
+
+    const anchored = verifyRemoteAndFetch(git)
+    if (!anchored.ok) {
+      const failure = { ok: false as const, reason: anchored.reason }
+      if (anchored.memoizable) memo = failure
+      return failure
+    }
+
+    let revision: string
+    try {
+      revision = git.revParse(PINNED_READ_REF).trim()
+    } catch {
+      revision = ''
+    }
+    // Refused rather than fallen back to the ref name. The ref can move under a
+    // concurrent fetch, so reading it twice is not one commit — and callers now rely on
+    // this being one commit.
+    //
+    // Memoized, unlike the fetch failures: the fetch already succeeded, so this is a
+    // property of the clone and not a transient network fault. Retrying it would re-fetch
+    // once per network per contract for a condition that cannot resolve itself.
+    if (!revision) {
+      memo = { ok: false, reason: 'revision-unresolvable' }
+      return memo
+    }
+
+    memo = { ok: true, revision }
+    return memo
+  }
+}
+
+/**
+ * Builds a reader for JSON blobs as `origin/main` has them.
+ *
+ * One reader resolves the anchor once, then reads and caches each path it is
+ * asked for. Shared rather than one reader per file so a fleet run touching one
+ * blob per network still costs a single fetch — and so every blob it hands back
+ * comes from the one commit {@link createPinnedAnchor} pinned, never from two
+ * sides of a merge.
+ *
+ * @param options - repository root, git seam and anchor; all default to this checkout
+ * @returns A reader taking a repo-relative path, returning its parsed object or
+ * why it could not be read.
+ */
+export const createPinnedBlobReader = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+  anchor?: PinnedAnchor
+}): ((repoPath: string) => PinnedJsonRead) => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
+  const blobs = new Map<string, PinnedJsonRead>()
+
+  return (repoPath: string): PinnedJsonRead => {
+    const cached = blobs.get(repoPath)
+    if (cached) return cached
+
+    const anchored = anchor()
+    if (!anchored.ok) {
+      // A refusal that cannot change within the process is the only one worth holding.
+      if (anchored.reason === 'remote-unexpected')
+        blobs.set(repoPath, { ok: false, reason: anchored.reason })
+      return { ok: false, reason: anchored.reason }
+    }
+
+    let raw: string
+    try {
+      raw = git.show(`${anchored.revision}:${repoPath}`)
+    } catch {
+      const failed = { ok: false, reason: 'blob-unreadable' } as const
+      blobs.set(repoPath, failed)
+      return failed
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      const failed = { ok: false, reason: 'invalid-shape' } as const
+      blobs.set(repoPath, failed)
+      return failed
+    }
+
+    const read: PinnedJsonRead =
+      typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+        ? { ok: false, reason: 'invalid-shape' }
+        : { ok: true, value: parsed as Record<string, unknown> }
+    blobs.set(repoPath, read)
+    return read
+  }
+}
 
 /**
  * Builds the pinned read: one `git fetch` per process, then the target state as
@@ -483,56 +793,99 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
 export const createPinnedTargetStateReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
+  anchor?: PinnedAnchor
 }): (() => PinnedTargetStateRead) => {
+  const readBlob = createPinnedBlobReader(options)
+  return () => {
+    const read = readBlob(TARGET_STATE_REPO_PATH)
+    return read.ok
+      ? { ok: true, state: read.value as PinnedTargetState }
+      : { ok: false, reason: read.reason }
+  }
+}
+
+/**
+ * Builds the source-version read: a contract's `@custom:version` at {@link PINNED_REF}.
+ *
+ * Shares the remote check and fetch with the target-state reader rather than
+ * taking a tree-ish of its own — a reader that accepted any ref would let a
+ * proposer's clone author the version this check grades against.
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A reader taking a contract name, returning its version or why not
+ */
+export const createPinnedSourceVersionReader = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+  anchor?: PinnedAnchor
+}): ((contractName: string) => SourceVersionRead) => {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
   const git = options?.git ?? defaultGit(repoRoot)
-  let memo: PinnedTargetStateRead | undefined
+  const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
+  const memo = new Map<string, SourceVersionRead>()
 
-  return () => {
-    if (memo) return memo
+  return (contractName) => {
+    const cached = memo.get(contractName)
+    if (cached) return cached
 
-    let remote: string
-    try {
-      remote = git.remoteUrl()
-    } catch {
-      // Not memoized, for the same reason a failed fetch is not: an exec that
-      // could not run says nothing about what the remote is.
-      return { ok: false, reason: 'remote-unreadable' }
+    const resolve = (): { read: SourceVersionRead; memoizable: boolean } => {
+      if (!CONTRACT_NAME_RE.test(contractName))
+        return {
+          read: {
+            ok: false,
+            detail: `'${contractName}' is not a Solidity identifier, so no source path can be built for it`,
+          },
+          memoizable: true,
+        }
+
+      const anchored = anchor()
+      if (!anchored.ok)
+        return {
+          read: {
+            ok: false,
+            detail: describeTargetStateUnavailable(anchored.reason),
+          },
+          memoizable: anchored.reason === 'remote-unexpected',
+        }
+
+      for (const dir of SOURCE_DIRS) {
+        let source: string
+        try {
+          source = git.show(`${anchored.revision}:${dir}/${contractName}.sol`)
+        } catch {
+          continue
+        }
+        const read = readContractVersion(source)
+        if (read.kind === 'ok')
+          return { read: { ok: true, version: read.base }, memoizable: true }
+        // A file that exists but carries no usable tag is this contract's
+        // answer, not a reason to keep looking in the other directories.
+        return {
+          read: {
+            ok: false,
+            detail:
+              read.kind === 'malformed'
+                ? `'${read.raw}' in ${dir}/${contractName}.sol at ${PINNED_REF} is not a @custom:version`
+                : `${dir}/${contractName}.sol at ${PINNED_REF} carries no @custom:version`,
+          },
+          memoizable: true,
+        }
+      }
+
+      return {
+        read: {
+          ok: false,
+          detail: `no source for ${contractName} at ${PINNED_REF} (looked in ${SOURCE_DIRS.join(
+            ', '
+          )}) — a contract whose source was deleted cannot be graded`,
+        },
+        memoizable: true,
+      }
     }
-    if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
-      memo = { ok: false, reason: 'remote-unexpected' }
-      return memo
-    }
 
-    try {
-      git.fetch()
-    } catch {
-      // A transient fetch must not pin the rest of the process to a refusal —
-      // the sibling cache reader in facet-version-utils.ts makes the same call.
-      return { ok: false, reason: 'fetch-failed' }
-    }
-
-    let raw: string
-    try {
-      raw = git.show(`${PINNED_READ_REF}:${TARGET_STATE_REPO_PATH}`)
-    } catch {
-      memo = { ok: false, reason: 'blob-unreadable' }
-      return memo
-    }
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      memo = { ok: false, reason: 'invalid-shape' }
-      return memo
-    }
-
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-      memo = { ok: false, reason: 'invalid-shape' }
-    else memo = { ok: true, state: parsed as PinnedTargetState }
-
-    return memo
+    // An unreachable remote must not turn the rest of a fleet run into refusals.
+    const { read, memoizable } = resolve()
+    if (memoizable) memo.set(contractName, read)
+    return read
   }
 }
 
@@ -551,10 +904,30 @@ export const createTargetStateDeps = (
   network: string,
   options?: {
     readPinnedState?: () => PinnedTargetStateRead
+    readSourceVersion?: (contractName: string) => SourceVersionRead
+    /**
+     * The anchor both reads resolve against.
+     *
+     * Passed in by a caller that also builds its own `readPinnedState`, so the two
+     * reads cannot end up on different commits — overriding one reader while the other
+     * silently anchors itself is exactly how the straddle comes back.
+     */
+    anchor?: PinnedAnchor
     cacheRootDir?: string
   }
 ): ITargetStateDeps => ({
-  readPinnedState: options?.readPinnedState ?? createPinnedTargetStateReader(),
+  ...(() => {
+    // One anchor for both reads, so the target state and the source version always
+    // come from the same commit.
+    const anchor = options?.anchor ?? createPinnedAnchor()
+    return {
+      readPinnedState:
+        options?.readPinnedState ?? createPinnedTargetStateReader({ anchor }),
+      readSourceVersion:
+        options?.readSourceVersion ??
+        createPinnedSourceVersionReader({ anchor }),
+    }
+  })(),
   resolveDeployed: (facetAddress) =>
     resolveDeployedContractByAddress(
       network,
@@ -567,28 +940,78 @@ export const createTargetStateDeps = (
 })
 
 /**
- * Renders a verdict for the signer, one line per finding.
+ * Collapses findings that would print as the same sentence.
+ *
+ * One cut installs a facet through as many elements as it has actions — a
+ * `Replace` for the selectors already routed and an `Add` for the new ones —
+ * and each is graded separately, which is correct: the grading is per element
+ * and `cleared` must stay a statement about all of them. What it is not is two
+ * facts, and printing the same version comparison twice reads as one, so a
+ * signer looks for the difference between them.
+ *
+ * Keyed on what is displayed rather than on the element, so two findings only
+ * collapse when nothing on screen would have told them apart.
+ *
+ * @param findings - graded findings, in display order
+ * @returns The same findings with later exact repeats dropped
+ */
+const dedupeLines = (
+  findings: readonly ITargetStateFinding[]
+): ITargetStateFinding[] => {
+  const seen = new Set<string>()
+  return findings.filter((finding) => {
+    const key = [
+      finding.status,
+      finding.facetAddress,
+      finding.contractName,
+      finding.proposedVersion,
+      finding.mainVersion,
+      finding.crossFleetCount,
+      finding.detail,
+    ].join('|')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** The words each status prints under, on the row and in the detail block. */
+export const TARGET_STATE_STATUS_LABEL: Record<TargetStateStatus, string> = {
+  'no-diamond-cut': 'n/a',
+  removal: 'REMOVAL (warn)',
+  'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
+  'matches-main': 'matches main',
+  'ahead-of-main': 'upgrade',
+  'matches-pin': 'matches pin',
+  'pinned-mismatch': 'PINNED VERSION MISMATCH',
+  'expected-version-unresolved': 'EXPECTED VERSION UNRESOLVED',
+  downgrade: 'DOWNGRADE',
+  'version-not-comparable': 'UNEXPECTED VERSION',
+  'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
+  'contract-unidentified': 'CONTRACT UNIDENTIFIED',
+  'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
+  'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
+  'calldata-not-readable': 'CUT NOT READABLE',
+  'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
+}
+
+/**
+ * Renders a verdict for the signer, one line per distinct finding.
  * @param verdict - output of {@link evaluateTargetStateIntent}
  * @returns Display lines, blocking findings first
  */
 export const formatTargetStateLines = (
   verdict: ITargetStateVerdict
 ): string[] => {
-  const label: Record<TargetStateStatus, string> = {
-    'no-diamond-cut': 'n/a',
-    removal: 'REMOVAL (warn)',
-    'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
-    'matches-main': 'matches main',
-    'ahead-of-main': 'upgrade',
-    downgrade: 'DOWNGRADE',
-    'version-not-comparable': 'UNEXPECTED VERSION',
-    'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
-    'contract-unidentified': 'CONTRACT UNIDENTIFIED',
-    'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
-    'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
-    'calldata-not-readable': 'CUT NOT READABLE',
-    'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
-  }
+  const label = TARGET_STATE_STATUS_LABEL
+
+  // Nothing here was measured against the anchor, so there is no provenance to
+  // state and no comparison to show. A mixed cut — one facet removed, another
+  // installed — still prints, and still lists the removal.
+  if (
+    verdict.findings.every((f) => STATUSES_THAT_CONSULTED_NOTHING.has(f.status))
+  )
+    return []
 
   const ordered = [
     ...verdict.findings.filter(
@@ -599,18 +1022,53 @@ export const formatTargetStateLines = (
     ),
   ]
 
+  const listed = dedupeLines(ordered)
+
+  // The blank line and the shared column are what mark this as its own block:
+  // flush against the gate rows above, its findings belong to whichever row
+  // they happen to follow.
   return [
-    `    Expected state:  read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
-    ...ordered.map((finding) => {
+    '',
+    `${GATE_TITLE_INDENT}${TARGET_STATE_GATE_HEADING}`,
+    `${GATE_BODY_INDENT}read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
+    ...listed.map((finding) => {
       const who = finding.contractName ?? finding.facetAddress ?? 'proposal'
       const fleet =
         finding.crossFleetCount === null
           ? ''
-          : ` [${finding.crossFleetCount} network(s) already declare this contract at this version]`
-      return `      ${label[finding.status]} — ${who}: ${
+          : ` [${finding.crossFleetCount} network(s) declare this contract]`
+      return `${GATE_BODY_INDENT}${label[finding.status]} — ${who}: ${
         finding.detail
       }${fleet}`
     }),
+  ]
+}
+
+/**
+ * The banner printed when gate H refuses a proposal and the run skips it.
+ *
+ * Points at the section-2 block rather than restating it: the findings are
+ * already on screen under the gate's own row, and a second copy is the same
+ * fact twice with an invitation to look for the difference.
+ * @param verdict - the refusing output of {@link evaluateTargetStateIntent}
+ * @returns Banner lines for the error channel
+ */
+export const renderTargetStateRefusal = (
+  verdict: ITargetStateVerdict
+): string[] => {
+  const refusing = verdict.findings.filter(
+    (finding) => !STATUSES_CLEARED_TO_PROCEED.has(finding.status)
+  ).length
+  const rule = '='.repeat(80)
+  return [
+    '',
+    rule,
+    `✗  ${TARGET_STATE_GATE_HEADING} — refused, NOT SIGNING OR EXECUTING`,
+    `   ${refusing} finding${
+      refusing === 1 ? '' : 's'
+    } listed under "2 · WHAT WAS CHECKED FOR YOU" above; this proposal is skipped.`,
+    rule,
+    '',
   ]
 }
 

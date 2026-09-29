@@ -43,20 +43,47 @@ const CONFIRM = readFileSync(
 )
 
 describe('smoke check: the shape of the call into the detail block', () => {
-  it('appears to pass the target and proposer straight off the row', () => {
-    // Pre-sanitising either one here would not be safer, it would be worse:
-    // the block compares what it was given against what it can print to decide
-    // whether to warn, so a value cleaned on the way in is a value it reports
-    // as clean.
+  it('appears to pass the target straight off the row', () => {
+    // Pre-sanitising it here would not be safer, it would be worse: the block
+    // compares what it was given against what it can print to decide whether to
+    // warn, so a value cleaned on the way in is a value it reports as clean.
+    //
+    // The proposer used to be passed the same way. Zone 1 no longer renders it:
+    // gate C grades the stored signatures against the owner set, which is the
+    // question the address was standing in for.
     expect(CONFIRM).toContain('to: tx.safeTx.data.to,')
-    expect(CONFIRM).toContain('proposer: tx.proposer,')
+    expect(CONFIRM).not.toContain('proposer: tx.proposer,')
   })
 
   it('builds the block in one place and prints what it returns', () => {
-    expect(CONFIRM).toContain('const detailLines = buildSafeTxDetailLines({')
-    expect(CONFIRM).toContain("consola.info(detailLines.join('\\n'))")
+    // One input object, read by the block and by the footnote that closes it:
+    // two literals would let the two halves of the zone describe different
+    // proposals, which is the failure the shared const exists to prevent.
+    expect(CONFIRM).toContain('const detailInput: ISafeTxDetailInput = {')
+    // `log`, not `info`: consola's level prefix lands on the first line of a
+    // multi-line string and shifts that line alone out of the block's column.
+    expect(CONFIRM).toContain(
+      "consola.log(buildSafeTxDetailLines(detailInput).join('\\n'))"
+    )
+    expect(CONFIRM).toContain(
+      "consola.log(buildCalldataTarget(detailInput).join('\\n'))"
+    )
     // An inline push would add a line without passing through the builder.
     expect(CONFIRM).not.toContain('detailLines.push')
+  })
+
+  it('names the target before the decode and closes the comparison after it', () => {
+    // The decode describes a call to the target, so printing it first asks the
+    // signer to read what happens without knowing where. The question is the
+    // point of the blocks above it, so it comes last: printed earlier it asks
+    // for a comparison against something not yet shown.
+    const target = CONFIRM.indexOf('buildCalldataTarget(detailInput)')
+    const decode = CONFIRM.indexOf('buildCalldataEffectLines(')
+    const question = CONFIRM.indexOf("CLAIM_QUESTION.join('\\n')")
+
+    expect(target).toBeGreaterThan(-1)
+    expect(decode).toBeGreaterThan(target)
+    expect(question).toBeGreaterThan(decode)
   })
 
   it('prints the parsed nonce in the mismatch warnings', () => {

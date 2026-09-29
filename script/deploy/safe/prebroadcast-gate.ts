@@ -68,6 +68,16 @@ export interface IObservationDependencies {
   readAuthority: (address: Address, getter: AuthorityGetter) => Promise<string>
   /** Parsed `deployments/<network>.json` for this network. */
   deployments: Record<string, unknown>
+  /**
+   * The same file as `origin/main` has it, when it could be read.
+   *
+   * Separate from `deployments` rather than replacing it: an expectation a
+   * proposer's branch could have written may only report, so the two sides have
+   * to stay distinguishable all the way to the anchor. Undefined means the
+   * pinned read failed, and an expectation sourced from it then resolves to
+   * nothing — which the gate holds on rather than falling back to the branch.
+   */
+  pinnedDeployments?: Record<string, unknown>
   /** Parsed `config/global.json`. */
   globalConfig: Record<string, unknown>
 }
@@ -202,7 +212,8 @@ const observeAuthorities = async (
       const expectedValue = resolveExpectedAuthority(
         authority.source,
         dependencies.deployments,
-        dependencies.globalConfig
+        dependencies.globalConfig,
+        dependencies.pinnedDeployments
       )
       try {
         const liveValue = await dependencies.readAuthority(
@@ -211,6 +222,7 @@ const observeAuthorities = async (
         )
         rows.push({
           label,
+          contractAddress: address,
           liveValue: liveValue.trim().toLowerCase(),
           expectedValue,
           expectationSource: authority.source.from,
@@ -219,6 +231,7 @@ const observeAuthorities = async (
       } catch (error) {
         rows.push({
           label,
+          contractAddress: address,
           liveValue: undefined,
           expectedValue,
           expectationSource: authority.source.from,

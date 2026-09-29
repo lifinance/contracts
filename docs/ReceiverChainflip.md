@@ -7,6 +7,7 @@ Periphery contract used for receiving cross-chain transactions via Chainflip and
 ## Setup
 
 The contract is initialized with:
+
 - owner: Address that can withdraw stuck funds
 - executor: Contract used to perform swaps
 - chainflipVault: Authorized Chainflip vault that can call this contract
@@ -33,6 +34,7 @@ The contract has one method which will be called by the Chainflip vault:
 ```
 
 The message parameter contains:
+
 - transactionId: bytes32 identifier for the cross-chain transaction
 - swapData: Array of LibSwap.SwapData for executing destination swaps
 - receiver: Address that will receive the tokens after any swaps

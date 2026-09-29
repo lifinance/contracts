@@ -1,6 +1,6 @@
 ---
 name: rotate-pauser-wallet
-description: Rotates the shared SC-owned Pauser wallet (the emergency-pause EOA that trips EmergencyPauseFacet) by redeploying the facet with the new pauser baked into its constructor and cutting it into every diamond — because pauserWallet is immutable and has no setter, a rotation is a redeploy, not a config write. Use when the user says "rotate the pauser wallet", "repoint the emergency pauser", or "replace the pause EOA". NOT for the deployer wallet (safeOwners[0] + Timelock CANCELLER — that is `rotate-deployer-wallet`) or the staging diamond owner (that is `rotate-dev-wallet`); it is one of the three rotate-* skills the `offboard-sc-dev` orchestrator drives. Requires Foundry, gh, VPN (MongoDB), and coordination on the CI pauser secret + the emergency-pause verification workflow. Delegates on-chain repointing to `deploy-contract` / `multisig-rollout`, old-pauser gas sweep to `sweep-wallet-funds`, and never self-signs.
+description: Rotates the shared SC-owned Pauser wallet (the emergency-pause EOA that trips EmergencyPauseFacet) by redeploying the facet with the new pauser baked into its constructor and cutting it into every diamond — because pauserWallet is immutable and has no setter, a rotation is a redeploy, not a config write. Use when the user says "rotate the pauser wallet", "repoint the emergency pauser", or "replace the pause EOA". NOT for the deployer wallet (safeOwners[0] + Timelock CANCELLER — that is `rotate-deployer-wallet`) or the staging diamond owner (that is `rotate-dev-wallet`); it is one of the three rotate-* skills the `offboard-sc-dev` orchestrator drives. Requires Foundry, gh, lifi-connect (MongoDB), and coordination on the CI pauser secret + the emergency-pause verification workflow. Delegates on-chain repointing to `deploy-contract` / `multisig-rollout`, old-pauser gas sweep to `sweep-wallet-funds`, and never self-signs.
 usage: /rotate-pauser-wallet [--new-address 0xNEW] [--check]
 ---
 
@@ -48,7 +48,7 @@ Ordering is deliberate: **repoint → sweep → CI funding check → CI secret +
 Run from the repo root. Report (don't fix silently):
 
 - `.env` present; `PRODUCTION` matches the intended environment; `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`.
-- Foundry available (`forge --version`); `gh auth status` OK; VPN up for MongoDB (needed by `multisig-rollout` / `check-rotation-status`).
+- Foundry available (`forge --version`); `gh auth status` OK; lifi-connect up for MongoDB (needed by `multisig-rollout` / `check-rotation-status`).
 - New pauser address supplied and confirmed with the user; old pauser read from the live facet.
 - Repo version of the facet: `grep -m1 "@custom:version" src/Facets/EmergencyPauseFacet.sol` — the redeploy must ship a new pauser, so bump/confirm the version per repo convention before deploying.
 

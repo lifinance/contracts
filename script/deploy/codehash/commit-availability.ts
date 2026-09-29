@@ -34,14 +34,23 @@ export interface ICommitAvailabilityDeps {
 
 /**
  * Ensures `sha` names a commit this checkout can read, fetching it if not.
+ *
+ * `options.remote` is a remote name this repo resolved from the network, never
+ * a URL and never anything a proposal carries: it reaches git's argv, and the
+ * source that comes back over it is what the deployed code is compared against.
+ *
  * @param sha - full 40-hex commit SHA from the deployment or audit record
  * @param deps - the git runner
+ * @param options.remote - remote to fetch from; `origin` by default
  * @returns Whether the commit is now readable, and whether a fetch was needed
  */
 export const ensureCommitAvailable = (
   sha: string,
-  deps: ICommitAvailabilityDeps
+  deps: ICommitAvailabilityDeps,
+  options?: { remote?: string }
 ): CommitAvailability => {
+  const remote = options?.remote ?? 'origin'
+
   if (!FULL_SHA.test(sha))
     return {
       ok: false,
@@ -54,7 +63,7 @@ export const ensureCommitAvailable = (
   let lastFailure = 'the remote did not report why'
   for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
     try {
-      deps.git(['fetch', '--quiet', 'origin', sha])
+      deps.git(['fetch', '--quiet', remote, sha])
     } catch (error) {
       lastFailure = error instanceof Error ? error.message : String(error)
       continue
@@ -68,7 +77,7 @@ export const ensureCommitAvailable = (
   return {
     ok: false,
     kind: 'error',
-    reason: `Commit lineage: ${sha} is not in this checkout and could not be fetched after ${MAX_FETCH_ATTEMPTS} attempts — ${lastFailure}. This is an ERROR, not "the commit does not exist": 56 of 98 audit commits are unreachable locally and retrievable by SHA, so nothing about the deployment can be concluded from a failed fetch.`,
+    reason: `Commit lineage: ${sha} is not in this checkout and could not be fetched from "${remote}" after ${MAX_FETCH_ATTEMPTS} attempts — ${lastFailure}. This is an ERROR, not "the commit does not exist": 56 of 98 audit commits are unreachable locally and retrievable by SHA, so nothing about the deployment can be concluded from a failed fetch.`,
   }
 }
 

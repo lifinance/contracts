@@ -49,6 +49,7 @@ struct SquidData {
     bool forecallEnabled;
 }
 ```
+
 The Squid router performs various different call types depending on the starting token and the desired token received on the destination chain.
 
 ```solidity
@@ -58,6 +59,7 @@ enum RouteType {
   CallBridgeCall // Makes calls on both chains while bridging in between
 }
 ```
+
 ## Swap Data
 
 Some methods accept a `SwapData _swapData` parameter.

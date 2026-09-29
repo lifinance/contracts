@@ -56,9 +56,9 @@ const ATTESTED: IAttestedBuild[] = [
 ]
 
 /** The network's legitimate toolchains are fully enumerated in ATTESTED. */
-const CLOSED = { isClosedSet: true }
+const CLOSED = { isClosedSet: true, holdsImmutablesOffCode: false }
 /** They are not — e.g. a zkEVM network, whose trailer this repo cannot yet read. */
-const OPEN = { isClosedSet: false }
+const OPEN = { isClosedSet: false, holdsImmutablesOffCode: false }
 
 describe('compareToAttestedSet', () => {
   it('accepts a build from any attested lineage, not one privileged profile', () => {
@@ -555,5 +555,84 @@ describe('what a pinned rawHash covers, and what a pinned mismatch may be', () =
     expect(result.verdict).toBe('MISMATCH')
     expect(result.reason).toMatch(/outside its metadata trailer/)
     expect(result.reason).not.toContain('holding immutables')
+  })
+})
+
+describe('the toolchain triple a zksolc lineage records', () => {
+  const TRIPLE = {
+    zksolcVersion: '1.5.15',
+    solcVersion: '0.8.29',
+    llvmVersion: '1.0.2',
+  }
+
+  const ZK: IAttestedBuild[] = [
+    {
+      provenance: 'A-LOCAL',
+      lineage: 'zksync',
+      solcVersion: '0.8.29',
+      maskedHash: LONDON_HASH,
+      rawByteLength: LONDON_BYTES,
+      rawHash: undefined,
+      toolchain: TRIPLE,
+    },
+  ]
+
+  const zkSeen = (toolchain?: IAttestedBuild['toolchain']): IObservedCode =>
+    seen({
+      maskedHash: LONDON_HASH,
+      rawByteLength: LONDON_BYTES,
+      ...(toolchain ? { toolchain } : {}),
+    })
+
+  it('matches code built by the same triple', () => {
+    const result = compareToAttestedSet(zkSeen(TRIPLE), ZK, CLOSED)
+
+    expect(result.verdict).toBe('MATCH')
+    expect(result.blocksSigning).toBe(false)
+  })
+
+  it('matches although the metadata digest beside it moved', () => {
+    // The digest is not compared at all now, so a rebuild whose compilation unit
+    // differed from the deploy's reaches the same verdict. The triple is what
+    // carries the claim.
+    const result = compareToAttestedSet(
+      { ...zkSeen(TRIPLE), rawHash: `0x${'ef'.repeat(32)}` },
+      ZK,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
+  })
+
+  it('blocks on a fork bump, naming the fork', () => {
+    const result = compareToAttestedSet(
+      zkSeen({ ...TRIPLE, llvmVersion: '1.0.1' }),
+      ZK,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MISMATCH')
+    expect(result.blocksSigning).toBe(true)
+    expect(result.reason).toContain('llvm 1.0.1')
+    expect(result.reason).toContain('llvm 1.0.2')
+  })
+
+  it('blocks code carrying no triple at all', () => {
+    // Stripping is what hides the triple, so accepting its absence would let
+    // any build that removed it past the one check that looks at it.
+    const result = compareToAttestedSet(zkSeen(), ZK, CLOSED)
+
+    expect(result.verdict).toBe('MISMATCH')
+    expect(result.reason).toContain('no toolchain triple')
+  })
+
+  it('imposes nothing when the attested build records no triple', () => {
+    const result = compareToAttestedSet(
+      zkSeen(TRIPLE),
+      [{ ...(ZK[0] as IAttestedBuild), toolchain: undefined }],
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
   })
 })

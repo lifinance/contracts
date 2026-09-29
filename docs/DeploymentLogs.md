@@ -145,3 +145,38 @@ non-zero — a missing build must never read as an audit that found nothing.
 Exit codes: non-zero on any conclusive finding, or when every examined record was
 unauditable; `--strict` extends that to unverified and unauditable records. The audit covers
 recorded arguments only — a contract deployed but never recorded is outside it.
+
+## Flagging a record as explorer-verified
+
+Each MongoDB deployment record carries a `verified` flag saying whether that address'
+source is published on the network's explorer. On EVM chains nothing extra is needed:
+`deploySingleContract.sh` sets it inline once `verifyContract` succeeds. Tron has no such
+path — `forge verify-contract` cannot target it, so verification runs through
+[`verify-tron-contracts.ts`](TronFork.md#contract-verification-tronscan), which submits to
+TronScan and now flags the record itself. Left unflagged, a record reads `verified: false`
+forever even though the source is published.
+
+To flag a record by hand:
+
+```bash
+bun run mongo-logs:mark-verified \
+  --contract <Name> --network <network> --address <address as the record spells it>
+```
+
+`--env` defaults to `production`, which is the right value for every network including
+testnets: `deployments/<network>.json` is the production log and staging lives in
+`<network>.staging.json`.
+
+Selection is **by address, never by recency**. One contract can hold several records over
+its life — an abandoned deploy leaves one behind, and the abandoned record can be the newer
+of the two — so the command flags every record naming the address given and refuses, naming
+the recorded addresses, when none does. That refusal means the address was never recorded,
+which is a different problem from an unflagged record; fix the record rather than re-running
+with a different address. A cache-invalidation failure after the write is a warning, not a
+non-zero exit: the records are already written and the cache is derived from them.
+
+**Known residue:** `AccessManagerFacet` and `LiFiDiamond` on Tron are skipped by
+`verify-tron-contracts.ts` (verified before that CLI existed, sources not reproducible from
+the current fork checkout), so no run will ever flag them. Their records keep whatever
+`verified` value they were last given. Clearing that is a one-off `mark-verified` per
+contract against the address in `deployments/tron.json`.

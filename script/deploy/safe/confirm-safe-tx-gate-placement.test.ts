@@ -54,6 +54,26 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     expect(block).not.toContain('signTransaction')
   })
 
+  // The findings already sit under their gate's row in section 2; a refusal
+  // that lists them again shows the signer the same facts twice and invites a
+  // search for the difference.
+  it('does not print the gate H findings a second time in the refusal', () => {
+    const at = source.indexOf(GATE)
+    expect(at).toBeGreaterThan(-1)
+    const end = source.indexOf('\n    }', at)
+    expect(end).toBeGreaterThan(at)
+    const block = source.slice(at, end)
+    expect(block).not.toContain('formatTargetStateLines(')
+    expect(block).toContain('renderTargetStateRefusal(')
+    expect(source.split('formatTargetStateLines(').length - 1).toBe(1)
+  })
+
+  // The provenance sentence is built as one line and printed through consola,
+  // which does not wrap; on a real run it reached 206 columns.
+  it('folds the evidence provenance lines to the view width', () => {
+    expect(source).toContain('foldLines(describeEvidenceProvenance(evidence))')
+  })
+
   it('sits after the pre-existing nonce gate, which it must not swallow', () => {
     expect(source.indexOf(NONCE_GATE)).toBeGreaterThan(-1)
     expect(source.indexOf(GATE)).toBeGreaterThan(source.indexOf(NONCE_GATE))
@@ -98,5 +118,25 @@ describe('target-state gate placement in confirm-safe-tx', () => {
   it('passes every endpoint through the sign-time transport config first', () => {
     expect(source.indexOf('getSignTimeTransportConfig(')).toBeGreaterThan(-1)
     expect(source.indexOf('getTransportConfigFromRpcUrl(')).toBe(-1)
+  })
+
+  // Gate G grades the contracts this proposal installs, while the observation
+  // it is built from reads every address the calldata names — for the record
+  // and for the pre-broadcast re-read. Handing the wide set to the gate is how
+  // it comes to ask about a diamond's owner on a proposal that only removes a
+  // facet from it, and the two sets are one expression apart in this file.
+  // Asserted against what the grading call is handed, not against the file as a
+  // whole: the record writer is the one place that legitimately keeps every
+  // address it observed.
+  it('grades gate G on the narrowed set, never the whole observation', () => {
+    const at = source.indexOf('proposalCheckResults({')
+    expect(at).toBeGreaterThan(-1)
+    const end = source.indexOf('\n      })', at)
+    expect(end).toBeGreaterThan(at)
+    const call = source.slice(at, end)
+
+    expect(call).toContain('installedAuthorities')
+    expect(call).not.toContain('observed.authorities')
+    expect(source.indexOf('authoritiesOfInstalled(')).toBeLessThan(at)
   })
 })

@@ -22,7 +22,6 @@ import {
   assertProposalOperationPermitted,
   describeOperationValue,
   evaluateDelegateCallGate,
-  renderDelegateCallGate,
 } from './delegatecall-gate'
 import { OperationTypeEnum } from './safe-utils'
 
@@ -169,49 +168,24 @@ describe('evaluateDelegateCallGate', () => {
   })
 })
 
-describe('renderDelegateCallGate', () => {
-  it('says nothing for a plain call, so the line is never noise', () => {
-    expect(
-      renderDelegateCallGate(
-        evaluateDelegateCallGate({ operation: OperationTypeEnum.Call })
-      )
-    ).toEqual([])
-  })
-
-  it('carries exactly one colour and one reset, at the ends', () => {
-    // Exactly two escapes, one at each end. The reason is sanitised, so it
-    // cannot contribute a third.
-    const [line = ''] = renderDelegateCallGate(
-      evaluateDelegateCallGate({ operation: OperationTypeEnum.DelegateCall })
-    )
-    const esc = String.fromCharCode(27)
-
-    expect(line).toContain('REFUSED')
-    expect(line).toMatch(/own storage/)
-    expect(line.split(esc).length - 1).toBe(2)
-    expect(line.startsWith(`${esc}[31m`)).toBe(true)
-    expect(line.endsWith(`${esc}[0m`)).toBe(true)
-  })
-
+describe('the refusal reason is safe to print wherever it is printed', () => {
   it('strips escape codes out of a proposer-supplied value', () => {
     // `operation` reaches the struct through a cast, so a row can carry a
     // string — and interpolating one raw let a proposal paint ANSI into the
-    // signer's terminal, recolouring the refusal printed about it. The value is
-    // sanitised, so the rendered line still carries exactly its own two codes.
+    // signer's terminal. The reason is what any caller renders, so the
+    // sanitising has to hold in the verdict rather than in one renderer of it:
+    // the zone-1 printer was removed when zone 1 stopped carrying verdicts, and
+    // gate D now states this one.
     const injected = `${String.fromCharCode(27)}[33mYELLOW`
-    const [line = ''] = renderDelegateCallGate(
-      evaluateDelegateCallGate({
-        operation: injected as unknown as number,
-      })
-    )
-    const esc = String.fromCharCode(27)
+    const { reason } = evaluateDelegateCallGate({
+      operation: injected as unknown as number,
+    })
 
-    expect(line.split(esc).length - 1).toBe(2)
-    expect(line).not.toContain(`${esc}[33m`)
+    expect(reason).not.toContain(String.fromCharCode(27))
     // Paired presence: the value is still described, not silently dropped —
     // stripping it entirely would hide what was refused.
-    expect(line).toContain('YELLOW')
-    expect(line).toMatch(/\(string, \d+ chars\)/)
+    expect(reason).toContain('YELLOW')
+    expect(reason).toMatch(/\(string, \d+ chars\)/)
   })
 })
 

@@ -17,8 +17,8 @@ IFS=$'\n\t'
 # Load required dependencies
 source script/helperFunctions.sh
 source script/playgroundHelpers.sh
-# EVM-version grouping + foundry.toml management (group constants,
-# groupNetworksByExecutionGroup, backup/restore/updateFoundryTomlForGroup)
+# EVM-version grouping + group build selection (group constants,
+# groupNetworksByExecutionGroup, prepareGroupBuild)
 source script/deploy/resources/deployGroupingHelpers.sh
 
 # =============================================================================
@@ -211,7 +211,7 @@ validateEnv
 # Progress tracking file - will be set based on action type
 PROGRESS_TRACKING_FILE=""
 
-# Group / solc / evm_version constants live in
+# Group and profile constants live in
 # script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
 # =============================================================================
@@ -358,10 +358,9 @@ function logGroupInfo() {
 }
 
 # =============================================================================
-# NETWORK GROUPING + FOUNDRY.TOML MANAGEMENT
+# NETWORK GROUPING + GROUP BUILD SELECTION
 # =============================================================================
-# groupNetworksByExecutionGroup, backupFoundryToml, restoreFoundryToml, and
-# updateFoundryTomlForGroup live in
+# groupNetworksByExecutionGroup and prepareGroupBuild live in
 # script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
 
@@ -1537,8 +1536,9 @@ _global_interrupt_handler() {
 
     logWithTimestamp "✅ All processes terminated"
 
-    # Restore foundry.toml if needed
-    restoreFoundryToml 2>/dev/null || true
+    # This file is sourced, so an exported group profile would outlive the run
+    # and decide the compiler of the operator's next deploy.
+    unset FOUNDRY_PROFILE
 
     # Clean up progress tracking
     cleanupProgressTracking 2>/dev/null || true
@@ -1917,9 +1917,8 @@ function executeGroupSequentially() {
 
     # Group info is already shown in execution plan, skipping duplicate logGroupInfo call
 
-    # Update foundry.toml for this group
-    if ! updateFoundryTomlForGroup "$group"; then
-        error "Failed to update foundry.toml for group $group"
+    if ! prepareGroupBuild "$group"; then
+        error "Failed to prepare the build for group $group"
         return 1
     fi
 
@@ -2225,15 +2224,12 @@ function executeNetworksByGroup() {
         return 1
     fi
 
-    # Backup foundry.toml
-    backupFoundryToml
-
     # Set up global interrupt handler at the top level
     trap '_global_interrupt_handler' INT TERM
 
     # Set up cleanup on exit (only if script exits unexpectedly)
     # Normal completion will handle cleanup explicitly, so trap only handles errors/interrupts
-    trap 'restoreFoundryToml 2>/dev/null; cleanupProgressTracking 2>/dev/null; rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null' EXIT
+    trap 'cleanupProgressTracking 2>/dev/null; rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null' EXIT
 
     # Show group execution plan
     echo ""
@@ -2279,7 +2275,7 @@ function executeNetworksByGroup() {
 
     local overall_success=true
 
-    # Execute groups sequentially: Cancun → zkEVM (same config) → London (needs recompilation)
+    # Execute groups sequentially: Cancun → zkEVM → London; each group selects its own build profile
     if [[ ${#cancun_networks[@]} -gt 0 ]]; then
         if isGroupComplete "${cancun_networks[@]}"; then
             echo ""
@@ -2334,8 +2330,9 @@ function executeNetworksByGroup() {
         fi
     fi
 
-    # Restore foundry.toml
-    restoreFoundryToml
+    # This file is sourced, so the london group's exported profile would outlive the
+    # run and decide the compiler of the operator's next deploy.
+    unset FOUNDRY_PROFILE
 
     # Clean up PID tracking file
     rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true
@@ -2797,9 +2794,8 @@ function executeGroupWithHandleNetwork() {
 
     logGroupInfo "$group" "${networks[@]}"
 
-    # Update foundry.toml for this group
-    if ! updateFoundryTomlForGroup "$group"; then
-        error "Failed to update foundry.toml for group $group"
+    if ! prepareGroupBuild "$group"; then
+        error "Failed to prepare the build for group $group"
         return 1
     fi
 

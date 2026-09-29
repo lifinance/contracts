@@ -137,6 +137,28 @@ describe('sign-time reads carry the cap', () => {
       expect(source).not.toContain('getTransportConfigFromRpcUrl')
     })
 
+  // The second way past the cap, and the one the name-based row above cannot
+  // see: `getFallbackTransportForChain` resolves each endpoint through
+  // `getTransportConfigFromRpcUrl` internally, so a file that calls it carries
+  // neither banned name while still reading on the endpoint's own retry
+  // profile — TronGrid's is 8 retries on a 2s exponential backoff, with the
+  // signature waiting behind it.
+  //
+  // Scoped to this one file rather than added to the list above:
+  // `confirm-safe-tx.ts` builds the executability simulator's chain transport
+  // with it, which is a separate question from this client's reads.
+  //
+  // The call, not the bare name: the fan-out this file does build explains
+  // itself by naming the helper it deliberately does not use.
+  it('read-only-safe-client.ts fans out through the cap, not around it', () => {
+    const source = readFileSync(
+      join(import.meta.dir, 'read-only-safe-client.ts'),
+      'utf8'
+    )
+
+    expect(source).not.toContain('getFallbackTransportForChain(')
+  })
+
   // `safe-utils.ts` gets its own row rather than joining the list above: the
   // blanket "no raw helper anywhere in the file" assertion is wrong here, because
   // this file legitimately keeps it for the transports that broadcast.

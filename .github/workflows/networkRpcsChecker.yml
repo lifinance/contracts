@@ -73,16 +73,16 @@ jobs:
 
           if [ -n "$MISSING_RPCS" ]; then
             echo -e "\033[31mMissing RPC endpoints found: $MISSING_RPCS\033[0m"
-            echo "MISSING_RPCS=$MISSING_RPCS" >> $GITHUB_ENV
+            echo "MISSING_RPCS=$MISSING_RPCS" >> "$GITHUB_ENV"
           else
             echo -e "\033[32mFound an RPC endpoint for each active network. Check passed.\033[0m"
           fi
 
-      - name: Send Reminder to Slack SC-general Channel
+      - name: Send Reminder to Slack CI Notifications Channel
         if: env.MISSING_RPCS != ''
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          webhook: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           webhook-type: incoming-webhook
           payload: |
             text: "Missing RPC endpoints for Network(s): ${{ env.MISSING_RPCS }}"

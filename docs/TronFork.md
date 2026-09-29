@@ -95,9 +95,10 @@ audit — **no product features**.
 - **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
   versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
   example.
-- **Audit (2)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
-  `WithdrawablePeriphery 1.0.0-tron`, plus the
-  `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report.
+- **Audit (3)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
+  `WithdrawablePeriphery 1.0.0-tron`, the
+  `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report, and
+  `auditedPatches.json` (see [the audit gate on the fork](#the-audit-gate-on-the-fork)).
 
 If a change lands only in `contracts-tron` and grows beyond this shape,
 stop and reconsider — it almost certainly belongs here in `main` instead
@@ -115,6 +116,21 @@ normal sync rather than becoming its own untracked delta item).
 **Production deploy rule (unchanged):** production is deployed only from the
 `main` branch of the respective repo. A Tron production deploy therefore
 runs from `contracts-tron`'s `main`.
+
+**Signing a Tron cut needs the fork's objects in your `contracts` clone.** The
+sign-time codehash gate rebuilds each installed facet at the commit its
+deployment record names, and for Tron that commit is on the fork, not on
+`origin`. Add the fork as a remote called `tron` once:
+
+```bash
+git remote add tron https://github.com/lifinance/contracts-tron.git
+git fetch tron
+```
+
+A clone without it — or with a `tron` remote pointing at anything other than
+`lifinance/contracts-tron` over https or ssh — is refused by name rather than
+graded, because the source fetched through that remote is what the deployed
+code is compared against.
 
 ### Versioning rules (audit traceability)
 
@@ -307,6 +323,40 @@ fork-only and are not present in this repo) against a candidate resolution:
 ```bash
 bunx tsx script/tasks/checkTronForkDelta.ts --base origin/main --head HEAD --upstream upstream/main
 ```
+
+### The audit gate on the fork
+
+Facet audits pin upstream commits, so upstream `LibAsset` is in their audited
+closure. On the fork every contract importing an overlaid file would report
+`closure-drift` against that audit on every sync. `audit/auditedPatches.json`
+(fork only) declares each overlay as an audited patch:
+
+```json
+{
+  "src/Libraries/LibAsset.sol": {
+    "patchedSourceHash": "0x…",
+    "upstreamCommit": "<upstream commit the patch was applied to, in the audit commit's history>",
+    "auditId": "audit20260522"
+  }
+}
+```
+
+Wherever the file's audit-relevant hash (comments and blank lines ignored, as
+everywhere in the gate) matches `patchedSourceHash`, at PR head or at an audit
+commit, the gate reads it as its source at `upstreamCommit` for every contract
+that imports it, then runs the normal check. The overlaid contract itself is
+still judged as patched code, against its own `-tron` audit. The gate refuses to
+run if an entry is malformed, if its `auditId` is not listed for the version the
+patched file declares, if the file at that audit's commit is not the declared
+patch, if `upstreamCommit` is not in that audit commit's history, or if the
+patch imports a file upstream does not. The file is protected: changing it needs
+the same approval as `.github/`.
+
+When you rebase an overlay (step 3 above), update its entry: the new audit,
+an upstream commit holding the new base, and the new hash. The gate prints PR
+head's hash for any entry that doesn't match. Until the entry is updated, the
+importers show `closure-drift` again. That is intended, because the patch on a
+new base is not what was audited.
 
 ### New-dev gotchas (quick checklist)
 
@@ -503,10 +553,10 @@ export NETWORK=tron  # or tron-shasta for testnet
 export PRIVATE_KEY=your_64_char_hex_key_without_0x
 
 # Deploy in order
-bun script/deploy/tron/deploy-core-facets.ts
-bun script/deploy/tron/register-facets-to-diamond.ts
-bun script/deploy/tron/deploy-and-register-periphery.ts
-bun script/deploy/tron/deploy-and-register-symbiosis-facet.ts
+bunx tsx script/deploy/tron/deploy-core-facets.ts
+bunx tsx script/deploy/tron/register-facets-to-diamond.ts
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
+bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
 
 
@@ -546,14 +596,34 @@ Tron uses Tronscan instead of Etherscan:
 - **Mainnet**: <https://tronscan.org>
 - **Testnet (Shasta)**: <https://shasta.tronscan.org>
 
-Verification process:
+Verification runs through `verify-tron-contracts.ts`, which replays the multipart
+request Tronscan's verify form submits — there is no official verification API and
+`forge verify-contract` cannot target Tron:
 
-1. Navigate to contract address on Tronscan.
-2. Click "Contract" tab.
-3. Click "Verify and Publish".
-4. Select compiler version (check `foundry.toml`).
-5. Upload flattened source (use `forge flatten`).
-6. Provide constructor arguments (ABI-encoded).
+```bash
+bunx tsx script/deploy/tron/verify-tron-contracts.ts \
+  --network tron --repo-root ../contracts-tron
+```
+
+Point `--repo-root` at the `contracts-tron` checkout. Sources are flattened per
+contract from there; flattening from a drifted `main` fails with a bytecode mismatch
+even when the compiler settings are right, because of
+[the delta](#what-actually-differs-in-the-fork-the-delta). Useful flags:
+`--only`/`--skip` (comma-separated contract names), `--dry-run`, `--flattened-dir`
+for pre-flattened sources, and `--compiler`/`--optimizer-runs`/`--via-ir` when a
+contract was built with settings other than the current defaults.
+
+A successful submission also flags that contract's MongoDB deployment record as
+`verified` — nothing else on the Tron path writes that flag, unlike EVM where
+`deploySingleContract.sh` sets it inline. A record that fails to flag is a warning,
+not a failed verification, and the run still ends non-zero so it is not lost;
+re-running the contract is the fix. See
+[Flagging a record as explorer-verified](DeploymentLogs.md#flagging-a-record-as-explorer-verified)
+for the standalone command and for the two contracts this CLI skips.
+
+The browser path at <https://tronscan.org/contracts/verify> remains as a fallback:
+upload the `forge flatten` output, pick the compiler version from `foundry.toml`,
+and supply ABI-encoded constructor arguments.
 
 Tronscan API endpoints (from `config/networks.json`):
 

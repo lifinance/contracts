@@ -14,7 +14,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, getAddress, type Hex } from 'viem'
+import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem'
 
 import type { IAttestedBuild, IObservedCode } from '../codehash/attested-set'
 import { FacetCutActionEnum } from '../codehash/cut-classification'
@@ -28,6 +28,7 @@ import {
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
+  CODEHASH_GATE_HEADING,
   renderCodehashSignGate,
   unevaluatedCodehashSignGate,
 } from './codehash-sign-gate'
@@ -79,6 +80,13 @@ const cutCalldata = (facet = FACET, action = FacetCutActionEnum.Add): Hex =>
     ],
   })
 
+const registerCalldata = (address = OTHER, name = 'Executor'): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function registerPeripheryContract(string,address)']),
+    functionName: 'registerPeripheryContract',
+    args: [name, address as `0x${string}`],
+  })
+
 const wrapped = (payloads: Hex[]): Hex =>
   encodeFunctionData({
     abi: TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -94,15 +102,17 @@ const wrapped = (payloads: Hex[]): Hex =>
   })
 
 const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
-  scope: () => ({ isClosedSet: true }),
+  scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
   observe: async () => observed(),
-  attestationsFor: async () => [attested()],
+  attestationsFor: async () => ({ builds: [attested()] }),
+  price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
+  readOffCodeImmutables: async () => ({ declared: 'none' }),
   ...over,
 })
 
 /** The verdict glyph a rendered bucket leads with. */
 const glyph = (rendered: string): string => {
-  const found = /[✓✗?!⚠]/.exec(rendered)
+  const found = /[✓✗×?!⚠]/.exec(rendered)
   return found?.[0] ?? ''
 }
 
@@ -293,7 +303,7 @@ describe('evaluateCodehashSignGate', () => {
         deps({
           scope: (network: string) => {
             asked.push(network)
-            return { isClosedSet: true }
+            return { isClosedSet: true, holdsImmutablesOffCode: false }
           },
         })
     )
@@ -345,9 +355,9 @@ describe('evaluateCodehashSignGate', () => {
       await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
-          attestationsFor: async () => [
-            attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-          ],
+          attestationsFor: async () => ({
+            builds: [attested({ maskedHash: `0x${'99'.repeat(32)}` })],
+          }),
         })
     )
 
@@ -472,12 +482,24 @@ describe('renderCodehashSignGate', () => {
       )
     ).join('\n')
 
+  it('does not print a byte caveat for a chain whose immutables are off-code', async () => {
+    // Its verdict carries zero excluded bytes, because none were excluded. The
+    // caveat line is keyed off that count, so it must stay silent rather than
+    // announce "0 bytes" over a contract whose values gate L answers for.
+    const rendered = await render({
+      scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
+    })
+
+    expect(rendered).toContain('MATCH')
+    expect(rendered).not.toContain('bytes were excluded as immutables')
+  })
+
   it('renders MATCH, MISMATCH and UNVERIFIABLE as three distinct buckets', async () => {
     const match = await render({})
     const mismatch = await render({
-      attestationsFor: async () => [
-        attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-      ],
+      attestationsFor: async () => ({
+        builds: [attested({ maskedHash: `0x${'99'.repeat(32)}` })],
+      }),
     })
     const unverifiable = await render({
       attestationsFor: async () => {
@@ -534,6 +556,11 @@ describe('the render distinguishes every bucket, including the two that are not 
     // no cut and no refusal, and that was printed as `✓ MATCH` — an affirmative
     // claim about bytes nobody read. "We found no cut" and "we checked the cut
     // and it is clean" must not look the same to someone skimming glyphs.
+    //
+    // Said by standing down rather than by a line of its own: the gate's ledger
+    // row carries the sentence, under NOT APPLICABLE and in the manifest, which
+    // is where a signer counts the gates. `codehashCheckResult` in
+    // `confirm-check-registry.test.ts` is what holds that row to it.
     const lines = renderCodehashSignGate({
       blocksSigning: false,
       evaluated: true,
@@ -545,7 +572,46 @@ describe('the render distinguishes every bucket, including the two that are not 
 
     expect(lines.join('\n')).not.toContain('MATCH')
     expect(marks(lines)).not.toContain('32|✓')
-    expect(lines.join('\n')).toContain('NO CLAIM')
+    expect(lines).toEqual([])
+  })
+
+  // A removal carries a cut, so `madeNoClaim` is false, and installs no code,
+  // so there is no target. It reached the block as a bare heading over one
+  // NO CLAIM line that repeated the ledger row in different words.
+  it('stands down on a cut it opened and found no code in', () => {
+    expect(
+      renderCodehashSignGate({
+        blocksSigning: false,
+        evaluated: true,
+        refusals: [],
+        targets: [],
+        summary: 'this cut installs no facet code',
+      })
+    ).toEqual([])
+  })
+
+  it('heads the block with the gate the manifest names, when it has something to say', () => {
+    const lines = renderCodehashSignGate({
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [
+        {
+          address: FACET,
+          verdict: 'MATCH',
+          reason: 'matches an attested build',
+          matchedLineages: ['main@abc1234'],
+          excludedByteCount: 0,
+          pricedByteCount: 0,
+          immutables: { status: 'none', detail: 'declares no immutables' },
+        },
+      ],
+      summary: 'ok',
+    })
+
+    expect(lines[0]).toBe('')
+    expect(lines[1]).toContain(CODEHASH_GATE_HEADING)
+    expect(lines.join('\n')).not.toContain('Codehash gate:')
   })
 
   it('still renders a verified match as a green tick, so the rule is not blanket', () => {
@@ -562,6 +628,8 @@ describe('the render distinguishes every bucket, including the two that are not 
           reason: 'matches an attested build',
           matchedLineages: ['main@abc1234'],
           excludedByteCount: 0,
+          pricedByteCount: 0,
+          immutables: { status: 'none', detail: 'declares no immutables' },
         },
       ],
       summary: 'ok',
@@ -591,6 +659,8 @@ describe('the render distinguishes every bucket, including the two that are not 
           reason: 'does not match',
           matchedLineages: [],
           excludedByteCount: 0,
+          pricedByteCount: 0,
+          immutables: { status: 'none', detail: 'declares no immutables' },
         },
       ],
       summary: 'mismatch',
@@ -617,6 +687,52 @@ describe('the render distinguishes every bucket, including the two that are not 
     expect(gate.madeNoClaim).toBe(true)
   })
 
+  it('judges a periphery registration instead of standing down', async () => {
+    // The vacuous green this closes: a proposal installing periphery carries no
+    // `diamondCut`, so the gate reported "installs no facet code" — literally
+    // true, and read as "nothing to check here" for a contract going live.
+    const seen: string[] = []
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([registerCalldata()]), NETWORK),
+      () =>
+        deps({
+          observe: async (address) => {
+            seen.push(address)
+            return observed()
+          },
+        })
+    )
+
+    expect(seen).toEqual([getAddress(OTHER)])
+    expect(gate.madeNoClaim).toBeUndefined()
+    expect(gate.targets.map((one) => one.address)).toEqual([getAddress(OTHER)])
+    expect(gate.targets[0]?.verdict).toBe('MATCH')
+    expect(gate.blocksSigning).toBe(false)
+  })
+
+  it('blocks a registration whose code matches no attested build', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([registerCalldata()]), NETWORK),
+      () => deps({ attestationsFor: async () => ({ builds: [] }) })
+    )
+
+    expect(gate.blocksSigning).toBe(true)
+    expect(gate.targets[0]?.verdict).toBe('UNVERIFIABLE')
+  })
+
+  it('judges a cut and a registration carried in one batch', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([cutCalldata(), registerCalldata()]), NETWORK),
+      () => deps()
+    )
+
+    expect(gate.targets.map((one) => one.address)).toEqual([
+      getAddress(FACET),
+      getAddress(OTHER),
+    ])
+    expect(gate.blocksSigning).toBe(false)
+  })
+
   it('does not claim an unopened frame for an ordinary decodable cut', async () => {
     // Paired positive: a proposal it fully read must not be described as
     // unopened, or the message above becomes noise on every proposal.
@@ -627,6 +743,27 @@ describe('the render distinguishes every bucket, including the two that are not 
 
     expect(gate.summary).not.toMatch(/could not open/)
     expect(gate.madeNoClaim).toBeUndefined()
+  })
+
+  it('stands down on a governance call the decoder knows, naming it', async () => {
+    // Section 1 decodes `updateDelay` with its argument; the gate must not then
+    // tell the signer the same selector could not be opened.
+    const updateDelay = encodeFunctionData({
+      abi: parseAbi(['function updateDelay(uint256)']),
+      functionName: 'updateDelay',
+      args: [600n],
+    })
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([updateDelay]), NETWORK),
+      () => deps()
+    )
+
+    expect(gate.madeNoClaim).toBe(true)
+    expect(gate.blocksSigning).toBe(false)
+    expect(gate.unopened).toEqual([])
+    expect(gate.knownCalls).toEqual(['updateDelay'])
+    expect(gate.summary).toContain('updateDelay')
+    expect(gate.summary).not.toMatch(/could not open/)
   })
 })
 
@@ -832,9 +969,9 @@ describe('assertCodehashSignGateAllowsSigning', () => {
       await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
-          attestationsFor: async () => [
-            attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-          ],
+          attestationsFor: async () => ({
+            builds: [attested({ maskedHash: `0x${'99'.repeat(32)}` })],
+          }),
         })
     )
 

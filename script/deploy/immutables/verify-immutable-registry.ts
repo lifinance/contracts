@@ -3,8 +3,8 @@
  *
  * Run it from the repo root. It reads `src/`, the registry and the deploy
  * requirements, and reports what the registry gets wrong and what it has yet to
- * cover. Warn-only by default; `--strict` also fails on the authoring gap, which
- * is what flips on once the authoring pass is complete.
+ * cover. Warn-only by default; `--strict`, which CI passes, also fails on an
+ * immutable with no registry entry.
  */
 
 import { execFileSync } from 'child_process'
@@ -12,10 +12,13 @@ import { readFileSync } from 'fs'
 
 import { consola } from 'consola'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
+
 import {
   collectAnnotatedGetterKeys,
   readGetterExemptions,
   verifyGetterCoverage,
+  verifyGetterSinceVersions,
 } from './getter-coverage'
 import {
   buildAst,
@@ -32,12 +35,7 @@ import {
 const REGISTRY_PATH = 'script/deploy/resources/immutableRegistry.json'
 const REQUIREMENTS_PATH = 'script/deploy/resources/deployRequirements.json'
 
-/**
- * The registry lives in its own file so the InfoSec protection in
- * `protectSecurityRelevantCode.yml` can cover it exactly. Folding it into
- * `deployRequirements.json` would put every routine deploy-requirement edit
- * behind that approval, which is a cost nobody asked for.
- */
+/** The registry file's shape: contract name to its immutable entries. */
 type Registry = Record<string, Record<string, IImmutableEntry>>
 
 const readJson = <T>(path: string): T =>
@@ -71,7 +69,7 @@ export interface IVerificationCounts {
   unenumerated: number
   /** Things the registry gets wrong. */
   errors: number
-  /** Immutables with no registry entry yet. */
+  /** Immutables with no registry entry. */
   warnings: number
 }
 
@@ -152,13 +150,21 @@ const main = (): void => {
   // Same enumeration, a second question: is every public immutable address getter either
   // checked by `immutable-bindings-match-config` or recorded as exempt? Run here rather than in
   // its own job because it needs exactly the AST this one already built.
-  const coverageErrors = verifyGetterCoverage(
-    declarations,
-    readGetterExemptions(),
-    collectAnnotatedGetterKeys(
-      requirements as Parameters<typeof collectAnnotatedGetterKeys>[0]
-    )
-  )
+  const coverageErrors = [
+    ...verifyGetterCoverage(
+      declarations,
+      readGetterExemptions(),
+      collectAnnotatedGetterKeys(
+        requirements as Parameters<typeof collectAnnotatedGetterKeys>[0]
+      )
+    ),
+    // Same annotations, a third question: is each one reachable? A getterSinceVersion ahead of
+    // the contract's own version exempts the binding on every chain, and does it silently.
+    ...verifyGetterSinceVersions(
+      requirements as Parameters<typeof verifyGetterSinceVersions>[0],
+      declarations
+    ),
+  ]
 
   consola.info(
     `${declarations.length} immutables declared in src/; ${
@@ -190,9 +196,11 @@ const main = (): void => {
 
   if (warnings.length > 0)
     consola.warn(
-      `${warnings.length} immutable(s) have no registry entry yet. Warn-only until the authoring pass completes; pass --strict to fail on these.`
+      `${warnings.length} immutable(s) have no registry entry. CI runs with --strict and fails on these.`
     )
   else consola.success('every immutable in src/ has a registry entry')
 }
 
-if (import.meta.main) main()
+// A guard that wrongly answers false lets this CI gate exit 0 having verified
+// nothing; its own tests spawn `bunx tsx` ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) main()

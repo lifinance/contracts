@@ -387,7 +387,7 @@ describe('the corpus grades against a closed set, per D19', () => {
           rawHash: undefined,
         },
       ],
-      { isClosedSet: false }
+      { isClosedSet: false, holdsImmutablesOffCode: false }
     )
     expect(open.verdict).toBe('UNVERIFIABLE')
   })

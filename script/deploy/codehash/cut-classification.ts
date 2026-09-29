@@ -1,5 +1,6 @@
 /**
- * Decides which addresses in a `diamondCut` the codehash gate must vouch for.
+ * Decides which addresses a proposal would install the codehash gate must vouch
+ * for: those in a `diamondCut`, and those a `registerPeripheryContract` names.
  *
  * Classification is **per FacetCut element**, never per operation (adversarial
  * A1): a batch pairing an `Add` with a `Remove` still gates the `Add`, because
@@ -8,6 +9,11 @@
  * `_init` is treated as a target of its own. It is delegatecalled in the
  * diamond's storage context, so a purely subtractive cut carrying init calldata
  * is arbitrary code framed as a deletion, and is refused rather than gated.
+ *
+ * A periphery registration is an install like any other: the diamond calls the
+ * address it names, so the same bytecode question applies. It is not a
+ * `FacetCut`, so it never counts toward `installs` — an `_init` on an otherwise
+ * subtractive cut is not justified by a registration beside it.
  */
 
 import { getAddress } from 'viem'
@@ -53,11 +59,13 @@ export interface ICutVerdict {
  * bytes vouched for and the bytes signed come apart.
  * @param cut.cuts - the decoded `FacetCut[]`
  * @param cut.init - the cut's `_init` target
+ * @param cut.registrations - addresses `registerPeripheryContract` would install
  * @returns What to gate, and any reason to refuse outright
  */
 export const classifyCut = (cut: {
   cuts: readonly IFacetCutEntry[]
   init: string
+  registrations?: readonly string[]
 }): ICutVerdict => {
   const refusals: string[] = []
   const seen = new Map<string, string>()
@@ -82,6 +90,13 @@ export const classifyCut = (cut: {
     }
     remember(seen, entry.facetAddress)
   }
+
+  for (const [index, address] of (cut.registrations ?? []).entries())
+    if (normalise(address) === ZERO_ADDRESS)
+      refusals.push(
+        `Periphery registration ${index} registers the zero address. There is no code to vouch for, and gating it would produce a clean-looking pass for a registration that installs nothing readable.`
+      )
+    else remember(seen, address)
 
   const initIsSet = normalise(cut.init) !== ZERO_ADDRESS
   if (initIsSet && installs === 0)

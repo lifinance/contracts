@@ -14,6 +14,7 @@ import { consola } from 'consola'
 
 import globalConfigJson from '../../config/global.json'
 import networksConfigJson from '../../config/networks.json'
+import { isEntrypoint } from '../utils/is-entrypoint'
 
 import { SAFE_THRESHOLD } from './shared/constants'
 
@@ -421,4 +422,4 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

@@ -29,6 +29,10 @@ import {
 } from 'bun:test'
 
 import { EnvironmentEnum } from '../../common/types'
+import {
+  installRemoteIdentityShim,
+  SHIM_BIN_DIR,
+} from '../shared/remote-identity-shim'
 
 import {
   buildVerdictKey,
@@ -75,6 +79,7 @@ const initRepoWithRemote = (prefix: string): string => {
   spawnSync('git', ['init', '--bare', '-b', 'main', remote])
   runGit(repoRoot, 'remote', 'add', 'origin', remote)
   runGit(repoRoot, 'push', '-q', 'origin', 'main')
+  installRemoteIdentityShim(repoRoot)
 
   return repoRoot
 }
@@ -585,7 +590,17 @@ describe('verify-approvals CLI with the verdict cache', () => {
         '--facets',
         'TestFacet',
       ],
-      { cwd: repoRoot, encoding: 'utf8', env: { ...process.env, ...env } }
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        // the fixture's origin is a local bare repo, which the gate's remote
+        // check refuses; the shim answers only the identity read
+        env: {
+          ...process.env,
+          PATH: `${join(repoRoot, SHIM_BIN_DIR)}:${process.env.PATH ?? ''}`,
+          ...env,
+        },
+      }
     )
 
   /**

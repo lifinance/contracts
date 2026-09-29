@@ -20,10 +20,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { readContractVersion } from '../shared/contract-version'
+
 const REPO_ROOT = path.join(import.meta.dir, '..', '..', '..')
 const TASK = 'tasks/buildAttestationManifest.ts'
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
-const VERSION_RE = /@custom:version\s+(\S+)/
 
 /**
  * The first contract the mint would look for, found the way the mint finds it.
@@ -39,7 +40,7 @@ const firstVersionedContract = (): { name: string; file: string } => {
     for (const entry of fs.readdirSync(abs).sort()) {
       if (!entry.endsWith('.sol')) continue
       const source = fs.readFileSync(path.join(abs, entry), 'utf8')
-      if (VERSION_RE.test(source))
+      if (readContractVersion(source).kind === 'ok')
         return { name: entry.replace(/\.sol$/, ''), file: entry }
     }
   }
@@ -100,5 +101,39 @@ describe('the mint refuses to publish a manifest short by a profile conflict', (
       )}): artifact was built for evm london`
     )
     expect(output).not.toContain(`Skipped`)
+  })
+})
+
+describe('the mint refuses a version it cannot read', () => {
+  let root: string
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  /**
+   * Run against a source tree of our own, because the check under test is
+   * whether a malformed version stops the mint, and every contract in this
+   * repo declares a well-formed one.
+   */
+  it('names the file and the value instead of minting under a prefix', () => {
+    root = fs.mkdtempSync(path.join(tmpdir(), 'mint-version-'))
+    fs.mkdirSync(path.join(root, 'src'))
+    fs.writeFileSync(
+      path.join(root, 'src', 'Foo.sol'),
+      '/// @custom:version 2.1.3.4\ncontract Foo {}\n'
+    )
+
+    const result = spawnSync(
+      'bunx',
+      ['tsx', path.join(REPO_ROOT, TASK), '--out', root, '--check'],
+      { cwd: root, encoding: 'utf8' }
+    )
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).not.toBe(0)
+    // `2.1.3.4` is the value the old grammar would have truncated to `2.1.3`
+    // and filed a build under, so the message has to carry it whole.
+    expect(output).toContain(`src/Foo.sol declares "2.1.3.4"`)
   })
 })

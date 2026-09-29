@@ -27,9 +27,13 @@ export const MAX_FIELD_CHARS = 120
 /**
  * The calldata is deliberately unbounded: it is the payload the signature
  * covers and the only place a signer can read it in full, so clipping it would
- * remove the thing they are being asked to approve. Its length is also its own
- * disclosure — a wall of hex reads as one, where a 66-character field silently
- * grown to 500,000 does not.
+ * remove the thing they are being asked to approve.
+ *
+ * Zone 1 prints it under `--raw` rather than by default, and states its length
+ * otherwise. That keeps the disclosure the hex used to make by its own visual
+ * mass — a wall of it reads as one, where a 66-character field silently grown
+ * to 500,000 does not — while measuring it here, where a reader can see the
+ * number rather than having to scroll past it.
  */
 export const UNBOUNDED = Number.POSITIVE_INFINITY
 

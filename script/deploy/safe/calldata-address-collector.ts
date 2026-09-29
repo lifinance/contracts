@@ -20,6 +20,7 @@ import {
   type Hex,
 } from 'viem'
 
+import { ZERO_ADDRESS } from '../shared/constants'
 import {
   carriesAnySelectorAligned,
   collectLeafCalls,
@@ -37,6 +38,7 @@ import {
   type IDeploymentIndex,
   type IDeploymentIndexEntry,
 } from './calldata-address-check'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 
 /**
  * `LibDiamond.FacetCutAction` to the role the gate grades it in. An action
@@ -212,6 +214,75 @@ export const collectAddressReferences = (
       ...unreadable,
     ],
   }
+}
+
+/**
+ * Roles in which an address is code this proposal puts into service.
+ *
+ * Keyed by role rather than by action number so a role added to
+ * `AddressRoleEnum` has to be classified here before it compiles into the set.
+ * `FacetRemove` is the one deliberate omission: a removal takes code out, and
+ * `LibDiamond` requires the zero address in that slot anyway.
+ */
+const INSTALLING_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
+  AddressRoleEnum.FacetAdd,
+  AddressRoleEnum.FacetReplace,
+  AddressRoleEnum.CutInit,
+  AddressRoleEnum.PeripheryRegistration,
+])
+
+/**
+ * The contracts a proposal installs, as lowercased addresses.
+ *
+ * This is the subject set for the storage-authority gate (R2.6), which exists
+ * because constructor args written to storage are invisible to both bytecode
+ * layers. It follows that the gate has subjects only where code is being put
+ * into service: a cut that only removes installs nothing, and neither the
+ * diamond being cut into nor any other address the calldata merely mentions is
+ * a subject — their storage is not what this proposal is introducing.
+ *
+ * The zero address is dropped rather than filtered by the caller: it is what
+ * `LibDiamond` requires in a removal's facet slot and what a cut with no
+ * initialiser carries, so it is an absence of an address, never one to read.
+ *
+ * @param references - Every address reference the proposal's calldata yielded.
+ * @returns The addresses being installed, lowercased and deduplicated.
+ */
+export const installedAddresses = (
+  references: readonly IAddressReference[]
+): ReadonlySet<string> =>
+  new Set(
+    references
+      .filter(
+        (reference) =>
+          INSTALLING_ROLES.has(reference.role) &&
+          reference.address.toLowerCase() !== ZERO_ADDRESS.toLowerCase()
+      )
+      .map((reference) => reference.address.toLowerCase())
+  )
+
+/**
+ * The authority observations gate G may grade, out of everything that was read.
+ *
+ * The reader observes every address the calldata names, because the record it
+ * writes is a forensic trail and the pre-broadcast gate re-reads all of them to
+ * catch an authority that moved during the delay window. This gate asks the
+ * narrower R2.6 question, so it is handed the narrower set — and the narrowing
+ * lives here, as a value a test can produce, rather than inside the CLI where
+ * nothing can observe it.
+ *
+ * @param authorities - Every declared authority the run read.
+ * @param references - Every address reference the calldata yielded.
+ * @returns The observations whose contract this proposal installs.
+ */
+export const authoritiesOfInstalled = (
+  authorities: readonly IPreBroadcastAuthority[],
+  references: readonly IAddressReference[]
+): readonly IPreBroadcastAuthority[] => {
+  const installed = installedAddresses(references)
+  return authorities.filter((authority) =>
+    installed.has(authority.contractAddress.toLowerCase())
+  )
 }
 
 /**

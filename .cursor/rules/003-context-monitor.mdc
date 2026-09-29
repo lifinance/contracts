@@ -1,1 +1,0 @@
-../../.agents/rules/003-context-monitor.md

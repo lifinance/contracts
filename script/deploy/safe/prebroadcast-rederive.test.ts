@@ -18,6 +18,7 @@ const matchingAuthority = (
   overrides: Partial<IPreBroadcastAuthority> = {}
 ): IPreBroadcastAuthority => ({
   label: 'LiFiDiamond.owner()',
+  contractAddress: DIAMOND,
   liveValue: TIMELOCK,
   expectedValue: TIMELOCK,
   expectationSource: 'deployments',

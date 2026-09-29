@@ -2,13 +2,14 @@
  * Script Validation (static check, no execution)
  *
  * Guards against changes that silently break TS scripts (EXSC-331):
- * 1. Type check: runs `tsc-files --noEmit` over the TS files under `script/`
- *    changed between a base and a head ref (default HEAD). Removing a used
- *    import (TS2304) or
- *    a dependency a script imports (TS2307) fails the check — no execution,
- *    no fixtures.
+ * 1. Type check: runs `typecheck-files.sh` over the TS files under `script/`
+ *    and `tasks/` changed between a base and a head ref (default HEAD), each
+ *    against the runtime it runs on (Node for shipped modules, Bun for
+ *    `*.test.ts`). Removing a used import (TS2304), a dependency a script
+ *    imports (TS2307), or calling a Bun-only API from a module that runs on
+ *    Node (TS2868) fails the check — no execution, no fixtures.
  * 2. Import resolution: when script files OR dependency manifests
- *    (package.json / bun.lock / tsconfig.json) changed, every bare import
+ *    (package.json / bun.lock / tsconfig*.json) changed, every bare import
  *    specifier in ALL TS files under `script/` must resolve to a package
  *    declared in package.json (or a node/bun builtin). Running it on script
  *    changes catches an undeclared import at introduction (the package is
@@ -62,7 +63,12 @@ import { scanFilesForMultiWordArgDefaults } from './cittyArgDefaults'
 
 const SCRIPT_FILE_PATTERN = /^script\/.*\.ts$/u
 const TASK_FILE_PATTERN = /^tasks\/.*\.ts$/u
-const DEPENDENCY_MANIFESTS = ['package.json', 'bun.lock', 'tsconfig.json']
+const DEPENDENCY_MANIFESTS = [
+  'package.json',
+  'bun.lock',
+  'tsconfig.json',
+  'tsconfig.node.json',
+]
 
 interface IMissingImport {
   file: string
@@ -208,10 +214,11 @@ const getDeclaredPackages = (repoRoot: string): Set<string> => {
 const runTypeCheck = (repoRoot: string, files: string[]): boolean => {
   consola.info(`Type-checking ${files.length} changed script file(s):`)
   for (const file of files) consola.info(`  ${file}`)
-  const result = spawnSync('bunx', ['tsc-files', '--noEmit', ...files], {
-    cwd: repoRoot,
-    stdio: 'inherit',
-  })
+  const result = spawnSync(
+    'bash',
+    ['script/utils/typecheck-files.sh', ...files],
+    { cwd: repoRoot, stdio: 'inherit' }
+  )
   if (result.status !== 0 && !existsSync(join(repoRoot, 'typechain')))
     consola.warn(
       'typechain/ is missing — if errors above mention typechain imports, run `bun typechain` first'
@@ -272,7 +279,7 @@ const main = defineCommand({
   meta: {
     name: 'validateScripts',
     description:
-      'Static validation of TS files under script/: type check of the changed ones, import resolution across all of them, and citty argument defaults across script/ and tasks/',
+      'Static validation of TS files under script/ and tasks/: type check of the changed ones, import resolution across script/, and citty argument defaults across both',
   },
   args: {
     base: {
@@ -313,8 +320,10 @@ const main = defineCommand({
     }
 
     let passed = true
-    if (changedScriptFiles.length > 0)
-      passed = runTypeCheck(repoRoot, changedScriptFiles) && passed
+    if (changedScriptFiles.length > 0 || changedTaskFiles.length > 0)
+      passed =
+        runTypeCheck(repoRoot, [...changedScriptFiles, ...changedTaskFiles]) &&
+        passed
     // Sweep on script changes too (not just manifest changes): an undeclared
     // import added in a script resolves fine for the type check (the package is
     // installed transitively) but must be caught now, not deferred to whenever

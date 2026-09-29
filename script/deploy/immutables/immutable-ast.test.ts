@@ -230,9 +230,48 @@ describe('readImmutableDeclarations', () => {
   })
 
   it('returns nothing for a directory that does not exist', () => {
-    expect(
-      readImmutableDeclarations(join(tmpdir(), 'no-such-out-dir')).declarations
-    ).toEqual([])
+    const read = readImmutableDeclarations(join(tmpdir(), 'no-such-out-dir'))
+
+    expect(read.declarations).toEqual([])
+    // Nothing was read, so no contract may be reported as declaring nothing.
+    expect([...read.contracts]).toEqual([])
+  })
+
+  it('names a contract it read even when that contract declares nothing', () => {
+    const outDir = artifactDirWith([
+      {
+        path: 'Sample.sol/Sample.json',
+        ast: contractAst('src/Facets/Sample.sol', []),
+      },
+    ])
+
+    const read = readImmutableDeclarations(outDir)
+
+    expect(read.declarations).toEqual([])
+    expect([...read.contracts]).toEqual(['Sample'])
+  })
+})
+
+describe('readImmutableDeclarations definitions', () => {
+  it('names every file defining a contract, outside src/ as well', () => {
+    const outDir = artifactDirWith([
+      {
+        path: 'Sample.sol/Sample.json',
+        ast: contractAst('src/Facets/Sample.sol', [variable('OWNER')]),
+      },
+      {
+        path: 'vendor/Sample.sol/Sample.json',
+        ast: contractAst('lib/vendor/src/Sample.sol', [variable('OTHER')]),
+      },
+    ])
+
+    const { definitions, declarations } = readImmutableDeclarations(outDir)
+
+    expect([...(definitions.get('Sample') ?? [])].sort()).toEqual([
+      'lib/vendor/src/Sample.sol',
+      'src/Facets/Sample.sol',
+    ])
+    expect(declarations.map((one) => one.name)).toEqual(['OWNER'])
   })
 })
 

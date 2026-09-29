@@ -16,6 +16,7 @@ import { createPublicClient, getAddress, type PublicClient } from 'viem'
 
 import type { TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
+import { isEntrypoint } from '../utils/is-entrypoint'
 import { getNetworkConfig, getRPCEnvVarName } from '../utils/utils'
 import {
   getFallbackTransportForChain,
@@ -314,4 +315,4 @@ const main = defineCommand({
 })
 
 // Guard so importing this module does not execute the CLI (entry-point-only run).
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

@@ -1,6 +1,8 @@
 import { readFile } from 'node:fs/promises'
 import { relative, resolve } from 'path'
 
+import { readContractVersion } from './contract-version'
+
 /** Solidity-style contract name (no path segments, so reads stay under `src/`). */
 const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
@@ -32,13 +34,21 @@ export async function getContractVersion(
     if (underSrc.startsWith('..') || underSrc === '') {
       continue
     }
+    let content: string
     try {
-      const content = await readFile(fullPath, 'utf8')
-      const versionMatch = content.match(/@custom:version\s+(\S+)/)
-      if (versionMatch && versionMatch[1]) return versionMatch[1]
+      content = await readFile(fullPath, 'utf8')
     } catch {
-      // Try next path
+      continue // Try next path
     }
+
+    // Read outside the catch above: a version that is present but malformed is
+    // a fault in this file, not a reason to go on guessing paths.
+    const read = readContractVersion(content)
+    if (read.kind === 'malformed')
+      throw new Error(
+        `'${read.raw}' in ${relativePath} is not a @custom:version (expected MAJOR.MINOR.PATCH with an optional lowercase -suffix)`
+      )
+    if (read.kind === 'ok') return read.version
   }
 
   throw new Error(`Could not find version for ${contractName}`)

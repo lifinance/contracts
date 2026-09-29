@@ -133,6 +133,7 @@ When `/deprecate-network` is invoked with network names:
    - Write the updated JSON back to the file
    - Preserve JSON formatting and indentation
    - If the network doesn't exist in target state, skip silently (not an error)
+   - The whole network block goes, so the per-contract values (`latest` or a version pin) do not matter here ([docs/TargetState.md](../../docs/TargetState.md))
 
 7. **Remove deployment log files**:
 
