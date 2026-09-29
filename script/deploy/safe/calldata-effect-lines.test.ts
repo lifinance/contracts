@@ -7,7 +7,13 @@
  * value never becomes syntax, and that nothing it stops printing goes unnamed.
  */
 
+import { mkdtempSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
+  afterAll,
+  beforeAll,
   describe,
   expect,
   it,
@@ -24,6 +30,45 @@ import {
 } from 'viem'
 
 import { buildCalldataEffectLines } from './calldata-effect-lines'
+
+// The 4byte answers for the selectors these tests leave to the fallback; any
+// other selector gets no name. The real fetch never runs, and the cache lives in
+// a temp dir so a warm local cache cannot answer in the stub's place.
+const FOUR_BYTE: Record<string, string> = {
+  '0xdeadbeef': 'CodeIsLawZ95677371()',
+  '0x13af4035': 'setOwner(address)',
+}
+
+let cacheDir = ''
+let originalCachePath: string | undefined
+let fetchSpy: ReturnType<typeof spyOn<typeof globalThis, 'fetch'>>
+
+beforeAll(() => {
+  cacheDir = mkdtempSync(join(tmpdir(), 'calldata-effect-lines-'))
+  originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+  process.env.SELECTOR_SIGNATURE_CACHE_PATH = join(cacheDir, 'selectors.json')
+  fetchSpy = spyOn(globalThis, 'fetch').mockImplementation((async (
+    url: string
+  ) => {
+    const selectors =
+      new URL(url).searchParams.get('function')?.split(',') ?? []
+    const functions = Object.fromEntries(
+      selectors.map((selector) => {
+        const name = FOUR_BYTE[selector]
+        return [selector, name ? [{ name }] : []]
+      })
+    )
+    return Response.json({ ok: true, result: { function: functions } })
+  }) as unknown as typeof fetch)
+})
+
+afterAll(() => {
+  fetchSpy.mockRestore()
+  if (originalCachePath === undefined)
+    delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+  else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+  rmSync(cacheDir, { recursive: true, force: true })
+})
 
 const NETWORK = 'arbitrum'
 const INDENT = '      '
@@ -150,6 +195,11 @@ describe('buildCalldataEffectLines — the summarised effect', () => {
     const lines = plain(await render(diamondCut(1))).join('\n')
     for (const selector of SELECTORS) expect(lines).toContain(selector)
   })
+
+  it('names a selector only the 4byte lookup knows', async () => {
+    const lines = plain(await render(diamondCut(1, FACET, ['0x13af4035'])))
+    expect(lines.join('\n')).toContain('setOwner')
+  })
 })
 
 describe('buildCalldataEffectLines — a proposer-controlled field is never syntax', () => {
@@ -217,6 +267,7 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
       '\n'
     )
     expect(lines).toContain('further selectors not shown (30 in the calldata)')
+    expect(lines).toContain('no name for this selector')
   })
 })
 
