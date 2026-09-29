@@ -126,6 +126,10 @@ const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
 
 const STATE_VERSION = 1
 
+// Defaults live here rather than in citty: a multi-word arg with a citty default
+// drops a value passed under its kebab-case spelling.
+const DEFAULT_STATE_FILE = 'timelock-watcher-state.json'
+
 /** `eth_getLogs` calls a network's history backfill may spend per run. */
 const DEFAULT_HISTORY_BUDGET = 2000
 
@@ -518,7 +522,8 @@ const networkVerdict = (
 /**
  * Watches one network.
  *
- * @returns Its report, and the scan state to persist (undefined keeps the old one).
+ * @returns Its report. The scan state is written into `ctx.state` only when the
+ *   network was read; an unreadable network keeps what the last run saved.
  */
 export const watchNetwork = async (
   network: INetworksObject[string],
@@ -916,8 +921,8 @@ const command = defineCommand({
     },
     stateFile: {
       type: 'string',
-      description: 'Scan cursors and alert records carried between runs',
-      default: 'timelock-watcher-state.json',
+      description: `Scan cursors and alert records carried between runs (default ${DEFAULT_STATE_FILE})`,
+      required: false,
     },
     summaryFile: {
       type: 'string',
@@ -927,24 +932,29 @@ const command = defineCommand({
     },
     historyBudget: {
       type: 'string',
-      description: 'eth_getLogs calls per network for the history backfill',
-      default: String(DEFAULT_HISTORY_BUDGET),
+      description: `eth_getLogs calls per network for the history backfill (default ${DEFAULT_HISTORY_BUDGET})`,
+      required: false,
     },
     historyMinutes: {
       type: 'string',
-      description: 'Minutes per network for the history backfill',
-      default: String(DEFAULT_HISTORY_MINUTES),
+      description: `Minutes per network for the history backfill (default ${DEFAULT_HISTORY_MINUTES})`,
+      required: false,
     },
     codehashBudget: {
       type: 'string',
-      description: 'Gate K rebuilds per run',
-      default: String(DEFAULT_CODEHASH_BUDGET),
+      description: `Gate K rebuilds per run (default ${DEFAULT_CODEHASH_BUDGET})`,
+      required: false,
     },
   },
   async run({ args }) {
-    const historyBudget = Number(args.historyBudget)
-    const codehashBudget = Number(args.codehashBudget)
-    const historyMinutes = Number(args.historyMinutes)
+    const stateFile = args.stateFile ?? DEFAULT_STATE_FILE
+    const historyBudget = Number(args.historyBudget ?? DEFAULT_HISTORY_BUDGET)
+    const codehashBudget = Number(
+      args.codehashBudget ?? DEFAULT_CODEHASH_BUDGET
+    )
+    const historyMinutes = Number(
+      args.historyMinutes ?? DEFAULT_HISTORY_MINUTES
+    )
     if (!(historyMinutes >= 0))
       throw new Error('--historyMinutes must be a non-negative number')
     if (!Number.isInteger(historyBudget) || historyBudget < 0)
@@ -961,7 +971,7 @@ const command = defineCommand({
     if (networks.length === 0)
       throw new Error(`No active production network matches ${args.network}`)
 
-    const state = await loadWatcherState(args.stateFile)
+    const state = await loadWatcherState(stateFile)
     const readPinned = createPinnedBlobReader()
     let codehashDeps: ISignTimeCodehashDeps | undefined
     const store = await openWatcherStore()
@@ -1049,7 +1059,7 @@ const command = defineCommand({
         }
     } else state.alerts = decision.next
 
-    await writeFile(args.stateFile, `${JSON.stringify(state, null, 2)}\n`)
+    await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`)
 
     const summary = renderJobSummary(reports, now)
     const summaryFile = args.summaryFile ?? process.env.GITHUB_STEP_SUMMARY
