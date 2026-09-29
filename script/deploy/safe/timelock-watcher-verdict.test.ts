@@ -444,8 +444,9 @@ describe('gradeAuthority', () => {
     expect(grade(PERIPHERY, owner(STRANGER))).toBe('fail')
   })
 
-  it('lets a periphery be owned by the withdraw wallet, as the deploy scripts do', () => {
-    expect(grade(PERIPHERY, owner(WITHDRAW))).toBe('pass')
+  it('lets the withdraw wallet own only the fee contracts deployed that way', () => {
+    expect(grade(FEE_COLLECTOR, owner(WITHDRAW))).toBe('pass')
+    expect(grade(PERIPHERY, owner(WITHDRAW))).toBe('unknown')
     expect(grade(DIAMOND, owner(WITHDRAW))).toBe('unknown')
   })
 
@@ -454,7 +455,7 @@ describe('gradeAuthority', () => {
     expect(grade(TIMELOCK, grant('EXECUTOR_ROLE', STRANGER))).toBe('unknown')
   })
 
-  it('lets a fee collector be owned by the fee collector owner only', () => {
+  it('does not let a fee collector be owned by the refund wallet', () => {
     expect(grade(FEE_COLLECTOR, owner(OWNER_OF_FEES))).toBe('pass')
     expect(grade(FEE_COLLECTOR, owner(REFUND))).toBe('unknown')
   })

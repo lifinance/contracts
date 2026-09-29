@@ -564,8 +564,8 @@ export interface IAuthorityContext {
  * operation has not changed yet, so this reads the arguments instead, against
  * the shapes the repo's own flows produce:
  * - the diamond's ownership may only go to the timelock; another contract's
- *   to the timelock, the Safe, the refund wallet or the withdraw wallet, and a
- *   fee collector's to
+ *   to the timelock, the Safe or the refund wallet, and a fee collector's or
+ *   fee forwarder's to the withdraw wallet or
  *   the fee collector owner;
  * - a timelock admin or proposer role only to the Safe or the timelock; the
  *   canceller or executor role to a wallet main names or a Safe owner;
@@ -625,13 +625,13 @@ export const gradeAuthority = (
         const allowed =
           targetName === 'LiFiDiamond'
             ? (name: string) => name === 'LiFiTimelockController'
-            : /FeeCollector/.test(targetName)
-            ? (name: string) => name === 'feeCollectorOwner'
+            : /FeeCollector|FeeForwarder/.test(targetName)
+            ? (name: string) =>
+                name === 'withdrawWallet' || name === 'feeCollectorOwner'
             : (name: string) =>
                 name === 'LiFiTimelockController' ||
                 name === 'Safe' ||
-                name === 'refundWallet' ||
-                name === 'withdrawWallet'
+                name === 'refundWallet'
         judge(
           call.label,
           `transfers ${targetName} ownership to`,

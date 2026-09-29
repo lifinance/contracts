@@ -101,16 +101,22 @@ describe('createRebuildGate', () => {
       describe: describeError,
       pollMs: 1,
     })
-    const overrunning = gate.run(() => wait(300), far())
-    const first = await overrunning
+    const never = new Promise<void>(() => undefined)
+    const first = await gate.run(() => never, far())
     expect(first.kind).toBe('timed-out')
 
     let ran = false
+    const asked = Date.now()
     const next = await gate.run(async () => {
       ran = true
-    }, Date.now() + 60)
-    expect(next.kind).toBe('deferred')
+    }, asked + 60)
+    expect(next).toEqual({
+      kind: 'deferred',
+      reason:
+        'another gate K rebuild is still running; this one runs on a later run',
+    })
     expect(ran).toBe(false)
+    expect(Date.now() - asked).toBeLessThan(1_000)
   })
 
   it('defers rather than starting a rebuild that cannot finish before the deadline', async () => {

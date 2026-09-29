@@ -62,7 +62,7 @@ jobs:
   watch-timelocks:
     if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_WATCHER != 'false'
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     permissions:
       contents: read # required to checkout the repository
       actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
@@ -164,9 +164,11 @@ jobs:
           fi
           PAYLOAD=$(jq -n --arg notice "$NOTICE" --arg url "$WORKFLOW_URL" \
             '{text: ($notice + " <" + $url + "|Logs>")}')
-          curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' \
-            --data "$PAYLOAD" "$SLACK_WEBHOOK_URL" > /dev/null \
-            || echo -e "\033[33m⚠️ Failed to send the crash notice\033[0m"
+          if ! curl -sS --fail-with-body --max-time 10 -X POST -H 'Content-Type: application/json' \
+            --data "$PAYLOAD" "$SLACK_WEBHOOK_URL" > /dev/null; then
+            echo -e "\033[31m::error::Failed to send the notice to Slack\033[0m"
+            exit 1
+          fi
 
       # Download with: `gh run download <run-id> -n timelock-watcher-logs`
       - name: Upload watcher log

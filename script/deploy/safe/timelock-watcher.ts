@@ -175,6 +175,13 @@ const REBUILD_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 /** Kept free at the end of a network's time, so its report is written before it is timed out. */
 const DEADLINE_MARGIN_MS = 30 * 1000 // 30 seconds
 
+/**
+ * A network's time: its history budget, then one gate K rebuild on top, so an
+ * operation on a network still backfilling history gets its rebuild too.
+ */
+const networkTimeoutMs = (ctx: { historyMs: number }): number =>
+  ctx.historyMs + REBUILD_TIMEOUT_MS + NETWORK_OVERHEAD_MS
+
 /** A cached gate K result, reused while the code it judged is unchanged. */
 interface ICodehashCacheEntry {
   status: 'pass' | 'fail' | 'unknown'
@@ -900,7 +907,7 @@ export const watchNetwork = async (
         client,
         ctx,
         network.isZkEVM,
-        startedAt + ctx.historyMs + NETWORK_OVERHEAD_MS - DEADLINE_MARGIN_MS
+        startedAt + networkTimeoutMs(ctx) - DEADLINE_MARGIN_MS
       )
     )
     checks.push(codehash)
@@ -1115,7 +1122,7 @@ const command = defineCommand({
           const started = Date.now()
           const report = await withTimeout(
             watchNetwork(n, ctx),
-            ctx.historyMs + NETWORK_OVERHEAD_MS,
+            networkTimeoutMs(ctx),
             `watching ${n.name}`
           )
           consola.info(

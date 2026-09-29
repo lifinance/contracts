@@ -52,7 +52,7 @@ const VERDICT_MARK: Record<TWatcherVerdict, string> = {
 }
 
 const cell = (text: string): string =>
-  text.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
+  text.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
 
 /**
  * Share of `[floor, head]` the scan covers.

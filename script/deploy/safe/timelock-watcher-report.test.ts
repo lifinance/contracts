@@ -135,6 +135,23 @@ describe('renderJobSummary', () => {
     expect(summary).toContain('- not in the execution queue')
   })
 
+  it('escapes backslashes before pipes, so a cell cannot unescape its own delimiter', () => {
+    const escaped = renderJobSummary(
+      [
+        {
+          network: 'x',
+          status: 'skipped',
+          verdict: 'ok',
+          reason: 'a\\|b',
+          operations: [],
+          notes: [],
+        },
+      ],
+      NOW
+    )
+    expect(escaped).toContain('a\\\\\\|b')
+  })
+
   it('says why a network is not covered or unreadable', () => {
     expect(summary).toContain('Tron is not covered')
     expect(summary).toContain('the log scan failed')
