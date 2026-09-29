@@ -195,6 +195,11 @@ describe('buildCalldataEffectLines — the summarised effect', () => {
     const lines = plain(await render(diamondCut(1))).join('\n')
     for (const selector of SELECTORS) expect(lines).toContain(selector)
   })
+
+  it('names a selector only the 4byte lookup knows', async () => {
+    const lines = plain(await render(diamondCut(1, FACET, ['0x13af4035'])))
+    expect(lines.join('\n')).toContain('setOwner')
+  })
 })
 
 describe('buildCalldataEffectLines — a proposer-controlled field is never syntax', () => {
