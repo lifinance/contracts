@@ -172,6 +172,7 @@ async function generateBackendSignature(
     minAmountOut: bigint
     nonEVMReceiver: `0x${string}`
     destinationAsset: `0x${string}`
+    refundRecipient: string
   },
   sourceChainId: number
 ): Promise<`0x${string}`> {
@@ -201,6 +202,7 @@ async function generateBackendSignature(
       { name: 'quoteId', type: 'bytes32' },
       { name: 'minAmountOut', type: 'uint256' },
       { name: 'destinationAsset', type: 'bytes32' },
+      { name: 'refundRecipient', type: 'address' },
     ],
   } as const
 
@@ -221,6 +223,7 @@ async function generateBackendSignature(
     quoteId: nearData.quoteId,
     minAmountOut: nearData.minAmountOut,
     destinationAsset: nearData.destinationAsset,
+    refundRecipient: nearData.refundRecipient,
   } as const
 
   console.log('Types:', types)
@@ -427,6 +430,7 @@ async function bridgeEVMtoSolana(amountStr = '1', withSwap = false) {
     minAmountOut,
     nonEVMReceiver: solanaReceiverBytes32,
     destinationAsset: destinationAssetBytes32,
+    refundRecipient: signerAddress,
   }
 
   // Generate backend signature
@@ -672,6 +676,7 @@ async function bridgeEVMtoEVM(amountStr = '1', withSwap = false) {
     minAmountOut,
     nonEVMReceiver: `0x${'0'.repeat(64)}` as `0x${string}`, // Empty for EVM
     destinationAsset: destinationAssetBytes32,
+    refundRecipient: signerAddress,
   }
 
   const evmSourceChainId = networks[SOURCE_CHAIN]?.chainId
