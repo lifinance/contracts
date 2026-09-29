@@ -7,7 +7,13 @@
  * value never becomes syntax, and that nothing it stops printing goes unnamed.
  */
 
+import { mkdtempSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
+  afterAll,
+  beforeAll,
   describe,
   expect,
   it,
@@ -24,6 +30,45 @@ import {
 } from 'viem'
 
 import { buildCalldataEffectLines } from './calldata-effect-lines'
+
+// The 4byte answers for the selectors these tests leave to the fallback; any
+// other selector gets no name. The real fetch never runs, and the cache lives in
+// a temp dir so a warm local cache cannot answer in the stub's place.
+const FOUR_BYTE: Record<string, string> = {
+  '0xdeadbeef': 'CodeIsLawZ95677371()',
+  '0x13af4035': 'setOwner(address)',
+}
+
+let cacheDir = ''
+let originalCachePath: string | undefined
+let fetchSpy: ReturnType<typeof spyOn<typeof globalThis, 'fetch'>>
+
+beforeAll(() => {
+  cacheDir = mkdtempSync(join(tmpdir(), 'calldata-effect-lines-'))
+  originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+  process.env.SELECTOR_SIGNATURE_CACHE_PATH = join(cacheDir, 'selectors.json')
+  fetchSpy = spyOn(globalThis, 'fetch').mockImplementation((async (
+    url: string
+  ) => {
+    const selectors =
+      new URL(url).searchParams.get('function')?.split(',') ?? []
+    const functions = Object.fromEntries(
+      selectors.map((selector) => {
+        const name = FOUR_BYTE[selector]
+        return [selector, name ? [{ name }] : []]
+      })
+    )
+    return Response.json({ ok: true, result: { function: functions } })
+  }) as unknown as typeof fetch)
+})
+
+afterAll(() => {
+  fetchSpy.mockRestore()
+  if (originalCachePath === undefined)
+    delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+  else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+  rmSync(cacheDir, { recursive: true, force: true })
+})
 
 const NETWORK = 'arbitrum'
 const INDENT = '      '
@@ -211,12 +256,13 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
   it('counts the selectors it holds back', async () => {
     const selectors = Array.from(
       { length: 30 },
-      (_, i) => SELECTORS[i % SELECTORS.length] as `0x${string}`
+      (_, i) => `0x${i.toString(16).padStart(8, '0')}` as `0x${string}`
     )
     const lines = plain(await render(diamondCut(1, FACET, selectors))).join(
       '\n'
     )
     expect(lines).toContain('further selectors not shown (30 in the calldata)')
+    expect(lines).toContain('no name for this selector')
   })
 })
 
@@ -252,10 +298,10 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
   })
 
   it('quotes a name the selector registry resolved rather than vouching for it', async () => {
-    // `transferOwnership(address)` with no argument body: the registry names the
-    // call, but nothing decodes it.
-    const lines = plain(await render('0xf2fde38b')).join('\n')
-    expect(lines).toContain('[0xf2fde38b]')
+    // The registry answers this selector from a 4byte-style collision name, so
+    // the call is named but nothing decodes its body.
+    const lines = plain(await render('0xdeadbeef')).join('\n')
+    expect(lines).toContain('[0xdeadbeef]')
     expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
   })
 
@@ -411,13 +457,13 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
     const lines = plain(
       await render(
         encodeFunctionData({
-          abi: parseAbi(['function transferOwnership(address)']),
-          functionName: 'transferOwnership',
+          abi: parseAbi(['function setOwner(address)']),
+          functionName: 'setOwner',
           args: [FACET],
         })
       )
     ).join('\n')
-    expect(lines).toContain('transferOwnership [')
+    expect(lines).toContain('setOwner [')
     expect(lines).toContain('[0]: ')
     expect(lines).toContain(FACET)
   })
