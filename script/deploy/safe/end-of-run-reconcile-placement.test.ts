@@ -6,7 +6,9 @@
  * CLI; the placement is asserted on the parsed source instead. It fails when
  * the pass is moved out of the `finally` that guards the network loop (a loop
  * that throws after broadcasting would then exit without queuing the timelock
- * op), or when the executor's no-receipt branch stops recording the submission.
+ * op), when the executor's no-receipt branch or a failed status write stops
+ * recording the submission, or when the timelock enqueue moves behind the
+ * status write that can throw before it.
  */
 
 import { readFileSync } from 'fs'
@@ -22,6 +24,7 @@ import {
   createSourceFile,
   forEachChild,
   isCallExpression,
+  isCatchClause,
   isForStatement,
   isIdentifier,
   isPropertyAccessExpression,
@@ -56,6 +59,15 @@ const callsTo = (root: Node, name: string): Node[] =>
       isCallExpression(node) &&
       isIdentifier(node.expression) &&
       node.expression.text === name
+  )
+
+const callsToMethod = (root: Node, text: string): Node[] =>
+  findAll(
+    root,
+    (node) =>
+      isCallExpression(node) &&
+      isPropertyAccessExpression(node.expression) &&
+      node.expression.getText(TREE) === text
   )
 
 const enclosingTry = (node: Node): TryStatement | undefined => {
@@ -96,13 +108,39 @@ describe('end-of-run reconcile placement in confirm-safe-tx', () => {
     expect((closes[0] as Node).pos).toBeGreaterThan(settle.end)
   })
 
-  it('records a submission where the executor saw no receipt', () => {
+  it('records a submission where the executor saw no receipt and where the status write threw', () => {
     const pushes = findAll(
       TREE,
       (node) =>
         isCallExpression(node) &&
         node.expression.getText(TREE) === 'runSubmissions.push'
     )
-    expect(pushes).toHaveLength(1)
+    expect(pushes).toHaveLength(2)
+
+    const inCatchOfStatusWrite = pushes.filter((push) => {
+      for (let parent = push.parent; parent; parent = parent.parent)
+        if (isCatchClause(parent) && isTryStatement(parent.parent))
+          return (
+            callsToMethod(
+              parent.parent.tryBlock,
+              'pendingTransactions.updateOne'
+            ).length === 1
+          )
+      return false
+    })
+    expect(inCatchOfStatusWrite).toHaveLength(1)
+  })
+
+  it('queues the timelock op before the executed status write', () => {
+    const [enqueue, ...others] = callsTo(TREE, 'enqueueTimelockOpIfApplicable')
+    expect(enqueue).toBeDefined()
+    expect(others).toHaveLength(0)
+
+    const statusWrites = callsToMethod(
+      TREE,
+      'pendingTransactions.updateOne'
+    ).filter((write) => write.getText(TREE).includes('status: nextStatus'))
+    expect(statusWrites).toHaveLength(1)
+    expect((statusWrites[0] as Node).pos).toBeGreaterThan((enqueue as Node).end)
   })
 })

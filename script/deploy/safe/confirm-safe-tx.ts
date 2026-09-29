@@ -830,34 +830,27 @@ const processTxs = async (
         nextStatus = exec.status === 'success' ? 'executed' : 'reverted'
       else nextStatus = 'submitted'
 
+      const submission: IRunSubmissionRecord | undefined = txDoc._id && {
+        network: networkKey,
+        rowId: txDoc._id,
+        proposalKey: buildProposalKey({
+          to: safeTransaction.data.to,
+          chainId: chain.id,
+          nonce: safeTransaction.data.nonce,
+        }),
+      }
+
       // Recorded before the write: a write that throws may still have landed,
       // and the end-of-run pass must see the execution either way.
-      if (nextStatus === 'submitted' && txDoc._id)
-        runSubmissions.push({
-          network: networkKey,
-          rowId: txDoc._id,
-          proposalKey: buildProposalKey({
-            to: safeTransaction.data.to,
-            chainId: chain.id,
-            nonce: safeTransaction.data.nonce,
-          }),
-        })
-
-      await pendingTransactions.updateOne(
-        mongoSafeTxRowFilter(txDoc, networkKey, chain.id),
-        {
-          $set: {
-            status: nextStatus,
-            executionHash,
-            submittedAt: new Date(),
-          },
-        }
-      )
+      if (nextStatus === 'submitted' && submission)
+        runSubmissions.push(submission)
 
       // Only enqueue a timelock op once the Safe tx is confirmed on-chain.
       // 'submitted' rows get enqueued by reconcile when it later promotes
       // them to 'executed'; on 'reverted' the inner schedule never
-      // executed, so nothing to queue.
+      // executed, so nothing to queue. Ahead of the status write so a write
+      // that throws cannot leave an executed schedule unqueued — the upsert
+      // is idempotent, so reconcile re-issuing it is harmless.
       if (nextStatus === 'executed')
         await enqueueTimelockOpIfApplicable(
           safeTransaction.data.data,
@@ -867,6 +860,27 @@ const processTxs = async (
           chain.id,
           chain.name
         )
+
+      try {
+        await pendingTransactions.updateOne(
+          mongoSafeTxRowFilter(txDoc, networkKey, chain.id),
+          {
+            $set: {
+              status: nextStatus,
+              executionHash,
+              submittedAt: new Date(),
+            },
+          }
+        )
+      } catch (error: unknown) {
+        // The row may still read `pending`; the end-of-run pass back-fills it
+        // from the Safe's logs and clears the failure this throw reports. A
+        // revert is left out: it emits no Safe event and consumes no nonce,
+        // so nothing would ever settle the row and the pass would wait it out.
+        if (nextStatus === 'executed' && submission)
+          runSubmissions.push(submission)
+        throw error
+      }
 
       if (nextStatus === 'executed')
         consola.success(

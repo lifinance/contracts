@@ -81,6 +81,12 @@ export interface IReconcileOptions {
    * without standing up a MongoDB instance for the queue cluster.
    */
   enqueueTimelockOpFn?: typeof enqueueTimelockOpIfApplicable
+  /**
+   * Row `_id`s (hex) Sweep B back-fills first when several `pending` rows share
+   * an executed `safeTxHash` — the rows this run executed. Without a match it
+   * takes the newest row.
+   */
+  preferredRowIds?: ReadonlySet<string>
 }
 
 /**
@@ -158,6 +164,7 @@ export async function reconcileSubmittedSafeTxs(
     safeAddress,
     lookbackBlocks,
     enqueueFn,
+    options?.preferredRowIds ?? new Set(),
     result
   )
 
@@ -402,9 +409,14 @@ export async function reconcileRunSubmissions(
   const readRows = (ids: ObjectId[]) =>
     pendingTransactions.find({ _id: { $in: ids } }).toArray()
 
+  const reconcileOptions: IRunSubmissionReconcileOptions = {
+    ...options,
+    preferredRowIds: new Set(evmSubmissions.map((s) => s.rowId.toHexString())),
+  }
+
   let open = await readRows(evmSubmissions.map((s) => s.rowId))
   for (;;) {
-    await reconcileSafesOf(pendingTransactions, open, options)
+    await reconcileSafesOf(pendingTransactions, open, reconcileOptions)
 
     const rows = await readRows(open.map((row) => row._id))
     for (const row of rows) statuses.set(row._id.toHexString(), row.status)
@@ -519,6 +531,24 @@ async function sweepA(
 }
 
 /**
+ * Chooses which of the `pending` rows sharing an executed `safeTxHash` the
+ * execution belongs to: a row in `preferredRowIds`, else the newest — a
+ * re-proposed payload gets a new row with the same hash.
+ */
+function pickBackfillRow<T extends { _id: ObjectId }>(
+  candidates: T[],
+  preferredRowIds: ReadonlySet<string>
+): T | undefined {
+  let newest: T | undefined
+  for (const row of candidates) {
+    const id = row._id.toHexString()
+    if (preferredRowIds.has(id)) return row
+    if (!newest || id > newest._id.toHexString()) newest = row
+  }
+  return newest
+}
+
+/**
  * Sweep B — scan recent ExecutionSuccess/ExecutionFailure logs on the Safe
  * and back-fill any `pending` row whose Safe hash matches an event topic.
  */
@@ -530,6 +560,7 @@ async function sweepB(
   safeAddress: Address,
   lookbackBlocks: bigint,
   enqueueFn: typeof enqueueTimelockOpIfApplicable,
+  preferredRowIds: ReadonlySet<string>,
   result: IReconcileResult
 ): Promise<void> {
   let latestBlock: bigint
@@ -582,12 +613,15 @@ async function sweepB(
     // Read the row first so we have access to its calldata for the
     // timelock enqueue below. The status:'pending' filter doubles as the
     // "did we actually back-fill anything?" guard.
-    const candidate = await pendingTransactions.findOne({
-      safeTxHash: { $eq: safeTxHash },
-      network: { $eq: networkKey },
-      chainId: { $eq: chainId },
-      status: { $eq: 'pending' },
-    })
+    const candidates = await pendingTransactions
+      .find({
+        safeTxHash: { $eq: safeTxHash },
+        network: { $eq: networkKey },
+        chainId: { $eq: chainId },
+        status: { $eq: 'pending' },
+      })
+      .toArray()
+    const candidate = pickBackfillRow(candidates, preferredRowIds)
     if (!candidate) continue
 
     await pendingTransactions.updateOne(

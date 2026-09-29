@@ -1103,6 +1103,33 @@ describe('reconcileSubmittedSafeTxs — timelock enqueue plumbing', () => {
     ])
   })
 
+  it('back-fills the newest of several pending rows sharing a hash', async () => {
+    const sharedHash = ('0x' + 'e1'.repeat(32)) as Hex
+    const collection = createFakeCollection([
+      buildRow({ safeTxHash: sharedHash }),
+      buildRow({ safeTxHash: sharedHash }),
+    ])
+    const client = createFakeClient({
+      blockNumber: 100n,
+      logs: [makeExecutionLog(EXECUTION_SUCCESS_TOPIC, sharedHash)],
+    })
+
+    await reconcileSubmittedSafeTxs(
+      collection,
+      client,
+      NETWORK,
+      CHAIN_ID,
+      SAFE_ADDR,
+      1n,
+      { enqueueTimelockOpFn: mock(noopEnqueueImpl) }
+    )
+
+    expect(collection.rows.map((r) => r.status)).toEqual([
+      'pending',
+      'executed',
+    ])
+  })
+
   it('does not invoke the enqueue function on Sweep B revert back-fill', async () => {
     const missingSafeTxHash =
       '0x000000000000000000000000000000000000000000000000000000000000bbbb' as Hex
@@ -1486,6 +1513,37 @@ describe('reconcileRunSubmissions — end-of-run pass', () => {
     expect(statuses.get(idOf(collection, 0).toHexString())).toBe('executed')
     expect(enqueueSpy).toHaveBeenCalledTimes(1)
     expect(clock.slept).toEqual([END_OF_RUN_POLL_MS])
+  })
+
+  it('back-fills the row this run executed when another pending row shares its hash', async () => {
+    // The run's row is the older one, so picking the newest would miss it.
+    const collection = createFakeCollection([
+      buildRow({ network: 'mainnet', chainId: 1, safeTxHash: HASH_A }),
+      buildRow({ network: 'mainnet', chainId: 1, safeTxHash: HASH_A }),
+    ])
+    const clock = fakeClock()
+
+    const statuses = await reconcileRunSubmissions(
+      collection,
+      [{ network: 'mainnet', rowId: idOf(collection, 0) }],
+      {
+        publicClientFactory: () =>
+          createFakeClient({
+            logs: [makeExecutionLog(EXECUTION_SUCCESS_TOPIC, HASH_A)],
+          }),
+        readSafeNonce: async () => 1n,
+        enqueueTimelockOpFn: mock(noopEnqueueImpl),
+        now: clock.now,
+        sleep: clock.sleep,
+      }
+    )
+
+    expect(collection.rows.map((r) => r.status)).toEqual([
+      'executed',
+      'pending',
+    ])
+    expect(statuses.get(idOf(collection, 0).toHexString())).toBe('executed')
+    expect(clock.slept).toEqual([])
   })
 
   it('leaves a still-missing tx submitted and stops at the deadline', async () => {
