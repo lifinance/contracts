@@ -92,6 +92,22 @@ describe.each(REDACTORS)('%s > %s', (file, fn) => {
     expect(out).not.toContain('K2')
   })
 
+  it('redacts endpoints on separate lines, keeping the rest and the line breaks', () => {
+    // sed runs per line, so a pattern that only held on the first line would still pass the
+    // single-line cases above.
+    expect(
+      redact(
+        'Error: primary (https://a.io/v1/K1) timed out\n' +
+          'fallback wss://b.io/ws/K2 refused\n' +
+          'giving up\n'
+      )
+    ).toBe(
+      'Error: primary ([redacted-url] timed out\n' +
+        'fallback [redacted-url] refused\n' +
+        'giving up\n'
+    )
+  })
+
   it('survives an empty argument under set -u', () => {
     expect(withBashFns([[file, fn]], `set -u; ${fn} ""`)).toBe('')
   })
