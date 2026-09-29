@@ -93,9 +93,11 @@ import {
 import {
   CALL_SALT_EVENT,
   CALL_SCHEDULED_EVENT,
+  CANCELLED_EVENT,
   advanceScan,
   bisectCreationBlock,
   initialScanState,
+  isProvenCancelled,
   recomputeOperationIds,
   type INetworkScanState,
   type IScannedOperation,
@@ -104,6 +106,7 @@ import {
   buildWatcherCancelInput,
   classifyOperation,
   gradeAuthorities,
+  gradeAuthority,
   gradeCodehash,
   gradeDelay,
   gradeDelegatecall,
@@ -151,10 +154,21 @@ const HISTORY_PARALLEL_RANGES = 8
 /** Time one network may take beyond its history budget before it counts as unreadable. */
 const NETWORK_OVERHEAD_MS = 6 * 60 * 1000 // 6 minutes
 
+/**
+ * Runs in a row an operation with no `Cancelled` log may read as never
+ * scheduled before it is dropped, so one lagging node cannot erase it.
+ */
+const UNSET_READS_BEFORE_DROP = 3
+
+/** An unverifiable gate K result is retried once a day, not every run: each retry is a rebuild. */
+const CODEHASH_UNKNOWN_RETRY_MS = 24 * 60 * 60 * 1000 // 24 hours
+
 /** A cached gate K result, reused while the code it judged is unchanged. */
 interface ICodehashCacheEntry {
-  status: 'pass' | 'fail'
+  status: 'pass' | 'fail' | 'unknown'
   detail: string
+  /** ISO time of the rebuild, to retry an unverifiable result once it is old. */
+  checkedAt?: string
   /** keccak256 of the live code at each judged address. */
   codeHashes: Record<string, string>
 }
@@ -305,7 +319,7 @@ const readTimelockLogs = (
 ) =>
   reader.getLogs({
     address: timelock,
-    events: [CALL_SCHEDULED_EVENT, CALL_SALT_EVENT],
+    events: [CALL_SCHEDULED_EVENT, CALL_SALT_EVENT, CANCELLED_EVENT],
     fromBlock,
     toBlock,
     strict: true,
@@ -376,8 +390,10 @@ interface IRunContext {
   codehash: {
     budget: { left: number }
     deps: () => ISignTimeCodehashDeps
+    serialise: <T>(work: () => Promise<T>) => Promise<T>
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
+  expired: Set<string>
 }
 
 const encodeOperation = (op: IScannedOperation): Hex =>
@@ -402,7 +418,8 @@ const runCodehash = async (
   network: string,
   op: IScannedOperation,
   client: PublicClient,
-  ctx: IRunContext
+  ctx: IRunContext,
+  isZkEVM: boolean
 ): Promise<TCodehashResult> => {
   const collected = collectDiamondCutTargets(encodeOperation(op))
   if (!installsCode(collected)) return { kind: 'not-applicable', collected }
@@ -432,19 +449,25 @@ const runCodehash = async (
 
   const key = findingKey(network, op.id)
   const cached = ctx.state.codehash[key]
+  const retryDue =
+    cached?.status === 'unknown' &&
+    !(
+      Date.now() - Date.parse(cached.checkedAt ?? '') <
+      CODEHASH_UNKNOWN_RETRY_MS
+    )
   if (
     cached &&
+    !retryDue &&
     JSON.stringify(cached.codeHashes) === JSON.stringify(codeHashes)
   )
     return { kind: 'cached', status: cached.status, detail: cached.detail }
 
-  if (ctx.codehash.budget.left <= 0)
+  if (isZkEVM)
     return {
-      kind: 'deferred',
+      kind: 'error',
       reason:
-        'gate K is queued behind this run’s rebuild budget and will run on a later run',
+        'gate K cannot rebuild zkEVM code in this job (no foundry-zksync), so the code this operation installs is not verified',
     }
-  ctx.codehash.budget.left--
 
   const installations = [
     ...collected.calls,
@@ -458,22 +481,37 @@ const runCodehash = async (
         ]
       : []),
   ]
+  if (installations.length === 0)
+    return { kind: 'evaluated', collected, reports: [] }
+
+  if (ctx.codehash.budget.left <= 0)
+    return {
+      kind: 'deferred',
+      reason:
+        'gate K is queued behind this run’s rebuild budget and will run on a later run',
+    }
+  ctx.codehash.budget.left--
+
   const reports: IGateReport[] = []
   try {
-    for (const call of installations)
-      reports.push(
-        await verifyCutTargets(
-          {
-            cuts: call.cuts,
-            init: call.init,
-            network,
-            ...('registrations' in call
-              ? { registrations: call.registrations }
-              : {}),
-          },
-          ctx.codehash.deps()
+    // One at a time: every rebuild shares one checkout root keyed by commit, and
+    // two networks installing code from the same commit would build into it at once.
+    await ctx.codehash.serialise(async () => {
+      for (const call of installations)
+        reports.push(
+          await verifyCutTargets(
+            {
+              cuts: call.cuts,
+              init: call.init,
+              network,
+              ...('registrations' in call
+                ? { registrations: call.registrations }
+                : {}),
+            },
+            ctx.codehash.deps()
+          )
         )
-      )
+    })
   } catch (error) {
     return {
       kind: 'error',
@@ -483,13 +521,14 @@ const runCodehash = async (
 
   const result: TCodehashResult = { kind: 'evaluated', collected, reports }
   const graded = gradeCodehash(result)
-  if (graded.status === 'pass' || graded.status === 'fail')
+  if (graded.status === 'skip') delete ctx.state.codehash[key]
+  else
     ctx.state.codehash[key] = {
       status: graded.status,
       detail: graded.detail,
       codeHashes,
+      checkedAt: new Date().toISOString(),
     }
-  else delete ctx.state.codehash[key]
   return result
 }
 
@@ -622,9 +661,18 @@ export const watchNetwork = async (
         timelock
       )
     }
+  else {
+    flagUnverified = true
+    notes.push(
+      `main's deployments/${name}.json names no LiFiDiamond, so the timelock is not checked against the diamond's owner`
+    )
+  }
 
   const previous = initialScanState(ctx.state.networks[name], timelock)
   let preferredReader = 0
+  // An endpoint that answers eth_getLogs only up to its own head, without an
+  // error, would let the scan record blocks it never saw as covered.
+  const readerHeads = new Map<number, bigint>()
   let scan: Awaited<ReturnType<typeof advanceScan>>
   let floorNote: string | undefined
   try {
@@ -655,9 +703,19 @@ export const watchNetwork = async (
           let lastError: unknown
           for (let k = 0; k < logReaders.length && !logs; k++) {
             const at = (preferredReader + k) % logReaders.length
+            const reader = logReaders[at] as PublicClient
             try {
+              let readerHead = readerHeads.get(at)
+              if (readerHead === undefined || readerHead < toBlock) {
+                readerHead = await reader.getBlockNumber()
+                readerHeads.set(at, readerHead)
+              }
+              if (readerHead < toBlock)
+                throw new Error(
+                  `the endpoint is at block ${readerHead}, behind ${toBlock}`
+                )
               logs = await readTimelockLogs(
-                logReaders[at] as PublicClient,
+                reader,
                 timelock,
                 fromBlock,
                 toBlock
@@ -670,8 +728,11 @@ export const watchNetwork = async (
           if (!logs) throw lastError
           const scheduled = []
           const salts = []
+          const cancels = []
           for (const log of logs)
-            if (log.eventName === 'CallScheduled')
+            if (log.eventName === 'Cancelled')
+              cancels.push({ id: log.args.id, blockNumber: log.blockNumber })
+            else if (log.eventName === 'CallScheduled')
               scheduled.push({
                 id: log.args.id,
                 index: log.args.index,
@@ -683,7 +744,7 @@ export const watchNetwork = async (
                 blockNumber: log.blockNumber,
               })
             else salts.push({ id: log.args.id, salt: log.args.salt })
-          return { scheduled, salts }
+          return { scheduled, salts, cancels }
         },
       },
       ctx.historyBudget,
@@ -696,6 +757,14 @@ export const watchNetwork = async (
     return unreadable(`the log scan failed: ${describe(error)}`, timelock)
   }
   if (floorNote) notes.push(floorNote)
+  if (scan.historyError !== undefined)
+    notes.push(
+      `no endpoint would serve the next history range: ${redactUrls(
+        scan.historyError
+      )
+        .split('\n')[0]
+        ?.slice(0, 200)}`
+    )
   if (!scan.historyComplete) {
     flagUnverified = true
     notes.push(
@@ -724,7 +793,20 @@ export const watchNetwork = async (
   }
 
   const agreedMinimum = BigInt(timelockConfig.minDelay)
+  if (liveMinimum === undefined) {
+    flagUnverified = true
+    notes.push('getMinDelay() could not be read')
+  } else if (liveMinimum < agreedMinimum) {
+    flagMismatch = true
+    notes.push(
+      `the timelock's minimum delay is ${liveMinimum}s, below the agreed ${agreedMinimum}s`
+    )
+  }
   const known = knownAddresses(deployments, network.safeAddress, timelock)
+  const knownForArguments = new Map(known)
+  for (const [key, value] of Object.entries(globalConfig))
+    if (typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value))
+      knownForArguments.set(value.toLowerCase(), key)
   const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
@@ -742,11 +824,21 @@ export const watchNetwork = async (
     } catch {
       stage = undefined
     }
-    if (stage === 'done' || stage === 'unset') {
+    const unsetReads = stage === 'unset' ? (op.unsetReads ?? 0) + 1 : 0
+    if (
+      stage === 'done' ||
+      (stage === 'unset' &&
+        (isProvenCancelled(op) || unsetReads >= UNSET_READS_BEFORE_DROP))
+    ) {
       delete scan.state.operations[op.id]
       delete ctx.state.codehash[findingKey(name, op.id)]
       continue
     }
+    if (stage !== undefined)
+      scan.state.operations[op.id] =
+        unsetReads > 0
+          ? { ...op, unsetReads }
+          : { ...op, unsetReads: undefined }
     livePending.add(op.id.toLowerCase())
 
     const identity = gradeIdentity(op.id, recomputeOperationIds(op))
@@ -756,6 +848,7 @@ export const watchNetwork = async (
       gradeDelay(op, agreedMinimum, liveMinimum, timelock),
       gradeTargets(op, known),
       gradeDelegatecall(op),
+      gradeAuthority(op, knownForArguments),
     ]
 
     let signTimeRecordPresent = false
@@ -792,7 +885,9 @@ export const watchNetwork = async (
     }
     checks.push(authorities)
 
-    const codehash = gradeCodehash(await runCodehash(name, op, client, ctx))
+    const codehash = gradeCodehash(
+      await runCodehash(name, op, client, ctx, network.isZkEVM)
+    )
     checks.push(codehash)
 
     if (!signTimeRecordPresent)
@@ -858,7 +953,9 @@ export const watchNetwork = async (
           )
         }
 
-  ctx.state.networks[name] = scan.state
+  // A network that overran its timeout was already reported unreadable; its
+  // late result must not overwrite the state that report kept.
+  if (!ctx.expired.has(name)) ctx.state.networks[name] = scan.state
   const base = {
     network: name,
     status: 'watched' as const,
@@ -974,6 +1071,7 @@ const command = defineCommand({
     const state = await loadWatcherState(stateFile)
     const readPinned = createPinnedBlobReader()
     let codehashDeps: ISignTimeCodehashDeps | undefined
+    let codehashQueue: Promise<unknown> = Promise.resolve()
     const store = await openWatcherStore()
     const ctx: IRunContext = {
       state,
@@ -988,7 +1086,16 @@ const command = defineCommand({
           (codehashDeps ??= createSignTimeCodehashDeps({
             readPinnedBlob: readPinned,
           })),
+        serialise: <T>(work: () => Promise<T>): Promise<T> => {
+          const run = codehashQueue.then(work, work)
+          codehashQueue = run.then(
+            () => undefined,
+            () => undefined
+          )
+          return run
+        },
       },
+      expired: new Set<string>(),
     }
 
     let reports: INetworkReport[]
@@ -1008,6 +1115,7 @@ const command = defineCommand({
           )
           return report
         } catch (error) {
+          ctx.expired.add(n.name)
           return {
             network: n.name,
             status: 'unreadable' as const,
@@ -1042,7 +1150,7 @@ const command = defineCommand({
         consola.info(`Slack alert (not posted from a local run):\n${text}`)
       else if (!webhook) {
         consola.error(
-          'There are alerts to send and no Slack webhook is configured'
+          'Alert delivery failed: there are alerts to send and no Slack webhook is configured'
         )
         deliveryFailed = true
       } else
@@ -1054,7 +1162,7 @@ const command = defineCommand({
           )
           state.alerts = decision.next
         } catch (error) {
-          consola.error(`Slack delivery failed: ${describe(error)}`)
+          consola.error(`Alert delivery failed: ${describe(error)}`)
           deliveryFailed = true
         }
     } else state.alerts = decision.next

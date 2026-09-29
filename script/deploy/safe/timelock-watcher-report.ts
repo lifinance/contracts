@@ -154,7 +154,7 @@ export const renderJobSummary = (
         '',
         `## ${r.network} · \`${op.id}\` · ${VERDICT_MARK[op.verdict]}`,
         '',
-        `${op.calls} call(s), scheduled in block ${op.scheduledInBlock}. Cancel matrix (information only): ${op.cancelRecommendation}`,
+        `${op.calls} call(s), scheduled in block ${op.scheduledInBlock}. Cancel matrix, for information only (the watcher does not simulate execution, so its executability leg is always unknown): ${op.cancelRecommendation}`,
         '',
         '| Check | Outcome | Detail |',
         '| --- | --- | --- |',
@@ -195,16 +195,21 @@ export const renderSlackAlert = (
   } Timelock watcher: ${mismatches} mismatch, ${
     alerts.length - mismatches
   } other update(s). Report-only, nothing was cancelled.`
-  const body = alerts.map((a) => {
-    const verdict =
-      a.kind === 'resolved'
-        ? `now ok (was ${a.previous ?? 'unknown'})`
-        : `${a.finding.verdict}${
-            a.kind === 'changed' ? ` (was ${a.previous ?? 'unknown'})` : ''
-          }`
-    const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
-    return `• [${KIND_LABEL[a.kind]}] ${a.finding.key}: ${verdict}${reason}`
-  })
+  // Mismatches lead, so a truncated post still shows every one it counts.
+  const rank = (a: IAlertItem): number =>
+    a.kind !== 'resolved' && a.finding.verdict === 'mismatch' ? 0 : 1
+  const body = [...alerts]
+    .sort((a, b) => rank(a) - rank(b))
+    .map((a) => {
+      const verdict =
+        a.kind === 'resolved'
+          ? `now ok (was ${a.previous ?? 'unknown'})`
+          : `${a.finding.verdict}${
+              a.kind === 'changed' ? ` (was ${a.previous ?? 'unknown'})` : ''
+            }`
+      const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
+      return `• [${KIND_LABEL[a.kind]}] ${a.finding.key}: ${verdict}${reason}`
+    })
   const footer = runUrl ? `<${runUrl}|Full report>` : ''
   let text = [header, ...body, footer].filter(Boolean).join('\n')
   if (text.length > SLACK_TEXT_BUDGET) {

@@ -18,9 +18,12 @@ import {
   advanceScan,
   bisectCreationBlock,
   initialScanState,
+  isProvenCancelled,
   mergeScheduledLogs,
   type ICallSaltLog,
+  type ICancelledLog,
   type IScanDependencies,
+  type IScannedOperation,
   type IScheduledCallLog,
 } from './timelock-watcher-scan'
 
@@ -28,6 +31,12 @@ const TIMELOCK: Address = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29'
 const TARGET: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const ZERO32: Hex = `0x${'0'.repeat(64)}`
 const id = (n: number): Hex => pad(`0x${n.toString(16)}`, { size: 32 })
+
+const logsOf = (
+  scheduled: IScheduledCallLog[],
+  salts: ICallSaltLog[] = [],
+  cancels: ICancelledLog[] = []
+) => ({ scheduled, salts, cancels })
 
 const scheduledAt = (
   blockNumber: bigint,
@@ -53,6 +62,7 @@ const chain = (options: {
   floor: bigint
   logs: IScheduledCallLog[]
   salts?: (ICallSaltLog & { blockNumber: bigint })[]
+  cancels?: ICancelledLog[]
   maxSpan?: bigint
 }): IScanDependencies & { served: [bigint, bigint][]; refused: number } => {
   const served: [bigint, bigint][] = []
@@ -73,6 +83,9 @@ const chain = (options: {
         ),
         salts: (options.salts ?? []).filter(
           (s) => s.blockNumber >= from && s.blockNumber <= to
+        ),
+        cancels: (options.cancels ?? []).filter(
+          (c) => c.blockNumber >= from && c.blockNumber <= to
         ),
       }
     },
@@ -116,13 +129,24 @@ describe('initialScanState', () => {
   })
 })
 
+const opIn = (
+  ops: Record<string, IScannedOperation>,
+  key: string
+): IScannedOperation => {
+  const op = ops[key]
+  if (!op) throw new Error(`no operation ${key}`)
+  return op
+}
+
 describe('mergeScheduledLogs', () => {
   it('groups calls by id in index order, with the salt of its CallSalt', () => {
     const salt = pad('0x77', { size: 32 })
     const merged = mergeScheduledLogs(
       {},
-      [scheduledAt(10n, id(1), 1n), scheduledAt(10n, id(1), 0n)],
-      [{ id: id(1), salt }]
+      logsOf(
+        [scheduledAt(10n, id(1), 1n), scheduledAt(10n, id(1), 0n)],
+        [{ id: id(1), salt }]
+      )
     )
     const op = merged[id(1)]
     expect(op?.calls.map((c) => c.index)).toEqual([0, 1])
@@ -131,21 +155,71 @@ describe('mergeScheduledLogs', () => {
   })
 
   it('leaves the salt zero when no CallSalt was logged', () => {
-    const merged = mergeScheduledLogs({}, [scheduledAt(10n, id(2))], [])
+    const merged = mergeScheduledLogs({}, logsOf([scheduledAt(10n, id(2))]))
     expect(merged[id(2)]?.salt).toBe(ZERO32)
   })
 
   it('does not duplicate a call read twice, and keeps the latest block', () => {
-    const once = mergeScheduledLogs({}, [scheduledAt(10n, id(3))], [])
-    const twice = mergeScheduledLogs(once, [scheduledAt(12n, id(3))], [])
+    const once = mergeScheduledLogs({}, logsOf([scheduledAt(10n, id(3))]))
+    const twice = mergeScheduledLogs(once, logsOf([scheduledAt(12n, id(3))]))
     expect(twice[id(3)]?.calls).toHaveLength(1)
     expect(twice[id(3)]?.blockNumber).toBe('12')
-    const older = mergeScheduledLogs(twice, [scheduledAt(9n, id(3))], [])
+    const older = mergeScheduledLogs(twice, logsOf([scheduledAt(9n, id(3))]))
     expect(older[id(3)]?.blockNumber).toBe('12')
   })
 
+  it('keeps the delay of the newest schedule, whichever order the logs arrive in', async () => {
+    const old = { ...scheduledAt(10n, id(5)), delay: 604_800n }
+    const rescheduled = { ...scheduledAt(20n, id(5)), delay: 60n }
+    const newestFirst = mergeScheduledLogs(
+      mergeScheduledLogs({}, logsOf([rescheduled])),
+      logsOf([old])
+    )
+    const oldestFirst = mergeScheduledLogs(
+      mergeScheduledLogs({}, logsOf([old])),
+      logsOf([rescheduled])
+    )
+    expect(newestFirst[id(5)]?.delay).toBe('60')
+    expect(oldestFirst[id(5)]?.delay).toBe('60')
+  })
+
+  it('proves a cancel only when it follows the latest schedule', () => {
+    const cancelled = mergeScheduledLogs(
+      {},
+      logsOf([scheduledAt(10n, id(6))], [], [{ id: id(6), blockNumber: 15n }])
+    )
+    expect(isProvenCancelled(opIn(cancelled, id(6)))).toBe(true)
+    const rescheduled = mergeScheduledLogs(
+      cancelled,
+      logsOf([scheduledAt(20n, id(6))])
+    )
+    expect(isProvenCancelled(opIn(rescheduled, id(6)))).toBe(false)
+    const never = mergeScheduledLogs({}, logsOf([scheduledAt(10n, id(7))]))
+    expect(isProvenCancelled(opIn(never, id(7)))).toBe(false)
+  })
+
+  it('keeps the latest cancel, and ignores one for an unknown id', () => {
+    const merged = mergeScheduledLogs(
+      {},
+      logsOf(
+        [scheduledAt(10n, id(8))],
+        [],
+        [
+          { id: id(8), blockNumber: 30n },
+          { id: id(8), blockNumber: 12n },
+          { id: id(9), blockNumber: 40n },
+        ]
+      )
+    )
+    expect(merged[id(8)]?.cancelledInBlock).toBe('30')
+    expect(merged[id(9)]).toBeUndefined()
+  })
+
   it('ignores a CallSalt for an id it has no schedule for', () => {
-    const merged = mergeScheduledLogs({}, [], [{ id: id(4), salt: ZERO32 }])
+    const merged = mergeScheduledLogs(
+      {},
+      logsOf([], [{ id: id(4), salt: ZERO32 }])
+    )
     expect(merged).toEqual({})
   })
 })
@@ -204,7 +278,24 @@ describe('advanceScan', () => {
     expect(BigInt(outcome.state.span ?? '0')).toBeLessThanOrEqual(1_000n)
   })
 
-  it('throws when even the narrowest range is refused, rather than skipping', async () => {
+  it('reports a history range no endpoint serves as incomplete, not covered', async () => {
+    const deps = chain({
+      head: 100_000n,
+      floor: 0n,
+      maxSpan: MIN_LOG_SPAN - 1n,
+      logs: [],
+    })
+    const outcome = await advanceScan(
+      initialScanState(undefined, TIMELOCK),
+      deps,
+      50
+    )
+    expect(outcome.historyComplete).toBe(false)
+    expect(outcome.historyError).toContain('range too wide')
+    expect(outcome.state.low).toBe('100000')
+  })
+
+  it('throws when the forward leg cannot be read, rather than skipping new blocks', async () => {
     const deps = chain({
       head: 100_000n,
       floor: 0n,
@@ -213,7 +304,16 @@ describe('advanceScan', () => {
     })
     let thrown: unknown
     try {
-      await advanceScan(initialScanState(undefined, TIMELOCK), deps, 50)
+      await advanceScan(
+        {
+          ...initialScanState(undefined, TIMELOCK),
+          floor: '0',
+          low: '0',
+          high: '99000',
+        },
+        deps,
+        50
+      )
     } catch (error) {
       thrown = error
     }
@@ -296,24 +396,21 @@ describe('advanceScan', () => {
       if (from <= 7_000n && to >= 7_000n) throw new Error('hole')
       return real(from, to)
     }
-    let thrown: unknown
-    try {
-      await advanceScan(
-        {
-          ...initialScanState(undefined, TIMELOCK),
-          floor: '0',
-          low: '10000',
-          high: '10000',
-          span: '1000',
-        },
-        deps,
-        1_000,
-        { parallel: 4 }
-      )
-    } catch (error) {
-      thrown = error
-    }
-    expect(String(thrown)).toContain('hole')
+    const outcome = await advanceScan(
+      {
+        ...initialScanState(undefined, TIMELOCK),
+        floor: '0',
+        low: '10000',
+        high: '10000',
+        span: '1000',
+      },
+      deps,
+      1_000,
+      { parallel: 4 }
+    )
+    expect(outcome.historyError).toContain('hole')
+    expect(outcome.historyComplete).toBe(false)
+    expect(BigInt(outcome.state.low ?? '0')).toBeGreaterThan(7_000n)
   })
 
   it('stops a parallel window at the budget', async () => {

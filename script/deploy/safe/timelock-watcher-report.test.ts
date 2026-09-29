@@ -189,6 +189,20 @@ describe('renderSlackAlert', () => {
     ).toContain('mismatch (was unverified)')
   })
 
+  it('lists mismatches first, so truncation cannot hide one', () => {
+    const late = {
+      ...item('new', 'mismatch'),
+      finding: { ...item('new', 'mismatch').finding, key: 'zksync:0xlast' },
+    }
+    const text =
+      renderSlackAlert(
+        [...Array.from({ length: 5 }, () => item('new', 'unverified')), late],
+        undefined
+      ) ?? ''
+    const [, first] = text.split('\n')
+    expect(first).toContain('zksync:0xlast')
+  })
+
   it('stays inside the Slack budget', () => {
     const many = Array.from({ length: 200 }, () => item('new', 'mismatch'))
     const text = renderSlackAlert(many, 'https://example.test/run') ?? ''

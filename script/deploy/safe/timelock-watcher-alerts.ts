@@ -62,9 +62,10 @@ const networkOfKey = (key: string): string => key.slice(0, key.indexOf(':'))
  * - A finding with no record alerts when it is not `ok`.
  * - A change of verdict alerts, including the return to `ok`.
  * - A standing verdict alerts again once its throttle has elapsed.
- * - The record of a subject this run no longer reports is dropped, but only
- *   for a network this run read completely; a network that could not be read
- *   keeps its records, so its return does not re-page.
+ * - An operation this run no longer reports, on a network it read completely,
+ *   was executed or cancelled: that is announced and its record dropped. A
+ *   network that could not be read keeps its records, so its return does not
+ *   re-page.
  *
  * @param previous - Records the last run persisted.
  * @param findings - Everything this run judged.
@@ -118,9 +119,22 @@ export const decideAlerts = (
     } else next[finding.key] = record
   }
 
-  for (const [key, record] of Object.entries(previous))
-    if (!seen.has(key) && !settledNetworks.has(networkOfKey(key)))
-      next[key] = record
+  for (const [key, record] of Object.entries(previous)) {
+    if (seen.has(key)) continue
+    const network = networkOfKey(key)
+    if (!settledNetworks.has(network)) next[key] = record
+    else if (key !== findingKey(network, 'network'))
+      alerts.push({
+        kind: 'resolved',
+        previous: record.verdict,
+        finding: {
+          key,
+          network,
+          verdict: 'ok',
+          reasons: ['no longer pending on chain'],
+        },
+      })
+  }
 
   return { alerts, next }
 }

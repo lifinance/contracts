@@ -139,11 +139,25 @@ describe('decideAlerts: changes of verdict', () => {
 describe('decideAlerts: subjects that disappear', () => {
   const OTHER = findingKey('mainnet', '0xdef')
 
-  it('drops the record of a subject a completely read network no longer reports', () => {
+  it('announces and drops an operation a completely read network no longer reports', () => {
     const previous = { [KEY]: recordAt('mismatch', 0) }
     const decision = decideAlerts(previous, [], ALL, NOW)
     expect(decision.next[KEY]).toBeUndefined()
+    expect(
+      decision.alerts.map((a) => [a.kind, a.finding.key, a.previous])
+    ).toEqual([['resolved', KEY, 'mismatch']])
+  })
+
+  it('drops a network record quietly: the network finding itself reports its state', () => {
+    const NETWORK = findingKey('base', 'network')
+    const decision = decideAlerts(
+      { [NETWORK]: recordAt('unverified', 0) },
+      [],
+      ALL,
+      NOW
+    )
     expect(decision.alerts).toEqual([])
+    expect(decision.next[NETWORK]).toBeUndefined()
   })
 
   it('keeps the record for a network that could not be read', () => {

@@ -16,6 +16,7 @@ import {
 } from 'viem'
 
 import type { IGateReport } from '../codehash/verify-cut-targets'
+import { ZERO_ADDRESS } from '../shared/constants'
 
 import type { IPreBroadcastGateResult } from './prebroadcast-rederive'
 import type { ICollectedDiamondCuts } from './safe-decode-utils'
@@ -35,6 +36,7 @@ export type TCheckName =
   | 'delay'
   | 'targets'
   | 'delegatecall'
+  | 'authority'
   | 'authorities'
   | 'codehash'
 
@@ -51,6 +53,7 @@ export const REQUIRED_CHECKS: readonly TCheckName[] = [
   'delay',
   'targets',
   'delegatecall',
+  'authority',
   'authorities',
   'codehash',
 ]
@@ -67,9 +70,23 @@ const DIAMOND_CUT_INIT_ABI = parseAbi([
 const SAFE_EXEC_SELECTOR = '0x6a761202'
 const MULTISEND_SELECTOR = '0x8d80ff0a'
 const UPDATE_DELAY_SELECTOR = '0x64d62353'
-const DIAMOND_CUT_SELECTOR = '0x1f931c1c'
 
-const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
+const AUTHORITY_ABI = parseAbi([
+  'function transferOwnership(address newOwner)',
+  'function grantRole(bytes32 role, address account)',
+  'function setCanExecute(bytes4 selector, address executor, bool canExecute)',
+  'function withdraw(address assetAddress, address to, uint256 amount)',
+  'function executeCallAndWithdraw(address callTo, bytes callData, address assetAddress, address to, uint256 amount)',
+])
+
+const AUTHORITY_SELECTORS = new Set([
+  '0xf2fde38b', // transferOwnership(address)
+  '0x2f2ff15d', // grantRole(bytes32,address)
+  '0xa4c3366e', // setCanExecute(bytes4,address,bool)
+  '0xd9caed12', // withdraw(address,address,uint256)
+  '0x1458d7ad', // executeCallAndWithdraw(address,bytes,address,address,uint256)
+])
+const DIAMOND_CUT_SELECTOR = '0x1f931c1c'
 
 const selectorOf = (data: Hex): string => data.slice(0, 10).toLowerCase()
 
@@ -199,6 +216,13 @@ export const gradeState = (
           ? new Date(Number(readyAt) * 1000).toISOString()
           : 'an unknown time'
       }`,
+    }
+  if (stage === 'unset')
+    return {
+      check: 'state',
+      status: 'unknown',
+      detail:
+        'the timelock holds no schedule under this id, but no Cancelled log follows its schedule: a node behind the scheduling block, or a reorg',
     }
   return {
     check: 'state',
@@ -400,6 +424,96 @@ export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
 }
 
 /**
+ * Grades what an operation will hand authority or funds to. Gate G reads the
+ * authorities as they stand, which a pending operation has not changed yet, so
+ * this reads the arguments instead: a new owner, a granted role, a selector
+ * executor or a withdrawal recipient must be an address main knows, and an
+ * arbitrary call made from the diamond is unverified.
+ *
+ * @param op - The operation.
+ * @param known - Lowercased address → name: the call-target set plus the
+ *   wallets `config/global.json` names.
+ * @returns The check outcome.
+ */
+export const gradeAuthority = (
+  op: IScannedOperation,
+  known: ReadonlyMap<string, string>
+): ICheckOutcome => {
+  const failures: string[] = []
+  const unknown: string[] = []
+  const granted: string[] = []
+  const grantTo = (call: number, what: string, address: string): void => {
+    const name = known.get(address.toLowerCase())
+    if (name) granted.push(`call ${call} ${what} ${name}`)
+    else
+      failures.push(`call ${call} ${what} ${address}, which main does not know`)
+  }
+  for (const call of op.calls) {
+    if (!AUTHORITY_SELECTORS.has(selectorOf(call.data))) continue
+    try {
+      const decoded = decodeFunctionData({
+        abi: AUTHORITY_ABI,
+        data: call.data,
+      })
+      switch (decoded.functionName) {
+        case 'transferOwnership':
+          grantTo(call.index, 'transfers ownership to', decoded.args[0])
+          break
+        case 'grantRole':
+          grantTo(
+            call.index,
+            `grants role ${decoded.args[0]} to`,
+            decoded.args[1]
+          )
+          break
+        case 'setCanExecute':
+          if (decoded.args[2])
+            grantTo(
+              call.index,
+              `lets ${decoded.args[0]} be called by`,
+              decoded.args[1]
+            )
+          break
+        case 'withdraw':
+          grantTo(call.index, 'withdraws to', decoded.args[1])
+          break
+        case 'executeCallAndWithdraw':
+          unknown.push(
+            `call ${call.index} makes the diamond call ${decoded.args[0]} with arbitrary calldata`
+          )
+          break
+        default:
+          unknown.push(
+            `call ${call.index} carries an authority call this check does not read`
+          )
+      }
+    } catch {
+      unknown.push(
+        `call ${call.index} carries selector ${selectorOf(
+          call.data
+        )} that could not be decoded`
+      )
+    }
+  }
+  if (failures.length > 0)
+    return {
+      check: 'authority',
+      status: 'fail',
+      detail: [...failures, ...unknown].join('; '),
+    }
+  if (unknown.length > 0)
+    return { check: 'authority', status: 'unknown', detail: unknown.join('; ') }
+  return {
+    check: 'authority',
+    status: 'pass',
+    detail:
+      granted.length > 0
+        ? granted.join('; ')
+        : 'hands no ownership, role, executor right or withdrawal to anyone',
+  }
+}
+
+/**
  * Grades storage authorities (gate G) from the pre-broadcast gate's result.
  *
  * @param result - The gate's result, or the error that stopped it.
@@ -435,7 +549,7 @@ export type TCodehashResult =
   | { kind: 'not-applicable'; collected: ICollectedDiamondCuts }
   | { kind: 'deferred'; reason: string }
   | { kind: 'error'; reason: string }
-  | { kind: 'cached'; status: 'pass' | 'fail'; detail: string }
+  | { kind: 'cached'; status: 'pass' | 'fail' | 'unknown'; detail: string }
   | {
       kind: 'evaluated'
       collected: ICollectedDiamondCuts

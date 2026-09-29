@@ -17,6 +17,8 @@ import {
   numberToHex,
   pad,
   parseAbi,
+  parseAbiItem,
+  type AbiFunction,
   type Address,
   type Hex,
 } from 'viem'
@@ -35,6 +37,7 @@ import {
   buildWatcherCancelInput,
   classifyOperation,
   gradeAuthorities,
+  gradeAuthority,
   gradeCodehash,
   gradeDelay,
   gradeDelegatecall,
@@ -171,9 +174,14 @@ describe('stageOf and gradeState', () => {
     expect(graded.detail).toContain('2027-01-15')
   })
 
-  it('fails an operation the timelock no longer holds', () => {
+  it('fails an operation the timelock reports as executed', () => {
     expect(gradeState('done', 1n).status).toBe('fail')
-    expect(gradeState('unset', 0n).status).toBe('fail')
+  })
+
+  it('is unknown, not failed, for a zero read no cancel explains', () => {
+    const graded = gradeState('unset', 0n)
+    expect(graded.status).toBe('unknown')
+    expect(graded.detail).toContain('no Cancelled log')
   })
 
   it('is unknown when getTimestamp could not be read', () => {
@@ -374,6 +382,100 @@ describe('gradeDelegatecall', () => {
       ])
     )
     expect(noInit.detail).toBe('no delegatecall-shaped payload')
+  })
+})
+
+describe('gradeAuthority', () => {
+  const known = new Map([
+    [SAFE.toLowerCase(), 'Safe'],
+    [TIMELOCK.toLowerCase(), 'LiFiTimelockController'],
+  ])
+  const call = (signature: string, args: readonly unknown[]): Hex => {
+    const item = parseAbiItem(`function ${signature}`) as AbiFunction
+    return encodeFunctionData({
+      abi: [item],
+      functionName: item.name,
+      args,
+    } as never)
+  }
+  const role = pad('0x01', { size: 32 })
+
+  it('passes an operation that hands nothing to anyone', () => {
+    expect(
+      gradeAuthority(opOf([{ target: DIAMOND, data: '0x8da5cb5b' }]), known)
+        .status
+    ).toBe('pass')
+  })
+
+  it('fails ownership to an unknown address, and passes it to a known one', () => {
+    const to = (who: Address) =>
+      opOf([
+        { target: DIAMOND, data: call('transferOwnership(address)', [who]) },
+      ])
+    expect(gradeAuthority(to(STRANGER), known).status).toBe('fail')
+    const graded = gradeAuthority(to(SAFE), known)
+    expect(graded.status).toBe('pass')
+    expect(graded.detail).toContain('Safe')
+  })
+
+  it('fails a role granted to an unknown address, and passes one granted to a known one', () => {
+    const grant = (who: Address) =>
+      opOf([
+        {
+          target: TIMELOCK,
+          data: call('grantRole(bytes32,address)', [role, who]),
+        },
+      ])
+    expect(gradeAuthority(grant(STRANGER), known).status).toBe('fail')
+    expect(gradeAuthority(grant(SAFE), known).status).toBe('pass')
+  })
+
+  it('fails an unknown executor, and ignores a revoked one', () => {
+    const setExec = (on: boolean) =>
+      opOf([
+        {
+          target: DIAMOND,
+          data: call('setCanExecute(bytes4,address,bool)', [
+            '0x12345678',
+            STRANGER,
+            on,
+          ]),
+        },
+      ])
+    expect(gradeAuthority(setExec(true), known).status).toBe('fail')
+    expect(gradeAuthority(setExec(false), known).status).toBe('pass')
+  })
+
+  it('fails a withdrawal to an unknown address, and passes one to a known one', () => {
+    const withdraw = (who: Address) =>
+      opOf([
+        {
+          target: DIAMOND,
+          data: call('withdraw(address,address,uint256)', [STRANGER, who, 1n]),
+        },
+      ])
+    expect(gradeAuthority(withdraw(STRANGER), known).status).toBe('fail')
+    expect(gradeAuthority(withdraw(SAFE), known).status).toBe('pass')
+  })
+
+  it('leaves an arbitrary call from the diamond unverified', () => {
+    const op = opOf([
+      {
+        target: DIAMOND,
+        data: call(
+          'executeCallAndWithdraw(address,bytes,address,address,uint256)',
+          [STRANGER, '0x', STRANGER, SAFE, 0n]
+        ),
+      },
+    ])
+    expect(gradeAuthority(op, known).status).toBe('unknown')
+  })
+
+  it('is unknown for a truncated authority call', () => {
+    expect(
+      gradeAuthority(opOf([{ target: DIAMOND, data: '0xf2fde38b' }]), known)
+        .status
+    ).toBe('unknown')
   })
 })
 

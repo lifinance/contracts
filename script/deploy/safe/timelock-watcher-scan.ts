@@ -26,6 +26,10 @@ export const CALL_SALT_EVENT = parseAbiItem(
   'event CallSalt(bytes32 indexed id, bytes32 salt)'
 )
 
+export const CANCELLED_EVENT = parseAbiItem(
+  'event Cancelled(bytes32 indexed id)'
+)
+
 const ZERO_SALT: Hex = `0x${'0'.repeat(64)}`
 
 /**
@@ -62,6 +66,19 @@ export interface ICallSaltLog {
   salt: Hex
 }
 
+/** One decoded `Cancelled` log. */
+export interface ICancelledLog {
+  id: Hex
+  blockNumber: bigint
+}
+
+/** Logs one `eth_getLogs` range returned, by event. */
+export interface IRangeLogs {
+  scheduled: IScheduledCallLog[]
+  salts: ICallSaltLog[]
+  cancels: ICancelledLog[]
+}
+
 /** One call of a scheduled operation, JSON-safe. */
 export interface IScannedCall {
   index: number
@@ -79,6 +96,10 @@ export interface IScannedOperation {
   salt: Hex
   /** Block of the latest `CallScheduled` log seen for this id. */
   blockNumber: string
+  /** Block of the latest `Cancelled` log seen for this id, if any. */
+  cancelledInBlock?: string
+  /** Runs in a row `getTimestamp` read 0 with no `Cancelled` log to explain it. */
+  unsetReads?: number
 }
 
 /** What a network's scan has covered so far, JSON-safe. */
@@ -98,10 +119,7 @@ export interface IScanDependencies {
   head: () => Promise<bigint>
   /** Resolves the creation block of the timelock. */
   floor: () => Promise<bigint>
-  getLogs: (
-    fromBlock: bigint,
-    toBlock: bigint
-  ) => Promise<{ scheduled: IScheduledCallLog[]; salts: ICallSaltLog[] }>
+  getLogs: (fromBlock: bigint, toBlock: bigint) => Promise<IRangeLogs>
 }
 
 /** Calls a scan leg may still make, and the clock time it must stop by. */
@@ -123,6 +141,8 @@ export interface IScanOutcome {
   logCalls: number
   /** `CallScheduled` logs read this run. */
   scheduledLogs: number
+  /** Why the history leg stopped early, when it failed rather than ran out of budget. */
+  historyError?: string
 }
 
 /**
@@ -143,18 +163,21 @@ export const initialScanState = (
 /**
  * Folds decoded logs into the operations map.
  *
+ * The call bytes, predecessor and salt are part of the id, so every log for
+ * one id agrees on them. The delay is not: an operation cancelled and then
+ * scheduled again under the same id can carry a different delay, and only the
+ * newest schedule's is live, whatever order the legs read them in.
+ *
  * @param operations - Operations known so far, keyed by lowercased id.
- * @param scheduled - `CallScheduled` logs.
- * @param salts - `CallSalt` logs.
+ * @param logs - Logs of one or more ranges.
  * @returns A new map holding every operation the logs name.
  */
 export const mergeScheduledLogs = (
   operations: Record<string, IScannedOperation>,
-  scheduled: readonly IScheduledCallLog[],
-  salts: readonly ICallSaltLog[]
+  logs: IRangeLogs
 ): Record<string, IScannedOperation> => {
   const merged: Record<string, IScannedOperation> = { ...operations }
-  for (const log of scheduled) {
+  for (const log of logs.scheduled) {
     const key = log.id.toLowerCase()
     const existing = merged[key]
     const call: IScannedCall = {
@@ -166,25 +189,57 @@ export const mergeScheduledLogs = (
     const calls = (existing?.calls ?? []).filter((c) => c.index !== call.index)
     calls.push(call)
     calls.sort((a, b) => a.index - b.index)
-    const block =
-      existing && BigInt(existing.blockNumber) > log.blockNumber
-        ? existing.blockNumber
-        : log.blockNumber.toString()
+    const existingIsNewer =
+      existing !== undefined && BigInt(existing.blockNumber) > log.blockNumber
     merged[key] = {
+      ...existing,
       id: key as Hex,
       calls,
       predecessor: log.predecessor,
-      delay: log.delay.toString(),
+      delay: existingIsNewer ? existing.delay : log.delay.toString(),
       salt: existing?.salt ?? ZERO_SALT,
-      blockNumber: block,
+      blockNumber: existingIsNewer
+        ? existing.blockNumber
+        : log.blockNumber.toString(),
     }
   }
-  for (const salt of salts) {
+  for (const salt of logs.salts) {
     const existing = merged[salt.id.toLowerCase()]
-    if (existing) existing.salt = salt.salt
+    if (existing) merged[existing.id] = { ...existing, salt: salt.salt }
+  }
+  for (const cancel of logs.cancels) {
+    const existing = merged[cancel.id.toLowerCase()]
+    if (
+      existing &&
+      (existing.cancelledInBlock === undefined ||
+        BigInt(existing.cancelledInBlock) < cancel.blockNumber)
+    )
+      merged[existing.id] = {
+        ...existing,
+        cancelledInBlock: cancel.blockNumber.toString(),
+      }
   }
   return merged
 }
+
+const emptyLogs = (): IRangeLogs => ({ scheduled: [], salts: [], cancels: [] })
+
+const appendLogs = (into: IRangeLogs, from: IRangeLogs): void => {
+  into.scheduled.push(...from.scheduled)
+  into.salts.push(...from.salts)
+  into.cancels.push(...from.cancels)
+}
+
+/**
+ * Whether a logged operation was cancelled after it was last scheduled, so
+ * that `getTimestamp` reading 0 is explained rather than a lagging node.
+ *
+ * @param op - The operation.
+ * @returns True when a `Cancelled` log follows its latest `CallScheduled`.
+ */
+export const isProvenCancelled = (op: IScannedOperation): boolean =>
+  op.cancelledInBlock !== undefined &&
+  BigInt(op.cancelledInBlock) >= BigInt(op.blockNumber)
 
 /**
  * Reads logs over `[from, to]`, splitting the range whenever an endpoint
@@ -195,7 +250,7 @@ export const mergeScheduledLogs = (
  * @param to - Last block, inclusive.
  * @param span - Range to try first.
  * @param budget - Calls left; decremented per attempt.
- * @returns The logs, the span that worked, and whether the budget ran out first.
+ * @returns The logs and the span that worked.
  * @throws When even {@link MIN_LOG_SPAN} is refused.
  */
 const readRange = async (
@@ -204,23 +259,15 @@ const readRange = async (
   to: bigint,
   span: bigint,
   budget: IBudget
-): Promise<{
-  scheduled: IScheduledCallLog[]
-  salts: ICallSaltLog[]
-  span: bigint
-  reachedTo: bigint
-}> => {
-  const scheduled: IScheduledCallLog[] = []
-  const salts: ICallSaltLog[] = []
+): Promise<{ logs: IRangeLogs; span: bigint }> => {
+  const logs = emptyLogs()
   let cursor = from
   let width = span
   while (cursor <= to && hasBudget(budget)) {
     const end = cursor + width - 1n < to ? cursor + width - 1n : to
     budget.left--
     try {
-      const logs = await deps.getLogs(cursor, end)
-      scheduled.push(...logs.scheduled)
-      salts.push(...logs.salts)
+      appendLogs(logs, await deps.getLogs(cursor, end))
       cursor = end + 1n
     } catch (error) {
       if (width <= MIN_LOG_SPAN) throw error
@@ -228,14 +275,15 @@ const readRange = async (
         width / SPAN_SHRINK > MIN_LOG_SPAN ? width / SPAN_SHRINK : MIN_LOG_SPAN
     }
   }
-  return { scheduled, salts, span: width, reachedTo: cursor - 1n }
+  return { logs, span: width }
 }
 
 /**
  * Same as {@link readRange}, walking from `to` down towards `from`, up to
  * `parallel` ranges at a time. Only the unbroken run of answered ranges just
- * below the cursor is kept, so a partial run always leaves the scanned interval
- * contiguous.
+ * below the cursor is kept, so a partial or failed run always leaves the
+ * scanned interval contiguous; a failure is returned with what was reached
+ * rather than thrown.
  */
 const readRangeDownward = async (
   deps: IScanDependencies,
@@ -245,13 +293,12 @@ const readRangeDownward = async (
   budget: IBudget,
   parallel: number
 ): Promise<{
-  scheduled: IScheduledCallLog[]
-  salts: ICallSaltLog[]
+  logs: IRangeLogs
   span: bigint
   reachedFrom: bigint
+  error?: unknown
 }> => {
-  const scheduled: IScheduledCallLog[] = []
-  const salts: ICallSaltLog[] = []
+  const logs = emptyLogs()
   let width = span
   let reachedFrom = to + 1n
   while (reachedFrom > from && hasBudget(budget)) {
@@ -274,20 +321,20 @@ const readRangeDownward = async (
     let refused: unknown
     for (const [i, answer] of answers.entries()) {
       if (answer.status === 'rejected') {
-        refused = answer.reason
+        refused = answer.reason ?? new Error('eth_getLogs was refused')
         break
       }
-      scheduled.push(...answer.value.scheduled)
-      salts.push(...answer.value.salts)
+      appendLogs(logs, answer.value)
       reachedFrom = (ranges[i] as [bigint, bigint])[0]
     }
     if (refused !== undefined) {
-      if (width <= MIN_LOG_SPAN) throw refused
+      if (width <= MIN_LOG_SPAN)
+        return { logs, span: width, reachedFrom, error: refused }
       width =
         width / SPAN_SHRINK > MIN_LOG_SPAN ? width / SPAN_SHRINK : MIN_LOG_SPAN
     }
   }
-  return { scheduled, salts, span: width, reachedFrom }
+  return { logs, span: width, reachedFrom }
 }
 
 /**
@@ -296,6 +343,8 @@ const readRangeDownward = async (
  *
  * The forward leg always runs to completion, budget or not: it is what makes a
  * fresh schedule visible within one run, and it is short after the first run.
+ * A history range no endpoint will serve stops the history leg and is reported
+ * in `historyError`; it does not discard what the forward leg found.
  *
  * @param previous - State from the last run, already matched to this timelock.
  * @param deps - Chain readers.
@@ -303,7 +352,7 @@ const readRangeDownward = async (
  * @param history - Clock time the backward leg must stop by, the clock, and
  *   how many ranges it may read at once.
  * @returns The advanced state and whether history is complete.
- * @throws When the head, the floor or a log range cannot be read.
+ * @throws When the head, the floor or a range of the forward leg cannot be read.
  */
 export const advanceScan = async (
   previous: INetworkScanState,
@@ -324,6 +373,7 @@ export const advanceScan = async (
   let operations = previous.operations
   let logCalls = 0
   let scheduledLogs = 0
+  let historyError: string | undefined
 
   const high = previous.high !== undefined ? BigInt(previous.high) : undefined
   const forwardFrom =
@@ -335,8 +385,8 @@ export const advanceScan = async (
   const forwardBudget = { left: Number.MAX_SAFE_INTEGER }
   const forward = await readRange(deps, forwardFrom, head, span, forwardBudget)
   logCalls += Number.MAX_SAFE_INTEGER - forwardBudget.left
-  operations = mergeScheduledLogs(operations, forward.scheduled, forward.salts)
-  scheduledLogs += forward.scheduled.length
+  operations = mergeScheduledLogs(operations, forward.logs)
+  scheduledLogs += forward.logs.scheduled.length
   span = forward.span
 
   let low = previous.low !== undefined ? BigInt(previous.low) : forwardFrom
@@ -355,14 +405,15 @@ export const advanceScan = async (
       history.parallel ?? 1
     )
     logCalls += logBudget - historyBudget.left
-    operations = mergeScheduledLogs(
-      operations,
-      backward.scheduled,
-      backward.salts
-    )
-    scheduledLogs += backward.scheduled.length
+    operations = mergeScheduledLogs(operations, backward.logs)
+    scheduledLogs += backward.logs.scheduled.length
     span = backward.span
     low = backward.reachedFrom
+    if (backward.error !== undefined)
+      historyError =
+        backward.error instanceof Error
+          ? backward.error.message
+          : String(backward.error)
   }
 
   return {
@@ -370,6 +421,7 @@ export const advanceScan = async (
     logCalls,
     scheduledLogs,
     historyComplete: low <= floor,
+    ...(historyError !== undefined ? { historyError } : {}),
     state: {
       timelock: previous.timelock,
       floor: floor.toString(),

@@ -5,11 +5,12 @@
 # - Triggers: every 10 minutes (cron) and manual workflow_dispatch
 # - Key behaviors:
 #     * Scheduled runs are on unless the repo variable ENABLE_TIMELOCK_WATCHER is "false"
-#     * Operations are found on chain from CallScheduled/CallSalt logs, not from the execution
+#     * Operations are found on chain from CallScheduled/CallSalt/Cancelled logs, not from the execution
 #       queue, so a schedule made by any route is seen; the queue is only a cross-check
 #     * Per operation: op-id recompute, schedule state, delay against config/timelockController.json,
-#       targets known to main (gate E), delegatecall-shaped payloads, storage authorities (gate G,
-#       the pre-broadcast gate) and, for an operation that installs code, deployed bytecode against
+#       targets known to main (gate E), delegatecall-shaped payloads, the addresses it hands
+#       ownership, roles or withdrawals to, standing storage authorities (gate G, the
+#       pre-broadcast gate) and, for an operation that installs code, deployed bytecode against
 #       a rebuild of its recorded commit (gate K). Verdict ok / mismatch / unverified, with the
 #       cancel matrix's recommendation shown for information only
 #     * Timelock addresses come from deployments/<network>.json at origin/main: a reviewed file,
@@ -19,9 +20,10 @@
 #       it can never hide one
 #     * Slack: SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS, on a mismatch, a new unverified
 #       finding and a change of verdict; a standing mismatch repeats every 6 hours, a standing
-#       unverified finding every 24 hours
-#     * The job fails when a network could not be read, an operation mismatches, or an alert
-#       could not be delivered
+#       unverified finding every 24 hours; an alerted operation that stops being pending is
+#       announced
+#     * The job fails when a network could not be read, an operation or network mismatches, or an
+#       alert could not be delivered; a crashed, cancelled or undelivered run posts its own notice
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_WATCHER (optional; "false" pauses scheduled runs)
 #     * secrets.MONGODB_URI (non-sensitive cluster: RPC endpoints, the execution queue, sign-time
@@ -32,7 +34,9 @@
 #     * History is backfilled from each timelock's creation block for 2 minutes per network per run;
 #       a network whose endpoints only serve narrow log ranges reports "history not scanned yet"
 #       (unverified) until it completes. Dispatch with a larger history-minutes to catch up faster
-#     * Gate J (RPC quorum) is not run; gate K reads code through its own quorum fallback
+#     * Gate J (RPC quorum) is not run on logs: an endpoint that answers a range with no logs it
+#       should have is trusted. Gate K reads code through its own quorum fallback
+#     * zkEVM code cannot be rebuilt here (no foundry-zksync), so gate K reports it unverified
 
 name: Timelock Watcher
 
@@ -139,23 +143,27 @@ jobs:
           path: timelock-watcher-state.json
           key: timelock-watcher-state-${{ github.run_id }}-${{ github.run_attempt }}
 
-      - name: Notify Slack if the watcher crashed
-        # The watcher alerts on its own findings. This covers a run that died before it could.
-        if: failure()
+      - name: Notify Slack if the watcher crashed or could not deliver
+        # The watcher alerts on its own findings. This covers a run that died, timed out or was
+        # cancelled before it could, and one whose own delivery failed.
+        if: failure() || cancelled()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ -f watcher.log ] && grep -q "^.*Checked [0-9]* of [0-9]* network" watcher.log; then
-            echo "The watcher finished and reported its own findings; no crash notice."
+          NOTICE="❌ Timelock watcher crashed before reporting; no pending operation was checked this run."
+          if [ -f watcher.log ] && grep -q "Alert delivery failed" watcher.log; then
+            NOTICE="❌ Timelock watcher could not deliver its alerts; the findings are in the job summary."
+          elif [ -f watcher.log ] && grep -q "^.*Checked [0-9]* of [0-9]* network" watcher.log; then
+            echo "The watcher finished and delivered its own findings; no notice."
             exit 0
           fi
           if [ -z "${SLACK_WEBHOOK_URL}" ]; then
-            echo -e "\033[31m::error::The watcher crashed and no Slack webhook is configured\033[0m"
+            echo -e "\033[31m::error::The watcher failed and no Slack webhook is configured\033[0m"
             exit 1
           fi
-          PAYLOAD=$(jq -n --arg url "$WORKFLOW_URL" \
-            '{text: ("❌ Timelock watcher crashed before reporting; no pending operation was checked this run. <" + $url + "|Logs>")}')
+          PAYLOAD=$(jq -n --arg notice "$NOTICE" --arg url "$WORKFLOW_URL" \
+            '{text: ($notice + " <" + $url + "|Logs>")}')
           curl -sS --max-time 10 -X POST -H 'Content-Type: application/json' \
             --data "$PAYLOAD" "$SLACK_WEBHOOK_URL" > /dev/null \
             || echo -e "\033[33m⚠️ Failed to send the crash notice\033[0m"
