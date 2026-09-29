@@ -439,9 +439,17 @@ const roleHash = (name: string): string => keccak256(toHex(name)).toLowerCase()
 const GOVERNING_ROLES = new Map([
   [roleHash('TIMELOCK_ADMIN_ROLE'), 'TIMELOCK_ADMIN_ROLE'],
   [roleHash('PROPOSER_ROLE'), 'PROPOSER_ROLE'],
+])
+
+/**
+ * Roles a wallet main names may hold. The executor role is held by the zero
+ * address, so anyone can execute already; a grant narrows nothing and widens
+ * nothing, and an unknown grantee is only unverified.
+ */
+const OPERATING_ROLES = new Map([
+  [roleHash('CANCELLER_ROLE'), 'CANCELLER_ROLE'],
   [roleHash('EXECUTOR_ROLE'), 'EXECUTOR_ROLE'],
 ])
-const CANCELLER_ROLE = roleHash('CANCELLER_ROLE')
 const GOVERNORS = new Set(['Safe', 'LiFiTimelockController'])
 
 /** Deepest envelope `reachedCalls` opens; anything deeper is unverified. */
@@ -556,10 +564,11 @@ export interface IAuthorityContext {
  * operation has not changed yet, so this reads the arguments instead, against
  * the shapes the repo's own flows produce:
  * - the diamond's ownership may only go to the timelock; another contract's
- *   to the timelock, the Safe or the refund wallet, and a fee collector's to
+ *   to the timelock, the Safe, the refund wallet or the withdraw wallet, and a
+ *   fee collector's to
  *   the fee collector owner;
- * - a timelock admin, proposer or executor role only to the Safe or the
- *   timelock; the canceller role to a wallet main names or a Safe owner;
+ * - a timelock admin or proposer role only to the Safe or the timelock; the
+ *   canceller or executor role to a wallet main names or a Safe owner;
  * - a selector executor only to the refund wallet or a contract the operation
  *   installs; a withdrawal only to the withdraw wallet.
  *
@@ -621,7 +630,8 @@ export const gradeAuthority = (
             : (name: string) =>
                 name === 'LiFiTimelockController' ||
                 name === 'Safe' ||
-                name === 'refundWallet'
+                name === 'refundWallet' ||
+                name === 'withdrawWallet'
         judge(
           call.label,
           `transfers ${targetName} ownership to`,
@@ -643,17 +653,17 @@ export const gradeAuthority = (
                 name ?? to
               }, which is neither the Safe nor the timelock`
             )
-        } else if (role.toLowerCase() === CANCELLER_ROLE) {
+        } else if (OPERATING_ROLES.has(role.toLowerCase())) {
+          const operating = OPERATING_ROLES.get(role.toLowerCase())
           const name =
             nameOf(to) ??
             (context.safeOwners?.has(to.toLowerCase())
               ? 'a Safe owner'
               : undefined)
-          if (name)
-            granted.push(`${call.label} grants CANCELLER_ROLE to ${name}`)
+          if (name) granted.push(`${call.label} grants ${operating} to ${name}`)
           else
             unknown.push(
-              `${call.label} grants CANCELLER_ROLE to ${to}, which main does not know yet`
+              `${call.label} grants ${operating} to ${to}, which main does not know yet`
             )
         } else judge(call.label, `grants role ${role} to`, to, () => false)
         break

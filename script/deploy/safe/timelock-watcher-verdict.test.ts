@@ -444,17 +444,23 @@ describe('gradeAuthority', () => {
     expect(grade(PERIPHERY, owner(STRANGER))).toBe('fail')
   })
 
+  it('lets a periphery be owned by the withdraw wallet, as the deploy scripts do', () => {
+    expect(grade(PERIPHERY, owner(WITHDRAW))).toBe('pass')
+    expect(grade(DIAMOND, owner(WITHDRAW))).toBe('unknown')
+  })
+
+  it('gives the executor role to a known wallet, and leaves an unknown one unverified', () => {
+    expect(grade(TIMELOCK, grant('EXECUTOR_ROLE', DEPLOYER))).toBe('pass')
+    expect(grade(TIMELOCK, grant('EXECUTOR_ROLE', STRANGER))).toBe('unknown')
+  })
+
   it('lets a fee collector be owned by the fee collector owner only', () => {
     expect(grade(FEE_COLLECTOR, owner(OWNER_OF_FEES))).toBe('pass')
     expect(grade(FEE_COLLECTOR, owner(REFUND))).toBe('unknown')
   })
 
   it('gives governing timelock roles only to the Safe or the timelock', () => {
-    for (const name of [
-      'PROPOSER_ROLE',
-      'TIMELOCK_ADMIN_ROLE',
-      'EXECUTOR_ROLE',
-    ]) {
+    for (const name of ['PROPOSER_ROLE', 'TIMELOCK_ADMIN_ROLE']) {
       expect(grade(TIMELOCK, grant(name, SAFE))).toBe('pass')
       expect(grade(TIMELOCK, grant(name, DEPLOYER))).toBe('fail')
     }
@@ -586,6 +592,19 @@ describe('gradeAuthority', () => {
         exec(SAFE, multiSend(TIMELOCK, grant('PROPOSER_ROLE', STRANGER)))
       )
     ).toBe('fail')
+  })
+
+  it('grades a Safe call against its own target', () => {
+    expect(grade(SAFE, exec(DIAMOND, owner(REFUND)))).toBe('unknown')
+    expect(grade(SAFE, exec(PERIPHERY, owner(REFUND)))).toBe('pass')
+  })
+
+  it('still reads calls three envelopes deep', () => {
+    const threeDeep = exec(
+      SAFE,
+      exec(SAFE, multiSend(TIMELOCK, grant('PROPOSER_ROLE', STRANGER)))
+    )
+    expect(grade(SAFE, threeDeep)).toBe('fail')
   })
 
   it('leaves calls nested past the depth it reads unverified, not passed', () => {

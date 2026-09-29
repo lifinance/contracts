@@ -36,7 +36,6 @@ import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import timelockConfig from '../../../config/timelockController.json'
 import type { INetworksObject } from '../../common/types'
-import { sleep } from '../../utils/delay'
 import { isEntrypoint } from '../../utils/is-entrypoint'
 import { redactUrls } from '../../utils/redactUrls'
 import { SlackNotifier, isUnattendedRun } from '../../utils/slack-notifier'
@@ -84,6 +83,11 @@ import {
   type IAlertRecord,
   type IWatchFinding,
 } from './timelock-watcher-alerts'
+import {
+  createRebuildGate,
+  withTimeout,
+  type IRebuildGate,
+} from './timelock-watcher-rebuild'
 import {
   renderJobSummary,
   renderSlackAlert,
@@ -168,6 +172,9 @@ const CODEHASH_UNKNOWN_RETRY_MS = 24 * 60 * 60 * 1000 // 24 hours
 /** One operation's gate K rebuilds; the queue moves on without it after this. */
 const REBUILD_TIMEOUT_MS = 5 * 60 * 1000 // 5 minutes
 
+/** Kept free at the end of a network's time, so its report is written before it is timed out. */
+const DEADLINE_MARGIN_MS = 30 * 1000 // 30 seconds
+
 /** A cached gate K result, reused while the code it judged is unchanged. */
 interface ICodehashCacheEntry {
   status: 'pass' | 'fail' | 'unknown'
@@ -217,31 +224,6 @@ export const loadWatcherState = async (
       `State file ${path} is unreadable; starting afresh: ${String(error)}`
     )
     return emptyState()
-  }
-}
-
-/**
- * Rejects when `promise` has not settled within `ms`. The underlying request is
- * not aborted; the caller moves on without it.
- */
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  ms: number,
-  what: string
-): Promise<T> => {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`${what} timed out after ${ms / 1000}s`)),
-          ms
-        )
-      }),
-    ])
-  } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -393,9 +375,8 @@ interface IRunContext {
   historyBudget: number
   historyMs: number
   codehash: {
-    budget: { left: number }
+    gate: IRebuildGate
     deps: () => ISignTimeCodehashDeps
-    running?: Promise<void>
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
   expired: Set<string>
@@ -424,7 +405,8 @@ const runCodehash = async (
   op: IScannedOperation,
   client: PublicClient,
   ctx: IRunContext,
-  isZkEVM: boolean
+  isZkEVM: boolean,
+  deadline: number
 ): Promise<TCodehashResult> => {
   const collected = collectDiamondCutTargets(encodeOperation(op))
   if (!installsCode(collected)) return { kind: 'not-applicable', collected }
@@ -489,33 +471,8 @@ const runCodehash = async (
   if (installations.length === 0)
     return { kind: 'evaluated', collected, reports: [] }
 
-  if (ctx.codehash.budget.left <= 0)
-    return {
-      kind: 'deferred',
-      reason:
-        'gate K is queued behind this run’s rebuild budget and will run on a later run',
-    }
-
-  // One at a time, a timed-out one included: every rebuild shares one checkout
-  // root keyed by commit, and a timeout does not stop the build. A network that
-  // cannot get the slot defers rather than waiting out its own timeout.
-  const waitUntil = Date.now() + REBUILD_TIMEOUT_MS
-  while (ctx.codehash.running) {
-    if (Date.now() >= waitUntil)
-      return {
-        kind: 'deferred',
-        reason:
-          'another gate K rebuild is still running; this one runs on a later run',
-      }
-    await Promise.race([
-      ctx.codehash.running.catch(() => undefined),
-      sleep(1000),
-    ])
-  }
-  ctx.codehash.budget.left--
-
   const reports: IGateReport[] = []
-  const rebuild = (async () => {
+  const outcome = await ctx.codehash.gate.run(async () => {
     for (const call of installations)
       reports.push(
         await verifyCutTargets(
@@ -530,27 +487,22 @@ const runCodehash = async (
           ctx.codehash.deps()
         )
       )
-  })()
-  ctx.codehash.running = rebuild
-  void rebuild
-    .catch(() => undefined)
-    .finally(() => {
-      if (ctx.codehash.running === rebuild) ctx.codehash.running = undefined
-    })
-  try {
-    await withTimeout(rebuild, REBUILD_TIMEOUT_MS, 'gate K rebuild')
-  } catch (error) {
-    const reason = `gate K could not be evaluated: ${describe(error)}`
+  }, deadline)
+  if (outcome.kind === 'deferred')
+    return { kind: 'deferred', reason: outcome.reason }
+  if (outcome.kind === 'timed-out') {
     // Cached like an unverifiable result, so a rebuild that always overruns is
     // retried daily rather than spending the budget every run.
     ctx.state.codehash[key] = {
       status: 'unknown',
-      detail: reason,
+      detail: outcome.reason,
       codeHashes,
       checkedAt: new Date().toISOString(),
     }
-    return { kind: 'error', reason }
+    return { kind: 'error', reason: outcome.reason }
   }
+  if (outcome.kind === 'failed')
+    return { kind: 'error', reason: outcome.reason }
 
   const result: TCodehashResult = { kind: 'evaluated', collected, reports }
   const graded = gradeCodehash(result)
@@ -942,7 +894,14 @@ export const watchNetwork = async (
     checks.push(authorities)
 
     const codehash = gradeCodehash(
-      await runCodehash(name, op, client, ctx, network.isZkEVM)
+      await runCodehash(
+        name,
+        op,
+        client,
+        ctx,
+        network.isZkEVM,
+        startedAt + ctx.historyMs + NETWORK_OVERHEAD_MS - DEADLINE_MARGIN_MS
+      )
     )
     checks.push(codehash)
 
@@ -1136,7 +1095,11 @@ const command = defineCommand({
       historyMs: historyMinutes * 60 * 1000,
       readPinned,
       codehash: {
-        budget: { left: codehashBudget },
+        gate: createRebuildGate({
+          budget: codehashBudget,
+          timeoutMs: REBUILD_TIMEOUT_MS,
+          describe,
+        }),
         deps: () =>
           (codehashDeps ??= createSignTimeCodehashDeps({
             readPinnedBlob: readPinned,
