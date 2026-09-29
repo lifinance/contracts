@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * One-shot migration of `deferred-cleanup.parkedTasks` task keys from the old
  * name-based form to the address-based form (EXSC-775).

@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * Run a scoped forge test invocation for faster agent/human iteration.
  *

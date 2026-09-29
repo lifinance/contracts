@@ -1,5 +1,3 @@
-#!/usr/bin/env bunx tsx
-
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { config } from 'dotenv'

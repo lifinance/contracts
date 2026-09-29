@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Operator CLI to cancel ONE queued parked task (EXSC-715).
  *

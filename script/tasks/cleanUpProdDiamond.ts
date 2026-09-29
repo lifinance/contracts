@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Purpose:
  *   - Remove facet(s) or unregister periphery contract(s) from the LiFiDiamond contract
@@ -8,13 +6,13 @@
  *   - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true or staging: sends transaction directly to diamond (no proposal, no timelock)
  *
  * Usage without parameters:
- *  bun script/tasks/cleanUpProdDiamond.ts
+ *  bunx tsx script/tasks/cleanUpProdDiamond.ts
  *
  * Usage (Facet Removal):
- *   bun script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --facets '["FacetA","FacetB"]'
+ *   bunx tsx script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --facets '["FacetA","FacetB"]'
  *
  * Usage (Periphery Removal):
- *   bun script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --periphery '["Executor","FeeCollector"]'
+ *   bunx tsx script/tasks/cleanUpProdDiamond.ts --network mainnet --environment production --periphery '["Executor","FeeCollector"]'
  */
 
 import fs from 'fs'

@@ -146,7 +146,7 @@ function parseArgs(argv: string[]): {
 
   if (!out.networks?.trim()) {
     console.error(
-      'Usage: bun script/tasks/generateHexagateImportCsv.ts --networks <name1,name2,...> [--output-dir DIR] [--prefix NAME]'
+      'Usage: bunx tsx script/tasks/generateHexagateImportCsv.ts --networks <name1,name2,...> [--output-dir DIR] [--prefix NAME]'
     )
     console.error(
       'Optional category flags (if none are passed, all are included): --peripheries --safes --diamonds --timelock-controllers'

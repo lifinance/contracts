@@ -276,7 +276,7 @@ diamondUpdateFacet() {
           # Register trap to ensure cleanup on script exit (including errors)
           trap '[[ -n "$TEMP_CALLDATA_FILE" ]] && rm -f "$TEMP_CALLDATA_FILE"' EXIT
 
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+          bunx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldataFile "$TEMP_CALLDATA_FILE" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           rm -f "$TEMP_CALLDATA_FILE"
@@ -291,7 +291,7 @@ diamondUpdateFacet() {
             return $rc
           fi
         else
-          bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
+          bunx tsx script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$PRIVATE_KEY" --timelock
           rc=$?
 
           if [ $rc -ne 0 ]; then

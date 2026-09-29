@@ -54,13 +54,13 @@ describe('parseTronAddressOutput', () => {
 
 describe('parseTroncastArrayOutput', () => {
   // Regression: getAllContractSelectorPairs() returns `address[],bytes4[][]`. callTronContract
-  // prepends the troncast command echo (`$ bun run …`) and TronWeb's diagnostic lines — one of
+  // prepends the troncast command echo (`$ bunx tsx …`) and TronWeb's diagnostic lines — one of
   // which, "⚙ Formatted params: []", itself contains a `[`. The old parser trimmed the whole
-  // blob and required it to start with `[`; it started with `$ bun run …` instead, so it threw
+  // blob and required it to start with `[`; it started with `$ bunx tsx …` instead, so it threw
   // "Expected array format" and the whitelist-integrity invariant reported the swallowed
   // "Whitelist configuration not available" on tron. This is the real captured mainnet output.
   const REAL_OUTPUT = [
-    '$ bun run script/troncast/index.ts call "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --rpc-url <rpc-url>',
+    '$ bunx tsx script/troncast/index.ts call "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt" "getAllContractSelectorPairs() returns (address[],bytes4[][])" --rpc-url <rpc-url>',
     '⚙ Initializing TronWeb with mainnet network: <rpc-url>',
     '⚙ Calling getAllContractSelectorPairs on TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt',
     '⚙ Formatted params: []',

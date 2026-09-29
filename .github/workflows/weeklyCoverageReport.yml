@@ -86,7 +86,7 @@ jobs:
           done
 
           echo "Filtering coverage report to only contain coverage info for 'src/' folder now"
-          bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
+          bunx tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'
           echo "Coverage report successfully filtered"
 
           # Aggregate the filtered lcov counters into line/function/branch percentages.
