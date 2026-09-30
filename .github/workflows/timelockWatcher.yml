@@ -22,7 +22,7 @@
 #       cursor, gate K result or alert record can hide an operation. That is repo write access,
 #       which can also disable this workflow
 #     * Slack: SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS, on a mismatch, a new unverified
-#       finding and a change of verdict or of the checks and notes behind it; a standing mismatch repeats every 6 hours, a standing
+#       finding, a change of verdict, and a new failing check or missed queued operation; a standing mismatch repeats every 6 hours, a standing
 #       unverified finding every 24 hours; an alerted operation that stops being pending is
 #       announced
 #     * The job fails when a network could not be read, an operation or network mismatches, or an

@@ -63,25 +63,29 @@ const networkOfKey = (key: string): string => key.slice(0, key.indexOf(':'))
 
 const CHECK_PREFIX = new RegExp(`^(${REQUIRED_CHECKS.join('|')}): `)
 
+/** A network note saying the log scan missed an operation the queue holds. */
+const COVERAGE_NOTE = /pending on chain but the log scan did not find it/
+
 /**
- * What must change for a standing verdict to alert again: which checks did not
- * pass, and which notes the network carries. Numbers, hex and error details are
- * dropped, so a backfill cursor moving or a node's error wording changing does
- * not re-page every run.
+ * What must change for a standing verdict to alert again: the checks that fail
+ * under a mismatch, and a network's notes that the log scan missed an
+ * operation. An unknown check or a read error comes and goes with node health,
+ * so it waits for the daily repeat instead of paging on every flip.
  *
- * @param reasons - A finding's reasons.
+ * @param verdict - The finding's verdict.
+ * @param reasons - Its reasons.
  * @returns A stable signature.
  */
-export const reasonsSignature = (reasons: readonly string[]): string =>
+export const reasonsSignature = (
+  verdict: TWatcherVerdict,
+  reasons: readonly string[]
+): string =>
   [
     ...new Set(
-      reasons.map((reason) => {
+      reasons.flatMap((reason) => {
         const check = CHECK_PREFIX.exec(reason)?.[1]
-        if (check) return check
-        return reason
-          .replace(/: .*$/s, '')
-          .replace(/0x[0-9a-fA-F]+/g, '0x…')
-          .replace(/\d+(\.\d+)?/g, '#')
+        if (check) return verdict === 'mismatch' ? [check] : []
+        return COVERAGE_NOTE.test(reason) ? [reason] : []
       })
     ),
   ]
@@ -127,7 +131,7 @@ export const decideAlerts = (
       continue
     }
 
-    const reasons = reasonsSignature(finding.reasons)
+    const reasons = reasonsSignature(finding.verdict, finding.reasons)
     const alerted = { verdict: finding.verdict, alertedAt: stamp, reasons }
 
     if (!record) {

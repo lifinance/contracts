@@ -37,7 +37,7 @@ const recordAt = (
 ): IAlertRecord => ({
   verdict,
   alertedAt: new Date(NOW.getTime() - msAgo).toISOString(),
-  reasons: `${verdict} reason`,
+  reasons: '',
 })
 
 describe('findingKey', () => {
@@ -53,7 +53,7 @@ describe('decideAlerts: first sight', () => {
     expect(decision.next[KEY]).toEqual({
       verdict: 'mismatch',
       alertedAt: NOW.toISOString(),
-      reasons: 'mismatch reason',
+      reasons: '',
     })
   })
 
@@ -70,36 +70,42 @@ describe('decideAlerts: first sight', () => {
 })
 
 describe('reasonsSignature', () => {
-  it('keys operation reasons on the check that did not pass', () => {
-    expect(
-      reasonsSignature([
-        'codehash: queued behind this run',
-        'authority: call 0 grants X',
-      ])
-    ).toBe(reasonsSignature(['authority: another detail', 'codehash: other']))
-  })
+  const MISSED =
+    'queued operation 0xabc is pending on chain but the log scan did not find it'
 
-  it('ignores a moving backfill cursor and error wording', () => {
-    expect(
-      reasonsSignature([
-        'history before block 100 is not scanned yet',
-        'getMinDelay() could not be read: timeout after 20000ms',
-      ])
-    ).toBe(
-      reasonsSignature([
-        'history before block 9000 is not scanned yet',
-        'getMinDelay() could not be read: HTTP 502',
-      ])
+  it('keys a mismatch on the checks that fail, not their detail', () => {
+    expect(reasonsSignature('mismatch', ['authority: call 0 grants X'])).toBe(
+      reasonsSignature('mismatch', ['authority: another detail'])
+    )
+    expect(reasonsSignature('mismatch', ['authority: x'])).not.toBe(
+      reasonsSignature('mismatch', ['authority: x', 'targets: y'])
     )
   })
 
-  it('tells a new note apart', () => {
+  it('ignores unknown checks and read errors, which flap with node health', () => {
     expect(
-      reasonsSignature(['history before block 100 is not scanned yet'])
-    ).not.toBe(
-      reasonsSignature([
+      reasonsSignature('unverified', [
+        'codehash: queued behind this run',
+        'authorities: fetch failed',
+      ])
+    ).toBe(reasonsSignature('unverified', ['codehash: queued behind this run']))
+    expect(
+      reasonsSignature('unverified', [
         'history before block 100 is not scanned yet',
-        'queued operation 0xabc is pending on chain but the log scan did not find it',
+        'no endpoint would serve the next history range: HTTP 502',
+      ])
+    ).toBe(reasonsSignature('unverified', []))
+  })
+
+  it('tells an operation the log scan missed apart', () => {
+    expect(
+      reasonsSignature('unverified', [
+        'history before block 100 is not scanned yet',
+      ])
+    ).not.toBe(
+      reasonsSignature('unverified', [
+        'history before block 100 is not scanned yet',
+        MISSED,
       ])
     )
   })
@@ -113,7 +119,10 @@ describe('decideAlerts: standing findings', () => {
       [
         {
           ...finding('unverified'),
-          reasons: ['unverified reason', 'codehash: could not rebuild'],
+          reasons: [
+            'unverified reason',
+            'queued operation 0xdef is pending on chain but the log scan did not find it',
+          ],
         },
       ],
       ALL,
@@ -134,7 +143,7 @@ describe('decideAlerts: standing findings', () => {
     expect(decision.alerts).toEqual([])
     expect(decision.next[KEY]).toEqual({
       ...legacy,
-      reasons: 'mismatch reason',
+      reasons: '',
     })
   })
 
