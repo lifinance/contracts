@@ -915,16 +915,23 @@ export const installsCode = (collected: ICollectedDiamondCuts): boolean =>
  * @returns The check outcome.
  */
 export const gradeCodehash = (result: TCodehashResult): ICheckOutcome => {
-  if (result.kind === 'not-applicable')
-    return result.collected.unopened.length > 0
+  if (result.kind === 'not-applicable') {
+    // The authority check grades these selectors, and none of them installs code.
+    const opaque = result.collected.unopened.filter(
+      (frame) =>
+        !AUTHORITY_SELECTORS.has(selectorOf(frame as Hex)) &&
+        !BENIGN_SELECTORS.has(selectorOf(frame as Hex))
+    )
+    return opaque.length > 0
       ? {
           check: 'codehash',
           status: 'unknown',
-          detail: `calldata the decoder could not open may install code (unopened: ${result.collected.unopened.join(
+          detail: `calldata the decoder could not open may install code (unopened: ${opaque.join(
             ', '
           )})`,
         }
       : { check: 'codehash', status: 'pass', detail: 'installs no code' }
+  }
   if (result.kind === 'deferred' || result.kind === 'error')
     return { check: 'codehash', status: 'unknown', detail: result.reason }
   if (result.kind === 'cached')

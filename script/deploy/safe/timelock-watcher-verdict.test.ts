@@ -849,6 +849,15 @@ describe('gradeCodehash', () => {
     expect(graded).toMatchObject({ status: 'pass', detail: 'installs no code' })
   })
 
+  it('passes unopened calldata whose selector the authority check grades', () => {
+    expect(
+      gradeCodehash({
+        kind: 'not-applicable',
+        collected: collected({ unopened: ['0xa4c3366e'] }),
+      }).status
+    ).toBe('pass')
+  })
+
   it('is unverified when calldata the decoder could not open may install code', () => {
     const graded = gradeCodehash({
       kind: 'not-applicable',
