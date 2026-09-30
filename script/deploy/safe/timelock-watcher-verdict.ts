@@ -9,7 +9,6 @@
  */
 
 import {
-  decodeAbiParameters,
   decodeFunctionData,
   keccak256,
   parseAbi,
@@ -420,39 +419,42 @@ export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
   const failures: string[] = []
   const unknown: string[] = []
   const notes: string[] = []
-  for (const call of op.calls) {
-    const selector = selectorOf(call.data)
+  const envelope = (label: string, data: Hex, depth: number): void => {
+    const selector = selectorOf(data)
+    if (selector !== SAFE_EXEC_SELECTOR && selector !== MULTISEND_SELECTOR)
+      return
+    if (depth > MAX_CALL_DEPTH) {
+      unknown.push(`${label} nests envelopes deeper than this check reads`)
+      return
+    }
     try {
       if (selector === SAFE_EXEC_SELECTOR) {
-        const { args } = decodeFunctionData({
-          abi: SAFE_EXEC_ABI,
-          data: call.data,
-        })
-        if (args[3] !== 0)
-          failures.push(`call ${call.index} is a Safe delegatecall`)
-        const inner = selectorOf(args[2])
-        if (inner === MULTISEND_SELECTOR) {
-          const [packed] = decodeAbiParameters(
-            [{ type: 'bytes' }],
-            `0x${args[2].slice(10)}`
-          )
-          const operations = multiSendEntries(packed)
-          if (!operations)
-            unknown.push(`call ${call.index} carries a malformed multiSend`)
-          else if (operations.some((o) => o.operation !== 0))
-            failures.push(`call ${call.index} multiSends a delegatecall`)
-        }
-      } else if (selector === MULTISEND_SELECTOR) {
-        const { args } = decodeFunctionData({
-          abi: MULTISEND_ABI,
-          data: call.data,
-        })
+        const { args } = decodeFunctionData({ abi: SAFE_EXEC_ABI, data })
+        if (args[3] !== 0) failures.push(`${label} is a Safe delegatecall`)
+        envelope(`${label} → Safe call`, args[2], depth + 1)
+      } else {
+        const { args } = decodeFunctionData({ abi: MULTISEND_ABI, data })
         const operations = multiSendEntries(args[0])
-        if (!operations)
-          unknown.push(`call ${call.index} carries a malformed multiSend`)
-        else if (operations.some((o) => o.operation !== 0))
-          failures.push(`call ${call.index} multiSends a delegatecall`)
-      } else if (selector === DIAMOND_CUT_SELECTOR) {
+        if (!operations) {
+          unknown.push(`${label} carries a malformed multiSend`)
+          return
+        }
+        if (operations.some((o) => o.operation !== 0))
+          failures.push(`${label} multiSends a delegatecall`)
+        for (const [i, inner] of operations.entries())
+          envelope(`${label} → multiSend ${i}`, inner.data, depth + 1)
+      }
+    } catch {
+      unknown.push(
+        `${label} carries selector ${selector} that could not be decoded`
+      )
+    }
+  }
+  for (const call of op.calls) {
+    const selector = selectorOf(call.data)
+    envelope(`call ${call.index}`, call.data, 0)
+    try {
+      if (selector === DIAMOND_CUT_SELECTOR) {
         const { args } = decodeFunctionData({
           abi: DIAMOND_CUT_INIT_ABI,
           data: call.data,

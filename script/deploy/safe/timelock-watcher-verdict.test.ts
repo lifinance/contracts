@@ -335,6 +335,17 @@ describe('gradeDelegatecall', () => {
     ).toBe('pass')
   })
 
+  it('fails a Safe delegatecall nested inside another Safe call', () => {
+    const nested = gradeDelegatecall(
+      opOf([{ target: SAFE, data: exec(0, exec(1)) }])
+    )
+    expect(nested.status).toBe('fail')
+    expect(nested.detail).toContain('call 0 → Safe call is a Safe delegatecall')
+    expect(
+      gradeDelegatecall(opOf([{ target: SAFE, data: exec(0, exec(0)) }])).status
+    ).toBe('pass')
+  })
+
   it('fails a Safe execTransaction with operation 1, and passes operation 0', () => {
     expect(
       gradeDelegatecall(opOf([{ target: SAFE, data: exec(1) }])).status
