@@ -22,9 +22,10 @@ import {
 } from 'viem'
 
 import globalConfig from '../../../config/global.json'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { DIAMOND_CUT_ABI } from '../shared/constants'
 
-import { gateLabel } from './check-ledger'
+import { createCheckLedger, gateLabel, recordCheck } from './check-ledger'
 import {
   ALL_GATE_DEFINITIONS,
   CONFIRM_CHECK_DEFINITIONS,
@@ -45,6 +46,7 @@ import {
   type IPeripheryAllowlistDeps,
   type IPeripheryAllowlistVerdict,
 } from './periphery-allowlist-gate'
+import { renderCheckLedger } from './render-check-ledger'
 import {
   TIMELOCK_SCHEDULE_ABI,
   TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -1055,6 +1057,46 @@ describe('gate W remedy', () => {
       expect(row.detail).not.toContain('proposePeripheryWithWhitelist.ts')
     }
   )
+
+  it('on tron reaches the rendered check ledger for the diamond the deploy log names', async () => {
+    const tronDeployments = JSON.parse(
+      readFileSync(path.join(HERE, '../../../deployments/tron.json'), 'utf8')
+    ) as Record<string, string>
+    const diamond = normalizeAddressForNetwork(
+      'tron',
+      tronDeployments.LiFiDiamond as string
+    )
+    const wrapper = normalizeAddressForNetwork(
+      'tron',
+      tronDeployments.TokenWrapper as string
+    )
+    const deps = chain([])
+    const verdict = await evaluatePeripheryAllowlist(
+      {
+        calldatas: [register('TokenWrapper', wrapper)],
+        targets: [diamond],
+        caller: SAFE,
+        network: 'tron',
+      },
+      deps
+    )
+    expect(verdict.cleared).toBe(false)
+    expect(deps.reads).toEqual([`${diamond}:${wrapper}`])
+
+    const ledger = createCheckLedger({
+      expectedNetworks: ['tron'],
+      checks: [PERIPHERY_ALLOWLIST_CHECK],
+    })
+    recordCheck(ledger, peripheryAllowlistCheckResult(verdict, 'tron'))
+    const rendered = renderCheckLedger(ledger)
+      .join(' ')
+      .replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
+      .replace(/\s+/g, ' ')
+    expect(rendered).toContain(
+      './script/tasks/syncWhitelistToNetworks.sh tron --production'
+    )
+    expect(rendered).not.toContain('proposePeripheryWithWhitelist.ts')
+  })
 
   it('on an EVM network names the paired proposer', async () => {
     expect(peripheryAllowlistRemedy('gnosis')).toContain(
