@@ -112,6 +112,42 @@ describe('reasonsSignature', () => {
 })
 
 describe('decideAlerts: standing findings', () => {
+  it('pages a check that starts failing once, not each time it flaps', () => {
+    const at = (reasons: string[]): IWatchFinding => ({
+      ...finding('mismatch'),
+      reasons,
+    })
+    const one = ['authority: whitelists x']
+    const two = ['authority: whitelists x', 'authorities: owner drift']
+    let records: Record<string, IAlertRecord> = {
+      [KEY]: { ...recordAt('mismatch', 1), reasons: 'authority' },
+    }
+    const kinds: string[][] = []
+    for (const reasons of [two, one, two, one]) {
+      const decision = decideAlerts(records, [at(reasons)], ALL, NOW)
+      kinds.push(decision.alerts.map((alert) => alert.kind))
+      records = decision.next
+    }
+    expect(kinds).toEqual([['changed'], [], [], []])
+  })
+
+  it('leads a changed alert with the reason that is new', () => {
+    const decision = decideAlerts(
+      { [KEY]: { ...recordAt('mismatch', 1), reasons: 'authority' } },
+      [
+        {
+          ...finding('mismatch'),
+          reasons: ['authority: whitelists x', 'codehash: matches none'],
+        },
+      ],
+      ALL,
+      NOW
+    )
+    expect(decision.alerts[0]?.finding.reasons[0]).toBe(
+      'codehash: matches none'
+    )
+  })
+
   it('alerts a new reason under a standing verdict inside its throttle', () => {
     const standing = recordAt('unverified', 1)
     const decision = decideAlerts(

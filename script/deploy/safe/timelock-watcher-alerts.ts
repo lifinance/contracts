@@ -67,9 +67,8 @@ const CHECK_PREFIX = new RegExp(`^(${REQUIRED_CHECKS.join('|')}): `)
 const COVERAGE_NOTE = /pending on chain but the log scan did not find it/
 
 /**
- * What must change for a standing verdict to alert again: the checks that fail
- * under a mismatch, and a network's notes that the log scan missed an
- * operation. An unknown check or a read error comes and goes with node health,
+ * What a standing verdict must gain to alert again: a check that fails under
+ * a mismatch, or a network note that the log scan missed an operation. An unknown check or a read error comes and goes with node health,
  * so it waits for the daily repeat instead of paging on every flip.
  *
  * @param verdict - The finding's verdict.
@@ -83,14 +82,25 @@ export const reasonsSignature = (
   [
     ...new Set(
       reasons.flatMap((reason) => {
-        const check = CHECK_PREFIX.exec(reason)?.[1]
-        if (check) return verdict === 'mismatch' ? [check] : []
-        return COVERAGE_NOTE.test(reason) ? [reason] : []
+        const entry = signatureEntry(verdict, reason)
+        return entry === undefined ? [] : [entry]
       })
     ),
   ]
     .sort()
     .join('\n')
+
+const signatureEntry = (
+  verdict: TWatcherVerdict,
+  reason: string
+): string | undefined => {
+  const check = CHECK_PREFIX.exec(reason)?.[1]
+  if (check) return verdict === 'mismatch' ? check : undefined
+  return COVERAGE_NOTE.test(reason) ? reason : undefined
+}
+
+const entriesOf = (signature: string): Set<string> =>
+  new Set(signature.split('\n').filter(Boolean))
 
 /**
  * Decides which findings to alert on.
@@ -140,11 +150,25 @@ export const decideAlerts = (
       continue
     }
 
-    if (
-      record.verdict !== finding.verdict ||
-      (record.reasons !== undefined && record.reasons !== reasons)
-    ) {
-      alerts.push({ finding, kind: 'changed', previous: record.verdict })
+    // Only an entry the last alert did not carry pages; one that flaps away and
+    // back stays in the stored set until the next alert resets it.
+    const stored = entriesOf(record.reasons ?? reasons)
+    const added = finding.reasons.find((reason) => {
+      const entry = signatureEntry(finding.verdict, reason)
+      return entry !== undefined && !stored.has(entry)
+    })
+    if (record.verdict !== finding.verdict || added !== undefined) {
+      alerts.push({
+        finding:
+          added === undefined
+            ? finding
+            : {
+                ...finding,
+                reasons: [added, ...finding.reasons.filter((r) => r !== added)],
+              },
+        kind: 'changed',
+        previous: record.verdict,
+      })
       next[finding.key] = alerted
       continue
     }
@@ -159,7 +183,13 @@ export const decideAlerts = (
     if (!(elapsed < throttle)) {
       alerts.push({ finding, kind: 'repeat' })
       next[finding.key] = alerted
-    } else next[finding.key] = { ...record, reasons }
+    } else
+      next[finding.key] = {
+        ...record,
+        reasons: [...new Set([...stored, ...entriesOf(reasons)])]
+          .sort()
+          .join('\n'),
+      }
   }
 
   for (const [key, record] of Object.entries(previous)) {
