@@ -34,6 +34,10 @@ describe('frameFault', () => {
   it('refuses an input that is only a prefix', () => {
     expect(frameFault('0x', 'bytecode')).toBe('bytecode is empty')
   })
+
+  it('strips only one prefix, so a doubled one is data', () => {
+    expect(frameFault('0x0xab', 'bytecode')).toBe('bytecode is not hex')
+  })
 })
 
 describe('strip0x', () => {
@@ -46,6 +50,10 @@ describe('strip0x', () => {
   it('does not mistake leading hex digits for a prefix', () => {
     // `0` and `x` only pair up at the very start; `a0x…` is data.
     expect(strip0x('a0xbc')).toBe('a0xbc')
+  })
+
+  it('reduces a bare prefix to an empty string', () => {
+    expect(strip0x('0x')).toBe('')
   })
 })
 
