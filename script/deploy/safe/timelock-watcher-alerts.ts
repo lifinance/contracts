@@ -24,6 +24,8 @@ export interface IAlertRecord {
   alertedAt: string
   /** {@link reasonsSignature} of the reasons alerted; unset on older records. */
   reasons?: string
+  /** ISO time the subject was announced `ok`; the record is kept until its throttle ends. */
+  resolvedAt?: string
 }
 
 /** One subject this run judged: an operation, or a network as a whole. */
@@ -117,6 +119,9 @@ const entriesOf = (signature: string): Set<string> =>
  *   {@link reasonsSignature} entry not seen since the last new or repeated
  *   alert; one that goes away and comes back does not page again until then.
  * - A standing verdict alerts again once its throttle has elapsed.
+ * - A resolved subject keeps its record until that throttle ends, so an
+ *   unverified finding that flaps with node health is announced once, not on
+ *   every flip; a mismatch that comes back alerts at once.
  * - An operation this run no longer reports, on a network it read completely,
  *   was executed or cancelled: that is announced and its record dropped. A
  *   network that could not be read keeps its records, so its return does not
@@ -139,15 +144,31 @@ export const decideAlerts = (
   const seen = new Set<string>()
   const stamp = now.toISOString()
 
+  const throttleOf = (verdict: IAlertRecord['verdict']): number =>
+    verdict === 'mismatch' ? MISMATCH_REALERT_MS : UNVERIFIED_REALERT_MS
+  // An unparseable stamp is NaN, which fails every comparison; treat it as
+  // elapsed so a corrupt record cannot silence a subject for good.
+  const isDue = (record: IAlertRecord): boolean =>
+    !(now.getTime() - Date.parse(record.alertedAt) < throttleOf(record.verdict))
+
   for (const finding of findings) {
     seen.add(finding.key)
-    const record = previous[finding.key]
+    const kept = previous[finding.key]
 
     if (finding.verdict === 'ok') {
-      if (record)
-        alerts.push({ finding, kind: 'resolved', previous: record.verdict })
+      if (kept && kept.resolvedAt === undefined) {
+        alerts.push({ finding, kind: 'resolved', previous: kept.verdict })
+        next[finding.key] = { ...kept, resolvedAt: stamp }
+      } else if (kept && !isDue(kept)) next[finding.key] = kept
       continue
     }
+
+    const reopened =
+      kept?.resolvedAt !== undefined &&
+      kept.verdict === 'unverified' &&
+      finding.verdict === 'unverified' &&
+      !isDue(kept)
+    const record = kept?.resolvedAt === undefined || reopened ? kept : undefined
 
     const reasons = reasonsSignature(finding.verdict, finding.reasons)
     const alerted = { verdict: finding.verdict, alertedAt: stamp, reasons }
@@ -158,14 +179,7 @@ export const decideAlerts = (
       continue
     }
 
-    const throttle =
-      finding.verdict === 'mismatch'
-        ? MISMATCH_REALERT_MS
-        : UNVERIFIED_REALERT_MS
-    const elapsed = now.getTime() - Date.parse(record.alertedAt)
-    // An unparseable stamp is NaN, which fails every comparison; treat it as
-    // elapsed so a corrupt record cannot silence a subject for good.
-    const due = !(elapsed < throttle)
+    const due = isDue(record)
 
     const stored = entriesOf(record.reasons ?? reasons)
     const union = [...new Set([...stored, ...entriesOf(reasons)])]
@@ -207,7 +221,10 @@ export const decideAlerts = (
     if (seen.has(key)) continue
     const network = networkOfKey(key)
     if (!settledNetworks.has(network)) next[key] = record
-    else if (key !== findingKey(network, 'network'))
+    else if (
+      key !== findingKey(network, 'network') &&
+      record.resolvedAt === undefined
+    )
       alerts.push({
         kind: 'resolved',
         previous: record.verdict,

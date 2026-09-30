@@ -289,11 +289,46 @@ describe('decideAlerts: changes of verdict', () => {
     expect(decision.next[KEY]?.verdict).toBe('mismatch')
   })
 
-  it('alerts the return to ok and drops the record', () => {
+  it('alerts the return to ok once, and drops the record when its throttle ends', () => {
     const previous = { [KEY]: recordAt('mismatch', 0) }
     const decision = decideAlerts(previous, [finding('ok')], ALL, NOW)
     expect(decision.alerts.map((a) => a.kind)).toEqual(['resolved'])
-    expect(decision.next[KEY]).toBeUndefined()
+    expect(decision.next[KEY]?.resolvedAt).toBe(NOW.toISOString())
+    expect(
+      decideAlerts(decision.next, [finding('ok')], ALL, NOW).alerts
+    ).toEqual([])
+    const later = new Date(NOW.getTime() + MISMATCH_REALERT_MS)
+    expect(
+      decideAlerts(decision.next, [finding('ok')], ALL, later).next[KEY]
+    ).toBeUndefined()
+  })
+
+  it('announces an unverified finding that flaps with node health once, not on every flip', () => {
+    let records: Record<string, IAlertRecord> = {}
+    const kinds: string[][] = []
+    for (const verdict of [
+      'unverified',
+      'ok',
+      'unverified',
+      'ok',
+      'unverified',
+    ] as const) {
+      const decision = decideAlerts(records, [finding(verdict)], ALL, NOW)
+      kinds.push(decision.alerts.map((alert) => alert.kind))
+      records = decision.next
+    }
+    expect(kinds).toEqual([['new'], ['resolved'], [], [], []])
+  })
+
+  it('alerts a mismatch that comes back after it resolved', () => {
+    const resolved = {
+      [KEY]: { ...recordAt('mismatch', 1), resolvedAt: NOW.toISOString() },
+    }
+    expect(
+      decideAlerts(resolved, [finding('mismatch')], ALL, NOW).alerts.map(
+        (a) => a.kind
+      )
+    ).toEqual(['new'])
   })
 })
 
