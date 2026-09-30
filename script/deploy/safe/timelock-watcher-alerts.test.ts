@@ -182,6 +182,18 @@ describe('decideAlerts: standing findings', () => {
     expect(decision.next[KEY]?.alertedAt).toBe(standing.alertedAt)
   })
 
+  it('counts a new reason on a run the repeat is due as the repeat', () => {
+    const due = { ...recordAt('mismatch', MISMATCH_REALERT_MS), reasons: '' }
+    const first = decideAlerts(
+      { [KEY]: due },
+      [{ ...finding('mismatch'), reasons: ['codehash: matches none'] }],
+      ALL,
+      NOW
+    )
+    expect(first.alerts.map((alert) => alert.kind)).toEqual(['changed'])
+    expect(first.next[KEY]?.alertedAt).toBe(NOW.toISOString())
+  })
+
   it('pages two notes that take turns on a mismatched network once each', () => {
     const at = (notes: string[]): IWatchFinding => ({
       key: findingKey('base', 'network'),

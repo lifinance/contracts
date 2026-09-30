@@ -68,8 +68,8 @@ const COVERAGE_NOTE = /pending on chain but the log scan did not find it/
 
 /**
  * What a standing verdict must gain to alert again: a check that fails under
- * a mismatch, a note on a mismatched network (its numbers, hex and error
- * detail dropped), or a network note that the log scan missed an operation.
+ * a mismatch, a note on a mismatched network (its numbers and hex masked, its
+ * error detail dropped), or a network note that the log scan missed an operation.
  * An unknown check comes and goes with node health, so it waits for the
  * repeat instead of paging on every flip.
  *
@@ -158,6 +158,15 @@ export const decideAlerts = (
       continue
     }
 
+    const throttle =
+      finding.verdict === 'mismatch'
+        ? MISMATCH_REALERT_MS
+        : UNVERIFIED_REALERT_MS
+    const elapsed = now.getTime() - Date.parse(record.alertedAt)
+    // An unparseable stamp is NaN, which fails every comparison; treat it as
+    // elapsed so a corrupt record cannot silence a subject for good.
+    const due = !(elapsed < throttle)
+
     const stored = entriesOf(record.reasons ?? reasons)
     const union = [...new Set([...stored, ...entriesOf(reasons)])]
       .sort()
@@ -179,22 +188,16 @@ export const decideAlerts = (
         previous: record.verdict,
       })
       // A new entry under the same verdict keeps the repeat's clock and the
-      // entries seen since, so two notes that take turns page once each.
+      // entries seen since, so two notes that take turns page once each; once
+      // the repeat is due, this alert is the repeat.
       next[finding.key] =
-        record.verdict !== finding.verdict
+        record.verdict !== finding.verdict || due
           ? alerted
           : { ...record, reasons: union }
       continue
     }
 
-    const throttle =
-      finding.verdict === 'mismatch'
-        ? MISMATCH_REALERT_MS
-        : UNVERIFIED_REALERT_MS
-    const elapsed = now.getTime() - Date.parse(record.alertedAt)
-    // An unparseable stamp is NaN, which fails every comparison; treat it as
-    // elapsed so a corrupt record cannot silence a subject for good.
-    if (!(elapsed < throttle)) {
+    if (due) {
       alerts.push({ finding, kind: 'repeat' })
       next[finding.key] = alerted
     } else next[finding.key] = { ...record, reasons: union }
