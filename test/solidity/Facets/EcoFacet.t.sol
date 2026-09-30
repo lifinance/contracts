@@ -969,11 +969,12 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         }
 
         EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
+            nonEVMReceiver: tooLongAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
             encodedRoute: solanaRoute,
-            solanaATA: bytes32(uint256(1)),
+            // matches the route's ATA so only the receiver length can fail
+            solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2, // [pre-commit-checker: not a secret]
             refundRecipient: USER_SENDER,
             deadline: block.timestamp + 1 hours,
             signature: ""
