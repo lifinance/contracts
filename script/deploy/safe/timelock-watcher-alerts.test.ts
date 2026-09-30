@@ -179,7 +179,26 @@ describe('decideAlerts: standing findings', () => {
       NOW
     )
     expect(decision.alerts.map((a) => a.kind)).toEqual(['changed'])
-    expect(decision.next[KEY]?.alertedAt).toBe(NOW.toISOString())
+    expect(decision.next[KEY]?.alertedAt).toBe(standing.alertedAt)
+  })
+
+  it('pages two notes that take turns on a mismatched network once each', () => {
+    const at = (notes: string[]): IWatchFinding => ({
+      key: findingKey('base', 'network'),
+      network: 'base',
+      verdict: 'mismatch',
+      reasons: ['LiFiDiamond.owner() is 0xdead, not the timelock', ...notes],
+    })
+    const delay = 'getMinDelay() could not be read: timeout'
+    const queue = 'the execution queue could not be read for a cross-check: x'
+    let records: Record<string, IAlertRecord> = {}
+    const kinds: string[][] = []
+    for (const notes of [[], [delay], [queue], [delay], [queue]]) {
+      const decision = decideAlerts(records, [at(notes)], ALL, NOW)
+      kinds.push(decision.alerts.map((alert) => alert.kind))
+      records = decision.next
+    }
+    expect(kinds).toEqual([['new'], ['changed'], ['changed'], [], []])
   })
 
   it('adopts the reasons of a record written before they were kept, quietly', () => {

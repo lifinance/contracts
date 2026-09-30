@@ -69,8 +69,9 @@ const COVERAGE_NOTE = /pending on chain but the log scan did not find it/
 /**
  * What a standing verdict must gain to alert again: a check that fails under
  * a mismatch, a note on a mismatched network (its numbers, hex and error
- * detail dropped), or a network note that the log scan missed an operation. An unknown check or a read error comes and goes with node health,
- * so it waits for the daily repeat instead of paging on every flip.
+ * detail dropped), or a network note that the log scan missed an operation.
+ * An unknown check comes and goes with node health, so it waits for the
+ * repeat instead of paging on every flip.
  *
  * @param verdict - The finding's verdict.
  * @param reasons - Its reasons.
@@ -101,8 +102,8 @@ const signatureEntry = (
   if (verdict !== 'mismatch') return undefined
   return reason
     .replace(/: .*$/s, '')
-    .replace(/0x[0-9a-fA-F]+/g, '0x…')
     .replace(/\d+(\.\d+)?/g, '#')
+    .replace(/#x[#0-9a-fA-F]+/g, '0x…')
 }
 
 const entriesOf = (signature: string): Set<string> =>
@@ -113,7 +114,8 @@ const entriesOf = (signature: string): Set<string> =>
  *
  * - A finding with no record alerts when it is not `ok`.
  * - A change of verdict alerts, including the return to `ok`, and so does a
- *   change of {@link reasonsSignature} under the same verdict.
+ *   {@link reasonsSignature} entry not seen since the last new or repeated
+ *   alert; one that goes away and comes back does not page again until then.
  * - A standing verdict alerts again once its throttle has elapsed.
  * - An operation this run no longer reports, on a network it read completely,
  *   was executed or cancelled: that is announced and its record dropped. A
@@ -156,9 +158,10 @@ export const decideAlerts = (
       continue
     }
 
-    // Only an entry the last alert did not carry pages; one that flaps away and
-    // back stays in the stored set until the next alert resets it.
     const stored = entriesOf(record.reasons ?? reasons)
+    const union = [...new Set([...stored, ...entriesOf(reasons)])]
+      .sort()
+      .join('\n')
     const added = finding.reasons.find((reason) => {
       const entry = signatureEntry(finding.verdict, reason)
       return entry !== undefined && !stored.has(entry)
@@ -175,7 +178,12 @@ export const decideAlerts = (
         kind: 'changed',
         previous: record.verdict,
       })
-      next[finding.key] = alerted
+      // A new entry under the same verdict keeps the repeat's clock and the
+      // entries seen since, so two notes that take turns page once each.
+      next[finding.key] =
+        record.verdict !== finding.verdict
+          ? alerted
+          : { ...record, reasons: union }
       continue
     }
 
@@ -189,13 +197,7 @@ export const decideAlerts = (
     if (!(elapsed < throttle)) {
       alerts.push({ finding, kind: 'repeat' })
       next[finding.key] = alerted
-    } else
-      next[finding.key] = {
-        ...record,
-        reasons: [...new Set([...stored, ...entriesOf(reasons)])]
-          .sort()
-          .join('\n'),
-      }
+    } else next[finding.key] = { ...record, reasons: union }
   }
 
   for (const [key, record] of Object.entries(previous)) {
