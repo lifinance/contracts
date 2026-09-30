@@ -507,12 +507,12 @@ describe('advanceScan', () => {
     expect(next.state.operations[id(5)]).toBeDefined()
   })
 
-  it('stops, without narrowing the span, where no endpoint has reached the range yet', async () => {
+  it('reads up to the furthest endpoint head, without narrowing the span', async () => {
     const base = chain({ head: 20_000n, floor: 0n, logs: [] })
     const deps = {
       ...base,
       getLogs: async (from: bigint, to: bigint) => {
-        if (to > 19_990n) throw new LogRangeBehindError('behind')
+        if (to > 19_990n) throw new LogRangeBehindError('behind', 19_990n)
         return base.getLogs(from, to)
       },
     }
@@ -527,9 +527,9 @@ describe('advanceScan', () => {
       deps,
       0
     )
-    expect(outcome.state.high).toBe('10000')
+    expect(outcome.state.high).toBe('19990')
     expect(outcome.state.span).toBe('1000000')
-    expect(outcome.forwardLag).toBe(10_000n)
+    expect(outcome.forwardLag).toBe(10n)
   })
 
   it('does not save a creation block it could not resolve, so the next run retries it', async () => {

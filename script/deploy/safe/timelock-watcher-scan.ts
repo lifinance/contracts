@@ -123,9 +123,14 @@ export interface INetworkScanState {
 
 /**
  * No endpoint has reached the end of the range yet. Not a refusal: a narrower
- * range would not help, so the leg stops where it got to.
+ * range would not help, so the leg reads up to `head`, the furthest an
+ * endpoint has reached, and stops there.
  */
-export class LogRangeBehindError extends Error {}
+export class LogRangeBehindError extends Error {
+  public constructor(message: string, public readonly head: bigint) {
+    super(message)
+  }
+}
 
 export interface IScanDependencies {
   head: () => Promise<bigint>
@@ -280,7 +285,7 @@ export const isProvenCancelled = (
 
 /**
  * Reads logs over `[from, to]`, splitting the range whenever an endpoint
- * refuses it.
+ * refuses it, and stopping at the furthest block an endpoint has reached.
  *
  * @param deps - The log reader.
  * @param from - First block, inclusive.
@@ -300,14 +305,19 @@ const readRange = async (
   const logs = emptyLogs()
   let cursor = from
   let width = span
-  while (cursor <= to && hasBudget(budget)) {
-    const end = cursor + width - 1n < to ? cursor + width - 1n : to
+  let stopAt = to
+  while (cursor <= stopAt && hasBudget(budget)) {
+    const end = cursor + width - 1n < stopAt ? cursor + width - 1n : stopAt
     budget.left--
     try {
       appendLogs(logs, await deps.getLogs(cursor, end))
       cursor = end + 1n
     } catch (error) {
-      if (error instanceof LogRangeBehindError) break
+      if (error instanceof LogRangeBehindError) {
+        if (error.head < cursor || error.head >= end) break
+        stopAt = error.head
+        continue
+      }
       if (width <= MIN_LOG_SPAN) throw error
       width =
         width / SPAN_SHRINK > MIN_LOG_SPAN ? width / SPAN_SHRINK : MIN_LOG_SPAN

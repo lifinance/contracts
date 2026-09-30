@@ -320,6 +320,24 @@ describe('decideAlerts: changes of verdict', () => {
     expect(kinds).toEqual([['new'], ['resolved'], [], [], []])
   })
 
+  it('announces the return to ok of a finding that came back with a new reason', () => {
+    const missed =
+      'queued operation 0xdef is pending on chain but the log scan did not find it'
+    let records: Record<string, IAlertRecord> = {}
+    const kinds: string[][] = []
+    for (const f of [
+      finding('unverified'),
+      finding('ok'),
+      { ...finding('unverified'), reasons: [missed] },
+      finding('ok'),
+    ]) {
+      const decision = decideAlerts(records, [f], ALL, NOW)
+      kinds.push(decision.alerts.map((alert) => alert.kind))
+      records = decision.next
+    }
+    expect(kinds).toEqual([['new'], ['resolved'], ['changed'], ['resolved']])
+  })
+
   it('alerts a mismatch that comes back after it resolved', () => {
     const resolved = {
       [KEY]: { ...recordAt('mismatch', 1), resolvedAt: NOW.toISOString() },

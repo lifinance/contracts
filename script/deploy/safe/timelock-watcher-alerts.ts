@@ -203,11 +203,13 @@ export const decideAlerts = (
       })
       // A new entry under the same verdict keeps the repeat's clock and the
       // entries seen since, so two notes that take turns page once each; once
-      // the repeat is due, this alert is the repeat.
+      // the repeat is due, this alert is the repeat. Either way the subject is
+      // live again, so its next return to ok is announced.
+      const { resolvedAt: _resolved, ...live } = record
       next[finding.key] =
         record.verdict !== finding.verdict || due
           ? alerted
-          : { ...record, reasons: union }
+          : { ...live, reasons: union }
       continue
     }
 

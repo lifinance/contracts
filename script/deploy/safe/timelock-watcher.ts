@@ -704,6 +704,7 @@ export const watchNetwork = async (
           let logs: Awaited<ReturnType<typeof readTimelockLogs>> | undefined
           let lastError: unknown
           let allBehind = true
+          let furthest = -1n
           for (let k = 0; k < logReaders.length && !logs; k++) {
             const at = (preferredReader + k) % logReaders.length
             const reader = logReaders[at] as PublicClient
@@ -713,10 +714,13 @@ export const watchNetwork = async (
                 readerHead = await reader.getBlockNumber()
                 readerHeads.set(at, readerHead)
               }
-              if (readerHead < toBlock)
+              if (readerHead < toBlock) {
+                if (readerHead > furthest) furthest = readerHead
                 throw new LogRangeBehindError(
-                  `the endpoint is at block ${readerHead}, behind ${toBlock}`
+                  `the endpoint is at block ${readerHead}, behind ${toBlock}`,
+                  readerHead
                 )
+              }
               logs = await readTimelockLogs(
                 reader,
                 timelock,
@@ -731,8 +735,10 @@ export const watchNetwork = async (
           }
           // Behind on one endpoint and refused on another is a refusal: narrower may work.
           if (!logs)
-            throw allBehind || !(lastError instanceof LogRangeBehindError)
+            throw !(lastError instanceof LogRangeBehindError)
               ? lastError
+              : allBehind
+              ? new LogRangeBehindError(lastError.message, furthest)
               : new Error(lastError.message)
           const scheduled = []
           const salts = []
@@ -1189,9 +1195,7 @@ const command = defineCommand({
 
     const now = new Date()
     const settled = new Set(
-      reports
-        .filter((r) => r.status === 'watched' || r.status === 'uncovered')
-        .map((r) => r.network)
+      reports.filter((r) => r.status !== 'unreadable').map((r) => r.network)
     )
     const decision = decideAlerts(
       state.alerts,
