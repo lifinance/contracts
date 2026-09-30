@@ -61,9 +61,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xF4a0f420Ce1c2FFf450f0EF713b419B7DF7E7b2E": {
+      "0x201b4F113668b21Eb465b98E3486E8324562D83b": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x7AFB92A206d1774AE015D620fcb3328b253a3E5d": {
         "Name": "MayanFacet",

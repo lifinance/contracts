@@ -53,9 +53,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x5FaBBa7348C2f2129754D9E4C0Ed04DA2877F414": {
+      "0x201b4F113668b21Eb465b98E3486E8324562D83b": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x8163C2Ca79046E4789DC978d82836EDBdaf71b4B": {
         "Name": "GardenFacet",
@@ -84,8 +84,8 @@
       "FeeCollector": "0xF061930bc5154b72Bf90bA22840a6bEf20F4c83F",
       "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0xa8800ABdD6771dA7aAab2d09a5b97F4B8b19B58a",
-      "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x85E609B97AC5776AcDBa5fAabBcca64eB7a79185",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x700f1874314A4dF3bb9A10f7B5eA187A39d8dE74",

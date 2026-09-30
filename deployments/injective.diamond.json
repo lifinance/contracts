@@ -53,9 +53,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x8c0D29040A236C8f4b3d3d4f37EaFC2708BE2690": {
+      "0xe99dB2d1D4942C4e1146519314F3d9eBdbc51c8E": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -64,8 +64,8 @@
       "FeeCollector": "",
       "FeeForwarder": "0xB08ED2b55d226CA88642926240FA1Ef42d4b2297",
       "GasZipPeriphery": "0x1Bad89ee4cA153C4E592e0Bf2f2A256fa9beDC42",
-      "LiFiDEXAggregator": "",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "",
       "OutputValidator": "0x1299f7F941745377a2091AF51557e8De04B96B10",
       "Patcher": "",
       "Permit2Proxy": "0x263c63c1D8901c14520474110CE88CfADae0CfE9",

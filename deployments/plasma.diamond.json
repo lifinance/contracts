@@ -73,9 +73,9 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0x249dbDc4b0B5D1c4e387427B8d8437f579d8b20d": {
+      "0x201b4F113668b21Eb465b98E3486E8324562D83b": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x9B43Db66881128762B646576941C29059b13cbd6": {
         "Name": "AcrossFacetPackedV4",
@@ -92,8 +92,8 @@
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
       "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
