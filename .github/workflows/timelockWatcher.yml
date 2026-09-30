@@ -16,8 +16,10 @@
 #     * Timelock addresses come from deployments/<network>.json at origin/main: a reviewed file,
 #       cross-checked on chain against LiFiDiamond.owner()
 #     * Scan cursors, gate K results and alert records carry between runs in the Actions cache
-#       (timelock-watcher-state-*). Losing it re-scans history and re-sends standing alerts;
-#       it can never hide one
+#       (timelock-watcher-state-*). Losing it re-scans history and re-sends standing alerts.
+#       The cache is trusted: any workflow that runs on main can write it, and a forged
+#       cursor, gate K result or alert record can hide an operation. That is repo write access,
+#       which can also disable this workflow
 #     * Slack: SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS, on a mismatch, a new unverified
 #       finding and a change of verdict; a standing mismatch repeats every 6 hours, a standing
 #       unverified finding every 24 hours; an alerted operation that stops being pending is

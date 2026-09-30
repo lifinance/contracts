@@ -329,8 +329,11 @@ interface IWatcherStore {
   close: () => Promise<void>
 }
 
-const openWatcherStore = async (): Promise<IWatcherStore> => {
-  const uri = process.env.MONGODB_URI
+export const openWatcherStore = async (
+  uri = process.env.MONGODB_URI,
+  connect: (uri: string) => Pick<MongoClient, 'db' | 'close'> = (u) =>
+    new MongoClient(u)
+): Promise<IWatcherStore> => {
   if (!uri) {
     const error = 'MONGODB_URI is not set'
     return {
@@ -341,7 +344,7 @@ const openWatcherStore = async (): Promise<IWatcherStore> => {
       close: async () => undefined,
     }
   }
-  const client = new MongoClient(uri)
+  const client = connect(uri)
   const db = client.db(TIMELOCK_QUEUE_DB_NAME)
   const signedSets = client
     .db(SIGNED_SET_DB_NAME)

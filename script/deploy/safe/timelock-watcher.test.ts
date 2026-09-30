@@ -14,7 +14,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { findingsOf, loadWatcherState } from './timelock-watcher'
+import {
+  findingsOf,
+  loadWatcherState,
+  openWatcherStore,
+} from './timelock-watcher'
 import type { INetworkReport } from './timelock-watcher-report'
 
 const dir = mkdtempSync(join(tmpdir(), 'timelock-watcher-test-'))
@@ -134,5 +138,44 @@ describe('findingsOf', () => {
 
   it('emits nothing for no reports', () => {
     expect(findingsOf([])).toEqual([])
+  })
+})
+
+describe('openWatcherStore', () => {
+  const READ_METHODS = new Set(['find', 'countDocuments'])
+
+  const recordingClient = (touched: string[]) => {
+    const collection = new Proxy(
+      {},
+      {
+        get: (_, name: string) => {
+          touched.push(name)
+          if (name === 'find')
+            return () => ({
+              toArray: async () => [{ network: 'base', operationId: '0xABC' }],
+            })
+          return async () => 1
+        },
+      }
+    )
+    return {
+      db: () => ({ collection: () => collection }),
+      close: async () => undefined,
+    } as unknown as ReturnType<
+      NonNullable<Parameters<typeof openWatcherStore>[1]>
+    >
+  }
+
+  it('calls no collection method but a read', async () => {
+    const touched: string[] = []
+    const store = await openWatcherStore('mongodb://fake', () =>
+      recordingClient(touched)
+    )
+    expect(await store.signedSetExists('base', '0xabc')).toBe(true)
+    await store.close()
+
+    expect(store.queue).toEqual(new Map([['base', new Set(['0xabc'])]]))
+    expect(touched.length).toBeGreaterThan(0)
+    expect(touched.filter((name) => !READ_METHODS.has(name))).toEqual([])
   })
 })
