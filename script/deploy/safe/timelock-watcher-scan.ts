@@ -98,7 +98,7 @@ export interface IScannedOperation {
   blockNumber: string
   /** Block of the latest `Cancelled` log seen for this id, if any. */
   cancelledInBlock?: string
-  /** Runs in a row `getTimestamp` read 0 with no `Cancelled` log to explain it. */
+  /** Runs in which `getTimestamp` read 0 with no `Cancelled` log to explain it; a failed read neither counts nor resets. */
   unsetReads?: number
 }
 

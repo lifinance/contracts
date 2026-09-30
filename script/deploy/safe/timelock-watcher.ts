@@ -55,11 +55,7 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import { createPinnedBlobReader } from './pinned-target-state'
-import {
-  runPreBroadcastGate,
-  viemGateReaders,
-  viemScheduledAtReader,
-} from './prebroadcast-gate'
+import { runPreBroadcastGate, viemGateReaders } from './prebroadcast-gate'
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import {
   SIGNED_SET_COLLECTION_NAME,
@@ -110,6 +106,7 @@ import {
 import {
   buildWatcherCancelInput,
   classifyOperation,
+  confirmedScheduledAt,
   gradeAuthorities,
   gradeAuthority,
   gradeCodehash,
@@ -151,7 +148,7 @@ const NETWORK_CONCURRENCY = 12
 /** One RPC read; an endpoint that hangs must not hold the run. */
 const RPC_CALL_TIMEOUT_MS = 20_000 // 20 seconds
 
-/** Minutes a network's history backfill may take per run, so a scheduled run fits its cron interval. */
+/** Minutes a network's history backfill may take per run. */
 const DEFAULT_HISTORY_MINUTES = 2
 
 /** History ranges read at once per network; the endpoints are slow per call, not per block. */
@@ -161,7 +158,7 @@ const HISTORY_PARALLEL_RANGES = 8
 const NETWORK_OVERHEAD_MS = 6 * 60 * 1000 // 6 minutes
 
 /**
- * Runs in a row an operation with no `Cancelled` log may read as never
+ * Runs in which an operation with no `Cancelled` log may read as never
  * scheduled before it is dropped, so one lagging node cannot erase it.
  */
 const UNSET_READS_BEFORE_DROP = 3
@@ -329,6 +326,13 @@ interface IWatcherStore {
   close: () => Promise<void>
 }
 
+/**
+ * Opens the watcher's Mongo reads.
+ *
+ * @param uri - Connection string; unset makes every read report that.
+ * @param connect - Opens the client.
+ * @returns The store.
+ */
 export const openWatcherStore = async (
   uri = process.env.MONGODB_URI,
   connect: (uri: string) => Pick<MongoClient, 'db' | 'close'> = (u) =>
@@ -556,6 +560,8 @@ const networkVerdict = (
 /**
  * Watches one network.
  *
+ * @param network - The network, from `config/networks.json`.
+ * @param ctx - State, stores and budgets shared by the run.
  * @returns Its report. The scan state is written into `ctx.state` only when the
  *   network was read; an unreadable network keeps what the last run saved.
  */
@@ -870,9 +876,11 @@ export const watchNetwork = async (
     ]
 
     let signTimeRecordPresent = false
+    let signTimeRecordRead = false
     const opNotes: string[] = []
     try {
       signTimeRecordPresent = await ctx.signedSetExists(name, op.id)
+      signTimeRecordRead = true
     } catch (error) {
       opNotes.push(
         `the sign-time record store could not be read: ${describe(error)}`
@@ -894,7 +902,12 @@ export const watchNetwork = async (
             pinnedDeployments: deployments,
             globalConfig: globalConfig as unknown as Record<string, unknown>,
             signTimeRecord: signTimeRecordPresent ? {} : null,
-            readScheduledAt: viemScheduledAtReader(client, timelock, op.id),
+            readScheduledAt: async () => {
+              const scheduledAt = confirmedScheduledAt(stage, readyAt)
+              if (scheduledAt === undefined)
+                throw new Error('schedule state not confirmed live')
+              return scheduledAt
+            },
           }
         )
       )
@@ -915,7 +928,7 @@ export const watchNetwork = async (
     )
     checks.push(codehash)
 
-    if (!signTimeRecordPresent)
+    if (signTimeRecordRead && !signTimeRecordPresent)
       opNotes.push(
         'no sign-time record: this operation was not signed through confirm-safe-tx'
       )
@@ -962,6 +975,7 @@ export const watchNetwork = async (
             abi: TIMELOCK_READ_ABI,
             functionName: 'getTimestamp',
             args: [queued as Hex],
+            blockNumber: latestBlock,
           })
           if (readyAt > 1n) {
             flagUnverified = true

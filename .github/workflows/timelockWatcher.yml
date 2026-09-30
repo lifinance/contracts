@@ -48,7 +48,7 @@ on:
   workflow_dispatch:
     inputs:
       history-minutes:
-        description: Minutes per network for the history backfill (4 or under fits the 90-minute job timeout even if every network overruns)
+        description: Minutes per network for the history backfill (3 or under fits the 90-minute job timeout even if every network overruns)
         required: false
         default: '2'
 

@@ -194,6 +194,21 @@ export const stageOf = (timestamp: bigint, now: bigint): TOperationStage =>
     : 'pending'
 
 /**
+ * The `getTimestamp` value gate G may grade: only a read the state check
+ * confirmed live. Gate G fails a zero read outright, so handing it an unset or
+ * unconfirmed read would turn what the state check grades unknown into a mismatch.
+ *
+ * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
+ * @param readyAt - `getTimestamp(id)`.
+ * @returns The value, or `undefined` when gate G must treat it as unread.
+ */
+export const confirmedScheduledAt = (
+  stage: TOperationStage | undefined,
+  readyAt: bigint | undefined
+): bigint | undefined =>
+  stage === 'pending' || stage === 'ready' ? readyAt : undefined
+
+/**
  * Grades the schedule state of an operation the caller already knows is live.
  *
  * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
@@ -552,7 +567,7 @@ export interface IAuthorityContext {
   /** Lowercased address → name: the deployments file at main, the network's
    *  Safe, the timelock, and the wallets `config/global.json` names. */
   known: ReadonlyMap<string, string>
-  /** Lowercased Safe owners, which may be granted the canceller role only. */
+  /** Lowercased Safe owners, which may be granted the canceller or executor role. */
   safeOwners?: ReadonlySet<string>
   /** Lowercased addresses this operation installs, whose code gate K judges. */
   installed?: ReadonlySet<string>
@@ -568,12 +583,14 @@ export interface IAuthorityContext {
  *   fee forwarder's to the withdraw wallet or
  *   the fee collector owner;
  * - a timelock admin or proposer role only to the Safe or the timelock; the
- *   canceller or executor role to a wallet main names or a Safe owner;
+ *   canceller or executor role to an address main names or a Safe owner;
  * - a selector executor only to the refund wallet or a contract the operation
  *   installs; a withdrawal only to the withdraw wallet.
  *
- * Anything else handed to an address main does not know fails; handed to one
- * it knows, or made as an arbitrary call from the diamond, it is unverified.
+ * An ownership, selector executor or withdrawal handed to an address main
+ * does not know fails, and to another known address, or through an arbitrary
+ * call from the diamond, is unverified. A governing role to anyone but the Safe
+ * or the timelock fails; an unknown canceller or executor grantee is unverified.
  *
  * @param op - The operation.
  * @param context - The names that make an address an allowed recipient.

@@ -37,6 +37,7 @@ import {
   REQUIRED_CHECKS,
   buildWatcherCancelInput,
   classifyOperation,
+  confirmedScheduledAt,
   gradeAuthorities,
   gradeAuthority,
   gradeCodehash,
@@ -190,6 +191,14 @@ describe('stageOf and gradeState', () => {
 
   it('is unknown when getTimestamp could not be read', () => {
     expect(gradeState(undefined, undefined).status).toBe('unknown')
+  })
+
+  it('hands gate G only a read the state check confirmed live', () => {
+    expect(confirmedScheduledAt('pending', 1_800_000_000n)).toBe(1_800_000_000n)
+    expect(confirmedScheduledAt('ready', 100n)).toBe(100n)
+    expect(confirmedScheduledAt('unset', 0n)).toBeUndefined()
+    expect(confirmedScheduledAt('done', 1n)).toBeUndefined()
+    expect(confirmedScheduledAt(undefined, undefined)).toBeUndefined()
   })
 })
 
