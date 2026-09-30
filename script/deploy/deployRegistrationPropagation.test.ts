@@ -86,6 +86,8 @@ describe('diamondUpdatePeriphery', () => {
     isTestnetNetwork() { return 1; }
     getPeripheryAddressFromDiamond() { echo "0x0000000000000000000000000000000000000000"; }
     saveDiamondPeriphery() { return 0; }
+    # route every name to register(): these cases pin its exit-code propagation
+    bunx() { return 3; }
     register() { return ${registerRc}; }
     diamondUpdatePeriphery testnet production LiFiDiamond false false OutputValidator >/dev/null
     echo "rc=$?"
@@ -108,6 +110,7 @@ describe('diamondUpdatePeriphery', () => {
     getIncludedPeripheryContractsArray() { echo "OutputValidator TokenWrapper"; }
     getPeripheryAddressFromDiamond() { echo "0x0000000000000000000000000000000000000000"; }
     saveDiamondPeriphery() { return 0; }
+    bunx() { return 3; }
     register() { [ "$3" != "OutputValidator" ]; }
     diamondUpdatePeriphery testnet production LiFiDiamond true false "" >/dev/null
     echo "rc=$?"

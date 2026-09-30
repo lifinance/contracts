@@ -100,7 +100,7 @@ When bytecode is already in `deployments/<network>.json` (deferred diamond cuts,
 ./script/tasks/proposeContractToNetworks.sh MayanFacet --all-where-deployed --production
 ```
 
-Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
+Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. A diamond-called periphery's registration is proposed in the same timelock batch as its whitelist writes, and is refused before anything is proposed until `config/whitelist.json` lists the new address with every selector `whitelistPeripheryFunctions` requires; directly registered networks sync the allowlist afterwards. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
 
 ### Recomputing the calldata of a pending proposal
 
