@@ -172,6 +172,21 @@ export function withTronRateLimit<A extends unknown[], T>(
   }
 }
 
+export function tronRegistryReader(
+  callRegistry: (name: string) => Promise<unknown>,
+  hexToBase58: (hex: string) => string,
+  zero: string,
+  delayMs?: number
+): (name: string) => Promise<string | undefined> {
+  return withTronRateLimit(async (name: string) => {
+    const raw = await callRegistry(name)
+    if (typeof raw !== 'string')
+      throw new Error(`unexpected getPeripheryContract result: ${String(raw)}`)
+    const base58 = raw.startsWith('T') ? raw : hexToBase58(raw)
+    return base58 === zero ? undefined : base58
+  }, delayMs)
+}
+
 async function registryReader(
   network: string,
   diamond: string
@@ -192,15 +207,11 @@ async function registryReader(
       diamond
     )
     const zero = tronWeb.address.fromHex(`41${'0'.repeat(40)}`)
-    return withTronRateLimit(async (name: string) => {
-      const raw: unknown = await registry.getPeripheryContract(name).call()
-      if (typeof raw !== 'string')
-        throw new Error(
-          `unexpected getPeripheryContract result: ${String(raw)}`
-        )
-      const base58 = raw.startsWith('T') ? raw : tronWeb.address.fromHex(raw)
-      return base58 === zero ? undefined : base58
-    })
+    return tronRegistryReader(
+      (name) => registry.getPeripheryContract(name).call(),
+      (hex) => tronWeb.address.fromHex(hex),
+      zero
+    )
   }
   const client = createPublicClient({
     chain: getViemChainForNetworkName(network),

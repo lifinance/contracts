@@ -32,6 +32,7 @@ import {
   describeDrift,
   driftPairKeys,
   findRegistryDrift,
+  tronRegistryReader,
   withTronRateLimit,
 } from './whitelistRegistryDrift'
 
@@ -236,6 +237,53 @@ describe('withTronRateLimit', () => {
     )
     expect(message).toBe('bad ABI')
     expect(calls).toBe(1)
+  })
+})
+
+describe('tronRegistryReader', () => {
+  const ZERO = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+  const toBase58 = (hex: string) => hex
+
+  it('retries a 429 then resolves', async () => {
+    let calls = 0
+    const read = tronRegistryReader(
+      async () => {
+        calls++
+        if (calls === 1) throw new Error('429 Too Many Requests')
+        return 'TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2'
+      },
+      toBase58,
+      ZERO,
+      0
+    )
+    expect(await read('TokenWrapper')).toBe(
+      'TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2'
+    )
+    expect(calls).toBe(2)
+  })
+
+  it('refuses after three consecutive 429s', async () => {
+    let calls = 0
+    const read = tronRegistryReader(
+      async () => {
+        calls++
+        throw new Error('429 Too Many Requests')
+      },
+      toBase58,
+      ZERO,
+      0
+    )
+    const message = await read('TokenWrapper').then(
+      () => undefined,
+      (e: Error) => e.message
+    )
+    expect(message).toContain('429')
+    expect(calls).toBe(3)
+  })
+
+  it('maps the zero address to unregistered', async () => {
+    const read = tronRegistryReader(async () => ZERO, toBase58, ZERO, 0)
+    expect(await read('TokenWrapper')).toBeUndefined()
   })
 })
 
