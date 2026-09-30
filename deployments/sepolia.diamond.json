@@ -48,6 +48,10 @@
       "0x50eB18E9fE614654780B8d173bB900D327053Eb9": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
+      },
+      "0xe99dB2d1D4942C4e1146519314F3d9eBdbc51c8E": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

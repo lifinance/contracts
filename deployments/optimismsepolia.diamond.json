@@ -48,6 +48,10 @@
       "0xbcF6b1711014bD8DE86245A760B6E19b06726A7e": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0xEB466dE3f02c38B4323a7cB9C7107D23401a8E5f": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
