@@ -21,10 +21,30 @@ contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
 }
 
 contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
+    /// @dev Eco's destination Route struct; the facet treats the encoded route as opaque bytes
+    struct Route {
+        bytes32 salt;
+        uint64 deadline;
+        address portal;
+        uint256 nativeAmount;
+        IEcoPortal.TokenAmount[] tokens;
+        Call[] calls;
+    }
+
+    struct Call {
+        address target;
+        bytes callData;
+    }
+
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
         0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
+    uint256 internal constant HYPEREVM_CHAIN_ID = 999;
+    address internal constant HYPEREVM_USDC =
+        0xb88339CB7199b77E23DB6E890353E22632Ba630f;
+    address internal constant HYPERCORE_DEPOSITOR =
+        0x6B9E773128f453f5c2C60935Ee2DE2CBc5390A24;
 
     function setUp() public {
         customBlockNumberForForking = 35717845;
@@ -401,7 +421,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.startPrank(USER_SENDER);
 
         // Tron follows the non-EVM convention: sentinel receiver + the real
-        // recipient carried in nonEVMReceiver and cross-checked against the route
+        // recipient carried in nonEVMReceiver
         bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
         bridgeData.receiver = NON_EVM_ADDRESS;
 
@@ -437,40 +457,6 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_TronReceiverMismatch() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        // Route pays USER_RECEIVER but nonEVMReceiver points at a different address
-        bytes memory tronEncodedRoute = _createEncodedRoute(
-            USER_RECEIVER,
-            bridgeData.sendingAssetId,
-            bridgeData.minAmount
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: abi.encode(address(0x9999)),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: tronEncodedRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(InvalidReceiver.selector);
         _startEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -589,166 +575,6 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_TronWithNonTransferFinalCall() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        // Route whose final call is not a transfer(address,uint256); the receiver
-        // decode must reject it instead of reading a bogus address.
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({
-            token: bridgeData.sendingAssetId,
-            amount: bridgeData.minAmount
-        });
-
-        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
-        calls[0] = EcoFacet.Call({
-            target: bridgeData.sendingAssetId,
-            callData: abi.encodeWithSelector(
-                IERC20.approve.selector,
-                USER_RECEIVER,
-                bridgeData.minAmount
-            )
-        });
-
-        EcoFacet.Route memory route = EcoFacet.Route({
-            salt: keccak256("eco.route.badselector"),
-            deadline: uint64(block.timestamp + 1 days),
-            portal: PORTAL,
-            nativeAmount: 0,
-            tokens: tokens,
-            calls: calls
-        });
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: abi.encode(USER_RECEIVER),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: abi.encode(route),
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(InvalidReceiver.selector);
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_TronWithShortFinalCallData() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        // Final call carries the transfer selector but only 36 bytes of calldata
-        // (selector + recipient word, missing the amount word); the receiver
-        // decode must reject it via the length guard before reading the address.
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({
-            token: bridgeData.sendingAssetId,
-            amount: bridgeData.minAmount
-        });
-
-        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
-        calls[0] = EcoFacet.Call({
-            target: bridgeData.sendingAssetId,
-            callData: abi.encodeWithSelector(
-                IERC20.transfer.selector,
-                USER_RECEIVER
-            )
-        });
-
-        EcoFacet.Route memory route = EcoFacet.Route({
-            salt: keccak256("eco.route.shortcalldata"),
-            deadline: uint64(block.timestamp + 1 days),
-            portal: PORTAL,
-            nativeAmount: 0,
-            tokens: tokens,
-            calls: calls
-        });
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: abi.encode(USER_RECEIVER),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: abi.encode(route),
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(InvalidReceiver.selector);
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_TronWithEmptyRouteCalls() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        // Route decodes successfully but has no calls; the receiver decode must
-        // reject it with InvalidReceiver rather than underflowing calls.length.
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({
-            token: bridgeData.sendingAssetId,
-            amount: bridgeData.minAmount
-        });
-
-        EcoFacet.Call[] memory calls = new EcoFacet.Call[](0);
-
-        EcoFacet.Route memory route = EcoFacet.Route({
-            salt: keccak256("eco.route.empty"),
-            deadline: uint64(block.timestamp + 1 days),
-            portal: PORTAL,
-            nativeAmount: 0,
-            tokens: tokens,
-            calls: calls
-        });
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: abi.encode(USER_RECEIVER),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: abi.encode(route),
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        vm.expectRevert(InvalidReceiver.selector);
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
     function testRevert_TronWithEVMReceiver() public {
         vm.startPrank(USER_SENDER);
 
@@ -811,9 +637,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
-        public
-    {
+    function testRevert_SolanaWithoutNonEVMReceiver() public {
         // Test for InvalidReceiver error when NON_EVM_ADDRESS is set but nonEVMReceiver is empty
         vm.startPrank(USER_SENDER);
 
@@ -845,47 +669,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_RouteReceiverMismatch() public {
-        // Test for InvalidReceiver error when the receiver in the route doesn't match bridgeData.receiver
-        // This triggers line 291 in EcoFacet.sol
-        vm.startPrank(USER_SENDER);
-
-        // Set up bridge data for an EVM chain
-        bridgeData.destinationChainId = 10; // Optimism
-        bridgeData.receiver = USER_RECEIVER; // Set to USER_RECEIVER
-
-        // Create a route with a DIFFERENT receiver address to trigger the mismatch
-        address wrongReceiver = address(0x9999);
-        bytes memory routeWithWrongReceiver = _createEncodedRoute(
-            wrongReceiver, // Different receiver than bridgeData.receiver
-            bridgeData.sendingAssetId,
-            bridgeData.minAmount
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: routeWithWrongReceiver, // Route has different receiver
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Expect InvalidReceiver revert from line 291
-        vm.expectRevert(InvalidReceiver.selector);
-
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_chainIdExceedsUint64Max() public {
+    function testRevert_ChainIdExceedsUint64Max() public {
         vm.startPrank(USER_SENDER);
 
         ILiFi.BridgeData memory overflowBridgeData = bridgeData;
@@ -957,122 +741,61 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidABIEncodedRoute() public {
+    function test_BridgeToHyperCoreWithDepositForRoute() public {
         vm.startPrank(USER_SENDER);
 
-        // Set up for an EVM chain
-        bridgeData.destinationChainId = 10; // Optimism
+        bridgeData.destinationChainId = HYPEREVM_CHAIN_ID;
 
-        // Create data that cannot be ABI decoded as a Route struct
-        bytes
-            memory invalidRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445";
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: bytes(""),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: invalidRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
+        // HyperCore routes end in a depositFor call, not an ERC20 transfer
+        Call[] memory calls = new Call[](2);
+        calls[0] = Call({
+            target: HYPEREVM_USDC,
+            callData: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                HYPERCORE_DEPOSITOR,
+                bridgeData.minAmount
+            )
+        });
+        calls[1] = Call({
+            target: HYPERCORE_DEPOSITOR,
+            callData: abi.encodeWithSignature(
+                "depositFor(address,uint256,uint32)",
+                USER_RECEIVER,
+                bridgeData.minAmount,
+                uint32(0)
+            )
         });
 
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Will revert during ABI decode attempt
-        vm.expectRevert();
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_RouteTooShortForABIDecode() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = 10; // Optimism
-
-        // Create data that's too short to be a valid ABI-encoded Route
-        bytes memory tooShortRoute = hex"a9059cbb"; // Only 4 bytes
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: bytes(""),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: tooShortRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Will revert during ABI decode attempt
-        vm.expectRevert();
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_TronWithInvalidRoute() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
-        bridgeData.receiver = NON_EVM_ADDRESS;
-
-        // Create data that cannot be ABI decoded as a Route struct
-        bytes
-            memory invalidTronRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"; // [pre-commit-checker: not a secret]
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: abi.encode(USER_RECEIVER),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: invalidTronRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Will revert during ABI decode attempt
-        vm.expectRevert();
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function test_ValidEVMRouteWithCorrectTransfer() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = 10; // Optimism
-
-        // Use the helper to create a properly encoded Route
-        bytes memory validRoute = _createEncodedRoute(
-            USER_RECEIVER,
-            bridgeData.sendingAssetId,
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.encodedRoute = _encodeRoute(
+            calls,
+            HYPEREVM_USDC,
             bridgeData.minAmount
         );
 
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: validRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
+        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function test_BridgeWithSignedRoutePayingOtherReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        // The route receiver is not decoded on-chain; the backend signature
+        // over the route hash is the only gate on where the route pays out.
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.encodedRoute = _createEncodedRoute(
+            address(0x9999),
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
 
         bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
 
@@ -1201,7 +924,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_EmptyNonEVMReceiver() public {
+    function testRevert_SolanaEmptyNonEVMReceiver() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1231,7 +954,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_TooLongNonEVMReceiver() public {
+    function testRevert_SolanaNonEVMReceiverTooLong() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1266,7 +989,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_RouteTooShort() public {
+    function testRevert_SolanaRouteTooShort() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1471,15 +1194,8 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         address token,
         uint256 amount
     ) internal view returns (bytes memory) {
-        // Create token array for the route
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
-
-        // Create calls array with exactly one call - the ERC20 transfer to receiver
-        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
-        calls[0] = EcoFacet.Call({
+        Call[] memory calls = new Call[](1);
+        calls[0] = Call({
             target: token,
             callData: abi.encodeWithSelector(
                 IERC20.transfer.selector,
@@ -1488,8 +1204,20 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             )
         });
 
-        // Create the Route struct
-        EcoFacet.Route memory route = EcoFacet.Route({
+        return _encodeRoute(calls, token, amount);
+    }
+
+    function _encodeRoute(
+        Call[] memory calls,
+        address token,
+        uint256 amount
+    ) internal view returns (bytes memory) {
+        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
+            1
+        );
+        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
+
+        Route memory route = Route({
             salt: keccak256("eco.route.test"),
             deadline: uint64(block.timestamp + 1 days),
             portal: PORTAL, // Portal is the contract that receives and executes the route
@@ -1498,7 +1226,6 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             calls: calls
         });
 
-        // ABI encode the route
         return abi.encode(route);
     }
 
