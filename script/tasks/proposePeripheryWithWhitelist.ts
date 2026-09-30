@@ -90,9 +90,8 @@ export const PREFLIGHT_EXIT_NOT_PAIRED = 3
 
 /**
  * Exit code for a refusal that re-running cannot change: a zero or codeless
- * address, a batch above the cap, a diamond that returns no data for a registry
- * or allowlist read. Callers must not retry it. A chain read that failed exits
- * 1 instead, since a retry can succeed.
+ * address, a batch above the cap, a codeless diamond. Callers must not retry
+ * it. A chain read that failed exits 1 instead, since a retry can succeed.
  */
 export const EXIT_REFUSED = 4
 
@@ -119,9 +118,9 @@ const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 /**
- * Whether viem found no data where a call's return value should be: the
- * contract lacks the function (a diamond without the facet), which a retry
- * cannot change. Matched by name along the cause chain, as viem wraps it.
+ * Whether viem found no data where a call's return value should be: a codeless
+ * address, a fallback that returns nothing, or a lagging node that does not yet
+ * see the code. Matched by name along the cause chain, as viem wraps it.
  */
 const returnedNoData = (error: unknown): boolean => {
   const seen = new Set<unknown>()
@@ -423,7 +422,7 @@ export interface IRegistrationPlan {
  * @returns One batch per paired registration, and the plain ones.
  * @throws {PairedRegistrationRefusal} Listing every registration that cannot be
  * proposed, when any cannot for a reason a retry would not change, including a
- * diamond that returns no data for one of the reads.
+ * codeless diamond.
  * @throws {ChainReadFailure} When only chain reads failed.
  */
 export async function planRegistrations(input: {
@@ -488,9 +487,12 @@ export async function planRegistrations(input: {
         const subject = `${registration.name} ${
           registration.address
         }: ${errorText(error)}`
-        if (returnedNoData(error))
+        if (
+          returnedNoData(error) &&
+          !(await reader.hasCode(diamond).catch(() => true))
+        )
           throw new PairedRegistrationRefusal(
-            `[${network}] the diamond ${diamond} returned no data reading the chain state of ${subject}`
+            `[${network}] the diamond ${diamond} has no code, reading the chain state of ${subject}`
           )
         throw new ChainReadFailure(
           `[${network}] could not read the chain state of ${subject}`

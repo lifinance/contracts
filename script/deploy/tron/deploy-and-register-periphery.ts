@@ -26,6 +26,7 @@ import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptH
 import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhitelist'
 import { sleep } from '../../utils/delay'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactUrls } from '../../utils/redactUrls'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -157,7 +158,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   try {
     tronConfig = getNetworkConfig(networkName as SupportedChain)
   } catch (error: any) {
-    consola.error(error.message)
+    consola.error(redactUrls(error.message))
     consola.error(
       `Please ensure "${networkName}" network is configured in config/networks.json`
     )
@@ -173,7 +174,9 @@ async function deployAndRegisterPeripheryImpl(options: {
     rpcUrl = getEnvVar(envVarName)
   } catch (error: any) {
     consola.error(
-      `Failed to get RPC URL from environment variable: ${error.message}`
+      `Failed to get RPC URL from environment variable: ${redactUrls(
+        error.message
+      )}`
     )
     consola.error(
       `Please ensure the RPC URL environment variable is set for ${networkName}`
@@ -186,7 +189,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   try {
     privateKey = getPrivateKeyForEnvironment(environment)
   } catch (error: any) {
-    consola.error(error.message)
+    consola.error(redactUrls(error.message))
     consola.error(
       `Please ensure ${
         environment === EnvironmentEnum.production
@@ -455,7 +458,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy ERC20Proxy:`, error.message)
+          consola.error(
+            ` Failed to deploy ERC20Proxy:`,
+            redactUrls(error.message)
+          )
           process.exit(1)
         }
       }
@@ -585,7 +591,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy Executor:`, error.message)
+          consola.error(
+            ` Failed to deploy Executor:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'Executor',
             address: 'FAILED',
@@ -690,7 +699,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy FeeCollector:`, error.message)
+          consola.error(
+            ` Failed to deploy FeeCollector:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'FeeCollector',
             address: 'FAILED',
@@ -797,7 +809,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy FeeForwarder:`, error.message)
+          consola.error(
+            ` Failed to deploy FeeForwarder:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'FeeForwarder',
             address: 'FAILED',
@@ -969,7 +984,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
             if (!dryRun) await sleep(8000)
           } catch (error: any) {
-            consola.error(` Failed to deploy TokenWrapper:`, error.message)
+            consola.error(
+              ` Failed to deploy TokenWrapper:`,
+              redactUrls(error.message)
+            )
             deploymentResults.push({
               contract: 'TokenWrapper',
               address: 'FAILED',
@@ -1072,7 +1090,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy OutputValidator:`, error.message)
+          consola.error(
+            ` Failed to deploy OutputValidator:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'OutputValidator',
             address: 'FAILED',
@@ -1212,7 +1233,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy ReceiverOIF:`, error.message)
+          consola.error(
+            ` Failed to deploy ReceiverOIF:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'ReceiverOIF',
             address: 'FAILED',
@@ -1353,7 +1377,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           } catch (error: any) {
             consola.error(
               ` Failed to deploy LiFiTimelockController:`,
-              error.message
+              redactUrls(error.message)
             )
             deploymentResults.push({
               contract: 'LiFiTimelockController',
@@ -1502,7 +1526,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         '\n This was a DRY RUN - no contracts were actually deployed'
       )
   } catch (error: any) {
-    consola.error('Deployment failed:', error.message)
+    consola.error('Deployment failed:', redactUrls(error.message))
     process.exit(1)
   }
 }
@@ -1591,7 +1615,7 @@ const deployCommand = defineCommand({
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
-      consola.error('Deployment failed:', errorMessage)
+      consola.error('Deployment failed:', redactUrls(errorMessage))
       process.exit(1)
     }
   },

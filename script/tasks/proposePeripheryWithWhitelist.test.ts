@@ -614,7 +614,7 @@ describe('proposePeripheryWithWhitelist.ts', () => {
     /** Code per lowercased address, over a 24-byte default. */
     code?: Record<string, Hex>
     unreadable?: boolean
-    /** Every call returns no data, as on a diamond without the facet. */
+    /** Every call returns no data, as a codeless address or a silent fallback does. */
     noGetter?: boolean
   }
   let server: Server
@@ -879,16 +879,37 @@ describe('proposePeripheryWithWhitelist.ts', () => {
   )
 
   it(
-    'refuses, exit 4 and not retried, a diamond that returns no data for the registry read',
+    'refuses, exit 4 and not retried, a codeless diamond that returns no data',
     async () => {
-      chain = { registered: {}, selectors: {}, codeless: [], noGetter: true }
+      chain = {
+        registered: {},
+        selectors: {},
+        codeless: [DIAMOND.toLowerCase()],
+        noGetter: true,
+      }
       const { rc, out, proposals } = await run([
         '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, '--preflight', ...common,
       ]) // prettier-ignore
       expect(rc).toBe(EXIT_REFUSED)
       expect(out).toContain(
-        `the diamond ${DIAMOND} returned no data reading the chain state of TokenWrapper`
+        `the diamond ${DIAMOND} has no code, reading the chain state of TokenWrapper`
       )
+      expect(proposals).toEqual([])
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'exits 1, retryable, when a diamond with code returns no data',
+    async () => {
+      // a lagging load-balanced node answers 0x for a freshly deployed diamond
+      chain = { registered: {}, selectors: {}, codeless: [], noGetter: true }
+      const { rc, out, proposals } = await run([
+        '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, '--preflight', ...common,
+      ]) // prettier-ignore
+      expect(rc).toBe(1)
+      expect(out).toContain('could not read the chain state of TokenWrapper')
+      expect(out).not.toContain('has no code')
       expect(proposals).toEqual([])
     },
     TIMEOUT_MS

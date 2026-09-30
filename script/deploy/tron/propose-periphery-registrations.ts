@@ -13,6 +13,7 @@ import {
   type IPeripheryRouteConfig,
   type IRegistration,
 } from '../../tasks/proposePeripheryWithWhitelist'
+import { redactUrls } from '../../utils/redactUrls'
 
 const REGISTRY_ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
@@ -162,8 +163,8 @@ export async function proposeTronPeripheryRegistrations(
       outcome.proposed.push(registration.name)
     } catch (error) {
       log.error(
-        `Failed to propose registration for ${registration.name}: ${errorText(
-          error
+        `Failed to propose registration for ${registration.name}: ${redactUrls(
+          errorText(error)
         )}`
       )
       outcome.failed.push(registration.name)
@@ -187,7 +188,9 @@ export async function proposeTronPeripheryRegistrations(
       outcome.proposed.push(batch.name)
     } catch (error) {
       log.error(
-        `Failed to propose registration for ${batch.name}: ${errorText(error)}`
+        `Failed to propose registration for ${batch.name}: ${redactUrls(
+          errorText(error)
+        )}`
       )
       outcome.failed.push(batch.name)
     }
