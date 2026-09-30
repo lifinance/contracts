@@ -37,7 +37,7 @@ const recordAt = (
 ): IAlertRecord => ({
   verdict,
   alertedAt: new Date(NOW.getTime() - msAgo).toISOString(),
-  reasons: '',
+  reasons: reasonsSignature(verdict, [`${verdict} reason`]),
 })
 
 describe('findingKey', () => {
@@ -53,7 +53,7 @@ describe('decideAlerts: first sight', () => {
     expect(decision.next[KEY]).toEqual({
       verdict: 'mismatch',
       alertedAt: NOW.toISOString(),
-      reasons: '',
+      reasons: 'mismatch reason',
     })
   })
 
@@ -95,6 +95,20 @@ describe('reasonsSignature', () => {
         'no endpoint would serve the next history range: HTTP 502',
       ])
     ).toBe(reasonsSignature('unverified', []))
+  })
+
+  it('keys a mismatched network on its notes, without their detail', () => {
+    const minDelay = 'getMinDelay() is 60, below the agreed 10800'
+    const owner = 'LiFiDiamond.owner() is 0xdead, not the timelock'
+    expect(reasonsSignature('mismatch', [minDelay])).toBe(
+      reasonsSignature('mismatch', [
+        'getMinDelay() is 30, below the agreed 10800',
+      ])
+    )
+    expect(reasonsSignature('mismatch', [minDelay])).not.toBe(
+      reasonsSignature('mismatch', [minDelay, owner])
+    )
+    expect(reasonsSignature('unverified', [minDelay, owner])).toBe('')
   })
 
   it('tells an operation the log scan missed apart', () => {
@@ -179,7 +193,7 @@ describe('decideAlerts: standing findings', () => {
     expect(decision.alerts).toEqual([])
     expect(decision.next[KEY]).toEqual({
       ...legacy,
-      reasons: '',
+      reasons: 'mismatch reason',
     })
   })
 

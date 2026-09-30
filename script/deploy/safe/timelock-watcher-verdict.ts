@@ -91,8 +91,11 @@ const AUTHORITY_SELECTORS = new Set<string>(
   AUTHORITY_ABI.map((item) => toFunctionSelector(item))
 )
 
+const REGISTER_PERIPHERY_ABI = parseAbi([
+  'function registerPeripheryContract(string _name, address _contractAddress)',
+])
 const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
-  'function registerPeripheryContract(string _name, address _contractAddress)'
+  REGISTER_PERIPHERY_ABI[0]
 )
 
 /**
@@ -598,6 +601,46 @@ export interface IAuthorityContext {
   /** Lowercased `<contract>:<selector>` pairs `config/whitelist.json` at main
    *  lists for the network; unset when it could not be read. */
   whitelist?: ReadonlySet<string>
+  /** Lowercased addresses a pending operation on the network registers at the
+   *  diamond and main does not name yet. */
+  pendingRegistrations?: ReadonlySet<string>
+}
+
+/**
+ * Addresses pending operations register at the diamond that main does not
+ * name yet, for {@link IAuthorityContext}.
+ *
+ * @param ops - The network's pending operations.
+ * @param diamond - The network's LiFiDiamond.
+ * @param known - Lowercased addresses main names.
+ * @returns Lowercased addresses.
+ */
+export const pendingRegistrationsOf = (
+  ops: readonly IScannedOperation[],
+  diamond: string,
+  known: ReadonlyMap<string, string>
+): Set<string> => {
+  const registered = new Set<string>()
+  for (const op of ops)
+    for (const call of op.calls) {
+      if (
+        call.target.toLowerCase() !== diamond.toLowerCase() ||
+        selectorOf(call.data) !== REGISTER_PERIPHERY_SELECTOR
+      )
+        continue
+      try {
+        const { args } = decodeFunctionData({
+          abi: REGISTER_PERIPHERY_ABI,
+          data: call.data,
+        })
+        const address = args[1].toLowerCase()
+        if (address !== ZERO_ADDRESS && !known.has(address))
+          registered.add(address)
+      } catch {
+        // An undecodable registration exempts nothing.
+      }
+    }
+  return registered
 }
 
 /**
@@ -614,8 +657,8 @@ export interface IAuthorityContext {
  * - a selector executor only to the refund wallet or a contract the operation
  *   installs; a withdrawal only to the withdraw wallet;
  * - a contract selector whitelisted only when `config/whitelist.json` at main
- *   lists it or the contract is one this operation installs; an unlisted one on
- *   an address main names is unverified, on any other address it fails;
+ *   lists it; an unlisted one on an address main names or a pending operation
+ *   registers is unverified, on any other address it fails;
  * - no timelock admin or proposer role revoked or renounced, and no canceller
  *   role taken from the Safe or the timelock.
  *
@@ -804,19 +847,18 @@ export const gradeAuthority = (
           )
           break
         }
-        // A rollout whitelists the contract it registers before main lists it;
-        // gate K judges that contract's code instead.
         const unlisted = contracts
           .map((c, i) => ({
             contract: c.toLowerCase(),
             pair: `${c.toLowerCase()}:${selectors[i]?.toLowerCase()}`,
           }))
-          .filter(
-            ({ contract, pair }) =>
-              !context.whitelist?.has(pair) && !context.installed?.has(contract)
-          )
+          .filter(({ pair }) => !context.whitelist?.has(pair))
+        // A rollout whitelists the contract a pending operation registers before
+        // main lists it, so that is unverified rather than a stranger.
         const strangers = unlisted.filter(
-          ({ contract }) => !context.known.has(contract)
+          ({ contract }) =>
+            !context.known.has(contract) &&
+            !context.pendingRegistrations?.has(contract)
         )
         if (strangers.length > 0)
           failures.push(
@@ -829,13 +871,19 @@ export const gradeAuthority = (
         if (unlisted.length > strangers.length)
           unknown.push(
             `${call.label} whitelists ${unlisted
-              .filter(({ contract }) => context.known.has(contract))
-              .map((u) => `${nameOf(u.contract)} ${u.pair}`)
+              .filter((u) => !strangers.includes(u))
+              .map(
+                (u) =>
+                  `${
+                    nameOf(u.contract) ??
+                    'a contract a pending operation registers'
+                  } ${u.pair}`
+              )
               .join(', ')}, which main's config/whitelist.json does not list`
           )
         if (unlisted.length === 0)
           granted.push(
-            `${call.label} whitelists ${contracts.length} pair(s) main's config/whitelist.json lists or this operation installs`
+            `${call.label} whitelists ${contracts.length} pair(s) main's config/whitelist.json lists`
           )
         break
       }

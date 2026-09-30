@@ -49,6 +49,7 @@ import {
   gradeTargets,
   installedAddresses,
   installsCode,
+  pendingRegistrationsOf,
   stageOf,
   type IAuthorityContext,
   type ICheckOutcome,
@@ -691,17 +692,21 @@ describe('gradeAuthority', () => {
       ).toBe('fail')
     })
 
-    it('passes a pair on a contract the operation installs, which gate K judges', () => {
+    it('leaves a pair on a contract a pending operation registers unverified, never passed', () => {
       const rollout = {
+        ...listed,
+        pendingRegistrations: new Set([STRANGER.toLowerCase()]),
+      }
+      expect(grade(DIAMOND, single(STRANGER, TRANSFER_FROM), rollout)).toBe(
+        'unknown'
+      )
+      const installedOnly = {
         ...listed,
         installed: new Set([STRANGER.toLowerCase()]),
       }
-      expect(grade(DIAMOND, single(STRANGER, TRANSFER_FROM), rollout)).toBe(
-        'pass'
-      )
-      expect(grade(DIAMOND, single(STRANGER, TRANSFER_FROM), listed)).toBe(
-        'fail'
-      )
+      expect(
+        grade(DIAMOND, single(STRANGER, TRANSFER_FROM), installedOnly)
+      ).toBe('fail')
     })
 
     it('leaves an unlisted pair on an address main names unverified', () => {
@@ -1036,5 +1041,35 @@ describe('recomputeOperationIds', () => {
       [DIAMOND, 0n, '0x12', op.predecessor, op.salt]
     )
     expect(recomputeOperationIds(op)?.single).toBe(keccak256(encoded))
+  })
+})
+
+describe('pendingRegistrationsOf', () => {
+  const NEW: Address = '0x0000000000000000000000000000000000005555'
+  const known = new Map([[DIAMOND.toLowerCase(), 'LiFiDiamond']])
+  const register = (address: Address) =>
+    encodeFunctionData({
+      abi: [
+        parseAbiItem(
+          'function registerPeripheryContract(string _name, address _contractAddress)'
+        ),
+      ],
+      args: ['Executor', address],
+    })
+
+  it('collects an address registered at the diamond that main does not name', () => {
+    const ops = [opOf([{ target: DIAMOND, data: register(NEW) }])]
+    expect(pendingRegistrationsOf(ops, DIAMOND, known)).toEqual(
+      new Set([NEW.toLowerCase()])
+    )
+  })
+
+  it('ignores a registration sent elsewhere, a known address and a removal', () => {
+    const ops = [
+      opOf([{ target: SAFE, data: register(NEW) }]),
+      opOf([{ target: DIAMOND, data: register(DIAMOND) }]),
+      opOf([{ target: DIAMOND, data: register(ZERO_ADDRESS as Address) }]),
+    ]
+    expect(pendingRegistrationsOf(ops, DIAMOND, known).size).toBe(0)
   })
 })

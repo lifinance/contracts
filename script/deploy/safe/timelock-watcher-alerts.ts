@@ -68,7 +68,8 @@ const COVERAGE_NOTE = /pending on chain but the log scan did not find it/
 
 /**
  * What a standing verdict must gain to alert again: a check that fails under
- * a mismatch, or a network note that the log scan missed an operation. An unknown check or a read error comes and goes with node health,
+ * a mismatch, a note on a mismatched network (its numbers, hex and error
+ * detail dropped), or a network note that the log scan missed an operation. An unknown check or a read error comes and goes with node health,
  * so it waits for the daily repeat instead of paging on every flip.
  *
  * @param verdict - The finding's verdict.
@@ -94,9 +95,14 @@ const signatureEntry = (
   verdict: TWatcherVerdict,
   reason: string
 ): string | undefined => {
+  if (COVERAGE_NOTE.test(reason)) return reason
   const check = CHECK_PREFIX.exec(reason)?.[1]
   if (check) return verdict === 'mismatch' ? check : undefined
-  return COVERAGE_NOTE.test(reason) ? reason : undefined
+  if (verdict !== 'mismatch') return undefined
+  return reason
+    .replace(/: .*$/s, '')
+    .replace(/0x[0-9a-fA-F]+/g, '0x…')
+    .replace(/\d+(\.\d+)?/g, '#')
 }
 
 const entriesOf = (signature: string): Set<string> =>

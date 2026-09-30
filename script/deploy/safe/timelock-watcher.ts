@@ -118,6 +118,7 @@ import {
   gradeTargets,
   installedAddresses,
   installsCode,
+  pendingRegistrationsOf,
   stageOf,
   type ICheckOutcome,
   type TCodehashResult,
@@ -851,6 +852,13 @@ export const watchNetwork = async (
     globalConfig.safeOwners.map((owner) => owner.toLowerCase())
   )
   const whitelist = await expectedWhitelist(name, deployments, ctx.readPinned)
+  const pendingRegistrations = diamond
+    ? pendingRegistrationsOf(
+        Object.values(scan.state.operations),
+        diamond,
+        knownForArguments
+      )
+    : new Set<string>()
   const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
@@ -904,6 +912,7 @@ export const watchNetwork = async (
         known: knownForArguments,
         safeOwners,
         whitelist,
+        pendingRegistrations,
         installed: installedAddresses(
           collectDiamondCutTargets(encodeOperation(op))
         ),
