@@ -27,6 +27,7 @@ import {
 import type { IGateReport } from '../codehash/verify-cut-targets'
 import { ZERO_ADDRESS } from '../shared/constants'
 
+import { runPreBroadcastGate } from './prebroadcast-gate'
 import type { IPreBroadcastGateResult } from './prebroadcast-rederive'
 import type { ICollectedDiamondCuts } from './safe-decode-utils'
 import { evaluateCancelDecision } from './timelock-cancel-decision'
@@ -50,6 +51,7 @@ import {
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
+  scheduledAtReaderFor,
   stageOf,
   type IAuthorityContext,
   type ICheckOutcome,
@@ -1071,5 +1073,52 @@ describe('pendingRegistrationsOf', () => {
       opOf([{ target: DIAMOND, data: register(ZERO_ADDRESS as Address) }]),
     ]
     expect(pendingRegistrationsOf(ops, DIAMOND, known).size).toBe(0)
+  })
+})
+
+describe('gate G on the watcher reader', () => {
+  const FACET: Address = '0x00000000000000000000000000000000000000aa'
+  const PAUSER: Address = '0x00000000000000000000000000000000000000b2'
+  const deployments = {
+    LiFiDiamond: DIAMOND.toLowerCase(),
+    OwnershipFacet: FACET,
+    LiFiTimelockController: TIMELOCK.toLowerCase(),
+  }
+  const gateG = async (readScheduledAt: () => Promise<bigint>) =>
+    gradeAuthorities(
+      await runPreBroadcastGate(
+        {
+          operationId: ZERO32,
+          targets: [DIAMOND.toLowerCase()],
+          payloads: [`0x1f931c1c${FACET.slice(2).padStart(64, '0')}`],
+        },
+        {
+          readCode: async (address: Address) =>
+            address.toLowerCase() === FACET
+              ? `0x${'22'.repeat(64)}`
+              : `0x${'11'.repeat(64)}`,
+          readAuthority: async (_: Address, getter: string) =>
+            getter === 'pauserWallet' ? PAUSER : TIMELOCK.toLowerCase(),
+          deployments,
+          pinnedDeployments: deployments,
+          globalConfig: { pauserWallet: PAUSER },
+          signTimeRecord: {},
+          readScheduledAt,
+        }
+      )
+    ).status
+
+  it('is unverified, not a mismatch, when the state check did not confirm the operation live', async () => {
+    expect(await gateG(scheduledAtReaderFor('unset', 0n))).toBe('unknown')
+    expect(await gateG(scheduledAtReaderFor(undefined, undefined))).toBe(
+      'unknown'
+    )
+    expect(await gateG(async () => 0n)).toBe('fail')
+  })
+
+  it('reads the confirmed schedule of a live operation', async () => {
+    expect(await gateG(scheduledAtReaderFor('pending', 1_800_000_000n))).toBe(
+      'pass'
+    )
   })
 })

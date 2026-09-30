@@ -233,6 +233,24 @@ export const confirmedScheduledAt = (
   stage === 'pending' || stage === 'ready' ? readyAt : undefined
 
 /**
+ * Gate G's `readScheduledAt` for the watcher: the pinned read, and only when
+ * the state check confirmed it live. Otherwise it throws, which gate G holds
+ * on, so the operation is unverified rather than a mismatch.
+ *
+ * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
+ * @param readyAt - `getTimestamp(id)`.
+ * @returns The reader.
+ */
+export const scheduledAtReaderFor =
+  (stage: TOperationStage | undefined, readyAt: bigint | undefined) =>
+  async (): Promise<bigint> => {
+    const scheduledAt = confirmedScheduledAt(stage, readyAt)
+    if (scheduledAt === undefined)
+      throw new Error('schedule state not confirmed live')
+    return scheduledAt
+  }
+
+/**
  * Grades the schedule state of an operation the caller already knows is live.
  *
  * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.

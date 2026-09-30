@@ -107,7 +107,6 @@ import {
 import {
   buildWatcherCancelInput,
   classifyOperation,
-  confirmedScheduledAt,
   gradeAuthorities,
   gradeAuthority,
   gradeCodehash,
@@ -119,6 +118,7 @@ import {
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
+  scheduledAtReaderFor,
   stageOf,
   type ICheckOutcome,
   type TCodehashResult,
@@ -946,12 +946,7 @@ export const watchNetwork = async (
             pinnedDeployments: deployments,
             globalConfig: globalConfig as unknown as Record<string, unknown>,
             signTimeRecord: signTimeRecordPresent ? {} : null,
-            readScheduledAt: async () => {
-              const scheduledAt = confirmedScheduledAt(stage, readyAt)
-              if (scheduledAt === undefined)
-                throw new Error('schedule state not confirmed live')
-              return scheduledAt
-            },
+            readScheduledAt: scheduledAtReaderFor(stage, readyAt),
           }
         )
       )
