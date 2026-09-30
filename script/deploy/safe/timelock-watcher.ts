@@ -703,7 +703,6 @@ export const watchNetwork = async (
         getLogs: async (fromBlock, toBlock) => {
           let logs: Awaited<ReturnType<typeof readTimelockLogs>> | undefined
           let lastError: unknown
-          let allBehind = true
           let furthest = -1n
           for (let k = 0; k < logReaders.length && !logs; k++) {
             const at = (preferredReader + k) % logReaders.length
@@ -730,16 +729,17 @@ export const watchNetwork = async (
               preferredReader = at
             } catch (error) {
               lastError = error
-              if (!(error instanceof LogRangeBehindError)) allBehind = false
             }
           }
-          // Behind on one endpoint and refused on another is a refusal: narrower may work.
+          // An endpoint that has reached part of the range can serve it up to its
+          // head, whatever the others did; the next range narrows from there.
           if (!logs)
-            throw !(lastError instanceof LogRangeBehindError)
-              ? lastError
-              : allBehind
-              ? new LogRangeBehindError(lastError.message, furthest)
-              : new Error(lastError.message)
+            throw furthest >= 0n
+              ? new LogRangeBehindError(
+                  `no endpoint served the range; the furthest is at block ${furthest}`,
+                  furthest
+                )
+              : lastError
           const scheduled = []
           const salts = []
           const cancels = []
@@ -1195,7 +1195,9 @@ const command = defineCommand({
 
     const now = new Date()
     const settled = new Set(
-      reports.filter((r) => r.status !== 'unreadable').map((r) => r.network)
+      reports
+        .filter((r) => r.status === 'watched' || r.status === 'uncovered')
+        .map((r) => r.network)
     )
     const decision = decideAlerts(
       state.alerts,
