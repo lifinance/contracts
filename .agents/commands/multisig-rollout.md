@@ -117,6 +117,8 @@ git diff --quiet "$(gh pr view <N> --repo lifinance/contracts --json headRefOid 
 
 The sync itself is on-chain-diff-driven, so a too-wide network list is harmless (extra networks no-op) — but keep the list tight so the run stays fast and the Slack post stays truthful.
 
+> **Warning:** the sync leaves out every `whitelistPeripheryFunctions` name whose on-chain `getPeripheryContract` differs from the address `config/whitelist.json` lists, and prints `<name>: registry points at X, config at Y — left to the paired registration batch`. That name's registration is mid-way through its paired proposal (or the deploy log is stale), and writing its pairs separately could de-whitelist the address the diamond still calls. A network whose registry cannot be read is refused, not synced. If the PR changes such a name, its pairs land through the registration batch, not this rollout.
+
 ## Phase 2 — Confirm plan, then execute
 
 Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — for a diamond-called periphery it carries the registration and its whitelist writes). Wait for explicit go-ahead before proceeding.

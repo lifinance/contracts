@@ -24,6 +24,7 @@ import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhit
 
 import {
   proposeTronPeripheryRegistrations,
+  tronHasCode,
   type ITronPeripheryRegistrationDeps,
 } from './propose-periphery-registrations'
 
@@ -217,11 +218,40 @@ describe('proposeTronPeripheryRegistrations', () => {
         ],
         h.deps
       ),
-      /nothing was proposed[\s\S]*no code/
+      /no code[\s\S]*nothing was proposed/
     )
     // FeeCollector alone would be proposed; the refusal must stop it too
     expect(h.proposals).toEqual([])
     expect(h.recorded).toEqual([])
+  })
+
+  it('refuses a 2-byte stub and a 23-byte delegation as LibAsset.isContract does', async () => {
+    const bytecode: Record<string, unknown> = {
+      [EVM[TRON.feeCollector]]: `${'60'.repeat(24)}`,
+      [EVM[TRON.newWrapper]]: '6080',
+      [EVM[TRON.newGasZip]]: `ef0100${'ab'.repeat(20)}`,
+    }
+    const hasCode = tronHasCode(async (address) => bytecode[address])
+    expect(await hasCode(EVM[TRON.feeCollector])).toBe(true)
+    for (const [name, address] of [
+      ['TokenWrapper', TRON.newWrapper],
+      ['GasZipPeriphery', TRON.newGasZip],
+    ] as const) {
+      const h = harness()
+      h.deps.hasCode = hasCode
+      await expectRejects(
+        proposeTronPeripheryRegistrations(
+          [
+            { name: 'FeeCollector', address: TRON.feeCollector },
+            { name, address },
+          ],
+          h.deps
+        ),
+        new RegExp(`${name} .* has no code`)
+      )
+      expect(h.proposals).toEqual([])
+    }
+    expect(await tronHasCode(async () => undefined)(EVM[TRON.lda])).toBe(false)
   })
 
   it('refuses before any proposal when a plain registration has no code', async () => {

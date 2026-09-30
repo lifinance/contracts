@@ -43,7 +43,10 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { proposeTronPeripheryRegistrations } from './propose-periphery-registrations.js'
+import {
+  proposeTronPeripheryRegistrations,
+  tronHasCode,
+} from './propose-periphery-registrations.js'
 import {
   assertTronDeploymentRecordable,
   getTronWallet,
@@ -1438,15 +1441,12 @@ async function deployAndRegisterPeripheryImpl(options: {
               )
               .call()
           ),
-        hasCode: async (address) => {
+        hasCode: tronHasCode(async (address) => {
           const contract = await withRateLimit(() =>
             tronWeb.trx.getContract(evmHexToTronBase58(tronWeb, address))
           )
-          return (
-            typeof contract?.bytecode === 'string' &&
-            contract.bytecode.length > 0
-          )
-        },
+          return contract?.bytecode
+        }),
         propose: async (targets, calldatas) => {
           // Registration goes through the Safe → Timelock governance flow: this
           // creates a pending proposal in MongoDB rather than sending a direct tx,

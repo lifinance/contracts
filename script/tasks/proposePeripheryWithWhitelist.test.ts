@@ -35,6 +35,7 @@ import {
   PairedRegistrationRefusal,
   buildScopedPairedBatch,
   chunkPairs,
+  isContractBytecode,
   normaliseSelector,
   peripheryRegistrationRoute,
   planRegistrations,
@@ -298,6 +299,19 @@ describe('buildScopedPairedBatch', () => {
     expect(batch.calldatas).toHaveLength(2)
   })
 
+  it('keeps the selectors a same-run name at the replaced address is configured with', () => {
+    const batch = build({
+      current: OLD_WRAPPER,
+      currentSelectors: [...wrapperSelectors, GASZIP_A],
+      currentAlsoRegisteredAs: [],
+      keptForSameRun: [WRAP_WITHDRAW],
+    })
+    expect(batch.toRemove).toEqual([
+      { contract: OLD_WRAPPER, selector: WRAP_DEPOSIT },
+    ])
+    expect(batch.replacedKept).toBeUndefined()
+  })
+
   it('refuses a codeless address', () => {
     expect(() => build({ hasCode: false })).toThrow(PairedRegistrationRefusal)
     expect(() => build({ hasCode: false })).toThrow(/has no code/)
@@ -321,7 +335,10 @@ describe('buildScopedPairedBatch', () => {
 })
 
 describe('readRegistrationState', () => {
-  const read = (chain: Parameters<typeof fixedReader>[0]) => {
+  const read = (
+    chain: Parameters<typeof fixedReader>[0],
+    sameRun: string[] = []
+  ) => {
     const { reader, reads } = fixedReader(chain)
     return {
       reads,
@@ -331,10 +348,25 @@ describe('readRegistrationState', () => {
         diamondCalledNames: Object.keys(
           routeConfig.whitelistPeripheryFunctions ?? {}
         ),
+        sameRun,
+        routeConfig,
         reader,
       }),
     }
   }
+
+  it('does not count a name this run also replaces as keeping the old address', async () => {
+    const { state: result } = read(
+      {
+        registered: { TokenWrapper: OLD_WRAPPER, GasZipPeriphery: OLD_WRAPPER },
+        selectors: { [OLD_WRAPPER]: [...wrapperSelectors, GASZIP_A, GASZIP_B] },
+      },
+      ['GasZipPeriphery']
+    )
+    const got = await result
+    expect(got.currentAlsoRegisteredAs).toEqual([])
+    expect(got.keptForSameRun).toEqual([GASZIP_A, GASZIP_B])
+  })
 
   it('finds the replaced address registered under another diamond-called name', async () => {
     const { state: result } = read({
@@ -415,6 +447,41 @@ describe('planRegistrations', () => {
     ).not.toContain('TokenWrapper')
   })
 
+  it('removes a shared old address from both names replaced in the same run', async () => {
+    const { result } = plan(
+      [
+        { name: 'TokenWrapper', address: NEW_WRAPPER },
+        { name: 'GasZipPeriphery', address: NEW_GASZIP },
+      ],
+      {
+        registered: { TokenWrapper: OLD_WRAPPER, GasZipPeriphery: OLD_WRAPPER },
+        selectors: { [OLD_WRAPPER]: [...wrapperSelectors, GASZIP_A, GASZIP_B] },
+      }
+    )
+    const [wrapper, gasZip] = (await result).paired
+    expect(wrapper?.replacedKept).toBeUndefined()
+    expect(gasZip?.replacedKept).toBeUndefined()
+    expect(wrapper?.toRemove).toEqual(
+      wrapperSelectors.map((selector) => ({ contract: OLD_WRAPPER, selector }))
+    )
+    expect(gasZip?.toRemove).toEqual(
+      [GASZIP_A, GASZIP_B].map((selector) => ({
+        contract: OLD_WRAPPER,
+        selector,
+      }))
+    )
+  })
+
+  it('still keeps a shared old address for a name this run does not replace', async () => {
+    const { result } = plan([{ name: 'TokenWrapper', address: NEW_WRAPPER }], {
+      registered: { TokenWrapper: OLD_WRAPPER, GasZipPeriphery: OLD_WRAPPER },
+      selectors: { [OLD_WRAPPER]: [...wrapperSelectors, GASZIP_A] },
+    })
+    const [wrapper] = (await result).paired
+    expect(wrapper?.toRemove).toEqual([])
+    expect(wrapper?.replacedKept).toContain('GasZipPeriphery')
+  })
+
   it('leaves a non-diamond-called registration plain and reads no allowlist for it', async () => {
     const { result, reads } = plan(
       [{ name: 'FeeCollector', address: FEE_COLLECTOR }],
@@ -452,7 +519,8 @@ describe('planRegistrations', () => {
       ).result
     )
     expect(error).toBeInstanceOf(PairedRegistrationRefusal)
-    expect(error.message).toContain('nothing was proposed')
+    expect(error.message).toContain('cannot propose')
+    expect(error.message).not.toContain('nothing was proposed')
     expect(error.message).toContain(`FeeCollector ${FEE_COLLECTOR} has no code`)
     expect(error.message).toContain(
       `could not read the chain state of GasZipPeriphery`
@@ -468,6 +536,17 @@ describe('planRegistrations', () => {
       }).result
     )
     expect(error.message).toContain('could not read the code of FeeCollector')
+  })
+})
+
+describe('isContractBytecode', () => {
+  it('draws the line where LibAsset.isContract does', () => {
+    expect(isContractBytecode(`0x${'60'.repeat(24)}`)).toBe(true)
+    expect(isContractBytecode('60'.repeat(24))).toBe(true)
+    expect(isContractBytecode(`0xef0100${'ab'.repeat(20)}`)).toBe(false)
+    expect(isContractBytecode('0x6080')).toBe(false)
+    expect(isContractBytecode('0x')).toBe(false)
+    expect(isContractBytecode(undefined)).toBe(false)
   })
 })
 
@@ -515,6 +594,8 @@ describe('proposePeripheryWithWhitelist.ts', () => {
     registered: Record<string, Address>
     selectors: Record<string, Hex[]>
     codeless: string[]
+    /** Code per lowercased address, over a 24-byte default. */
+    code?: Record<string, Hex>
     unreadable?: boolean
   }
   let server: Server
@@ -526,7 +607,8 @@ describe('proposePeripheryWithWhitelist.ts', () => {
     if (method === 'eth_chainId') return '0x7a'
     if (method === 'eth_getCode') {
       const address = String(params[0]).toLowerCase()
-      return chain.codeless.includes(address) ? '0x' : '0x6080'
+      if (chain.codeless.includes(address)) return '0x'
+      return chain.code?.[address] ?? `0x${'60'.repeat(24)}`
     }
     if (method === 'eth_call') {
       const data =
@@ -604,6 +686,7 @@ describe('proposePeripheryWithWhitelist.ts', () => {
       PATH: `${join(sandbox, 'shims')}:${process.env.PATH ?? ''}`,
       HOME: sandbox,
       ETH_NODE_URI_FUSE: rpcUrl,
+      ETH_NODE_URI_LENS: rpcUrl,
       SC_MONGODB_URI: 'blocked-in-tests://no-store',
       MONGODB_URI: 'blocked-in-tests://no-store',
       PRIVATE_KEY: 'malformed-in-tests',
@@ -677,9 +760,79 @@ describe('proposePeripheryWithWhitelist.ts', () => {
         ...common,
       ])
       expect(rc).toBe(EXIT_REFUSED)
-      expect(out).toContain('nothing was proposed')
+      expect(out).toContain('no proposal created by this call')
       // TokenWrapper alone builds (case above); the refusal has to stop it too
       expect(proposals).toEqual([])
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses a 2-byte stub and a 23-byte delegation before any proposal',
+    async () => {
+      const delegation = `0xef0100${'ab'.repeat(20)}` as Hex
+      for (const code of ['0x6080' as Hex, delegation]) {
+        chain = {
+          registered: {},
+          selectors: {},
+          codeless: [],
+          code: { [NEW_GASZIP.toLowerCase()]: code },
+        }
+        const { rc, out, proposals } = await run([
+          '--contract',
+          'TokenWrapper,GasZipPeriphery',
+          '--address',
+          `${NEW_WRAPPER},${NEW_GASZIP}`,
+          ...common,
+        ])
+        expect(rc).toBe(EXIT_REFUSED)
+        expect(out).toContain(`GasZipPeriphery ${NEW_GASZIP} has no code`)
+        expect(proposals).toEqual([])
+      }
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'removes a shared old address when --replacing names the other name moving off it',
+    async () => {
+      chain = {
+        registered: { TokenWrapper: OLD_WRAPPER, GasZipPeriphery: OLD_WRAPPER },
+        selectors: { [OLD_WRAPPER]: [...wrapperSelectors, GASZIP_A, GASZIP_B] },
+        codeless: [],
+      }
+      const kept = await run([
+        '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, ...common,
+      ]) // prettier-ignore
+      const moved = await run([
+        '--contract', 'TokenWrapper', '--address', NEW_WRAPPER,
+        '--replacing', 'TokenWrapper,GasZipPeriphery', ...common,
+      ]) // prettier-ignore
+      expect(kept.rc).toBe(0)
+      expect(moved.rc).toBe(0)
+      // register + add, versus register + remove + add
+      expect(kept.proposals[0]?.match(/--calldata/g)).toHaveLength(2)
+      expect(moved.proposals[0]?.match(/--calldata/g)).toHaveLength(3)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'says which networks were proposed when a later network is refused',
+    async () => {
+      chain = {
+        registered: {},
+        selectors: {},
+        // lens's deploy-log TokenWrapper
+        codeless: ['0x13a0486dceeb9908d09bad8136c0512d529383ac'],
+      }
+      const { rc, out, proposals } = await run([
+        '--contract', 'TokenWrapper', '--networks', 'fuse,lens',
+      ]) // prettier-ignore
+      expect(rc).toBe(EXIT_REFUSED)
+      expect(proposals).toHaveLength(1)
+      expect(out).toContain('proposed before the refusal: fuse:TokenWrapper')
+      expect(out).not.toContain('nothing was proposed')
     },
     TIMEOUT_MS
   )

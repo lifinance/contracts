@@ -444,19 +444,15 @@ function deployContractToNetworks() {
     fi
   done
   local PAIRED_NETWORKS=()
-  if [[ "$TARGET_ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND" != "true" && "$TARGET_CONTRACT" != *"Facet"* ]] &&
+  if [[ "$TARGET_ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" && "$TARGET_CONTRACT" != *"Facet"* ]] &&
     jq -e --arg N "$TARGET_CONTRACT" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null 2>&1; then
     for TARGET_NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
       [[ -n "$TARGET_NETWORK" ]] && ! isTestnetNetwork "$TARGET_NETWORK" && PAIRED_NETWORKS+=("$TARGET_NETWORK")
     done
   fi
+  local WHITELIST_REGEN_FAILED=false
   if [[ ${#PAIRED_NETWORKS[@]} -gt 0 ]]; then
-    echo ""
-    echo "[info] no separate allowlist sync for $TARGET_CONTRACT on ${PAIRED_NETWORKS[*]}: each registration proposal carries its own whitelist writes"
-    echo "[info] regenerating config/whitelist.json locally for the deploy-records PR (file write only, nothing is proposed)"
-    if ! bunx tsx script/tasks/updateWhitelistPeriphery.ts; then
-      error "could not regenerate config/whitelist.json - run bunx tsx script/tasks/updateWhitelistPeriphery.ts before opening the PR"
-    fi
+    regenerateWhitelistForPairedNetworks "for $TARGET_CONTRACT " "${PAIRED_NETWORKS[@]}" || WHITELIST_REGEN_FAILED=true
   fi
 
   echo ""
@@ -464,7 +460,7 @@ function deployContractToNetworks() {
   echo "[info] PLEASE CHECK THE LOG CAREFULLY FOR WARNINGS AND ERRORS"
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 
-  if [[ ${#FAILED_NETWORKS[@]} -gt 0 ]]; then
+  if [[ ${#FAILED_NETWORKS[@]} -gt 0 || "$WHITELIST_REGEN_FAILED" == "true" ]]; then
     exit 1
   fi
   exit 0

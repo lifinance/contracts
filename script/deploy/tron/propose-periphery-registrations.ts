@@ -9,6 +9,7 @@ import { encodeFunctionData, parseAbi } from 'viem'
 import {
   PairedRegistrationRefusal,
   describeBatch,
+  isContractBytecode,
   planRegistrations,
   type IPeripheryRouteConfig,
   type IRegistration,
@@ -61,6 +62,21 @@ const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
 /**
+ * A `hasCode` read judging Tron bytecode as LibAsset.isContract does.
+ *
+ * @param readBytecode - The `bytecode` field `trx.getContract` returns for an address.
+ * @returns The read.
+ */
+export function tronHasCode(
+  readBytecode: (address: Address) => Promise<unknown>
+): (address: Address) => Promise<boolean> {
+  return async (address) => {
+    const bytecode = await readBytecode(address)
+    return typeof bytecode === 'string' && isContractBytecode(bytecode)
+  }
+}
+
+/**
  * Proposes every candidate that is not already registered at its address: a
  * diamond-called one in its own timelock batch with its allowlist writes,
  * every other one alone.
@@ -110,18 +126,26 @@ export async function proposeTronPeripheryRegistrations(
     )
   if (!pending.length) return outcome
 
-  const plan = await planRegistrations({
-    network,
-    diamond: deps.toEvm(deps.diamond),
-    registrations: pending,
-    routeConfig: deps.routeConfig,
-    pair: deps.pairWithWhitelist,
-    reader: {
-      getPeripheryContract: deps.readRegistered,
-      getWhitelistedSelectors: deps.readWhitelistedSelectors,
-      hasCode: deps.hasCode,
-    },
-  })
+  let plan: Awaited<ReturnType<typeof planRegistrations>>
+  try {
+    plan = await planRegistrations({
+      network,
+      diamond: deps.toEvm(deps.diamond),
+      registrations: pending,
+      routeConfig: deps.routeConfig,
+      pair: deps.pairWithWhitelist,
+      reader: {
+        getPeripheryContract: deps.readRegistered,
+        getWhitelistedSelectors: deps.readWhitelistedSelectors,
+        hasCode: deps.hasCode,
+      },
+    })
+  } catch (error) {
+    if (!(error instanceof PairedRegistrationRefusal)) throw error
+    throw new PairedRegistrationRefusal(
+      `${error.message}\n[${network}] nothing was proposed`
+    )
+  }
   const base58 = new Map(pending.map((p) => [p.name, p.base58]))
 
   for (const registration of plan.plain)

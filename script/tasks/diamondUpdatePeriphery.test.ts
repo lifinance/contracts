@@ -62,8 +62,8 @@ const run = (options: {
   contracts: Record<string, string>
   /** Preflight exit code per name; 3 (not paired) when absent. */
   preflight?: Record<string, number>
-  /** Exit code of the paired proposer. */
-  proposeRc?: number
+  /** Exit code of the paired proposer, or per name. */
+  proposeRc?: number | Record<string, number>
   environment?: string
   attempts?: number
   /** Bash run after diamondUpdatePeriphery, in the same shell. */
@@ -76,6 +76,14 @@ const run = (options: {
   const preflightCases = Object.entries(options.preflight ?? {})
     .map(([name, rc]) => `*" --contract ${name} "*) return ${rc} ;;`)
     .join('\n          ')
+  const proposeCases =
+    typeof options.proposeRc === 'object'
+      ? Object.entries(options.proposeRc)
+          .map(([name, rc]) => `*" --contract ${name} "*) return ${rc} ;;`)
+          .join('\n        ')
+      : ''
+  const proposeDefault =
+    typeof options.proposeRc === 'number' ? options.proposeRc : 0
   const harness = `
     source "$TASK"
     source "$SYNC"
@@ -108,7 +116,10 @@ const run = (options: {
         return 3
       fi
       echo "PAIRED_PROPOSE $*"
-      return ${options.proposeRc ?? 0}
+      case " $* " in
+        ${proposeCases}
+      esac
+      return ${proposeDefault}
     }
     MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=${options.attempts ?? 1}
     DEBUG="true"
@@ -189,6 +200,9 @@ describe('diamondUpdatePeriphery on the Safe route', () => {
       expect(proposals[1]).toContain(
         `--contract GasZipPeriphery --networks fuse --address ${NEW_GASZIP} `
       )
+      // each call knows the other name moves too, so a shared old address is removed
+      for (const proposal of proposals)
+        expect(proposal).toContain('--replacing TokenWrapper,GasZipPeriphery')
       expect(rc).toBe(0)
     },
     TIMEOUT_MS
@@ -229,6 +243,27 @@ describe('diamondUpdatePeriphery on the Safe route', () => {
       // FeeCollector alone would have been proposed (case above)
       expect(out).not.toContain('PLAIN_PROPOSE')
       expect(out).not.toContain('PAIRED_PROPOSE')
+      expect(rc).toBe(1)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'names what was already proposed when a later paired proposal is refused',
+    () => {
+      const { out, rc } = run({
+        contracts: {
+          FeeCollector: FEE_COLLECTOR,
+          TokenWrapper: NEW_WRAPPER,
+          GasZipPeriphery: NEW_GASZIP,
+        },
+        preflight: { TokenWrapper: 0, GasZipPeriphery: 0 },
+        proposeRc: { GasZipPeriphery: 4 },
+      })
+      expect(out).toContain(
+        '[error] [fuse] proposed before the failure: FeeCollector TokenWrapper; not proposed: GasZipPeriphery'
+      )
+      expect(out).not.toContain('nothing was proposed')
       expect(rc).toBe(1)
     },
     TIMEOUT_MS
@@ -277,68 +312,157 @@ describe('diamondUpdatePeriphery off the Safe route', () => {
   )
 })
 
-describe('a whitelist sync after a paired registration in the same shell', () => {
-  // As diamondSyncWhitelist's Stage 3 leaves them: the paired name's new and
-  // replaced addresses, and an unrelated DEX pair on each side.
-  const syncStage3 = (network: string) => `
-    NEW_PAIRS=("${NEW_WRAPPER}|0xd0e30db0" "${NEW_WRAPPER}|0x3ccfd60b" "${UNRELATED_DEX}|0x12aa3caf")
-    REMOVED_PAIRS=("${OLD_WRAPPER.toLowerCase()}|0xd0e30db0" "${UNRELATED_DEX}|0x2e1a7d4d")
-    dropPairedRegistrationPairs ${network} production
-    echo "NEW=\${NEW_PAIRS[*]}"
-    echo "REMOVED=\${REMOVED_PAIRS[*]}"
-  `
-
-  it(
-    'leaves the paired name out of the sync and keeps every other pair',
-    () => {
-      const { out } = run({
-        contracts: { TokenWrapper: NEW_WRAPPER },
-        preflight: { TokenWrapper: 0 },
-        after: syncStage3('fuse'),
-      })
-      expect(out).toContain(`NEW=${UNRELATED_DEX}|0x12aa3caf\n`)
-      expect(out).toContain(`REMOVED=${UNRELATED_DEX}|0x2e1a7d4d\n`)
-      expect(out).toContain(
-        '[info] [fuse] leaving TokenWrapper out of this sync (3 pair(s))'
-      )
-    },
-    TIMEOUT_MS
-  )
-
-  it(
-    'touches nothing on another network, or when nothing was paired',
-    () => {
-      const other = run({
-        contracts: { TokenWrapper: NEW_WRAPPER },
-        preflight: { TokenWrapper: 0 },
-        after: syncStage3('gnosis'),
-      })
-      const plain = run({
-        contracts: { FeeCollector: FEE_COLLECTOR },
-        after: syncStage3('fuse'),
-      })
-      for (const { out } of [other, plain]) {
-        expect(out).toContain(
-          `NEW=${NEW_WRAPPER}|0xd0e30db0 ${NEW_WRAPPER}|0x3ccfd60b ${UNRELATED_DEX}|0x12aa3caf\n`
-        )
-        expect(out).not.toContain('out of this sync')
+describe('dropRegistryDriftPairs', () => {
+  // As diamondSyncWhitelist's Stage 3 leaves them: TokenWrapper's new and old
+  // addresses, and an unrelated DEX pair on each side.
+  const sync = (driftOutput: string, driftRc = 0) => {
+    const harness = `
+      source "$SYNC"
+      bunx() {
+        echo "DRIFT_CALL $*" >&2
+        printf '%b' "$DRIFT_OUTPUT"
+        return $DRIFT_RC
       }
-    },
-    TIMEOUT_MS
-  )
+      NEW_PAIRS=("${NEW_WRAPPER}|0xd0e30db0" "${NEW_WRAPPER}|0x3ccfd60b" "${UNRELATED_DEX}|0x12aa3caf")
+      NEW_ADDRESSES=("${NEW_WRAPPER}" "${NEW_WRAPPER}" "${UNRELATED_DEX}")
+      REMOVED_PAIRS=("${OLD_WRAPPER}|0xd0e30db0" "${OLD_WRAPPER}|0x3ccfd60b" "${UNRELATED_DEX}|0x2e1a7d4d")
+      dropRegistryDriftPairs fuse ${DIAMOND} config/whitelist.json
+      echo "rc=$?"
+      echo "NEW=\${NEW_PAIRS[*]}"
+      echo "ADDRESSES=\${NEW_ADDRESSES[*]}"
+      echo "REMOVED=\${REMOVED_PAIRS[*]}"
+    `
+    const env: Record<string, string> = {
+      PATH: process.env.PATH ?? '',
+      SYNC,
+      DRIFT_OUTPUT: driftOutput,
+      DRIFT_RC: String(driftRc),
+    }
+    const result = spawnSync('bash', ['-c', harness], {
+      cwd: sandbox,
+      encoding: 'utf8',
+      env,
+      timeout: TIMEOUT_MS,
+    })
+    return `${result.stdout}${result.stderr}`
+  }
+  const excludeWrapper = [NEW_WRAPPER, OLD_WRAPPER]
+    .flatMap((a) =>
+      ['0xd0e30db0', '0x3ccfd60b'].map((s) => `EXCLUDE ${a.toLowerCase()}|${s}`)
+    )
+    .join('\\n')
+
+  it('leaves both addresses of a drifted name out and keeps every DEX pair', () => {
+    const out = sync(
+      `[warn] [fuse] TokenWrapper: registry points at ${OLD_WRAPPER}, config at ${NEW_WRAPPER} — left to the paired registration batch\\n${excludeWrapper}\\n`
+    )
+    expect(out).toContain(
+      `DRIFT_CALL tsx script/tasks/whitelistRegistryDrift.ts --network fuse --diamond ${DIAMOND} --whitelist config/whitelist.json`
+    )
+    expect(out).toContain('rc=0')
+    expect(out).toContain(`NEW=${UNRELATED_DEX}|0x12aa3caf\n`)
+    expect(out).toContain(`ADDRESSES=${UNRELATED_DEX}\n`)
+    expect(out).toContain(`REMOVED=${UNRELATED_DEX}|0x2e1a7d4d\n`)
+    expect(out).toContain(
+      `TokenWrapper: registry points at ${OLD_WRAPPER}, config at ${NEW_WRAPPER}`
+    )
+    expect(out).toContain('left 4 pair(s) out of this sync')
+  })
+
+  it('syncs every pair when registry and config agree', () => {
+    const out = sync('')
+    expect(out).toContain('rc=0')
+    expect(out).toContain(
+      `NEW=${NEW_WRAPPER}|0xd0e30db0 ${NEW_WRAPPER}|0x3ccfd60b ${UNRELATED_DEX}|0x12aa3caf\n`
+    )
+    expect(out).toContain(
+      `REMOVED=${OLD_WRAPPER}|0xd0e30db0 ${OLD_WRAPPER}|0x3ccfd60b ${UNRELATED_DEX}|0x2e1a7d4d\n`
+    )
+    expect(out).not.toContain('out of this sync')
+  })
+
+  it('refuses the network when the registry cannot be read', () => {
+    const out = sync('[error] could not read getPeripheryContract\\n', 4)
+    expect(out).toContain('rc=1')
+    expect(out).toContain('could not read getPeripheryContract')
+  })
 })
 
 describe('diamondSyncWhitelist placement', () => {
-  it('drops the paired pairs after both pair lists exist and before anything is sent or proposed', () => {
+  it('filters after both pair lists exist, refuses the network on a failed read, and runs before anything is sent or proposed', () => {
     const source = readFileSync(SYNC, 'utf8')
     const call = source.indexOf(
-      'dropPairedRegistrationPairs "$NETWORK" "$ENVIRONMENT"'
+      'if ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then'
     )
+    const refusal = source.indexOf('return 1', call)
     const removalsComputed = source.lastIndexOf('REMOVED_PAIRS+=(')
     const firstUse = source.indexOf('COMBINED_PROPOSAL_MAX_PAIRS=300')
     expect(call).toBeGreaterThan(-1)
     expect(removalsComputed).toBeGreaterThan(-1)
     expect(call).toBeGreaterThan(removalsComputed)
+    expect(refusal).toBeGreaterThan(call)
+    expect(refusal).toBeLessThan(source.indexOf('fi', call) + 3)
     expect(firstUse).toBeGreaterThan(call)
   })
+})
+
+describe('regenerateWhitelistForPairedNetworks', () => {
+  const regenerate = (rc: number) => {
+    const harness = `
+      source "$TASK"
+      error() { echo "[error] $*"; }
+      bunx() { echo "REGEN $*"; return ${rc}; }
+      regenerateWhitelistForPairedNetworks "for TokenWrapper " fuse gnosis
+      echo "rc=$?"
+    `
+    const result = spawnSync('bash', ['-c', harness], {
+      cwd: sandbox,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '', TASK },
+      timeout: TIMEOUT_MS,
+    })
+    return `${result.stdout}${result.stderr}`
+  }
+
+  it('fails when the file cannot be regenerated, and succeeds when it can', () => {
+    const failed = regenerate(1)
+    const ok = regenerate(0)
+    expect(failed).toContain(
+      'REGEN tsx script/tasks/updateWhitelistPeriphery.ts'
+    )
+    expect(failed).toContain(
+      '[error] could not regenerate config/whitelist.json'
+    )
+    expect(failed).toContain('rc=1')
+    expect(ok).toContain(
+      'no separate allowlist sync for TokenWrapper on fuse gnosis'
+    )
+    expect(ok).toContain('rc=0')
+    expect(ok).not.toContain('[error]')
+  })
+
+  // Both wrappers exit through one final check; a failed regeneration must reach it.
+  for (const file of [
+    join(REPO_ROOT, 'script', 'deploy', 'deployContractToNetworks.sh'),
+    join(REPO_ROOT, 'script', 'tasks', 'proposeContractToNetworks.sh'),
+  ])
+    it(`makes ${file
+      .split('/')
+      .pop()} exit non-zero when regeneration fails`, () => {
+      const source = readFileSync(file, 'utf8')
+      const call = source.indexOf('regenerateWhitelistForPairedNetworks ')
+      const latch = source.indexOf('|| WHITELIST_REGEN_FAILED=true', call)
+      const exit = source.indexOf(
+        'if [[ $' +
+          '{#FAILED_NETWORKS[@]} -gt 0 || "$WHITELIST_REGEN_FAILED" == "true" ]]; then\n    exit 1',
+        latch
+      )
+      expect(call).toBeGreaterThan(-1)
+      expect(latch).toBeGreaterThan(call)
+      expect(source.slice(call, latch)).not.toContain('\n')
+      expect(exit).toBeGreaterThan(latch)
+      expect(source).not.toContain(
+        'bunx tsx script/tasks/updateWhitelistPeriphery.ts; then'
+      )
+    })
 })

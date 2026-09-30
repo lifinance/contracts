@@ -40,6 +40,9 @@ const WHITELIST_CALL_MAX_PAIRS = 150
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
+// LibAsset.isContract's threshold: 23 bytes is an EIP-7702 delegation, i.e. an EOA.
+const MIN_CONTRACT_CODE_BYTES = 24
+
 const WHITELIST_ABI = parseAbi([
   'function getWhitelistedSelectorsForContract(address) view returns (bytes4[])',
   'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
@@ -91,7 +94,7 @@ export const PREFLIGHT_EXIT_NOT_PAIRED = 3
  */
 export const EXIT_REFUSED = 4
 
-/** A deterministic refusal; nothing was proposed for the network. */
+/** A deterministic refusal, made before any batch it covers is proposed. */
 export class PairedRegistrationRefusal extends Error {
   public constructor(message: string) {
     super(message)
@@ -184,8 +187,13 @@ export interface IRegistrationChainState {
   current?: Address
   /** Every selector the diamond allowlists for `current`, normalised. */
   currentSelectors: readonly Hex[]
-  /** Other diamond-called names registered at `current`. */
+  /** Other diamond-called names registered at `current`, this run's excluded. */
   currentAlsoRegisteredAs: readonly string[]
+  /**
+   * Selectors configured for names this run also moves off `current`: until
+   * their own batch executes they are still registered there.
+   */
+  keptForSameRun?: readonly Hex[]
   /** Whether the address being registered has code. */
   hasCode: boolean
 }
@@ -208,6 +216,9 @@ export interface IPairedRegistrationReader {
  * @param input.registration - What is being registered.
  * @param input.configured - From {@link requiredSelectorsFor}.
  * @param input.diamondCalledNames - Every `whitelistPeripheryFunctions` key.
+ * @param input.sameRun - Names this run registers anew on the network; each
+ * moves off its current address in its own batch.
+ * @param input.routeConfig - `config/global.json`, for the same-run names' selectors.
  * @param input.reader - The chain reads.
  * @returns The chain state.
  * @throws Whatever a read throws.
@@ -216,9 +227,12 @@ export async function readRegistrationState(input: {
   registration: IRegistration
   configured: readonly Hex[]
   diamondCalledNames: readonly string[]
+  sameRun?: readonly string[]
+  routeConfig?: IPeripheryRouteConfig
   reader: IPairedRegistrationReader
 }): Promise<IRegistrationChainState> {
   const { registration, configured, diamondCalledNames, reader } = input
+  const sameRun = input.sameRun ?? []
   const hasCode = await reader.hasCode(registration.address)
   const current = await reader.getPeripheryContract(registration.name)
   if (!current || sameAddress(current, registration.address))
@@ -236,13 +250,27 @@ export async function readRegistrationState(input: {
     currentSelectors.includes(selector)
   )
   const currentAlsoRegisteredAs: string[] = []
+  const keptForSameRun = new Set<Hex>()
   if (touched)
     for (const other of diamondCalledNames) {
       if (other === registration.name) continue
       const at = await reader.getPeripheryContract(other)
-      if (at && sameAddress(at, current)) currentAlsoRegisteredAs.push(other)
+      if (!at || !sameAddress(at, current)) continue
+      if (!sameRun.includes(other)) currentAlsoRegisteredAs.push(other)
+      else
+        for (const selector of requiredSelectorsFor(
+          other,
+          input.routeConfig ?? {}
+        ))
+          keptForSameRun.add(selector)
     }
-  return { current, currentSelectors, currentAlsoRegisteredAs, hasCode }
+  return {
+    current,
+    currentSelectors,
+    currentAlsoRegisteredAs,
+    keptForSameRun: [...keptForSameRun],
+    hasCode,
+  }
 }
 
 /** The inner calls of one paired scheduleBatch, and the pairs they write. */
@@ -303,8 +331,9 @@ export function buildScopedPairedBatch(input: {
     )}`
   else if (replaced) {
     const held = new Set(state.currentSelectors.map(normaliseSelector))
+    const kept = new Set((state.keptForSameRun ?? []).map(normaliseSelector))
     toRemove = configured
-      .filter((selector) => held.has(selector))
+      .filter((selector) => held.has(selector) && !kept.has(selector))
       .map((selector) => ({ contract: replaced, selector }))
   }
   const toAdd = configured.map((selector) => ({ contract: address, selector }))
@@ -360,6 +389,8 @@ export interface IRegistrationPlan {
  * @param input.routeConfig - `config/global.json`.
  * @param input.pair - False where nothing is paired (staging); every
  * registration is then plain.
+ * @param input.replacing - Names other invocations of this run register anew
+ * on the network; `registrations`' own names always count.
  * @param input.reader - The chain reads.
  * @returns One batch per paired registration, and the plain ones.
  * @throws {PairedRegistrationRefusal} Listing every registration that cannot be
@@ -371,12 +402,19 @@ export async function planRegistrations(input: {
   registrations: readonly IRegistration[]
   routeConfig: IPeripheryRouteConfig
   pair: boolean
+  replacing?: readonly string[]
   reader: IPairedRegistrationReader
 }): Promise<IRegistrationPlan> {
   const { network, diamond, registrations, routeConfig, pair, reader } = input
   const diamondCalledNames = Object.keys(
     routeConfig.whitelistPeripheryFunctions ?? {}
   )
+  const sameRun = [
+    ...new Set([
+      ...registrations.map((r) => r.name),
+      ...(input.replacing ?? []),
+    ]),
+  ]
   const plan: IRegistrationPlan = { paired: [], plain: [] }
   const refusals: string[] = []
 
@@ -411,6 +449,8 @@ export async function planRegistrations(input: {
           registration,
           configured,
           diamondCalledNames,
+          sameRun,
+          routeConfig,
           reader,
         })
       } catch (error) {
@@ -435,7 +475,7 @@ export async function planRegistrations(input: {
 
   if (refusals.length)
     throw new PairedRegistrationRefusal(
-      `[${network}] nothing was proposed:\n  ${refusals.join('\n  ')}`
+      `[${network}] cannot propose:\n  ${refusals.join('\n  ')}`
     )
   return plan
 }
@@ -512,11 +552,21 @@ export function evmRegistrationReader(
         functionName: 'getWhitelistedSelectorsForContract',
         args: [contract],
       }),
-    hasCode: async (address) => {
-      const code = await client.getBytecode({ address })
-      return Boolean(code && code !== '0x')
-    },
+    hasCode: async (address) =>
+      isContractBytecode(await client.getBytecode({ address })),
   }
+}
+
+/**
+ * Whether code is a contract as LibAsset.isContract judges it: an address the
+ * diamond would treat as an EOA must not be registered.
+ *
+ * @param code - Hex bytecode, with or without `0x`; undefined for none.
+ * @returns True above 23 bytes.
+ */
+export function isContractBytecode(code: string | undefined): boolean {
+  const hex = (code ?? '').replace(/^0x/iu, '')
+  return hex.length / 2 >= MIN_CONTRACT_CODE_BYTES
 }
 
 const splitList = (value: string | undefined): string[] =>
@@ -552,6 +602,11 @@ const main = defineCommand({
       description:
         'Diamond to register on (default: LiFiDiamond from the deploy log); needs exactly one network',
     },
+    replacing: {
+      type: 'string',
+      description:
+        'Comma-separated names this run registers anew on the network in other calls; an old address they share is then de-whitelisted',
+    },
     preflight: {
       type: 'boolean',
       description: `Read config and chain, propose nothing. Exit 0 when every name is paired and its batch builds, ${PREFLIGHT_EXIT_NOT_PAIRED} when none is paired and each address has code, ${EXIT_REFUSED} when a registration must be refused. Needs exactly one network.`,
@@ -565,6 +620,7 @@ const main = defineCommand({
     const names = splitList(args.contract)
     const networks = splitList(args.networks)
     const addresses = splitList(args.address)
+    const replacing = splitList(args.replacing)
     if (!names.length) throw new Error('--contract resolved to an empty list')
     if (!networks.length)
       throw new Error('--networks resolved to an empty list')
@@ -594,6 +650,7 @@ const main = defineCommand({
 
     let failed = 0
     let refused = 0
+    const proposed: string[] = []
     for (const network of networks)
       try {
         const unpaired = names
@@ -633,6 +690,7 @@ const main = defineCommand({
           registrations,
           routeConfig,
           pair: true,
+          replacing,
           reader: evmRegistrationReader(diamond, network),
         })
 
@@ -676,6 +734,7 @@ const main = defineCommand({
             continue
           }
           consola.success(`[${network}] ${batch.name} proposed`)
+          proposed.push(`${network}:${batch.name}`)
         }
       } catch (error) {
         if (error instanceof PairedRegistrationRefusal) refused++
@@ -683,6 +742,12 @@ const main = defineCommand({
         consola.error(`[${network}] ${errorText(error)}`)
       }
 
+    if (failed || refused)
+      consola.error(
+        proposed.length
+          ? `proposed before the refusal: ${proposed.join(', ')}`
+          : 'no proposal created by this call'
+      )
     if (failed) {
       consola.error(`${failed} proposal(s) or network(s) failed`)
       process.exit(1)

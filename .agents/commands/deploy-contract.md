@@ -66,7 +66,7 @@ Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Pe
 jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null && echo "needs whitelist sync"
 ```
 
-If it matches, in production each registration proposal also de-whitelists the replaced address's `global.json.whitelistPeripheryFunctions` selectors and whitelists the new address's, so there is still one proposal per network and no separate sync; the deploy then regenerates `config/whitelist.json` locally for the PR. In staging, Phase 3b syncs the allowlist afterwards. No manual `whitelist.json` editing either way. Facets and non-diamond-called periphery skip Phase 3b.
+If it matches, in production each registration proposal also de-whitelists the replaced address's `global.json.whitelistPeripheryFunctions` selectors and whitelists the new address's, so there is still one proposal per network and no separate sync; the deploy then regenerates `config/whitelist.json` locally for the PR from every `deployments/*.json` on disk (an uncommitted edit to any of them lands in the file; a failed regeneration fails the run). In staging, Phase 3b syncs the allowlist afterwards. No manual `whitelist.json` editing either way. Facets and non-diamond-called periphery skip Phase 3b.
 
 A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
 

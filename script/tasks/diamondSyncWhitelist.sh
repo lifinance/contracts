@@ -1,66 +1,62 @@
 #!/bin/bash
 
-# isPairOfSkippedAddress PAIR ADDRESS... - whether PAIR ("address|selector")
-# belongs to one of the lowercased ADDRESSes
-function isPairOfSkippedAddress {
-  local ADDRESS_LOWER
-  ADDRESS_LOWER=$(echo "${1%%|*}" | tr '[:upper:]' '[:lower:]')
-  shift
-  local SKIP
-  for SKIP in "$@"; do
-    [[ "$SKIP" == "$ADDRESS_LOWER" ]] && return 0
-  done
-  return 1
-}
-
-# dropPairedRegistrationPairs: Removes from NEW_PAIRS and REMOVED_PAIRS every pair
-# of a contract whose registration diamondUpdatePeriphery proposed in this shell
-# together with its whitelist writes (PAIRED_PERIPHERY_REGISTRATIONS). A separate
-# sync proposal for those pairs could execute before the registration batch and
-# de-whitelist the address the diamond still has registered.
+# dropRegistryDriftPairs: Removes from NEW_PAIRS and REMOVED_PAIRS every pair of
+# a diamond-called periphery name whose on-chain registry entry differs from the
+# address the whitelist file lists. Such a name is mid-way through a paired
+# registration (or its deploy log is stale), and a standalone sync writing its
+# pairs could de-whitelist the address the diamond still calls.
 #
-# Usage: dropPairedRegistrationPairs NETWORK ENVIRONMENT
-# Returns: 0; logs the names it left out
-function dropPairedRegistrationPairs {
+# Usage: dropRegistryDriftPairs NETWORK DIAMOND WHITELIST_FILE
+# Returns: 0 once filtered; 1 when the registry could not be read, and the
+#          network must not be synced
+function dropRegistryDriftPairs {
   local NETWORK="$1"
-  local ENVIRONMENT="$2"
-  local SKIP_ADDRESSES=()
-  local SKIP_NAMES=()
-  local ENTRY E_ENVIRONMENT E_NETWORK E_NAME E_NEW E_OLD
+  local DIAMOND="$2"
+  local WHITELIST_FILE="$3"
+  local OUTPUT RC=0
 
-  for ENTRY in "${PAIRED_PERIPHERY_REGISTRATIONS[@]:-}"; do
-    [[ -z "$ENTRY" ]] && continue
-    IFS='|' read -r E_ENVIRONMENT E_NETWORK E_NAME E_NEW E_OLD <<<"$ENTRY"
-    [[ "$E_ENVIRONMENT" == "$ENVIRONMENT" && "$E_NETWORK" == "$NETWORK" ]] || continue
-    SKIP_NAMES+=("$E_NAME")
-    SKIP_ADDRESSES+=("$(echo "$E_NEW" | tr '[:upper:]' '[:lower:]')")
-    if [[ -n "$E_OLD" && "$E_OLD" != "null" && ! "$E_OLD" =~ ^0x0{40}$ ]]; then
-      SKIP_ADDRESSES+=("$(echo "$E_OLD" | tr '[:upper:]' '[:lower:]')")
+  OUTPUT=$(bunx tsx script/tasks/whitelistRegistryDrift.ts --network "$NETWORK" --diamond "$DIAMOND" --whitelist "$WHITELIST_FILE" 2>&1) || RC=$?
+  if [[ "$RC" -ne 0 ]]; then
+    printf '%s\n' "$OUTPUT"
+    return 1
+  fi
+
+  local LINE EXCLUDED=" "
+  while IFS= read -r LINE; do
+    if [[ "$LINE" == "EXCLUDE "* ]]; then
+      EXCLUDED+="${LINE#EXCLUDE } "
+    elif [[ -n "$LINE" ]]; then
+      printf '\033[0;33m%s\033[0m\n' "⚠️  $LINE"
     fi
-  done
-  [[ ${#SKIP_ADDRESSES[@]} -eq 0 ]] && return 0
+  done <<<"$OUTPUT"
+  [[ "$EXCLUDED" == " " ]] && return 0
 
-  local PAIR DROPPED=0
+  local PAIR KEY DROPPED=0
   local KEPT_NEW=()
+  local KEPT_ADDRESSES=()
   local KEPT_REMOVED=()
   for PAIR in "${NEW_PAIRS[@]}"; do
-    if isPairOfSkippedAddress "$PAIR" "${SKIP_ADDRESSES[@]}"; then
+    KEY=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+    if [[ "$EXCLUDED" == *" $KEY "* ]]; then
       DROPPED=$((DROPPED + 1))
     else
       KEPT_NEW+=("$PAIR")
+      KEPT_ADDRESSES+=("${PAIR%%|*}")
     fi
   done
   for PAIR in "${REMOVED_PAIRS[@]}"; do
-    if isPairOfSkippedAddress "$PAIR" "${SKIP_ADDRESSES[@]}"; then
+    KEY=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+    if [[ "$EXCLUDED" == *" $KEY "* ]]; then
       DROPPED=$((DROPPED + 1))
     else
       KEPT_REMOVED+=("$PAIR")
     fi
   done
   NEW_PAIRS=("${KEPT_NEW[@]}")
+  NEW_ADDRESSES=("${KEPT_ADDRESSES[@]}")
   REMOVED_PAIRS=("${KEPT_REMOVED[@]}")
 
-  echo "[info] [$NETWORK] leaving ${SKIP_NAMES[*]} out of this sync ($DROPPED pair(s)): the registration was proposed together with its whitelist writes in this run"
+  printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] left $DROPPED pair(s) out of this sync: the registry and the whitelist file disagree on the name(s) above"
   return 0
 }
 
@@ -880,7 +876,14 @@ function diamondSyncWhitelist {
       done
     fi
 
-    dropPairedRegistrationPairs "$NETWORK" "$ENVIRONMENT"
+    if ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] could not read the periphery registry - refusing to sync this network"
+      {
+        echo "[$NETWORK] Error: could not read the periphery registry"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
+      return 1
+    fi
 
     # Check for token contracts in the new addresses that will be added
     if [[ ! ${#NEW_ADDRESSES[@]} -eq 0 ]]; then
