@@ -92,6 +92,16 @@ function diamondUpdatePeriphery() {
     SHOULD_PROPOSE_TO_SAFE=true
   fi
 
+  # A registration of a diamond-called periphery contract is proposed in its own
+  # timelock batch with its whitelist writes: proposed alone, it executes into a
+  # registry entry the diamond is not allowed to call. Every route is decided,
+  # and every refusal made, before the first proposal is created.
+  local PAIRED_NAMES=()
+  local PAIRED_ADDRESSES=()
+  local PLAIN_NAMES=()
+  local PLAIN_ADDRESSES=()
+  local REFUSED=false
+
   # loop through all periphery contracts (no target state check; same as facet update flow)
   for CONTRACT in $CONTRACTS; do
     # get contract address from deploy log
@@ -131,12 +141,29 @@ function diamondUpdatePeriphery() {
       KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
 
       if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
-        # register contract
-        if register "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT" "$CONTRACT_ADDRESS" "$ENVIRONMENT"; then
-          echo "[info] contract $CONTRACT successfully registered on diamond $DIAMOND_ADDRESS"
+        if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
+          local ROUTE_RC=0 PREFLIGHT_ATTEMPT=1
+          while true; do
+            ROUTE_RC=0
+            bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --diamond "$DIAMOND_ADDRESS" --preflight || ROUTE_RC=$?
+            # exit 1 is an unreadable chain; 0, 3 and 4 are answers a retry cannot change
+            [[ "$ROUTE_RC" -ne 1 || "$PREFLIGHT_ATTEMPT" -ge "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]] && break
+            PREFLIGHT_ATTEMPT=$((PREFLIGHT_ATTEMPT + 1))
+            sleep 1
+          done
+          if [[ "$ROUTE_RC" -eq 0 ]]; then
+            PAIRED_NAMES+=("$CONTRACT")
+            PAIRED_ADDRESSES+=("$CONTRACT_ADDRESS")
+          elif [[ "$ROUTE_RC" -eq 3 ]]; then
+            PLAIN_NAMES+=("$CONTRACT")
+            PLAIN_ADDRESSES+=("$CONTRACT_ADDRESS")
+          else
+            error "[$NETWORK] $CONTRACT $CONTRACT_ADDRESS cannot be proposed (see above)"
+            REFUSED=true
+          fi
         else
-          # latch: a failure must not be reset to 0 by a later successful iteration
-          LAST_CALL=1
+          PLAIN_NAMES+=("$CONTRACT")
+          PLAIN_ADDRESSES+=("$CONTRACT_ADDRESS")
         fi
       else
         echo "[info] contract $CONTRACT is already registered on diamond $DIAMOND_ADDRESS - no action needed"
@@ -146,6 +173,46 @@ function diamondUpdatePeriphery() {
       LAST_CALL=1
     fi
   done
+
+  if [[ "$REFUSED" == "true" ]]; then
+    error "[$NETWORK] nothing was proposed: fix the contract(s) above, then re-run"
+    if [[ "$EXIT_ON_ERROR" == "true" ]]; then
+      exit 1
+    fi
+    return 1
+  fi
+
+  local I
+  local DONE=()
+  local NOT_DONE=()
+  for I in "${!PLAIN_NAMES[@]}"; do
+    if register "$NETWORK" "$DIAMOND_ADDRESS" "${PLAIN_NAMES[$I]}" "${PLAIN_ADDRESSES[$I]}" "$ENVIRONMENT"; then
+      echo "[info] contract ${PLAIN_NAMES[$I]} successfully registered on diamond $DIAMOND_ADDRESS"
+      DONE+=("${PLAIN_NAMES[$I]}")
+    else
+      # latch: a failure must not be reset to 0 by a later successful iteration
+      LAST_CALL=1
+      NOT_DONE+=("${PLAIN_NAMES[$I]}")
+    fi
+  done
+
+  local REPLACING
+  REPLACING=$(IFS=,; echo "${PAIRED_NAMES[*]:-}")
+  for I in "${!PAIRED_NAMES[@]}"; do
+    if registerWithWhitelist "$NETWORK" "$DIAMOND_ADDRESS" "${PAIRED_NAMES[$I]}" "${PAIRED_ADDRESSES[$I]}" "$REPLACING"; then
+      echo "[info] registration of ${PAIRED_NAMES[$I]} proposed together with its whitelist writes on diamond $DIAMOND_ADDRESS"
+      DONE+=("${PAIRED_NAMES[$I]}")
+    else
+      LAST_CALL=1
+      NOT_DONE+=("${PAIRED_NAMES[$I]}")
+    fi
+  done
+
+  # The chain can change between the preflights and a proposal, so a refusal
+  # here can follow proposals that already exist.
+  if [[ ${#NOT_DONE[@]} -gt 0 && ${#DONE[@]} -gt 0 ]]; then
+    error "[$NETWORK] proposed before the failure: ${DONE[*]}; not proposed: ${NOT_DONE[*]}"
+  fi
 
   # check the return code the last call
   if [ $LAST_CALL -ne 0 ]; then
@@ -173,6 +240,48 @@ function diamondUpdatePeriphery() {
 
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< diamondUpdatePeriphery completed"
   return 0
+}
+
+# registerWithWhitelist: Proposes the registration of one diamond-called
+# periphery contract and its own whitelist writes as one timelock scheduleBatch.
+#
+# Usage: registerWithWhitelist NETWORK DIAMOND NAME ADDRESS [REPLACING]
+#   NETWORK   - Network name
+#   DIAMOND   - Diamond the contract is registered on
+#   NAME      - Registry name
+#   ADDRESS   - Address to register
+#   REPLACING - Comma-separated paired names this run registers anew here
+#
+# Returns: 0 once the proposal is created, 1 when it was refused or every attempt failed
+# Example: registerWithWhitelist "fuse" "$DIAMOND_ADDRESS" "TokenWrapper" "0x254b..."
+function registerWithWhitelist() {
+  local NETWORK="$1"
+  local DIAMOND="$2"
+  local NAME="$3"
+  local ADDRESS="$4"
+  local REPLACING="${5:-$3}"
+  local ATTEMPTS=1
+  local RC
+
+  while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
+    doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
+    echo "Now proposing registerPeripheryContract for ${NAME} together with its whitelist writes in one timelock batch"
+    RC=0
+    bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$NAME" --networks "$NETWORK" --address "$ADDRESS" --diamond "$DIAMOND" --replacing "$REPLACING" || RC=$?
+    if [[ "$RC" -eq 0 ]]; then
+      return 0
+    fi
+    # exit 4 is a refusal a retry cannot change
+    if [[ "$RC" -eq 4 ]]; then
+      error "the registration of $NAME with its whitelist writes on network $NETWORK was refused (see above)"
+      return 1
+    fi
+    ATTEMPTS=$((ATTEMPTS + 1))
+    sleep 1
+  done
+
+  error "failed to propose the registration of $NAME with its whitelist writes on network $NETWORK"
+  return 1
 }
 
 register() {
@@ -308,4 +417,25 @@ register() {
     printf '\033[0;33m%s\033[0m\n' "   Run Stage 3 (Deploy diamond and update with core facets) or run the UpdatePeripheryRegistryFacet script, then retry Stage 7."
     return 1
   fi
+}
+
+# regenerateWhitelistForPairedNetworks: Rewrites config/whitelist.json for the
+# deploy-records PR after a run whose Safe proposals carried their own whitelist
+# writes. It reads every deployments/*.json on disk, so an uncommitted edit to
+# any of them lands in the file too.
+#
+# Usage: regenerateWhitelistForPairedNetworks CONTEXT NETWORK...
+#   CONTEXT - Text placed before "on", e.g. "for TokenWrapper "; may be empty
+# Returns: 1 when the file could not be regenerated
+function regenerateWhitelistForPairedNetworks() {
+  local CONTEXT="$1"
+  shift
+  echo ""
+  echo "[info] no separate allowlist sync ${CONTEXT}on $*: each registration proposal carries its own whitelist writes"
+  echo "[info] regenerating config/whitelist.json locally for the deploy-records PR (file write only, nothing is proposed)"
+  if ! bunx tsx script/tasks/updateWhitelistPeriphery.ts; then
+    error "could not regenerate config/whitelist.json - run bunx tsx script/tasks/updateWhitelistPeriphery.ts before opening the PR"
+    return 1
+  fi
+  return 0
 }

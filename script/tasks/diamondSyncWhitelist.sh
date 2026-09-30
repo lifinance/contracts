@@ -1,5 +1,65 @@
 #!/bin/bash
 
+# dropRegistryDriftPairs: Removes from NEW_PAIRS and REMOVED_PAIRS every pair of
+# a diamond-called periphery name whose on-chain registry entry differs from the
+# address the whitelist file lists. Such a name is mid-way through a paired
+# registration (or its deploy log is stale), and a standalone sync writing its
+# pairs could de-whitelist the address the diamond still calls.
+#
+# Usage: dropRegistryDriftPairs NETWORK DIAMOND WHITELIST_FILE
+# Returns: 0 once filtered; 1 when the registry could not be read, and the
+#          network must not be synced
+function dropRegistryDriftPairs {
+  local NETWORK="$1"
+  local DIAMOND="$2"
+  local WHITELIST_FILE="$3"
+  local OUTPUT RC=0
+
+  OUTPUT=$(bunx tsx script/tasks/whitelistRegistryDrift.ts --network "$NETWORK" --diamond "$DIAMOND" --whitelist "$WHITELIST_FILE" 2>&1) || RC=$?
+  if [[ "$RC" -ne 0 ]]; then
+    printf '%s\n' "$OUTPUT"
+    return 1
+  fi
+
+  local LINE EXCLUDED=" "
+  while IFS= read -r LINE; do
+    if [[ "$LINE" == "EXCLUDE "* ]]; then
+      EXCLUDED+="${LINE#EXCLUDE } "
+    elif [[ -n "$LINE" ]]; then
+      printf '\033[0;33m%s\033[0m\n' "⚠️  $LINE"
+    fi
+  done <<<"$OUTPUT"
+  [[ "$EXCLUDED" == " " ]] && return 0
+
+  local PAIR KEY DROPPED=0
+  local KEPT_NEW=()
+  local KEPT_ADDRESSES=()
+  local KEPT_REMOVED=()
+  for PAIR in "${NEW_PAIRS[@]}"; do
+    KEY=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+    if [[ "$EXCLUDED" == *" $KEY "* ]]; then
+      DROPPED=$((DROPPED + 1))
+    else
+      KEPT_NEW+=("$PAIR")
+      KEPT_ADDRESSES+=("${PAIR%%|*}")
+    fi
+  done
+  for PAIR in "${REMOVED_PAIRS[@]}"; do
+    KEY=$(echo "$PAIR" | tr '[:upper:]' '[:lower:]')
+    if [[ "$EXCLUDED" == *" $KEY "* ]]; then
+      DROPPED=$((DROPPED + 1))
+    else
+      KEPT_REMOVED+=("$PAIR")
+    fi
+  done
+  NEW_PAIRS=("${KEPT_NEW[@]}")
+  NEW_ADDRESSES=("${KEPT_ADDRESSES[@]}")
+  REMOVED_PAIRS=("${KEPT_REMOVED[@]}")
+
+  printf '\033[0;33m%s\033[0m\n' "⚠️  [$NETWORK] left $DROPPED pair(s) out of this sync: the registry and the whitelist file disagree on the name(s) above"
+  return 0
+}
+
 function diamondSyncWhitelist {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncWhitelist now...."
@@ -813,6 +873,16 @@ function diamondSyncWhitelist {
           REMOVED_PAIRS+=("$CHECKSUMMED_ADDR|$SELECTOR_PART")
         fi
       done
+    fi
+
+    if [[ ${#NEW_PAIRS[@]} -gt 0 || ${#REMOVED_PAIRS[@]} -gt 0 ]] \
+      && ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then
+      printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] could not read the periphery registry - refusing to sync this network"
+      {
+        echo "[$NETWORK] Error: could not read the periphery registry"
+        echo ""
+      } >> "$FAILED_LOG_FILE"
+      return 1
     fi
 
     # Check for token contracts in the new addresses that will be added
