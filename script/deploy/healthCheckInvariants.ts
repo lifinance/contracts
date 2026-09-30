@@ -66,6 +66,13 @@ import {
   type DiamondFacetLog,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
+import {
+  evaluatePeripheryAllowlist,
+  parsePeripheryAllowlistRequirements,
+  peripheryAllowlistRequirementOn,
+  type IPeripheryAllowlistRequirements,
+  type SelectorAllowlistRead,
+} from './shared/peripheryAllowlist'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -118,6 +125,8 @@ export interface IHealthCheckGlobalConfig {
   approvedSelectorsForRefundWallet: Array<{ selector: string; name: string }>
   safeOwners: string[]
   whitelistPeripheryFunctions: Record<string, unknown>
+  /** Contract name → networks it is allowlisted on; a contract absent from it is allowlisted everywhere. */
+  whitelistPeripheryNetworks?: Record<string, unknown>
 }
 
 /** A single registered facet with its selector list, as read from `LiFiDiamond.facets()`. */
@@ -1286,12 +1295,12 @@ function report(
 /**
  * Read one PeripheryRegistry entry through the run-wide cache on `ctx`.
  *
- * Registry state does not change during a run, but four invariants now probe overlapping name
+ * Registry state does not change during a run, but several invariants probe overlapping name
  * sets; uncached that multiplies the RPC reads per network and feeds the rate limits that degrade
  * other checks. The promise is cached before it settles so concurrent invariants share one
  * in-flight read, and a failed read is evicted so a retry reaches the RPC again.
  */
-async function readPeripheryRegistry(
+export async function readPeripheryRegistry(
   name: string,
   ctx: IHealthCheckContext
 ): Promise<string | null> {
@@ -1340,6 +1349,86 @@ async function resolvePeripheryAddress(
   }
   const logged = ctx.deployedContracts[name]
   return logged ? String(logged) : undefined
+}
+
+/**
+ * Read `isContractSelectorWhitelisted(address, selector)` from the diamond for each selector.
+ *
+ * @param ctx - the health-check context (diamond address and client)
+ * @param address - the contract address to ask about (hex on EVM, base58 on Tron)
+ * @param selectors - the selectors to ask about
+ * @returns each selector's answer or failure, plus the first thrown error so the caller can
+ *   classify it as deterministic or transient
+ */
+async function readSelectorAllowlist(
+  ctx: IHealthCheckContext,
+  address: string,
+  selectors: readonly Hex[]
+): Promise<{
+  answers: Map<Hex, SelectorAllowlistRead>
+  firstError: unknown
+}> {
+  const answers = new Map<Hex, SelectorAllowlistRead>()
+  let firstError: unknown
+  const record = (selector: Hex, error: unknown): void => {
+    firstError ??= error
+    answers.set(selector, {
+      failed: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  if (ctx.isTron) {
+    const { tronWeb } = ctx
+    if (!tronWeb) {
+      for (const selector of selectors)
+        record(selector, new Error('no Tron client configured'))
+      return { answers, firstError }
+    }
+    for (const selector of selectors)
+      try {
+        answers.set(
+          selector,
+          await callTronContractBoolean(
+            tronWeb,
+            ctx.diamondAddress,
+            'isContractSelectorWhitelisted(address,bytes4)',
+            [
+              { type: 'address', value: address },
+              { type: 'bytes4', value: selector },
+            ],
+            'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
+          )
+        )
+      } catch (error: unknown) {
+        record(selector, error)
+      }
+    return { answers, firstError }
+  }
+
+  const { publicClient } = ctx
+  if (!publicClient) {
+    for (const selector of selectors)
+      record(selector, new Error('no EVM client configured'))
+    return { answers, firstError }
+  }
+  const manager = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+    ]),
+    client: publicClient,
+  })
+  const results = await Promise.allSettled(
+    selectors.map((selector) =>
+      manager.read.isContractSelectorWhitelisted([address as Address, selector])
+    )
+  )
+  selectors.forEach((selector, index) => {
+    const result = results[index]
+    if (result?.status === 'fulfilled') answers.set(selector, result.value)
+    else record(selector, result?.reason ?? 'no result')
+  })
+  return { answers, firstError }
 }
 
 /**
@@ -2845,6 +2934,147 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           error instanceof Error ? error.stack ?? error.message : String(error)
         ctx.logError(`Whitelist configuration not available: ${errorMessage}`)
       }
+    },
+  },
+  {
+    name: 'registered-periphery-allowlisted',
+    description:
+      'The address the PeripheryRegistry resolves for each diamond-called periphery contract has its configured selectors allowlisted',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    remediation:
+      'Allowlist the registered address for the selectors in config/global.json -> whitelistPeripheryFunctions (update config/whitelist.json and sync), or re-register the previously allowlisted address.',
+    run: async (ctx) => {
+      // whitelist-integrity compares the chain to config/whitelist.json, so a registry entry
+      // re-pointed at an address that file does not list is invisible to it. This reads the
+      // address from the registry itself: the one the diamond actually calls.
+      let requirements: IPeripheryAllowlistRequirements
+      try {
+        requirements = parsePeripheryAllowlistRequirements(
+          ctx.globalConfig.whitelistPeripheryFunctions,
+          ctx.globalConfig.whitelistPeripheryNetworks
+        )
+      } catch (error: unknown) {
+        ctx.logError(
+          `config/global.json periphery allowlist config is unusable: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+        return
+      }
+
+      const required = new Map<string, readonly Hex[]>()
+      for (const name of [...requirements.selectors.keys()].sort()) {
+        const requirement = peripheryAllowlistRequirementOn(
+          requirements,
+          name,
+          ctx.networkLower
+        )
+        if (requirement.kind === 'required')
+          required.set(name, requirement.selectors)
+        else if (requirement.kind === 'out-of-scope')
+          consola.info(
+            `⏭  ${name}: not allowlisted on ${ctx.networkLower} by design (config/global.json whitelistPeripheryNetworks)`
+          )
+      }
+      const names = [...required.keys()]
+      const registered: Array<PromiseSettledResult<string | null>> = []
+      if (ctx.isTron)
+        for (const name of names)
+          registered.push(
+            await readPeripheryRegistry(name, ctx).then(
+              (value): PromiseSettledResult<string | null> => ({
+                status: 'fulfilled',
+                value,
+              }),
+              (reason: unknown): PromiseSettledResult<string | null> => ({
+                status: 'rejected',
+                reason,
+              })
+            )
+          )
+      else
+        registered.push(
+          ...(await Promise.allSettled(
+            names.map((name) => readPeripheryRegistry(name, ctx))
+          ))
+        )
+
+      const missingPairs: Array<IWhitelistPair & { name: string }> = []
+      let verified = 0
+      for (const [index, name] of names.entries()) {
+        const result = registered[index]
+        if (result?.status !== 'fulfilled') {
+          report(
+            ctx,
+            result?.reason,
+            `${name}: could not read the PeripheryRegistry, so its allowlist was not checked: ${String(
+              result?.reason ?? 'no result'
+            )}`
+          )
+          continue
+        }
+        const address = result.value
+        if (address === null) continue
+
+        const selectors = required.get(name) ?? []
+        const reads = await readSelectorAllowlist(ctx, address, selectors)
+        const verdict = evaluatePeripheryAllowlist(selectors, reads.answers)
+        if (verdict.allowlisted) {
+          verified++
+          continue
+        }
+        if (verdict.undetermined.length > 0)
+          report(
+            ctx,
+            reads.firstError,
+            `${name} (${address}): allowlist state for ${verdict.undetermined
+              .map((entry) => `${entry.selector} (${entry.reason})`)
+              .join(', ')} could not be read`
+          )
+        for (const selector of verdict.missing)
+          missingPairs.push({ name, contract: address, selector })
+      }
+
+      if (missingPairs.length > 0) {
+        const coverage = await resolvePendingRegistrations(ctx)
+        const split =
+          coverage instanceof Map
+            ? splitByPendingWhitelist(missingPairs, coverage)
+            : { pending: [], uncovered: missingPairs }
+        if (!(coverage instanceof Map))
+          ctx.logWarn(
+            `Timelock queue unreachable — expected-pending downgrade skipped, unallowlisted periphery reported as errors: ${coverage.unreachable}`
+          )
+        for (const pending of split.pending)
+          consola.info(
+            `${pending.contract} / ${pending.selector} is registered but not yet allowlisted — expected-pending: a queued timelock operation allowlists it`
+          )
+
+        const uncoveredByName = new Map<
+          string,
+          { address: string; selectors: Hex[] }
+        >()
+        for (const uncovered of split.uncovered as typeof missingPairs) {
+          const entry = uncoveredByName.get(uncovered.name) ?? {
+            address: uncovered.contract,
+            selectors: [],
+          }
+          entry.selectors.push(uncovered.selector)
+          uncoveredByName.set(uncovered.name, entry)
+        }
+        for (const [name, { address, selectors }] of uncoveredByName)
+          ctx.logError(
+            `${name} is registered at ${address} but the diamond does not allowlist ${selectors.join(
+              ', '
+            )} for it - calls routed to ${name} through the diamond revert`
+          )
+      }
+
+      if (verified > 0)
+        consola.success(
+          `${verified} registered periphery contract(s) have their selectors allowlisted`
+        )
     },
   },
   {
