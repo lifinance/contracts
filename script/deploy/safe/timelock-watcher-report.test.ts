@@ -206,6 +206,12 @@ describe('renderSlackAlert', () => {
     ).toContain('mismatch (was unverified)')
   })
 
+  it('says the reasons changed when the verdict did not', () => {
+    expect(
+      renderSlackAlert([item('changed', 'unverified', 'unverified')], undefined)
+    ).toContain('unverified (reasons changed)')
+  })
+
   it('lists mismatches first, so truncation cannot hide one', () => {
     const late = {
       ...item('new', 'mismatch'),

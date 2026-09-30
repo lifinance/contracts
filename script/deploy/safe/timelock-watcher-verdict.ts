@@ -91,10 +91,14 @@ const AUTHORITY_SELECTORS = new Set<string>(
   AUTHORITY_ABI.map((item) => toFunctionSelector(item))
 )
 
+const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
+  'function registerPeripheryContract(string _name, address _contractAddress)'
+)
+
 /**
- * Calls the repo's own flows schedule that hand nothing to anyone: taking over
- * a pending ownership, or what another check judges (`registerPeripheryContract`
- * by gate K, `updateDelay` by the delay check). Any other call is unverified.
+ * Calls that hand nothing to anyone: the steps of an ownership transfer, an
+ * `owner()` read, and what another check judges (a top-level
+ * `registerPeripheryContract` by gate K, `updateDelay` by the delay check).
  */
 const BENIGN_SELECTORS = new Set<string>(
   parseAbi([
@@ -491,6 +495,8 @@ const MAX_CALL_DEPTH = 3
 /** A call an operation makes, directly or from inside another call. */
 interface IReachedCall {
   label: string
+  /** Envelopes around the call; 0 for a call the operation makes itself. */
+  depth: number
   /** The contract whose code or storage the call acts on. */
   target: string
   data: Hex
@@ -515,8 +521,8 @@ const reachedCalls = (
 ): { calls: IReachedCall[]; tooDeep: string[] } => {
   const calls: IReachedCall[] = []
   const tooDeep: string[] = []
-  const visit = (call: IReachedCall, depth: number): void => {
-    calls.push(call)
+  const visit = (call: Omit<IReachedCall, 'depth'>, depth: number): void => {
+    calls.push({ ...call, depth })
     const selector = selectorOf(call.data)
     if (!ENVELOPE_SELECTORS.has(selector)) return
     if (depth >= MAX_CALL_DEPTH) {
@@ -616,7 +622,9 @@ export interface IAuthorityContext {
  * does not know fails, and to another known address, or through an arbitrary
  * call from the diamond, is unverified. A governing role to anyone but the Safe
  * or the timelock fails; an unknown canceller or executor grantee is unverified.
- * A call that is none of these, an envelope or a benign call is unverified.
+ * A call that is none of these and neither an envelope nor a benign call is
+ * unverified, and so is a cut or periphery registration made from inside
+ * another call.
  *
  * @param op - The operation.
  * @param context - The names that make an address an allowed recipient.
@@ -651,6 +659,18 @@ export const gradeAuthority = (
     unknown.push(`${label} nests calls deeper than this check reads`)
   for (const call of calls) {
     const selector = selectorOf(call.data)
+    // Gate K reads only the operation's own calls, so code wired in from inside
+    // another call is judged by nothing.
+    if (
+      call.depth > 0 &&
+      (selector === DIAMOND_CUT_SELECTOR ||
+        selector === REGISTER_PERIPHERY_SELECTOR)
+    ) {
+      unknown.push(
+        `${call.label} wires code in from inside another call, which gate K does not judge`
+      )
+      continue
+    }
     if (ENVELOPE_SELECTORS.has(selector) || BENIGN_SELECTORS.has(selector))
       continue
     if (!AUTHORITY_SELECTORS.has(selector)) {
@@ -916,12 +936,14 @@ export const installsCode = (collected: ICollectedDiamondCuts): boolean =>
  */
 export const gradeCodehash = (result: TCodehashResult): ICheckOutcome => {
   if (result.kind === 'not-applicable') {
-    // The authority check grades these selectors, and none of them installs code.
-    const opaque = result.collected.unopened.filter(
-      (frame) =>
-        !AUTHORITY_SELECTORS.has(selectorOf(frame as Hex)) &&
-        !BENIGN_SELECTORS.has(selectorOf(frame as Hex))
-    )
+    // Graded by the authority check or benign, and none of these installs code.
+    const opaque = result.collected.unopened.filter((frame) => {
+      const selector = selectorOf(frame as Hex)
+      return (
+        selector === REGISTER_PERIPHERY_SELECTOR ||
+        (!AUTHORITY_SELECTORS.has(selector) && !BENIGN_SELECTORS.has(selector))
+      )
+    })
     return opaque.length > 0
       ? {
           check: 'codehash',

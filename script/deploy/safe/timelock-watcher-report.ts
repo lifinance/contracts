@@ -205,7 +205,11 @@ export const renderSlackAlert = (
         a.kind === 'resolved'
           ? `now ok (was ${a.previous ?? 'unknown'})`
           : `${a.finding.verdict}${
-              a.kind === 'changed' ? ` (was ${a.previous ?? 'unknown'})` : ''
+              a.kind !== 'changed'
+                ? ''
+                : a.previous === a.finding.verdict
+                ? ' (reasons changed)'
+                : ` (was ${a.previous ?? 'unknown'})`
             }`
       const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
       return `• [${KIND_LABEL[a.kind]}] ${a.finding.key}: ${verdict}${reason}`

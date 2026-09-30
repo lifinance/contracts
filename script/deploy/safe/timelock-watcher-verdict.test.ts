@@ -598,6 +598,18 @@ describe('gradeAuthority', () => {
     expect(grade(DIAMOND, cutWith(owner(TIMELOCK)))).toBe('pass')
   })
 
+  it('leaves a cut or registration made from inside _init unverified, not judged by gate K', () => {
+    const register = call('registerPeripheryContract(string,address)', [
+      'Executor',
+      STRANGER,
+    ])
+    expect(grade(DIAMOND, register)).toBe('pass')
+    const nested = gradeAuthority(one(DIAMOND, cutWith(register)), context)
+    expect(nested.status).toBe('unknown')
+    expect(nested.detail).toContain('gate K does not judge')
+    expect(grade(DIAMOND, cutWith(cutWith('0x')))).toBe('unknown')
+  })
+
   it('reads calls a Safe execTransaction and a multiSend carry, against their own targets', () => {
     expect(grade(SAFE, exec(TIMELOCK, grant('PROPOSER_ROLE', STRANGER)))).toBe(
       'fail'

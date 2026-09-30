@@ -10,7 +10,7 @@
 #     * Per operation: op-id recompute, schedule state, delay against config/timelockController.json,
 #       targets known to main (gate E), delegatecall-shaped payloads, the addresses it hands
 #       ownership, roles or withdrawals to, selector whitelist entries against config/whitelist.json
-#       at origin/main (any other call is unverified), standing storage authorities (gate G, the
+#       at origin/main, any other call as unverified, standing storage authorities (gate G, the
 #       pre-broadcast gate) and, for an operation that installs code, deployed bytecode against
 #       a rebuild of its recorded commit (gate K). Verdict ok / mismatch / unverified, with the
 #       cancel matrix's recommendation shown for information only
@@ -22,7 +22,7 @@
 #       cursor, gate K result or alert record can hide an operation. That is repo write access,
 #       which can also disable this workflow
 #     * Slack: SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS, on a mismatch, a new unverified
-#       finding and a change of verdict or of the checks behind it; a standing mismatch repeats every 6 hours, a standing
+#       finding and a change of verdict or of the checks and notes behind it; a standing mismatch repeats every 6 hours, a standing
 #       unverified finding every 24 hours; an alerted operation that stops being pending is
 #       announced
 #     * The job fails when a network could not be read, an operation or network mismatches, or an
