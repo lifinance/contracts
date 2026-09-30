@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 import { defineCommand, runMain } from 'citty'
 
 const main = defineCommand({

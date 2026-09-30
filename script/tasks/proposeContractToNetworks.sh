@@ -5,8 +5,9 @@
 # Propose Safe registration for a contract whose address is already recorded in
 # deployments/<NETWORK>.json — no CREATE3 / bytecode deploy. Covers deferred
 # diamond cuts and recreate-after-delete. Facets use diamondUpdateFacet;
-# periphery uses diamondUpdatePeriphery; diamond-called periphery also syncs
-# the allowlist via syncWhitelistToNetworks.sh.
+# periphery uses diamondUpdatePeriphery. A diamond-called periphery proposed
+# to a Safe carries its whitelist writes in the registration batch; on a network
+# that registers directly, the allowlist is synced via syncWhitelistToNetworks.sh.
 #
 # Note: no `set -euo pipefail` on purpose — the sourced deploy framework relies
 # on `$?` checks and retry loops that strict mode would abort.
@@ -403,7 +404,7 @@ function proposeContractToNetworks() {
   echo "[info] london (${#LONDON_NETWORKS[@]}): ${LONDON_NETWORKS[*]:-none}"
   echo "[info] cancun (${#CANCUN_NETWORKS[@]}): ${CANCUN_NETWORKS[*]:-none}"
   echo "[info] zkevm  (${#ZKEVM_NETWORKS[@]}): ${ZKEVM_NETWORKS[*]:-none}"
-  [[ "$NEEDS_WHITELIST" == "true" ]] && echo "[info] diamond-called periphery — will sync allowlist on OK networks after registration"
+  [[ "$NEEDS_WHITELIST" == "true" ]] && echo "[info] diamond-called periphery — Safe proposals carry the whitelist writes; directly registered OK networks sync the allowlist after registration"
   echo "[info] up to $MAX_CONCURRENT_JOBS concurrent network(s) per EVM group; zkEVM runs sequentially"
 
   # Removed explicitly on every exit path rather than by an EXIT trap: the summary
@@ -496,13 +497,34 @@ function proposeContractToNetworks() {
     [[ -n "$TARGET_NETWORK" ]] && error "$TARGET_NETWORK: FAIL"
   done
 
-  if [[ "$NEEDS_WHITELIST" == "true" && ${#SUCCEEDED_NETWORKS[@]} -gt 0 ]]; then
+  # A Safe-proposed registration already carries its whitelist writes; a second,
+  # separate sync proposal could execute first and de-whitelist the address the
+  # diamond still has registered.
+  local WL_NETWORKS=()
+  local PAIRED_NETWORKS=()
+  if [[ "$NEEDS_WHITELIST" == "true" ]]; then
+    for TARGET_NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
+      [[ -z "$TARGET_NETWORK" ]] && continue
+      if [[ "$PRODUCTION_FLAG" == "true" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] && ! isTestnetNetwork "$TARGET_NETWORK"; then
+        PAIRED_NETWORKS+=("$TARGET_NETWORK")
+        continue
+      fi
+      WL_NETWORKS+=("$TARGET_NETWORK")
+    done
+  fi
+
+  local WHITELIST_REGEN_FAILED=false
+  if [[ ${#PAIRED_NETWORKS[@]} -gt 0 ]]; then
+    regenerateWhitelistForPairedNetworks "" "${PAIRED_NETWORKS[@]}" || WHITELIST_REGEN_FAILED=true
+  fi
+
+  if [[ ${#WL_NETWORKS[@]} -gt 0 ]]; then
     echo ""
-    echo "[info] syncing diamond-called periphery allowlist on OK networks..."
+    echo "[info] syncing diamond-called periphery allowlist on directly registered OK networks..."
     # The sync builds and simulates per network itself; a profile left over from the
     # last wave must not decide its compiler.
     unset FOUNDRY_PROFILE
-    local WL_ARGS=("${SUCCEEDED_NETWORKS[@]}")
+    local WL_ARGS=("${WL_NETWORKS[@]}")
     if [[ "$PRODUCTION_FLAG" == "true" ]]; then
       WL_ARGS+=(--production)
     fi
@@ -515,7 +537,7 @@ function proposeContractToNetworks() {
 
   rm -rf "$RESULT_DIR"
 
-  if [[ ${#FAILED_NETWORKS[@]} -gt 0 ]]; then
+  if [[ ${#FAILED_NETWORKS[@]} -gt 0 || "$WHITELIST_REGEN_FAILED" == "true" ]]; then
     exit 1
   fi
   exit 0

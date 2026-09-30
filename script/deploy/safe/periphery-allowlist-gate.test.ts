@@ -1041,7 +1041,7 @@ describe('evaluatePeripheryAllowlist — a diamondCut _init', () => {
 
 describe('gate W remedy', () => {
   it.each(['tron', 'tronshasta'])(
-    'on %s names the whitelist sync, since the paired proposer refuses Tron',
+    'on %s names the Tron paired proposer, not the EVM one or a standalone sync',
     async (network) => {
       const verdict = await evaluatePeripheryAllowlist(
         direct(register('TokenWrapper'), network),
@@ -1049,12 +1049,14 @@ describe('gate W remedy', () => {
       )
       const lines = renderPeripheryAllowlistLines(verdict).join('\n')
       expect(lines).toContain(
-        `./script/tasks/syncWhitelistToNetworks.sh ${network} --production`
+        'script/deploy/tron/deploy-and-register-periphery.ts --only <name> --registerOnly'
       )
       expect(lines).not.toContain('proposePeripheryWithWhitelist.ts')
+      expect(lines).not.toContain('syncWhitelistToNetworks.sh')
       const row = rowOf(verdict, network)
-      expect(row.detail).toContain('syncWhitelistToNetworks.sh')
+      expect(row.detail).toContain('deploy-and-register-periphery.ts')
       expect(row.detail).not.toContain('proposePeripheryWithWhitelist.ts')
+      expect(row.detail).not.toContain('syncWhitelistToNetworks.sh')
     }
   )
 
@@ -1093,9 +1095,10 @@ describe('gate W remedy', () => {
       .replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g'), '')
       .replace(/\s+/g, ' ')
     expect(rendered).toContain(
-      './script/tasks/syncWhitelistToNetworks.sh tron --production'
+      'script/deploy/tron/deploy-and-register-periphery.ts --only <name> --registerOnly'
     )
     expect(rendered).not.toContain('proposePeripheryWithWhitelist.ts')
+    expect(rendered).not.toContain('syncWhitelistToNetworks.sh')
   })
 
   it('on an EVM network names the paired proposer', async () => {

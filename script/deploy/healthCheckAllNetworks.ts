@@ -20,6 +20,7 @@ import { redactUrls } from '../utils/redactUrls'
 import { getAllActiveNetworks } from '../utils/viemScriptHelpers'
 
 import { runHealthCheckForNetwork } from './healthCheck'
+import { renderBehindMainSummary } from './healthCheckBehindMain'
 
 /** Per-network deadline. A network whose reads stall past this is recorded as failed so one
  * hung RPC cannot block the consolidated report (the dangling read is abandoned, not killed). */
@@ -37,6 +38,8 @@ export interface IHealthCheckResult {
   warnings: string[]
   /** Trimmed detail when failed/skipped (empty on pass). */
   detail: string
+  /** Report-only "behind main" line; printed, never part of the Slack digest. */
+  behindMain?: string
 }
 
 /**
@@ -324,6 +327,9 @@ async function runOneNetwork(
         status: result.status,
         warnings: result.warnings,
         detail,
+        ...(result.behindMain === undefined
+          ? {}
+          : { behindMain: result.behindMain }),
       }
     } catch (error: unknown) {
       // runHealthCheckForNetwork is designed never to throw; guard defensively so a
@@ -506,6 +512,15 @@ const main = defineCommand({
     if (warned.length > 0)
       consola.warn(
         `Networks with warnings (reduced coverage): ${warned.join(', ')}`
+      )
+
+    const behindMainLines = renderBehindMainSummary(results)
+    if (behindMainLines.length > 0)
+      consola.info(
+        [
+          'Behind main (report-only, never fails the run):',
+          ...behindMainLines,
+        ].join('\n')
       )
 
     // Publish a consolidated result for the workflow's Slack step, including the grouped

@@ -1,6 +1,6 @@
 ---
 name: deploy-contract
-description: Staging and testnet targets only — a mainnet target goes to `multisig-rollout`, including a bare "deploy <Contract> to <network>" that names no environment. Deploys a facet or periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — CREATE3 deploy, explorer verification, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the diamond allowlist sync for diamond-called periphery. This is the staging/testnet deploy path, and the deploy primitive `multisig-rollout` calls — which is why a production diamond routes there instead: `multisig-rollout` owns the Safe-proposal lifecycle that registration on mainnet requires. Tron (`tron`/`tronshasta`) goes to `deploy-contract-tron` — Foundry cannot deploy there. Requires Foundry, gh, and (production only) lifi-connect for MongoDB.
+description: Staging and testnet targets only — a mainnet target goes to `multisig-rollout`, including a bare "deploy <Contract> to <network>" that names no environment. Deploys a facet or periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — CREATE3 deploy, explorer verification, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the allowlist writes for diamond-called periphery. This is the staging/testnet deploy path, and the deploy primitive `multisig-rollout` calls — which is why a production diamond routes there instead: `multisig-rollout` owns the Safe-proposal lifecycle that registration on mainnet requires. Tron (`tron`/`tronshasta`) goes to `deploy-contract-tron` — Foundry cannot deploy there. Requires Foundry, gh, and (production only) lifi-connect for MongoDB.
 usage: /deploy-contract <ContractName> <network...> [--production]
 ---
 
@@ -10,7 +10,7 @@ Non-interactive deploy of a single contract to N networks via `script/deploy/dep
 
 - **facet** → `diamondCut` (a Safe proposal in production, direct cut in staging)
 - **periphery** → `diamondUpdatePeriphery`
-- **diamond-called periphery** → the above **plus** an allowlist sync (a second proposal in production)
+- **diamond-called periphery** → the above **plus** its allowlist writes (in production inside the registration proposal; in staging a separate sync)
 
 It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). In the standalone staging path it also lands the resulting deployment-log changes via a draft PR (Phase 4). It never drives hardware-wallet signing or posts to Slack — and in production it leaves the PR to `multisig-rollout`.
 
@@ -60,15 +60,15 @@ For periphery contracts check `.LiFiDiamond.Periphery | has($N)` instead. The gl
 
 Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new version per network (a new network shows no current version — expected). Networks already on the repo version are re-deployed only if the user asked — surface them and ask.
 
-**Diamond-called periphery is registered and allowlisted together.** A periphery contract the diamond invokes during swaps (e.g. `GasZipPeriphery`, `FeeCollector`, `LiFiDEXAggregator`) must be **both** registered in the diamond *and* added to the diamond's allowlist — registration alone (`PeripheryRegistry`) does not let the diamond call it. Detect deterministically:
+**Diamond-called periphery needs its allowlist writes.** A periphery contract the diamond invokes during swaps (e.g. `GasZipPeriphery`, `FeeCollector`, `LiFiDEXAggregator`) must be **both** registered in the diamond *and* added to the diamond's allowlist — registration alone (`PeripheryRegistry`) does not let the diamond call it. Detect deterministically:
 
 ```bash
 jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null && echo "needs whitelist sync"
 ```
 
-If it matches, Phase 3b applies the allowlist. No manual `whitelist.json` editing: it derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
+If it matches, in production each registration proposal also de-whitelists the replaced address's `global.json.whitelistPeripheryFunctions` selectors and whitelists the new address's, so there is still one proposal per network and no separate sync; the deploy then regenerates `config/whitelist.json` locally for the PR from every `deployments/*.json` on disk (an uncommitted edit to any of them lands in the file; a failed regeneration fails the run). In staging, Phase 3b syncs the allowlist afterwards. No manual `whitelist.json` editing either way. Facets and non-diamond-called periphery skip Phase 3b.
 
-In production, signing gate W refuses a registration whose selectors will not be allowlisted once the proposal runs. A registration proposed ahead of a separate allowlist sync therefore cannot be signed, and because a Safe executes nonces in order the sync behind it cannot execute either. The deploy step proposes the registration on its own, so for a diamond-called periphery that proposal is superseded by Phase 3b, unless the allowlist already holds the selectors for that exact address.
+In production, signing gate W refuses a registration whose selectors will not be allowlisted once the proposal runs, so a registration proposed without its whitelist writes cannot be signed.
 
 A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
 
@@ -90,7 +90,7 @@ Resolve this here, at target resolution, rather than relying on the existing too
 
 ## Phase 2 — Confirm plan
 
-Present: contract + version (old → new per network), the full network list, environment, and what will be created (per network: one registration; for a diamond-called periphery in production, one proposal carrying registration + allowlist, which replaces the deploy's standalone registration; in production each is a timelock-wrapped Safe proposal). Wait for explicit go-ahead — deployments cost gas and, in production, mint Safe proposals on many chains.
+Present: contract + version (old → new per network), the full network list, environment, and what will be created (per network: one registration, carrying the allowlist writes for a diamond-called periphery in production; in production each is a timelock-wrapped Safe proposal). Wait for explicit go-ahead — deployments cost gas and, in production, mint Safe proposals on many chains.
 
 ## Phase 3 — Execute
 
@@ -106,36 +106,15 @@ Run in the background (long-running; deploys retry and verify inline), monitor o
 
 Ends with a per-network summary and exits `1` if any network failed. Failures don't block survivors: continue with the succeeded networks, report the failed ones, and offer to retry them individually with the same command. In production each proposal is created already carrying one signature (`signatureCount: 1`).
 
-## Phase 3b — Whitelist a diamond-called periphery
+## Phase 3b — Whitelist a diamond-called periphery (staging)
 
-Run only when Phase 1 flagged the contract as diamond-called. Skip entirely for facets and non-diamond-called periphery.
-
-**Staging** sends directly, so order does not matter. Sync the allowlist on the same networks after the deploy registered it:
+Run only when Phase 1 flagged the contract as diamond-called, and only for staging and directly registered networks. After the deploy registered it, sync the allowlist on the same networks:
 
 ```bash
 ./script/tasks/syncWhitelistToNetworks.sh <network...>
 ```
 
-This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` (picking up the just-deployed address) and applies a `batchSetContractSelectorWhitelist` call.
-
-**Production, EVM networks:** propose registration and allowlist as one timelock `scheduleBatch` per network:
-
-```bash
-bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract <Contract> --networks <network,network,...>
-```
-
-The deploy's standalone registration proposal on those networks sits at an earlier nonce, and the Safe executes that one first: tell the user it is superseded and must be deleted before the paired proposal can execute.
-
-**Production, Tron:** `proposePeripheryWithWhitelist.ts` refuses Tron networks. Sync the allowlist first, get it signed and executed, then propose the registration; gate W clears it once the allowlist is live:
-
-```bash
-./script/tasks/syncWhitelistToNetworks.sh tron --production
-bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --only <Contract> --registerOnly
-```
-
-`proposeContractToNetworks.sh` (propose-only mode) refuses Tron, so it is not the registration path here.
-
-If the deploy already proposed the registration, it holds the earlier nonce and blocks the sync behind it, so it has to be deleted and re-proposed after the sync executes.
+This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` (picking up the just-deployed address) and applies a `batchSetContractSelectorWhitelist` cut. Skip it for production Safe networks: the registration proposal already carries the whitelist writes, and a separate sync proposal could execute first and de-whitelist the address the diamond still has registered. Skip entirely for facets and non-diamond-called periphery.
 
 ## Phase 3c — Verify deployed contracts
 
@@ -189,11 +168,11 @@ Report a per-network result table the caller (or user) can act on:
 | `contract`, `version` | Phase 1 (repo `@custom:version`) |
 | `network`, `chainId` | target list / `config/networks.json` |
 | `address` | deploy summary / `deployments/<net>.json` |
-| `registration` | `diamondCut` (facet) or `diamondUpdatePeriphery` (periphery); `+ allowlist` if Phase 3b ran |
-| `proposalCreated` | production only — one per registration (sig 1); two for diamond-called periphery |
+| `registration` | `diamondCut` (facet) or `diamondUpdatePeriphery` (periphery); `+ allowlist` for diamond-called periphery |
+| `proposalCreated` | production only — one per registration (sig 1), the allowlist writes included for diamond-called periphery |
 | `verified` | Phase 3c result |
 
-In production, note the files changed on disk (`deployments/<net>.json`, and `config/whitelist.json` / `config/whitelist.staging.json` if Phase 3b ran) so the caller commits them, and that proposals carry a single signature awaiting the signing lifecycle. When run inside `multisig-rollout`, hand this table back so it can capture proposal nonces, draft the PR, and run the signing tail.
+In production, note the files changed on disk (`deployments/<net>.json`, and `config/whitelist.json` / `config/whitelist.staging.json` for a diamond-called periphery) so the caller commits them, and that proposals carry a single signature awaiting the signing lifecycle. When run inside `multisig-rollout`, hand this table back so it can capture proposal nonces, draft the PR, and run the signing tail.
 
 ## Failure modes
 

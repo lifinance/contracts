@@ -9,7 +9,7 @@
 #
 #   1. anvil --mnemonic "$MNEMONIC" --silent &
 #   2. bash script/deploy/smokeDeploy.sh
-#   3. bun script/deploy/healthCheck.ts --network localanvil --environment staging
+#   3. bunx tsx script/deploy/healthCheck.ts --network localanvil --environment staging
 #
 # Two workarounds make deployAllContracts runnable without a human:
 #   - gum is stubbed so the start-stage prompt auto-picks "1)" and the script

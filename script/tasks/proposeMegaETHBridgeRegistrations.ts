@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Propose MegaETH bridge registration updates (batch)
  *
@@ -10,10 +8,10 @@
  * 4) Proposes the transaction to the network Safe and stores it in MongoDB
  *
  * Example:
- * bun script/tasks/proposeMegaETHBridgeRegistrations.ts --environment production
+ * bunx tsx script/tasks/proposeMegaETHBridgeRegistrations.ts --environment production
  *
  * Single network:
- * bun script/tasks/proposeMegaETHBridgeRegistrations.ts --network mainnet --environment production
+ * bunx tsx script/tasks/proposeMegaETHBridgeRegistrations.ts --network mainnet --environment production
  */
 
 import fs from 'fs'

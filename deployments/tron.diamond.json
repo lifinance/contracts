@@ -45,10 +45,6 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
       },
-      "TQC7Upeh5DNcR2eZoYXpSok57FiJXCdNpp": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
       "TBFPs7mxPN3nCrnmbjrJh6BS48VpGbu6oQ": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
@@ -64,6 +60,10 @@
       "TY2QxU6JSr7Xm1uDWoQpkN7crzjxDjuYZH": {
         "Name": "EcoFacet",
         "Version": "2.0.0"
+      },
+      "TY4s2H2Uu7KugFHsTnZj768WNze9DVNqZm": {
+        "Name": "NEARIntentsFacet",
+        "Version": "3.0.0"
       }
     },
     "Periphery": {

@@ -25,6 +25,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 import networks from '../../config/networks.json'
 import acrossV4SwapFacetArtifact from '../../out/AcrossV4SwapFacet.sol/AcrossV4SwapFacet.json'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { getEnvVar } from '../utils/utils'
 
 import {
   ADDRESS_USDC_ARB,
@@ -35,7 +36,6 @@ import {
   ensureAllowance,
   ensureBalance,
   executeTransaction,
-  getEnvVar,
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
@@ -61,15 +61,15 @@ config()
 //
 // How to run (examples):
 // - Print calldata for SpokePoolPeriphery (target 1, uses PRIVATE_KEY_BACKEND_SIGNER_STAGING by default):
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --print-calldata`
+//   `bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --print-calldata`
 // - Print calldata for SpokePool (target 0, uses PRIVATE_KEY_BACKEND_SIGNER_STAGING by default):
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePool --print-calldata`
+//   `bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode spokePool --print-calldata`
 // - (Optional override) Provide an explicit backend key:
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --backendPrivateKey 0x... --print-calldata`
+//   `bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --backendPrivateKey 0x... --print-calldata`
 // - Print calldata for Sponsored CCTP (target 3) from quote JSON + signature:
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x... --print-calldata`
+//   `bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x... --print-calldata`
 // - Print calldata for Sponsored OFT (target 2) from quote JSON + signature:
-//   `bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredOft --quoteJson ./quote.json --signatureHex 0x... --sendingAssetId 0x... --msgValueWei 0 --print-calldata`
+//   `bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredOft --quoteJson ./quote.json --signatureHex 0x... --sendingAssetId 0x... --msgValueWei 0 --print-calldata`
 //
 // Send transaction (optional, unsafe-by-default):
 // - Add `--send` to broadcast instead of only printing calldata.
@@ -395,9 +395,9 @@ Swap-and-start encoding (optional):
   swapDataJson must be an array of {callTo, approveTo, sendingAssetId, receivingAssetId, fromAmount, callData, requiresDeposit}
 
 Examples (print only):
-  bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --backendPrivateKey 0x...
-  bun run script/demoScripts/demoAcrossV4Swap.ts --mode spokePool --backendPrivateKey 0x...
-  bun run script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x...
+  bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode spokePoolPeriphery --backendPrivateKey 0x...
+  bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode spokePool --backendPrivateKey 0x...
+  bunx tsx script/demoScripts/demoAcrossV4Swap.ts --mode sponsoredCctp --quoteJson ./quote.json --signatureHex 0x...
 `)
     process.exit(0)
   }

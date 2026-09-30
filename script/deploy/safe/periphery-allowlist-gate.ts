@@ -47,15 +47,17 @@ export const PERIPHERY_ALLOWLIST_REMEDY =
 /**
  * The remedy for a refused registration on `network`.
  *
- * Tron gets the standalone sync, because the paired proposer refuses Tron
- * networks: there the allowlist has to be synced and executed first.
+ * Tron gets its own proposer, because the paired proposer refuses Tron
+ * networks. A standalone sync is no remedy on either: it leaves out a name
+ * whose registry entry and `config/whitelist.json` disagree, which is exactly
+ * the state before this registration executes.
  *
  * @param network - The network the registration is proposed on.
  * @returns The remedy sentence, naming the command to run.
  */
 export const peripheryAllowlistRemedy = (network: string): string =>
   isTronNetworkKey(network)
-    ? `sync the whitelist first — ./script/tasks/syncWhitelistToNetworks.sh ${network} --production — and propose this registration once that sync has executed`
+    ? `${PERIPHERY_ALLOWLIST_REMEDY} — bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --only <name> --registerOnly proposes both in one batch`
     : `${PERIPHERY_ALLOWLIST_REMEDY} — bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract <name> --networks ${network} proposes both in one batch`
 
 const GATE_ABI = parseAbi([

@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * One-shot backfill of the timelock execution queue at cutover.
  *

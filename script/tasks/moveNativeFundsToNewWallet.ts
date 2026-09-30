@@ -5,7 +5,7 @@
  * across all supported networks in parallel.
  *
  * USAGE:
- *   bun run script/tasks/moveNativeFundsToNewWallet.ts <newWalletAddress> [options]
+ *   bunx tsx script/tasks/moveNativeFundsToNewWallet.ts <newWalletAddress> [options]
  *
  * REQUIRED ARGUMENTS:
  *   newWalletAddress    Address of the new wallet (where funds should be sent to)
@@ -16,13 +16,13 @@
  *
  * EXAMPLES:
  *   # Basic usage - will prompt for which private key to use from .env
- *   bun run script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890
+ *   bunx tsx script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890
  *
  *   # Using a specific private key from command line
- *   bun run script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890 --private-key 0xabcdef...
+ *   bunx tsx script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890 --private-key 0xabcdef...
  *
  *   # Using a specific environment variable for private key
- *   bun run script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890 --private-key-env-key PRIVATE_KEY_OLD
+ *   bunx tsx script/tasks/moveNativeFundsToNewWallet.ts 0x1234567890123456789012345678901234567890 --private-key-env-key PRIVATE_KEY_OLD
  *
  * NOTES:
  *   - The script will automatically derive the old wallet address from the provided private key

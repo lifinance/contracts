@@ -7,6 +7,7 @@ import {
   TRON_ZERO_ADDRESS,
   TronContractDeployer,
   createTronWeb,
+  evmHexToTronBase58,
   loadForgeArtifact,
   promptEnergyRentalReminder,
   tronAddressLikeToBase58,
@@ -18,12 +19,14 @@ import {
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
-import { encodeFunctionData } from 'viem'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhitelist'
 import { sleep } from '../../utils/delay'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactUrls } from '../../utils/redactUrls'
 import {
   getEnvVar,
   getRPCEnvVarName,
@@ -41,6 +44,10 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
+import {
+  proposeTronPeripheryRegistrations,
+  tronHasCode,
+} from './propose-periphery-registrations.js'
 import {
   assertTronDeploymentRecordable,
   getTronWallet,
@@ -114,16 +121,13 @@ async function ensureExecutorAuthorizedOnErc20Proxy(
   consola.success(`Executor authorized on ERC20Proxy (tx: ${tx})`)
 }
 
-const PERIPHERY_REGISTRY_ABI = [
+const TRON_WHITELIST_READ_ABI = [
   {
-    name: 'registerPeripheryContract',
+    name: 'getWhitelistedSelectorsForContract',
     type: 'function' as const,
-    inputs: [
-      { name: '_name', type: 'string' },
-      { name: '_contractAddress', type: 'address' },
-    ],
-    outputs: [],
-    stateMutability: 'nonpayable',
+    inputs: [{ name: '_contract', type: 'address' }],
+    outputs: [{ name: 'selectors', type: 'bytes4[]' }],
+    stateMutability: 'view',
   },
 ] as const
 
@@ -154,7 +158,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   try {
     tronConfig = getNetworkConfig(networkName as SupportedChain)
   } catch (error: any) {
-    consola.error(error.message)
+    consola.error(redactUrls(error.message))
     consola.error(
       `Please ensure "${networkName}" network is configured in config/networks.json`
     )
@@ -170,7 +174,9 @@ async function deployAndRegisterPeripheryImpl(options: {
     rpcUrl = getEnvVar(envVarName)
   } catch (error: any) {
     consola.error(
-      `Failed to get RPC URL from environment variable: ${error.message}`
+      `Failed to get RPC URL from environment variable: ${redactUrls(
+        error.message
+      )}`
     )
     consola.error(
       `Please ensure the RPC URL environment variable is set for ${networkName}`
@@ -183,7 +189,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   try {
     privateKey = getPrivateKeyForEnvironment(environment)
   } catch (error: any) {
-    consola.error(error.message)
+    consola.error(redactUrls(error.message))
     consola.error(
       `Please ensure ${
         environment === EnvironmentEnum.production
@@ -452,7 +458,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy ERC20Proxy:`, error.message)
+          consola.error(
+            ` Failed to deploy ERC20Proxy:`,
+            redactUrls(error.message)
+          )
           process.exit(1)
         }
       }
@@ -582,7 +591,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy Executor:`, error.message)
+          consola.error(
+            ` Failed to deploy Executor:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'Executor',
             address: 'FAILED',
@@ -687,7 +699,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy FeeCollector:`, error.message)
+          consola.error(
+            ` Failed to deploy FeeCollector:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'FeeCollector',
             address: 'FAILED',
@@ -794,7 +809,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy FeeForwarder:`, error.message)
+          consola.error(
+            ` Failed to deploy FeeForwarder:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'FeeForwarder',
             address: 'FAILED',
@@ -966,7 +984,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
             if (!dryRun) await sleep(8000)
           } catch (error: any) {
-            consola.error(` Failed to deploy TokenWrapper:`, error.message)
+            consola.error(
+              ` Failed to deploy TokenWrapper:`,
+              redactUrls(error.message)
+            )
             deploymentResults.push({
               contract: 'TokenWrapper',
               address: 'FAILED',
@@ -1069,7 +1090,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy OutputValidator:`, error.message)
+          consola.error(
+            ` Failed to deploy OutputValidator:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'OutputValidator',
             address: 'FAILED',
@@ -1209,7 +1233,10 @@ async function deployAndRegisterPeripheryImpl(options: {
 
           if (!dryRun) await sleep(8000)
         } catch (error: any) {
-          consola.error(` Failed to deploy ReceiverOIF:`, error.message)
+          consola.error(
+            ` Failed to deploy ReceiverOIF:`,
+            redactUrls(error.message)
+          )
           deploymentResults.push({
             contract: 'ReceiverOIF',
             address: 'FAILED',
@@ -1350,7 +1377,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           } catch (error: any) {
             consola.error(
               ` Failed to deploy LiFiTimelockController:`,
-              error.message
+              redactUrls(error.message)
             )
             deploymentResults.push({
               contract: 'LiFiTimelockController',
@@ -1385,80 +1412,98 @@ async function deployAndRegisterPeripheryImpl(options: {
 
     await sleep(REGISTRATION_RPC_DELAY_MS)
 
-    for (const [name, address] of Object.entries(deployedContracts)) {
-      if (name === 'LiFiTimelockController') continue // governance contract, not registered with PeripheryRegistryFacet (same as EVM)
-      if (!address || address === 'FAILED' || address === 'SKIPPED') continue
+    const candidates = Object.entries(deployedContracts)
+      // governance contract, not registered with PeripheryRegistryFacet (same as EVM)
+      .filter(([name]) => name !== 'LiFiTimelockController')
+      .filter(
+        ([, address]) =>
+          address && address !== 'FAILED' && address !== 'SKIPPED'
+      )
+      .map(([name, address]) => ({ name, address }))
 
-      try {
-        consola.info(`\n Registering ${name}...`)
-
-        await sleep(REGISTRATION_RPC_DELAY_MS)
-        // Skip if already registered at the same address (retry on 429)
-        const registered = await retryWithRateLimit(
-          () => diamond.getPeripheryContract(name).call(),
-          3,
-          REGISTRATION_RPC_DELAY_MS,
-          (attempt, delay) =>
-            consola.warn(
-              `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
-                delay / 1000
-              }s...`
-            )
+    const toEvm = (value: string) =>
+      normalizeAddressForNetwork(
+        tvmKey,
+        tronAddressLikeToBase58(tronWeb, value)
+      )
+    const whitelistManager = tronWeb.contract(
+      TRON_WHITELIST_READ_ABI,
+      diamondAddress
+    )
+    const withRateLimit = <T>(read: () => Promise<T>) =>
+      retryWithRateLimit(read, 3, REGISTRATION_RPC_DELAY_MS, (attempt, delay) =>
+        consola.warn(
+          `Rate limit (429) or connection issue, retry ${attempt}/3 in ${
+            delay / 1000
+          }s...`
         )
+      )
 
-        if (
-          registered &&
-          typeof registered === 'string' &&
-          registered !== TRON_ZERO_ADDRESS
-        ) {
-          const registeredBase58 = tronAddressLikeToBase58(tronWeb, registered)
-          const currentBase58 = tronAddressLikeToBase58(tronWeb, address)
-
-          if (registeredBase58 === currentBase58) {
-            consola.info(`${name} already correctly registered`)
-            continue
-          }
-
-          consola.warn(`  ${name} registered with different address:`)
-          consola.warn(`   Current: ${registeredBase58}`)
-          consola.warn(`   New: ${currentBase58}`)
-        }
-
-        const addressHex = tronRegistrationAddressToEvmHex(
-          tronWeb,
-          address
-        ) as `0x${string}`
-        const calldata = encodeFunctionData({
-          abi: PERIPHERY_REGISTRY_ABI,
-          functionName: 'registerPeripheryContract',
-          args: [name, addressHex],
-        })
-
-        // Registration goes through the Safe → Timelock governance flow: this
-        // creates a pending proposal in MongoDB rather than sending a direct tx,
-        // so other Safe owners can co-sign before it executes on-chain.
-        const { runPropose } = await import('./propose-to-safe-tron.js')
-        await runPropose({
-          network: tvmKey,
-          to: diamondAddress,
-          calldata,
-          timelock: true,
-          dryRun,
-        })
-
-        // Record the pending registration in tron.diamond.json
-        await updateDiamondJsonPeriphery(
-          tronAddressLikeToBase58(tronWeb, address),
-          name,
-          network
-        )
-      } catch (err: unknown) {
-        consola.error(
-          ` Failed to propose registration for ${name}:`,
-          err instanceof Error ? err.message : err
-        )
+    const registrationOutcome = await proposeTronPeripheryRegistrations(
+      candidates,
+      {
+        network: tvmKey,
+        diamond: diamondAddress,
+        pairWithWhitelist: environment === EnvironmentEnum.production,
+        dryRun,
+        routeConfig: globalConfigRecord as IPeripheryRouteConfig,
+        toEvm,
+        readRegistered: async (name) => {
+          await sleep(REGISTRATION_RPC_DELAY_MS)
+          const registered = await withRateLimit(() =>
+            diamond.getPeripheryContract(name).call()
+          )
+          return typeof registered === 'string' &&
+            registered !== TRON_ZERO_ADDRESS
+            ? toEvm(registered)
+            : undefined
+        },
+        readWhitelistedSelectors: (contract) =>
+          withRateLimit(() =>
+            whitelistManager
+              .getWhitelistedSelectorsForContract(
+                evmHexToTronBase58(tronWeb, contract)
+              )
+              .call()
+          ),
+        hasCode: tronHasCode(async (address) => {
+          const contract = await withRateLimit(() =>
+            tronWeb.trx.getContract(evmHexToTronBase58(tronWeb, address))
+          )
+          return contract?.bytecode
+        }),
+        propose: async (targets, calldatas) => {
+          // Registration goes through the Safe → Timelock governance flow: this
+          // creates a pending proposal in MongoDB rather than sending a direct tx,
+          // so other Safe owners can co-sign before it executes on-chain.
+          const { runPropose } = await import('./propose-to-safe-tron.js')
+          await runPropose({
+            network: tvmKey,
+            to: targets,
+            calldata: calldatas,
+            timelock: true,
+            dryRun,
+          })
+        },
+        recordPending: (name, address) =>
+          updateDiamondJsonPeriphery(
+            tronAddressLikeToBase58(tronWeb, address),
+            name,
+            network
+          ),
+        log: {
+          info: (message) => consola.info(message),
+          warn: (message) => consola.warn(message),
+          error: (message) => consola.error(message),
+        },
       }
-    }
+    )
+    if (registrationOutcome.failed.length)
+      consola.error(
+        `Registration not proposed for: ${registrationOutcome.failed.join(
+          ', '
+        )}`
+      )
 
     // Print summary
     consola.success('\n Deployment Complete!')
@@ -1481,7 +1526,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         '\n This was a DRY RUN - no contracts were actually deployed'
       )
   } catch (error: any) {
-    consola.error('Deployment failed:', error.message)
+    consola.error('Deployment failed:', redactUrls(error.message))
     process.exit(1)
   }
 }
@@ -1570,7 +1615,7 @@ const deployCommand = defineCommand({
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
-      consola.error('Deployment failed:', errorMessage)
+      consola.error('Deployment failed:', redactUrls(errorMessage))
       process.exit(1)
     }
   },

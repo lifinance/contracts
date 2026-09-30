@@ -86,6 +86,8 @@ describe('diamondUpdatePeriphery', () => {
     isTestnetNetwork() { return 1; }
     getPeripheryAddressFromDiamond() { echo "0x0000000000000000000000000000000000000000"; }
     saveDiamondPeriphery() { return 0; }
+    # route every name to register(): these cases pin its exit-code propagation
+    bunx() { return 3; }
     register() { return ${registerRc}; }
     diamondUpdatePeriphery testnet production LiFiDiamond false false OutputValidator >/dev/null
     echo "rc=$?"
@@ -108,6 +110,7 @@ describe('diamondUpdatePeriphery', () => {
     getIncludedPeripheryContractsArray() { echo "OutputValidator TokenWrapper"; }
     getPeripheryAddressFromDiamond() { echo "0x0000000000000000000000000000000000000000"; }
     saveDiamondPeriphery() { return 0; }
+    bunx() { return 3; }
     register() { [ "$3" != "OutputValidator" ]; }
     diamondUpdatePeriphery testnet production LiFiDiamond true false "" >/dev/null
     echo "rc=$?"
@@ -234,5 +237,60 @@ describe('deploySingleContract missing deploy script', () => {
 
   it('still exits when EXIT_ON_ERROR is "true"', () => {
     expect(runHarness(harness('true'))).toBe('exited-instead-of-returning')
+  })
+})
+
+describe('isPairedPeripheryRun', () => {
+  const harness = `
+    source <(sed -n '/^function isPairedPeripheryRun()/,/^}/p' "$REPO_ROOT/script/deploy/deployContractToNetworks.sh")
+    if isPairedPeripheryRun "$ENVIRONMENT" "$CONTRACT"; then echo paired; else echo direct; fi
+  `
+  // The function reads config/global.json relative to cwd; a fixture makes both
+  // membership outcomes deterministic and independent of the repo's real config.
+  let fixtureDir: string
+  beforeAll(() => {
+    fixtureDir = mkdtempSync(join(tmpdir(), 'paired-periphery-'))
+    mkdirSync(join(fixtureDir, 'config'))
+    writeFileSync(
+      join(fixtureDir, 'config', 'global.json'),
+      JSON.stringify({
+        whitelistPeripheryFunctions: { TokenWrapper: [], GasZipFacet: [] },
+      })
+    )
+  })
+  afterAll(() => {
+    rmSync(fixtureDir, { recursive: true, force: true })
+  })
+
+  const run = (env: Record<string, string>) =>
+    runHarness(
+      harness,
+      {
+        ENVIRONMENT: 'production',
+        CONTRACT: 'TokenWrapper',
+        SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: '',
+        ...env,
+      },
+      fixtureDir
+    )
+
+  it('pairs the allowlist with the registration when the var is unset', () => {
+    expect(run({})).toBe('paired')
+  })
+
+  it('does not pair when proposals go directly to the diamond', () => {
+    expect(run({ SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: 'true' })).toBe('direct')
+  })
+
+  it('does not pair outside production', () => {
+    expect(run({ ENVIRONMENT: 'staging' })).toBe('direct')
+  })
+
+  it('does not pair a facet even when the allowlist lists it', () => {
+    expect(run({ CONTRACT: 'GasZipFacet' })).toBe('direct')
+  })
+
+  it('does not pair a contract absent from whitelistPeripheryFunctions', () => {
+    expect(run({ CONTRACT: 'UnlistedPeriphery' })).toBe('direct')
   })
 })
