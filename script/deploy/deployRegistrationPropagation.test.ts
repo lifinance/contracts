@@ -239,3 +239,29 @@ describe('deploySingleContract missing deploy script', () => {
     expect(runHarness(harness('true'))).toBe('exited-instead-of-returning')
   })
 })
+
+describe('isPairedPeripheryRun', () => {
+  const harness = `
+    source <(sed -n '/^function isPairedPeripheryRun()/,/^}/p' "$REPO_ROOT/script/deploy/deployContractToNetworks.sh")
+    if isPairedPeripheryRun "$ENVIRONMENT" "$CONTRACT"; then echo paired; else echo direct; fi
+  `
+  const run = (env: Record<string, string>) =>
+    runHarness(
+      harness,
+      { ENVIRONMENT: 'production', CONTRACT: 'TokenWrapper', ...env },
+      REPO_ROOT
+    )
+
+  it('pairs the allowlist with the registration when the var is unset', () => {
+    expect(run({ SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: '' })).toBe('paired')
+  })
+
+  it('does not pair when proposals go directly to the diamond', () => {
+    expect(run({ SEND_PROPOSALS_DIRECTLY_TO_DIAMOND: 'true' })).toBe('direct')
+  })
+
+  it('does not pair outside production or for a facet', () => {
+    expect(run({ ENVIRONMENT: 'staging' })).toBe('direct')
+    expect(run({ CONTRACT: 'GasZipFacet' })).toBe('direct')
+  })
+})

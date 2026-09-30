@@ -172,6 +172,14 @@ function launchDeployWave() {
   wait
 }
 
+# Direct-to-diamond runs have no Safe batch to carry the allowlist sync.
+function isPairedPeripheryRun() {
+  local ENVIRONMENT=$1
+  local CONTRACT=$2
+  [[ "$ENVIRONMENT" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" && "$CONTRACT" != *"Facet"* ]] &&
+    jq -e --arg N "$CONTRACT" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null 2>&1
+}
+
 function deployContractToNetworks() {
   # SIGTERM covers CI cancellation; SIGINT covers a local Ctrl-C. Both kill the
   # backgrounded workers including their forge/bun child processes rather than
@@ -444,8 +452,7 @@ function deployContractToNetworks() {
     fi
   done
   local PAIRED_NETWORKS=()
-  if [[ "$TARGET_ENVIRONMENT" == "production" && "$SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" && "$TARGET_CONTRACT" != *"Facet"* ]] &&
-    jq -e --arg N "$TARGET_CONTRACT" '.whitelistPeripheryFunctions | has($N)' config/global.json >/dev/null 2>&1; then
+  if isPairedPeripheryRun "$TARGET_ENVIRONMENT" "$TARGET_CONTRACT"; then
     for TARGET_NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
       [[ -n "$TARGET_NETWORK" ]] && ! isTestnetNetwork "$TARGET_NETWORK" && PAIRED_NETWORKS+=("$TARGET_NETWORK")
     done

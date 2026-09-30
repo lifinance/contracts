@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'fs'
 
-import { isTronNetworkKey } from '@lifi/tron-devkit'
+import { REGISTRATION_RPC_DELAY_MS, isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
@@ -22,6 +22,8 @@ import 'dotenv/config'
 
 import globalConfig from '../../config/global.json'
 import { isNetworkInScope } from '../common/whitelistScope'
+import { retryWithRateLimit } from '../deploy/shared/rateLimit'
+import { sleep } from '../utils/delay'
 import { isEntrypoint } from '../utils/is-entrypoint'
 import { redactUrls } from '../utils/redactUrls'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
@@ -152,6 +154,24 @@ export function describeDrift(d: IRegistryDrift): string {
   } — left to the paired registration batch`
 }
 
+/**
+ * Spaces reads and retries 429s, as the Tron deploy script does; public TronGrid
+ * rate-limits a sequential scan of the registry.
+ *
+ * @param read - One registry read.
+ * @param delayMs - Pause before each read and between retries.
+ * @returns The wrapped read.
+ */
+export function withTronRateLimit<A extends unknown[], T>(
+  read: (...args: A) => Promise<T>,
+  delayMs: number = REGISTRATION_RPC_DELAY_MS
+): (...args: A) => Promise<T> {
+  return async (...args) => {
+    await sleep(delayMs)
+    return retryWithRateLimit(() => read(...args), 3, delayMs)
+  }
+}
+
 async function registryReader(
   network: string,
   diamond: string
@@ -172,7 +192,7 @@ async function registryReader(
       diamond
     )
     const zero = tronWeb.address.fromHex(`41${'0'.repeat(40)}`)
-    return async (name) => {
+    return withTronRateLimit(async (name: string) => {
       const raw: unknown = await registry.getPeripheryContract(name).call()
       if (typeof raw !== 'string')
         throw new Error(
@@ -180,7 +200,7 @@ async function registryReader(
         )
       const base58 = raw.startsWith('T') ? raw : tronWeb.address.fromHex(raw)
       return base58 === zero ? undefined : base58
-    }
+    })
   }
   const client = createPublicClient({
     chain: getViemChainForNetworkName(network),

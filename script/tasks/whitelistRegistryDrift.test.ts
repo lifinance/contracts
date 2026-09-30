@@ -32,6 +32,7 @@ import {
   describeDrift,
   driftPairKeys,
   findRegistryDrift,
+  withTronRateLimit,
 } from './whitelistRegistryDrift'
 
 const OLD_WRAPPER = getAddress('0x5215E9fd223BC909083fbdB2860213873046e45d')
@@ -196,6 +197,45 @@ describe('findRegistryDrift', () => {
       readRegistered,
     })
     expect(same).toEqual([])
+  })
+
+  it('treats base58 addresses differing only in case as different on Tron', async () => {
+    const tronA = 'TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2'
+    const { readRegistered } = reader({ TokenWrapper: tronA })
+    const drift = await findRegistryDrift({
+      network: 'tron',
+      entries: [{ name: 'TokenWrapper', address: tronA.toLowerCase() }],
+      routeConfig,
+      readRegistered,
+    })
+    expect(drift.map((d) => d.name)).toEqual(['TokenWrapper'])
+  })
+})
+
+describe('withTronRateLimit', () => {
+  it('retries a 429 read instead of failing the network', async () => {
+    let calls = 0
+    const read = withTronRateLimit(async (name: string) => {
+      calls++
+      if (calls === 1) throw new Error('429 Too Many Requests')
+      return name
+    }, 0)
+    expect(await read('TokenWrapper')).toBe('TokenWrapper')
+    expect(calls).toBe(2)
+  })
+
+  it('does not retry an error that is not a rate limit', async () => {
+    let calls = 0
+    const read = withTronRateLimit(async (_name: string): Promise<string> => {
+      calls++
+      throw new Error('bad ABI')
+    }, 0)
+    const message = await read('TokenWrapper').then(
+      () => undefined,
+      (e: Error) => e.message
+    )
+    expect(message).toBe('bad ABI')
+    expect(calls).toBe(1)
   })
 })
 
