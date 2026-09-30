@@ -37,6 +37,7 @@ import networksConfig from '../../../config/networks.json'
 import timelockConfig from '../../../config/timelockController.json'
 import type { INetworksObject, IWhitelistConfig } from '../../common/types'
 import { isEntrypoint } from '../../utils/is-entrypoint'
+import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 import { redactUrls } from '../../utils/redactUrls'
 import { SlackNotifier, isUnattendedRun } from '../../utils/slack-notifier'
 import {
@@ -68,7 +69,6 @@ import {
   evaluateCancelDecision,
   renderCancelDecision,
 } from './timelock-cancel-decision'
-import { resolveTimelockSkipReason } from './timelock-prefetch'
 import {
   TIMELOCK_QUEUE_COLLECTION_NAME,
   TIMELOCK_QUEUE_DB_NAME,
@@ -257,27 +257,6 @@ const describe = (error: unknown): string =>
   redactUrls(error instanceof Error ? error.message : String(error))
     .split('\n')[0]
     ?.slice(0, 300) ?? 'unknown error'
-
-/** Runs `worker` over `items` with at most `limit` in flight. */
-const mapPooled = async <T, R>(
-  items: readonly T[],
-  limit: number,
-  worker: (item: T) => Promise<R>
-): Promise<R[]> => {
-  const results: R[] = new Array(items.length)
-  let next = 0
-  const lanes = Array.from(
-    { length: Math.min(limit, items.length) },
-    async () => {
-      while (next < items.length) {
-        const at = next++
-        results[at] = await worker(items[at] as T)
-      }
-    }
-  )
-  await Promise.all(lanes)
-  return results
-}
 
 /**
  * One client per endpoint, for `eth_getLogs` only. An endpoint that refuses a
@@ -508,9 +487,9 @@ const runCodehash = async (
   }, deadline)
   if (outcome.kind === 'deferred')
     return { kind: 'deferred', reason: outcome.reason }
-  if (outcome.kind === 'timed-out') {
-    // Cached like an unverifiable result, so a rebuild that always overruns is
-    // retried daily rather than spending the budget every run.
+  if (outcome.kind === 'timed-out' || outcome.kind === 'failed') {
+    // Cached like an unverifiable result, so a rebuild that always overruns or
+    // throws is retried daily rather than spending the budget every run.
     ctx.state.codehash[key] = {
       status: 'unknown',
       detail: outcome.reason,
@@ -519,8 +498,6 @@ const runCodehash = async (
     }
     return { kind: 'error', reason: outcome.reason }
   }
-  if (outcome.kind === 'failed')
-    return { kind: 'error', reason: outcome.reason }
 
   const result: TCodehashResult = { kind: 'evaluated', collected, reports }
   const graded = gradeCodehash(result)
@@ -617,24 +594,6 @@ export const watchNetwork = async (
     notes: [],
   })
 
-  let skip: Awaited<ReturnType<typeof resolveTimelockSkipReason>>
-  try {
-    skip = await resolveTimelockSkipReason(network)
-  } catch (error) {
-    return unreadable(
-      `the deployments file could not be read: ${describe(error)}`
-    )
-  }
-  if (skip)
-    return {
-      network: name,
-      status: 'skipped',
-      reason: skip,
-      verdict: 'ok',
-      operations: [],
-      notes: [],
-    }
-
   const pinned = ctx.readPinned(`deployments/${name}.json`)
   if (!pinned.ok)
     return unreadable(
@@ -644,7 +603,14 @@ export const watchNetwork = async (
   const timelock = deployments['LiFiTimelockController'] as Address | undefined
   const diamond = deployments['LiFiDiamond'] as Address | undefined
   if (!timelock)
-    return unreadable(`main's deployments/${name}.json names no timelock`)
+    return {
+      network: name,
+      status: 'skipped',
+      reason: 'no-timelock-deployed',
+      verdict: 'ok',
+      operations: [],
+      notes: [],
+    }
 
   if (isTronNetworkKey(name))
     return {
@@ -1186,32 +1152,36 @@ const command = defineCommand({
 
     let reports: INetworkReport[]
     try {
-      reports = await mapPooled(networks, NETWORK_CONCURRENCY, async (n) => {
-        try {
-          const started = Date.now()
-          const report = await withTimeout(
-            watchNetwork(n, ctx),
-            networkTimeoutMs(ctx),
-            `watching ${n.name}`
-          )
-          consola.info(
-            `[${n.name}] ${report.status}, ${report.verdict}, ${
-              report.operations.length
-            } pending, ${Math.round((Date.now() - started) / 1000)}s`
-          )
-          return report
-        } catch (error) {
-          ctx.expired.add(n.name)
-          return {
-            network: n.name,
-            status: 'unreadable' as const,
-            reason: `the watcher failed on this network: ${describe(error)}`,
-            verdict: 'unverified' as const,
-            operations: [],
-            notes: [],
+      reports = await mapWithConcurrency(
+        networks,
+        NETWORK_CONCURRENCY,
+        async (n) => {
+          try {
+            const started = Date.now()
+            const report = await withTimeout(
+              watchNetwork(n, ctx),
+              networkTimeoutMs(ctx),
+              `watching ${n.name}`
+            )
+            consola.info(
+              `[${n.name}] ${report.status}, ${report.verdict}, ${
+                report.operations.length
+              } pending, ${Math.round((Date.now() - started) / 1000)}s`
+            )
+            return report
+          } catch (error) {
+            ctx.expired.add(n.name)
+            return {
+              network: n.name,
+              status: 'unreadable' as const,
+              reason: `the watcher failed on this network: ${describe(error)}`,
+              verdict: 'unverified' as const,
+              operations: [],
+              notes: [],
+            }
           }
         }
-      })
+      )
     } finally {
       await codehashDeps?.close()
       await store.close()
