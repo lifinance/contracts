@@ -7,13 +7,13 @@
  * 3. Displaying the results
  *
  * Usage:
- * bun script/deploy/safe/test-ledger.ts
+ * bunx tsx script/deploy/safe/test-ledger.ts
  */
 
 import { consola } from 'consola'
 import type { Hex } from 'viem'
 
-import { getLedgerAccount } from './ledger'
+import { closeLedgerConnection, getLedgerAccount } from './ledger'
 
 async function main() {
   try {
@@ -24,7 +24,7 @@ async function main() {
     )
 
     // Get Ledger account
-    const account = await getLedgerAccount({
+    const { account, transport } = await getLedgerAccount({
       // Use Ledger Live derivation path by default
       ledgerLive: true,
       accountIndex: 0,
@@ -74,7 +74,7 @@ async function main() {
     consola.info('🔏 Signature:')
     consola.log(hashSignature)
 
-    // Done
+    await closeLedgerConnection(transport)
     consola.success('⭐️ Test completed successfully!')
   } catch (error) {
     consola.error('❌ Error testing Ledger connection:')

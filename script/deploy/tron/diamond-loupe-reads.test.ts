@@ -61,7 +61,7 @@ describe('readFacetRouting', () => {
   it('reads the whole table past the command echo and diagnostics', async () => {
     const stub = stubCaller(
       [
-        '$ bun run script/troncast/index.ts call …',
+        '$ bunx tsx script/troncast/index.ts call …',
         '⚙ Initializing TronWeb...',
         `[[${ECO_FACET} [0x0ff754ea 0x7e56b7b0]] [${OWNERSHIP_FACET} [0x8da5cb5b]]]`,
       ].join('\n')

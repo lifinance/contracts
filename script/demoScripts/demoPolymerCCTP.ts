@@ -1,5 +1,3 @@
-#!/usr/bin/env bunx tsx
-
 import { randomBytes } from 'crypto'
 
 import { consola } from 'consola'

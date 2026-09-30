@@ -22,7 +22,7 @@
  *      startBridgeTokensViaLayerSwap on the diamond.
  *
  * Usage:
- *   bun script/demoScripts/demoLayerSwap.ts \
+ *   bunx tsx script/demoScripts/demoLayerSwap.ts \
  *     [--to <LAYERSWAP_NETWORK>] \
  *     [--token <symbol>] [--amount <number>] [--receiver <address>]
  *

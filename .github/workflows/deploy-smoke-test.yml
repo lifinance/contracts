@@ -174,7 +174,7 @@ jobs:
         # `set -o pipefail` so that healthCheck.ts's exit code is not masked by `tee`.
         run: |
           set -eo pipefail
-          bun script/deploy/healthCheck.ts --network localanvil --environment staging 2>&1 | tee -a smoke-deploy.log
+          bunx tsx script/deploy/healthCheck.ts --network localanvil --environment staging 2>&1 | tee -a smoke-deploy.log
 
       - name: Upload diagnostics on failure
         if: ${{ failure() }}

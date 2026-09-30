@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Propose AllBridge chainId-to-allBridgeChainId mapping updates (batch)
  *

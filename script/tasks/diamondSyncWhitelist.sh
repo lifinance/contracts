@@ -189,9 +189,9 @@ function diamondSyncWhitelist {
     # Use troncast to convert addresses.
     # The troncast init message ("⚙ Initializing TronWeb…") is emitted on stdout, so
     # we capture the full output first, then grep for the hex line.  Piping directly
-    # would lose the bun exit code (pipe replaces it with grep's), so we split the steps.
+    # would lose the troncast exit code (pipe replaces it with grep's), so we split the steps.
     local RAW_OUTPUT
-    RAW_OUTPUT=$(bun run script/troncast/index.ts address to-hex "$ADDRESSES_STR")
+    RAW_OUTPUT=$(bunx tsx script/troncast/index.ts address to-hex "$ADDRESSES_STR")
     local CONVERSION_EXIT_CODE=$?
 
     # Extract only the line(s) that contain hex addresses (start with 0x).
@@ -408,7 +408,6 @@ function diamondSyncWhitelist {
           
           if [[ "$IS_TRON" == "true" ]]; then
             # Tron: Extract the line that starts with [[ (the actual result)
-            # Filter out lines starting with $ (command echo) or containing "bun run"
             local RESULT_LINE=$(echo "$CALL_OUTPUT" | grep '^\[\[' | head -n 1)
             
             if [[ -z "$RESULT_LINE" ]]; then

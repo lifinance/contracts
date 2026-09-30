@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Propose Polymer CCTP chainId-to-domainId mapping updates (batch)
  *
@@ -12,10 +10,10 @@
  * 5) Proposes the transaction to the network Safe and stores it in MongoDB
  *
  * Example:
- * bun script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
+ * bunx tsx script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
  *
  * Single network:
- * bun script/tasks/proposePolymerCCTPChainIdMappings.ts --network arbitrum --environment production
+ * bunx tsx script/tasks/proposePolymerCCTPChainIdMappings.ts --network arbitrum --environment production
  */
 
 import fs from 'fs'

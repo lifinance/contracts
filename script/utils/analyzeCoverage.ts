@@ -13,13 +13,13 @@
  * - Provides detailed line-by-line coverage statistics
  *
  * Usage:
- *   bun run script/utils/analyzeCoverage.ts [--exclude folder1,folder2] [--threshold 90]
+ *   bunx tsx script/utils/analyzeCoverage.ts [--exclude folder1,folder2] [--threshold 90]
  *
  * Examples:
- *   bun run script/utils/analyzeCoverage.ts
- *   bun run script/utils/analyzeCoverage.ts --threshold 95
- *   bun run script/utils/analyzeCoverage.ts --exclude "Libraries/LibBytes"
- *   bun run script/utils/analyzeCoverage.ts --threshold 95 --exclude "Libraries/LibBytes,Libraries/LibUtil"
+ *   bunx tsx script/utils/analyzeCoverage.ts
+ *   bunx tsx script/utils/analyzeCoverage.ts --threshold 95
+ *   bunx tsx script/utils/analyzeCoverage.ts --exclude "Libraries/LibBytes"
+ *   bunx tsx script/utils/analyzeCoverage.ts --threshold 95 --exclude "Libraries/LibBytes,Libraries/LibUtil"
  *
  * Package.json shortcut:
  *   bun okr:contract-coverage-above-90

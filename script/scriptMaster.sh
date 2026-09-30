@@ -278,7 +278,7 @@ scriptMaster() {
     echo ""
     # Task scripts come in two flavors:
     # - *.sh: sourced functions (called via eval <functionName>)
-    # - *.ts: TypeScript scripts (run via bun <file> ...)
+    # - *.ts: TypeScript scripts (run via bunx tsx <file> ...)
     SCRIPT=$(ls -1p "$TASKS_SCRIPT_DIRECTORY" | grep -v "/$" | gum filter --placeholder "Please select the script you would like to execute: ")
     if [[ -z "$SCRIPT" ]]; then
       error "invalid value selected - exiting script now"
@@ -293,7 +293,7 @@ scriptMaster() {
       local FUNCTION_NAME="${SCRIPT%.sh}"
       eval "$FUNCTION_NAME" '""' "$ENVIRONMENT"
     elif [[ "$SCRIPT" == *.ts ]]; then
-      bun "${TASKS_SCRIPT_DIRECTORY}${SCRIPT}" --environment "$ENVIRONMENT"
+      bunx tsx "${TASKS_SCRIPT_DIRECTORY}${SCRIPT}" --environment "$ENVIRONMENT"
     else
       error "unsupported script type selected: $SCRIPT"
       exit 1

@@ -9,12 +9,12 @@
  *   await runPropose({ network: 'mainnet', to: '0x...', calldata: '0x...', timelock: true, privateKey: '0x...' })
  *
  * Or run directly from the CLI:
- *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0x... --timelock --privateKey 0x...
+ *   bunx tsx script/deploy/safe/propose-to-safe.ts --network mainnet --to 0x... --calldata 0x... --timelock --privateKey 0x...
  *
  * Multiple calls can be combined into a single timelock scheduleBatch proposal by
  * repeating --to/--calldata pairs (requires --timelock); inner calls execute in the
  * order they are passed:
- *   bun run propose-to-safe.ts --network mainnet --to 0x... --calldata 0xREMOVE --to 0x... --calldata 0xADD --timelock --privateKey 0x...
+ *   bunx tsx script/deploy/safe/propose-to-safe.ts --network mainnet --to 0x... --calldata 0xREMOVE --to 0x... --calldata 0xADD --timelock --privateKey 0x...
  *
  * Recovering a skipped Safe nonce:
  *   The nonce is auto-derived by default (on-chain nonce + pending proposals).
