@@ -301,7 +301,7 @@ export async function runHealthCheckForNetwork(
 }
 
 /**
- * Build the report-only "behind main" line for a network whose invariants have run.
+ * Build the report-only "behind main" line once the invariants have finished or aborted.
  *
  * @param ctx - the context the invariants ran against, so the loupe and registry reads are reused
  * @returns the line
