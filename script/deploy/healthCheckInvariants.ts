@@ -46,7 +46,10 @@ import {
 } from './safe/diamondRemovalDiff'
 import type { IParkedTask } from './safe/parked-tasks'
 import { type IPendingRegistration } from './safe/pending-registrations'
-import { TARGET_STATE_VERSION_LATEST } from './safe/pinned-target-state'
+import {
+  baseSemanticVersion,
+  TARGET_STATE_VERSION_LATEST,
+} from './safe/pinned-target-state'
 import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -1776,8 +1779,13 @@ function reportFacetVersionDrift(
   }
 
   const versions = `live ${liveVersion}, target ${target.label}`
-  // Null is "no ordering", never equality: a version nobody can order is unverified drift.
-  const order = compareContractVersions(liveVersion, target.version)
+  // A build suffix (2.1.3-tron) marks a variant of its base release, so bases are compared, as
+  // the deploy guard and the sign-time gate do. Null is "no ordering", never equality: a version
+  // nobody can order is unverified drift.
+  const order = compareContractVersions(
+    baseSemanticVersion(liveVersion),
+    baseSemanticVersion(target.version)
+  )
   if (order === null)
     ctx.logWarn(
       `${contractName} version cannot be compared against the target state: ${versions}`

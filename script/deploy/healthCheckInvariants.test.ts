@@ -3762,6 +3762,30 @@ describe('facet-versions-match-target-state', () => {
     expect(equal.warnings).toEqual([])
   })
 
+  it('compares a suffixed build by its base version', async () => {
+    const equal = makeDriftCtx({
+      targets: { GenericSwapFacetV3: 'latest' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0-tron' },
+      },
+      sourceVersions: { GenericSwapFacetV3: '2.0.0-tron' },
+    })
+    const behind = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0-tron-r2' },
+      },
+    })
+
+    await invariant.run(equal)
+    await invariant.run(behind)
+
+    expect(equal.warnings).toEqual([])
+    expect(behind.warnings).toHaveLength(1)
+    expect(behind.warnings[0]).toContain('is behind')
+    expect(behind.warnings[0]).toContain('live 1.0.0-tron-r2')
+  })
+
   it('reports an unparseable live version as unverifiable, never as equal', async () => {
     const ctx = makeDriftCtx({
       targets: { GenericSwapFacetV3: '2.0.0' },
