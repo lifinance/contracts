@@ -27,6 +27,7 @@ import {
 } from '../common/whitelistScope'
 import { flagIsOn } from '../deploy/safe/cli-flags'
 import { isEntrypoint } from '../utils/is-entrypoint'
+import { redactUrls } from '../utils/redactUrls'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 // executeBatch runs every inner call in one transaction, so an oversized batch
@@ -89,8 +90,9 @@ export const PREFLIGHT_EXIT_NOT_PAIRED = 3
 
 /**
  * Exit code for a refusal that re-running cannot change: a zero or codeless
- * address, a batch above the cap. Callers must not retry it. A chain read that
- * failed exits 1 instead, since a retry can succeed.
+ * address, a batch above the cap, a diamond that returns no data for a registry
+ * or allowlist read. Callers must not retry it. A chain read that failed exits
+ * 1 instead, since a retry can succeed.
  */
 export const EXIT_REFUSED = 4
 
@@ -115,6 +117,24 @@ const hasOwn = (object: object, key: string): boolean =>
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
+
+/**
+ * Whether viem found no data where a call's return value should be: the
+ * contract lacks the function (a diamond without the facet), which a retry
+ * cannot change. Matched by name along the cause chain, as viem wraps it.
+ */
+const returnedNoData = (error: unknown): boolean => {
+  const seen = new Set<unknown>()
+  for (let current = error; current && !seen.has(current); ) {
+    seen.add(current)
+    if (
+      (current as { name?: unknown }).name === 'ContractFunctionZeroDataError'
+    )
+      return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
+}
 
 const sameAddress = (a: string, b: string): boolean =>
   a.toLowerCase() === b.toLowerCase()
@@ -402,7 +422,8 @@ export interface IRegistrationPlan {
  * @param input.reader - The chain reads.
  * @returns One batch per paired registration, and the plain ones.
  * @throws {PairedRegistrationRefusal} Listing every registration that cannot be
- * proposed, when any cannot for a reason a retry would not change.
+ * proposed, when any cannot for a reason a retry would not change, including a
+ * diamond that returns no data for one of the reads.
  * @throws {ChainReadFailure} When only chain reads failed.
  */
 export async function planRegistrations(input: {
@@ -464,10 +485,15 @@ export async function planRegistrations(input: {
           reader,
         })
       } catch (error) {
+        const subject = `${registration.name} ${
+          registration.address
+        }: ${errorText(error)}`
+        if (returnedNoData(error))
+          throw new PairedRegistrationRefusal(
+            `[${network}] the diamond ${diamond} returned no data reading the chain state of ${subject}`
+          )
         throw new ChainReadFailure(
-          `[${network}] could not read the chain state of ${
-            registration.name
-          } ${registration.address}: ${errorText(error)}`
+          `[${network}] could not read the chain state of ${subject}`
         )
       }
       plan.paired.push(
@@ -752,7 +778,8 @@ const main = defineCommand({
       } catch (error) {
         if (error instanceof PairedRegistrationRefusal) refused++
         else failed++ // ChainReadFailure included: exit 1 is retried by the caller
-        consola.error(`[${network}] ${errorText(error)}`)
+        // a viem transport error embeds the endpoint, whose path can hold a key
+        consola.error(`[${network}] ${redactUrls(errorText(error))}`)
       }
 
     if (failed || refused)

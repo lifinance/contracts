@@ -614,6 +614,8 @@ describe('proposePeripheryWithWhitelist.ts', () => {
     /** Code per lowercased address, over a 24-byte default. */
     code?: Record<string, Hex>
     unreadable?: boolean
+    /** Every call returns no data, as on a diamond without the facet. */
+    noGetter?: boolean
   }
   let server: Server
   let rpcUrl: string
@@ -632,6 +634,7 @@ describe('proposePeripheryWithWhitelist.ts', () => {
         (params[0] as { data?: Hex; input?: Hex }).data ??
         (params[0] as { input?: Hex }).input
       const call = decodeFunctionData({ abi: RPC_ABI, data: data as Hex })
+      if (chain.noGetter) return '0x'
       if (call.functionName !== 'getPeripheryContract' && chain.unreadable)
         throw new Error('stub: allowlist unreadable')
       if (call.functionName === 'getPeripheryContract')
@@ -868,6 +871,24 @@ describe('proposePeripheryWithWhitelist.ts', () => {
       ]) // prettier-ignore
       expect(rc).toBe(1)
       expect(out).toContain('could not read the chain state of TokenWrapper')
+      // viem names the endpoint in a transport error; a real one can carry a key
+      expect(out).not.toContain(rpcUrl.replace('http://', ''))
+      expect(proposals).toEqual([])
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses, exit 4 and not retried, a diamond that returns no data for the registry read',
+    async () => {
+      chain = { registered: {}, selectors: {}, codeless: [], noGetter: true }
+      const { rc, out, proposals } = await run([
+        '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, '--preflight', ...common,
+      ]) // prettier-ignore
+      expect(rc).toBe(EXIT_REFUSED)
+      expect(out).toContain(
+        `the diamond ${DIAMOND} returned no data reading the chain state of TokenWrapper`
+      )
       expect(proposals).toEqual([])
     },
     TIMEOUT_MS

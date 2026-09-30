@@ -13,6 +13,18 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import {
+  createSourceFile,
+  forEachChild,
+  isCallExpression,
+  isIdentifier,
+  isObjectLiteralExpression,
+  isPropertyAssignment,
+  isShorthandPropertyAssignment,
+  ScriptTarget,
+  type CallExpression,
+  type Node,
+} from 'typescript'
+import {
   decodeFunctionData,
   getAddress,
   parseAbi,
@@ -89,6 +101,7 @@ const harness = (
     network: 'tron',
     diamond: TRON.diamond,
     pairWithWhitelist: options.pairWithWhitelist ?? true,
+    dryRun: false,
     routeConfig,
     toEvm: (address) => {
       const evm = (EVM as Record<string, Address | undefined>)[address]
@@ -382,5 +395,45 @@ describe('deploy-and-register-periphery.ts registration placement', () => {
     expect(source).toMatch(
       /pairWithWhitelist:\s*environment === EnvironmentEnum\.production/
     )
+  })
+
+  it("hands the run's own dry-run flag to the registration pass", () => {
+    const calls: CallExpression[] = []
+    const visit = (node: Node): void => {
+      if (
+        isCallExpression(node) &&
+        isIdentifier(node.expression) &&
+        node.expression.text === 'proposeTronPeripheryRegistrations'
+      )
+        calls.push(node)
+      forEachChild(node, visit)
+    }
+    visit(
+      createSourceFile(
+        'deploy-and-register-periphery.ts',
+        source,
+        ScriptTarget.Latest,
+        true
+      )
+    )
+    expect(calls).toHaveLength(1)
+    const deps = calls[0]?.arguments[1]
+    if (!deps || !isObjectLiteralExpression(deps))
+      throw new Error('the registration deps are not an object literal')
+    // Top-level properties only: the propose closure passes a dryRun of its
+    // own to runPropose, which would satisfy a search of the whole call.
+    const flag = deps.properties.find(
+      (property) =>
+        property.name !== undefined &&
+        isIdentifier(property.name) &&
+        property.name.text === 'dryRun'
+    )
+    const bound =
+      flag !== undefined &&
+      (isShorthandPropertyAssignment(flag) ||
+        (isPropertyAssignment(flag) &&
+          isIdentifier(flag.initializer) &&
+          flag.initializer.text === 'dryRun'))
+    expect(bound).toBe(true)
   })
 })

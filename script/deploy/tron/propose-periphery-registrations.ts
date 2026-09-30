@@ -7,8 +7,6 @@ import type { Address, Hex } from 'viem'
 import { encodeFunctionData, parseAbi } from 'viem'
 
 import {
-  ChainReadFailure,
-  PairedRegistrationRefusal,
   describeBatch,
   isContractBytecode,
   planRegistrations,
@@ -44,8 +42,8 @@ export interface ITronPeripheryRegistrationDeps {
   hasCode: (address: Address) => Promise<boolean>
   /** One Safe proposal wrapping these calls in a single timelock scheduleBatch. */
   propose: (targets: string[], calldatas: Hex[]) => Promise<void>
-  /** Proposals are only reported, so nothing is recorded as pending. */
-  dryRun?: boolean
+  /** True on a dry run: proposals are only reported, so nothing is recorded as pending. */
+  dryRun: boolean
   /** Records a proposed registration in the diamond log. */
   recordPending: (name: string, address: string) => Promise<void>
   log: {
@@ -91,10 +89,8 @@ export function tronHasCode(
  * @param candidates - Deployed contracts, in the order the script deployed them.
  * @param deps - Chain reads, the proposer and the configuration.
  * @returns The names proposed and the names that failed.
- * @throws {PairedRegistrationRefusal} Before anything is proposed, when a
- * registration cannot be built.
- * @throws {ChainReadFailure} Before anything is proposed, when chain state
- * cannot be read.
+ * @throws Before anything is proposed, when a registration cannot be built or
+ * chain state cannot be read.
  */
 export async function proposeTronPeripheryRegistrations(
   candidates: readonly ITronRegistrationCandidate[],
@@ -126,7 +122,7 @@ export async function proposeTronPeripheryRegistrations(
       )
     }
   if (refusals.length)
-    throw new ChainReadFailure(
+    throw new Error(
       `[${network}] nothing was proposed:\n  ${refusals.join('\n  ')}`
     )
   if (!pending.length) return outcome
@@ -146,11 +142,7 @@ export async function proposeTronPeripheryRegistrations(
       },
     })
   } catch (error) {
-    const message = `${errorText(error)}\n[${network}] nothing was proposed`
-    if (error instanceof PairedRegistrationRefusal)
-      throw new PairedRegistrationRefusal(message)
-    if (error instanceof ChainReadFailure) throw new ChainReadFailure(message)
-    throw error
+    throw new Error(`${errorText(error)}\n[${network}] nothing was proposed`)
   }
   const base58 = new Map(pending.map((p) => [p.name, p.base58]))
 
