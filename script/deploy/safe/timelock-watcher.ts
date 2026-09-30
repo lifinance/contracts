@@ -87,7 +87,7 @@ import {
 } from './timelock-watcher-rebuild'
 import {
   renderJobSummary,
-  renderSlackAlert,
+  renderSlackPosts,
   tallyReports,
   type INetworkReport,
   type IOperationReport,
@@ -1200,12 +1200,14 @@ const command = defineCommand({
       now
     )
     const runUrl = process.env.TIMELOCK_WATCHER_RUN_URL
-    const text = renderSlackAlert(decision.alerts, runUrl)
+    const posts = renderSlackPosts(decision.alerts, runUrl)
     let deliveryFailed = false
-    if (text) {
+    if (posts.length > 0) {
       const webhook = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
       if (!isUnattendedRun())
-        consola.info(`Slack alert (not posted from a local run):\n${text}`)
+        consola.info(
+          `Slack alert (not posted from a local run):\n${posts.join('\n\n')}`
+        )
       else if (!webhook) {
         consola.error(
           'Alert delivery failed: there are alerts to send and no Slack webhook is configured'
@@ -1213,11 +1215,9 @@ const command = defineCommand({
         deliveryFailed = true
       } else
         try {
-          await new SlackNotifier(webhook, runUrl).sendNotificationWithRetry(
-            { text },
-            3,
-            true
-          )
+          const notifier = new SlackNotifier(webhook, runUrl)
+          for (const text of posts)
+            await notifier.sendNotificationWithRetry({ text }, 3, true)
           state.alerts = decision.next
         } catch (error) {
           consola.error(`Alert delivery failed: ${describe(error)}`)

@@ -14,7 +14,7 @@ import {
   SLACK_TEXT_BUDGET,
   coverageOf,
   renderJobSummary,
-  renderSlackAlert,
+  renderSlackPosts,
   tallyReports,
   type INetworkReport,
 } from './timelock-watcher-report'
@@ -164,7 +164,14 @@ describe('renderJobSummary', () => {
   })
 })
 
-describe('renderSlackAlert', () => {
+const renderSlackAlert = (
+  ...args: Parameters<typeof renderSlackPosts>
+): string | undefined => {
+  const posts = renderSlackPosts(...args)
+  return posts.length > 0 ? posts.join('\n') : undefined
+}
+
+describe('renderSlackPosts', () => {
   const item = (
     kind: IAlertItem['kind'],
     verdict: IAlertItem['finding']['verdict'],
@@ -226,10 +233,16 @@ describe('renderSlackAlert', () => {
     expect(first).toContain('zksync:0xlast')
   })
 
-  it('stays inside the Slack budget', () => {
-    const many = Array.from({ length: 200 }, () => item('new', 'mismatch'))
-    const text = renderSlackAlert(many, 'https://example.test/run') ?? ''
-    expect(text.length).toBeLessThanOrEqual(SLACK_TEXT_BUDGET)
-    expect(text).toContain('truncated')
+  it('splits into posts inside the Slack budget, dropping no alert', () => {
+    const many = Array.from({ length: 200 }, (_, i) => ({
+      ...item('new', 'mismatch'),
+      finding: { ...item('new', 'mismatch').finding, key: `base:0x${i}` },
+    }))
+    const posts = renderSlackPosts(many, 'https://example.test/run')
+    expect(posts.length).toBeGreaterThan(1)
+    for (const post of posts)
+      expect(post.length).toBeLessThanOrEqual(SLACK_TEXT_BUDGET)
+    const all = posts.join('\n')
+    for (let i = 0; i < 200; i++) expect(all).toContain(`base:0x${i}:`)
   })
 })

@@ -176,17 +176,18 @@ const KIND_LABEL: Record<IAlertItem['kind'], string> = {
 }
 
 /**
- * The Slack text for this run's alerts, or `undefined` when there are none.
+ * The Slack posts for this run's alerts.
  *
  * @param alerts - What the dedupe let through.
  * @param runUrl - Link to the run, when known.
- * @returns The message text, trimmed to {@link SLACK_TEXT_BUDGET}.
+ * @returns The posts, each under {@link SLACK_TEXT_BUDGET}, that together carry
+ *   every alert; none when there is nothing to send.
  */
-export const renderSlackAlert = (
+export const renderSlackPosts = (
   alerts: readonly IAlertItem[],
   runUrl: string | undefined
-): string | undefined => {
-  if (alerts.length === 0) return undefined
+): string[] => {
+  if (alerts.length === 0) return []
   const mismatches = alerts.filter(
     (a) => a.kind !== 'resolved' && a.finding.verdict === 'mismatch'
   ).length
@@ -195,7 +196,7 @@ export const renderSlackAlert = (
   } Timelock watcher: ${mismatches} mismatch, ${
     alerts.length - mismatches
   } other update(s). Report-only, nothing was cancelled.`
-  // Mismatches lead, so a truncated post still shows every one it counts.
+  // Mismatches lead, so the first post shows every one it counts.
   const rank = (a: IAlertItem): number =>
     a.kind !== 'resolved' && a.finding.verdict === 'mismatch' ? 0 : 1
   const body = [...alerts]
@@ -215,10 +216,28 @@ export const renderSlackAlert = (
       return `• [${KIND_LABEL[a.kind]}] ${a.finding.key}: ${verdict}${reason}`
     })
   const footer = runUrl ? `<${runUrl}|Full report>` : ''
-  let text = [header, ...body, footer].filter(Boolean).join('\n')
-  if (text.length > SLACK_TEXT_BUDGET) {
-    const suffix = `\n… truncated. ${footer}`
-    text = `${text.slice(0, SLACK_TEXT_BUDGET - suffix.length)}${suffix}`
+  // Room for the header or a continuation line, and the footer.
+  const room = SLACK_TEXT_BUDGET - header.length - footer.length - 2
+  const chunks: string[][] = [[]]
+  let used = 0
+  for (const full of body) {
+    const line = full.length > room ? `${full.slice(0, room - 1)}…` : full
+    const current = chunks[chunks.length - 1] as string[]
+    if (current.length > 0 && used + line.length + 1 > room) {
+      chunks.push([line])
+      used = line.length + 1
+    } else {
+      current.push(line)
+      used += line.length + 1
+    }
   }
-  return text
+  return chunks.map((lines, i) =>
+    [
+      i === 0 ? header : `(continued, ${i + 1} of ${chunks.length})`,
+      ...lines,
+      footer,
+    ]
+      .filter(Boolean)
+      .join('\n')
+  )
 }
