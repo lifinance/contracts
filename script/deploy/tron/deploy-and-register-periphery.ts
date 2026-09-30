@@ -1421,6 +1421,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         network: tvmKey,
         diamond: diamondAddress,
         pairWithWhitelist: environment === EnvironmentEnum.production,
+        dryRun,
         routeConfig: globalConfigRecord as IPeripheryRouteConfig,
         toEvm,
         readRegistered: async (name) => {

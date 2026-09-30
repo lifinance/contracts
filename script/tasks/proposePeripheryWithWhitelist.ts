@@ -88,9 +88,9 @@ export interface IRegistration {
 export const PREFLIGHT_EXIT_NOT_PAIRED = 3
 
 /**
- * Exit code for a refusal that re-running cannot change: a codeless address,
- * chain state that could not be read, a batch above the cap. Callers must not
- * retry it.
+ * Exit code for a refusal that re-running cannot change: a zero or codeless
+ * address, a batch above the cap. Callers must not retry it. A chain read that
+ * failed exits 1 instead, since a retry can succeed.
  */
 export const EXIT_REFUSED = 4
 
@@ -99,6 +99,14 @@ export class PairedRegistrationRefusal extends Error {
   public constructor(message: string) {
     super(message)
     this.name = 'PairedRegistrationRefusal'
+  }
+}
+
+/** Chain state a plan needs could not be read; unlike a refusal, a retry can help. */
+export class ChainReadFailure extends Error {
+  public constructor(message: string) {
+    super(message)
+    this.name = 'ChainReadFailure'
   }
 }
 
@@ -394,7 +402,8 @@ export interface IRegistrationPlan {
  * @param input.reader - The chain reads.
  * @returns One batch per paired registration, and the plain ones.
  * @throws {PairedRegistrationRefusal} Listing every registration that cannot be
- * proposed, when any cannot.
+ * proposed, when any cannot for a reason a retry would not change.
+ * @throws {ChainReadFailure} When only chain reads failed.
  */
 export async function planRegistrations(input: {
   network: string
@@ -417,6 +426,7 @@ export async function planRegistrations(input: {
   ]
   const plan: IRegistrationPlan = { paired: [], plain: [] }
   const refusals: string[] = []
+  const readFailures: string[] = []
 
   for (const registration of registrations)
     try {
@@ -428,7 +438,7 @@ export async function planRegistrations(input: {
         try {
           hasCode = await reader.hasCode(registration.address)
         } catch (error) {
-          throw new PairedRegistrationRefusal(
+          throw new ChainReadFailure(
             `[${network}] could not read the code of ${registration.name} ${
               registration.address
             }: ${errorText(error)}`
@@ -454,7 +464,7 @@ export async function planRegistrations(input: {
           reader,
         })
       } catch (error) {
-        throw new PairedRegistrationRefusal(
+        throw new ChainReadFailure(
           `[${network}] could not read the chain state of ${
             registration.name
           } ${registration.address}: ${errorText(error)}`
@@ -470,13 +480,16 @@ export async function planRegistrations(input: {
         })
       )
     } catch (error) {
-      refusals.push(errorText(error))
+      if (error instanceof ChainReadFailure) readFailures.push(errorText(error))
+      else refusals.push(errorText(error))
     }
 
-  if (refusals.length)
-    throw new PairedRegistrationRefusal(
-      `[${network}] cannot propose:\n  ${refusals.join('\n  ')}`
-    )
+  const message = `[${network}] cannot propose:\n  ${[
+    ...refusals,
+    ...readFailures,
+  ].join('\n  ')}`
+  if (refusals.length) throw new PairedRegistrationRefusal(message)
+  if (readFailures.length) throw new ChainReadFailure(message)
   return plan
 }
 
@@ -738,7 +751,7 @@ const main = defineCommand({
         }
       } catch (error) {
         if (error instanceof PairedRegistrationRefusal) refused++
-        else failed++
+        else failed++ // ChainReadFailure included: exit 1 is retried by the caller
         consola.error(`[${network}] ${errorText(error)}`)
       }
 

@@ -141,6 +141,20 @@ const replacing = {
 }
 
 describe('proposeTronPeripheryRegistrations', () => {
+  it('records nothing as pending on a dry run', async () => {
+    const h = harness(replacing)
+    h.deps.dryRun = true
+    await proposeTronPeripheryRegistrations(
+      [
+        { name: 'TokenWrapper', address: TRON.newWrapper },
+        { name: 'FeeCollector', address: TRON.feeCollector },
+      ],
+      h.deps
+    )
+    expect(h.proposals).toHaveLength(2)
+    expect(h.recorded).toEqual([])
+  })
+
   it('proposes a TokenWrapper replacement with its own whitelist writes in one batch', async () => {
     const h = harness(replacing)
     await proposeTronPeripheryRegistrations(

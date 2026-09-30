@@ -876,7 +876,8 @@ function diamondSyncWhitelist {
       done
     fi
 
-    if ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then
+    if [[ ${#NEW_PAIRS[@]} -gt 0 || ${#REMOVED_PAIRS[@]} -gt 0 ]] \
+      && ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then
       printf '\033[0;31m%s\033[0m\n' "❌ [$NETWORK] could not read the periphery registry - refusing to sync this network"
       {
         echo "[$NETWORK] Error: could not read the periphery registry"

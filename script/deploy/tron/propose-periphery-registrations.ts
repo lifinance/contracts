@@ -7,6 +7,7 @@ import type { Address, Hex } from 'viem'
 import { encodeFunctionData, parseAbi } from 'viem'
 
 import {
+  ChainReadFailure,
   PairedRegistrationRefusal,
   describeBatch,
   isContractBytecode,
@@ -43,6 +44,8 @@ export interface ITronPeripheryRegistrationDeps {
   hasCode: (address: Address) => Promise<boolean>
   /** One Safe proposal wrapping these calls in a single timelock scheduleBatch. */
   propose: (targets: string[], calldatas: Hex[]) => Promise<void>
+  /** Proposals are only reported, so nothing is recorded as pending. */
+  dryRun?: boolean
   /** Records a proposed registration in the diamond log. */
   recordPending: (name: string, address: string) => Promise<void>
   log: {
@@ -89,7 +92,9 @@ export function tronHasCode(
  * @param deps - Chain reads, the proposer and the configuration.
  * @returns The names proposed and the names that failed.
  * @throws {PairedRegistrationRefusal} Before anything is proposed, when a
- * registration cannot be read or built.
+ * registration cannot be built.
+ * @throws {ChainReadFailure} Before anything is proposed, when chain state
+ * cannot be read.
  */
 export async function proposeTronPeripheryRegistrations(
   candidates: readonly ITronRegistrationCandidate[],
@@ -121,7 +126,7 @@ export async function proposeTronPeripheryRegistrations(
       )
     }
   if (refusals.length)
-    throw new PairedRegistrationRefusal(
+    throw new ChainReadFailure(
       `[${network}] nothing was proposed:\n  ${refusals.join('\n  ')}`
     )
   if (!pending.length) return outcome
@@ -141,10 +146,11 @@ export async function proposeTronPeripheryRegistrations(
       },
     })
   } catch (error) {
-    if (!(error instanceof PairedRegistrationRefusal)) throw error
-    throw new PairedRegistrationRefusal(
-      `${error.message}\n[${network}] nothing was proposed`
-    )
+    const message = `${errorText(error)}\n[${network}] nothing was proposed`
+    if (error instanceof PairedRegistrationRefusal)
+      throw new PairedRegistrationRefusal(message)
+    if (error instanceof ChainReadFailure) throw new ChainReadFailure(message)
+    throw error
   }
   const base58 = new Map(pending.map((p) => [p.name, p.base58]))
 
@@ -156,10 +162,11 @@ export async function proposeTronPeripheryRegistrations(
         args: [registration.name, registration.address],
       })
       await deps.propose([deps.diamond], [calldata])
-      await deps.recordPending(
-        registration.name,
-        base58.get(registration.name) ?? registration.address
-      )
+      if (!deps.dryRun)
+        await deps.recordPending(
+          registration.name,
+          base58.get(registration.name) ?? registration.address
+        )
       outcome.proposed.push(registration.name)
     } catch (error) {
       log.error(
@@ -180,10 +187,11 @@ export async function proposeTronPeripheryRegistrations(
         batch.targets.map(() => deps.diamond),
         batch.calldatas
       )
-      await deps.recordPending(
-        batch.name,
-        base58.get(batch.name) ?? batch.address
-      )
+      if (!deps.dryRun)
+        await deps.recordPending(
+          batch.name,
+          base58.get(batch.name) ?? batch.address
+        )
       outcome.proposed.push(batch.name)
     } catch (error) {
       log.error(

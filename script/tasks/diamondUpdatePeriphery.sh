@@ -142,8 +142,15 @@ function diamondUpdatePeriphery() {
 
       if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
         if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
-          local ROUTE_RC=0
-          bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --diamond "$DIAMOND_ADDRESS" --preflight || ROUTE_RC=$?
+          local ROUTE_RC=0 PREFLIGHT_ATTEMPT=1
+          while true; do
+            ROUTE_RC=0
+            bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --diamond "$DIAMOND_ADDRESS" --preflight || ROUTE_RC=$?
+            # exit 1 is an unreadable chain; 0, 3 and 4 are answers a retry cannot change
+            [[ "$ROUTE_RC" -ne 1 || "$PREFLIGHT_ATTEMPT" -ge "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]] && break
+            PREFLIGHT_ATTEMPT=$((PREFLIGHT_ATTEMPT + 1))
+            sleep 1
+          done
           if [[ "$ROUTE_RC" -eq 0 ]]; then
             PAIRED_NAMES+=("$CONTRACT")
             PAIRED_ADDRESSES+=("$CONTRACT_ADDRESS")

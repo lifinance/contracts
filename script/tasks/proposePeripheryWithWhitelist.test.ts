@@ -30,6 +30,7 @@ import {
 import globalConfig from '../../config/global.json'
 
 import {
+  ChainReadFailure,
   EXIT_REFUSED,
   PREFLIGHT_EXIT_NOT_PAIRED,
   PairedRegistrationRefusal,
@@ -535,7 +536,23 @@ describe('planRegistrations', () => {
         failOn: `code:${FEE_COLLECTOR}`,
       }).result
     )
+    expect(error).toBeInstanceOf(ChainReadFailure)
+    expect(error).not.toBeInstanceOf(PairedRegistrationRefusal)
     expect(error.message).toContain('could not read the code of FeeCollector')
+  })
+
+  it('reports an unreadable chain state as a read failure, not a refusal', async () => {
+    const error = await rejection(
+      plan([{ name: 'GasZipPeriphery', address: NEW_GASZIP }], {
+        registered: { GasZipPeriphery: OLD_GASZIP },
+        failOn: `allowlist:${OLD_GASZIP}`,
+      }).result
+    )
+    expect(error).toBeInstanceOf(ChainReadFailure)
+    expect(error).not.toBeInstanceOf(PairedRegistrationRefusal)
+    expect(error.message).toContain(
+      'could not read the chain state of GasZipPeriphery'
+    )
   })
 })
 
@@ -838,7 +855,7 @@ describe('proposePeripheryWithWhitelist.ts', () => {
   )
 
   it(
-    'refuses on unreadable chain state instead of proposing',
+    'exits 1, retryable, on unreadable chain state and proposes nothing',
     async () => {
       chain = {
         registered: { TokenWrapper: OLD_WRAPPER },
@@ -849,7 +866,7 @@ describe('proposePeripheryWithWhitelist.ts', () => {
       const { rc, out, proposals } = await run([
         '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, ...common,
       ]) // prettier-ignore
-      expect(rc).toBe(EXIT_REFUSED)
+      expect(rc).toBe(1)
       expect(out).toContain('could not read the chain state of TokenWrapper')
       expect(proposals).toEqual([])
     },

@@ -294,6 +294,30 @@ describe('diamondUpdatePeriphery on the Safe route', () => {
   )
 })
 
+describe('diamondUpdatePeriphery preflight retries', () => {
+  it(
+    'retries a preflight whose chain read failed, and not one that was refused',
+    () => {
+      const unreadable = run({
+        contracts: { TokenWrapper: NEW_WRAPPER },
+        preflight: { TokenWrapper: 1 },
+        attempts: 3,
+      })
+      const refused = run({
+        contracts: { TokenWrapper: NEW_WRAPPER },
+        preflight: { TokenWrapper: 4 },
+        attempts: 3,
+      })
+      expect(unreadable.out.match(/^PREFLIGHT/gm)).toHaveLength(3)
+      expect(unreadable.out).not.toContain('PAIRED_PROPOSE')
+      expect(unreadable.rc).toBe(1)
+      expect(refused.out.match(/^PREFLIGHT/gm)).toHaveLength(1)
+      expect(refused.rc).toBe(1)
+    },
+    TIMEOUT_MS
+  )
+})
+
 describe('diamondUpdatePeriphery off the Safe route', () => {
   it(
     'still broadcasts directly on staging and consults no proposer',
@@ -388,11 +412,73 @@ describe('dropRegistryDriftPairs', () => {
   })
 })
 
+describe('diamondSyncWhitelist registry check', () => {
+  // The real guard block, lifted out of the source and run with the pair lists
+  // and the drift check stubbed.
+  const guard = (
+    pairs: { new: string[]; removed: string[] },
+    driftRc: number
+  ) => {
+    const source = readFileSync(SYNC, 'utf8')
+    const start = source.indexOf(
+      // eslint-disable-next-line no-template-curly-in-string
+      '    if [[ ${#NEW_PAIRS[@]} -gt 0 || ${#REMOVED_PAIRS[@]} -gt 0 ]]'
+    )
+    const end =
+      source.indexOf('      return 1\n    fi\n', start) +
+      '      return 1\n    fi\n'.length
+    if (start < 0 || end < start) throw new Error('guard block not found')
+    const harness = `
+      dropRegistryDriftPairs() { echo "DRIFT_CALLED"; return $DRIFT_RC; }
+      getWhitelistFilePath() { echo w.json; }
+      f() {
+        local NETWORK=fuse DIAMOND_ADDRESS=0x1 ENVIRONMENT=production FAILED_LOG_FILE=/dev/null
+        NEW_PAIRS=($NEW)
+        REMOVED_PAIRS=($REMOVED)
+${source.slice(start, end)}
+        echo "PASSED_GUARD"
+      }
+      f
+    `
+    const result = spawnSync('bash', ['-c', harness], {
+      encoding: 'utf8',
+      env: {
+        PATH: process.env.PATH ?? '',
+        NEW: pairs.new.join(' '),
+        REMOVED: pairs.removed.join(' '),
+        DRIFT_RC: String(driftRc),
+      },
+      timeout: TIMEOUT_MS,
+    })
+    return `${result.stdout}${result.stderr}`
+  }
+
+  it('does not read the registry when there is nothing to write', () => {
+    const out = guard({ new: [], removed: [] }, 1)
+    expect(out).not.toContain('DRIFT_CALLED')
+    expect(out).toContain('PASSED_GUARD')
+    expect(out).not.toContain('refusing to sync')
+  })
+
+  it.each([
+    [{ new: ['a|0x1'], removed: [] }],
+    [{ new: [], removed: ['a|0x1'] }],
+  ])(
+    'still refuses the network when pairs are pending and the registry cannot be read',
+    (pairs) => {
+      const out = guard(pairs, 1)
+      expect(out).toContain('DRIFT_CALLED')
+      expect(out).toContain('refusing to sync')
+      expect(out).not.toContain('PASSED_GUARD')
+    }
+  )
+})
+
 describe('diamondSyncWhitelist placement', () => {
   it('filters after both pair lists exist, refuses the network on a failed read, and runs before anything is sent or proposed', () => {
     const source = readFileSync(SYNC, 'utf8')
     const call = source.indexOf(
-      'if ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then'
+      '&& ! dropRegistryDriftPairs "$NETWORK" "$DIAMOND_ADDRESS" "$(getWhitelistFilePath "$ENVIRONMENT")"; then'
     )
     const refusal = source.indexOf('return 1', call)
     const removalsComputed = source.lastIndexOf('REMOVED_PAIRS+=(')
