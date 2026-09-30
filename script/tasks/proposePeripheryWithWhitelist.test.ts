@@ -708,6 +708,9 @@ describe('proposePeripheryWithWhitelist.ts', () => {
     const env: Record<string, string> = {
       PATH: `${join(sandbox, 'shims')}:${process.env.PATH ?? ''}`,
       HOME: sandbox,
+      // tsx puts its IPC pipe under the temp dir; without this the child falls
+      // back to /tmp, which a sandboxed runner cannot write.
+      TMPDIR: tmpdir(),
       ETH_NODE_URI_FUSE: rpcUrl,
       ETH_NODE_URI_LENS: rpcUrl,
       SC_MONGODB_URI: 'blocked-in-tests://no-store',
