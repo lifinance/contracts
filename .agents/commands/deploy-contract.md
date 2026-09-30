@@ -126,11 +126,14 @@ bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract <Contract> --n
 
 The deploy's standalone registration proposal on those networks sits at an earlier nonce, and the Safe executes that one first: tell the user it is superseded and must be deleted before the paired proposal can execute.
 
-**Production, Tron:** `proposePeripheryWithWhitelist.ts` refuses Tron networks. Sync the allowlist first, get it signed and executed, then propose the registration (propose-only mode); gate W clears it once the allowlist is live:
+**Production, Tron:** `proposePeripheryWithWhitelist.ts` refuses Tron networks. Sync the allowlist first, get it signed and executed, then propose the registration; gate W clears it once the allowlist is live:
 
 ```bash
 ./script/tasks/syncWhitelistToNetworks.sh tron --production
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --only <Contract> --registerOnly
 ```
+
+`proposeContractToNetworks.sh` (propose-only mode) refuses Tron, so it is not the registration path here.
 
 If the deploy already proposed the registration, it holds the earlier nonce and blocks the sync behind it, so it has to be deleted and re-proposed after the sync executes.
 

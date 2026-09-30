@@ -905,6 +905,50 @@ describe('evaluatePeripheryAllowlist — a diamondCut _init', () => {
     expect(verdict.cleared).toBe(true)
   })
 
+  it.each([
+    [
+      'an _init that is not the diamond',
+      diamondCut(FACET, batchWhitelist(TOKEN_WRAPPER, [DEPOSIT, WITHDRAW])),
+    ],
+    [
+      'a diamond _init nested inside one that is not the diamond',
+      diamondCut(
+        FACET,
+        diamondCut(DIAMOND, batchWhitelist(TOKEN_WRAPPER, [DEPOSIT, WITHDRAW]))
+      ),
+    ],
+  ])(
+    'does not pair a registration with a whitelist add in %s',
+    async (_, cut) => {
+      const deps = chain([])
+      const verdict = await evaluatePeripheryAllowlist(
+        viaTimelock(scheduleBatch([cut, register('TokenWrapper')])),
+        deps
+      )
+      expect(verdict.findings.map((finding) => finding.status)).toEqual([
+        'missing',
+      ])
+      expect(verdict.findings[0]?.missing).toEqual([DEPOSIT, WITHDRAW])
+      expect(deps.reads).toEqual([`${DIAMOND}:${TOKEN_WRAPPER}`])
+      expect(verdict.cleared).toBe(false)
+    }
+  )
+
+  it('applies a whitelist removal carried in an _init that is not the diamond', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          register('TokenWrapper'),
+          diamondCut(FACET, singleWhitelist(TOKEN_WRAPPER, DEPOSIT, false)),
+        ])
+      ),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.findings[0]?.status).toBe('missing')
+    expect(verdict.findings[0]?.missing).toEqual([DEPOSIT])
+    expect(verdict.cleared).toBe(false)
+  })
+
   it('grades a registration in the _init of a cut nested inside another _init', async () => {
     const verdict = await evaluatePeripheryAllowlist(
       direct(diamondCut(DIAMOND, diamondCut(FACET, register('TokenWrapper')))),
@@ -1054,6 +1098,29 @@ describe('gate W printing of proposer-controlled text', () => {
     const row = rowOf(verdict)
     expect(row.actual).toContain('sanitised for display')
     expect(row.actual).not.toContain('\u001b')
+  })
+
+  it('sanitises a missing registration name in both expected and actual on the row', async () => {
+    const graded = await evaluatePeripheryAllowlist(
+      direct(register('TokenWrapper')),
+      chain([])
+    )
+    const [finding] = graded.findings
+    if (!finding) throw new Error('no finding')
+    expect(finding.status).toBe('missing')
+    const verdict: IPeripheryAllowlistVerdict = {
+      ...graded,
+      findings: [{ ...finding, name: 'Token\u001b[2JㅤWrapper' }],
+    }
+    const row = rowOf(verdict)
+    for (const field of [row.expected, row.actual]) {
+      expect(field).toStartWith(
+        'Token[2JㅤWrapper (⚠ sanitised for display — stored 17, printable 16; 1 invisible character among 16 printable): '
+      )
+      expect(field).not.toContain('\u001b')
+    }
+    expect(row.expected).toContain(`allowlisted for ${TOKEN_WRAPPER}`)
+    expect(row.actual).toContain('missing, observed none')
   })
 
   it('adds no notice to a clean name', async () => {

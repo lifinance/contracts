@@ -346,7 +346,8 @@ export const evaluatePeripheryAllowlist = async (
     callIndex: number,
     where: string,
     path: string,
-    initDepth: number
+    initDepth: number,
+    addsTakeEffect: boolean
   ): void => {
     const selector = data.slice(0, 10).toLowerCase()
 
@@ -375,19 +376,21 @@ export const evaluatePeripheryAllowlist = async (
         const decoded = decodeFunctionData({ abi: GATE_ABI, data })
         if (decoded.functionName === 'setContractSelectorWhitelist') {
           const [contract, selector, on] = decoded.args
-          batchWrites.set(pairKey(diamond, contract, selector), on)
+          if (!on || addsTakeEffect)
+            batchWrites.set(pairKey(diamond, contract, selector), on)
         } else if (
           decoded.functionName === 'batchSetContractSelectorWhitelist'
         ) {
           const [contracts, selectors, on] = decoded.args
           if (contracts.length !== selectors.length)
             throw new Error('length mismatch')
-          contracts.forEach((contract, at) =>
-            batchWrites.set(
-              pairKey(diamond, contract, selectors[at] as string),
-              on
+          if (!on || addsTakeEffect)
+            contracts.forEach((contract, at) =>
+              batchWrites.set(
+                pairKey(diamond, contract, selectors[at] as string),
+                on
+              )
             )
-          )
         }
       } catch {
         whitelistUnreadable.push(
@@ -401,7 +404,9 @@ export const evaluatePeripheryAllowlist = async (
       // Only the FacetCut[] is exempt from the scan: installing
       // `PeripheryRegistryFacet` lists the registration selector there. The
       // diamond delegatecalls `_init` with `_calldata` in its own storage, so
-      // that runs as a call on the diamond and is read like one.
+      // that runs as a call on the diamond and is read like one. A whitelist
+      // add there counts only when `_init` is the diamond itself: any other
+      // address runs its own code, which need not perform the add it names.
       const [cut] = diamondCutCallsIn({
         leaves: [{ callIndex, data, selector, depth: 0 }],
         undecodable: [],
@@ -424,7 +429,10 @@ export const evaluatePeripheryAllowlist = async (
         callIndex,
         `${where} diamondCut _init`,
         `${path}.diamondCut._init`,
-        initDepth + 1
+        initDepth + 1,
+        addsTakeEffect &&
+          target !== undefined &&
+          getAddress(cut.init) === getAddress(target)
       )
       return
     }
@@ -441,7 +449,8 @@ export const evaluatePeripheryAllowlist = async (
       leaf.callIndex,
       `call[${leaf.callIndex}] leaf ${ordinal}`,
       `call[${leaf.callIndex}][${ordinal}]`,
-      0
+      0,
+      true
     )
   }
 
