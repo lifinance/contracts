@@ -3930,4 +3930,55 @@ describe('facet-versions-match-target-state', () => {
       ])
     ).toHaveLength(1)
   })
+
+  it('groups in the digest by contract and direction only, since the digest masks version digits', async () => {
+    // normalizeFailureCause masks every standalone integer, so two networks behind by different
+    // versions share one digest line; the run log keeps the versions. Contract and direction
+    // still separate lines.
+    const drift = async (
+      network: string,
+      targets: Record<string, string>,
+      diamondFacetLog: Record<string, { Name: string; Version: string }>
+    ): Promise<{
+      network: string
+      status: 'passed'
+      warnings: string[]
+      detail: string
+    }> => {
+      const ctx = makeDriftCtx({ network, targets, diamondFacetLog })
+      await invariant.run(ctx)
+      return { network, status: 'passed', warnings: ctx.warnings, detail: '' }
+    }
+
+    const results = [
+      await drift(
+        'arbitrum',
+        { GenericSwapFacetV3: '2.0.0' },
+        { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' } }
+      ),
+      await drift(
+        'base',
+        { GenericSwapFacetV3: '4.5.6' },
+        { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.3.1' } }
+      ),
+      await drift(
+        'optimism',
+        { GenericSwapFacetV3: '1.0.0' },
+        { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' } }
+      ),
+      await drift(
+        'polygon',
+        { MayanFacet: '2.0.0' },
+        { [MAYAN]: { Name: 'MayanFacet', Version: '1.0.0' } }
+      ),
+    ]
+
+    expect(results[0]?.warnings).not.toEqual(results[1]?.warnings)
+    const groups = groupWarningsByCause(results)
+    expect(groups.map((group) => group.networks)).toEqual([
+      ['arbitrum', 'base'],
+      ['optimism'],
+      ['polygon'],
+    ])
+  })
 })

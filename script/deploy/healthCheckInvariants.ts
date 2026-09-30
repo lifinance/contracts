@@ -1754,7 +1754,8 @@ async function resolveTargetFacetVersion(
  * Report how one registered facet's live version stands against its target.
  *
  * @remarks The text names the contract and both versions but never the network or the address,
- *   so the fleet digest merges the same drift on every chain into one line.
+ *   so the same drift reads identically on every chain. The fleet digest masks version digits,
+ *   so it merges per contract and direction; only the run log keeps the versions apart.
  * @param ctx - the network being evaluated
  * @param contractName - facet name as the target state spells it
  * @param liveVersion - the version the diamond log records at the registered address, if any
