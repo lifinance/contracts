@@ -127,7 +127,17 @@ export interface INetworkScanState {
  * endpoint has reached, and stops there.
  */
 export class LogRangeBehindError extends Error {
-  public constructor(message: string, public readonly head: bigint) {
+  /**
+   * @param message - What happened.
+   * @param head - The furthest block an endpoint has reached.
+   * @param refused - Whether another endpoint refused the range too, so a
+   *   narrower one may be served past `head`.
+   */
+  public constructor(
+    message: string,
+    public readonly head: bigint,
+    public readonly refused = false
+  ) {
     super(message)
   }
 }
@@ -314,6 +324,13 @@ const readRange = async (
       cursor = end + 1n
     } catch (error) {
       if (error instanceof LogRangeBehindError) {
+        if (error.refused && width > MIN_LOG_SPAN) {
+          width =
+            width / SPAN_SHRINK > MIN_LOG_SPAN
+              ? width / SPAN_SHRINK
+              : MIN_LOG_SPAN
+          continue
+        }
         if (error.head < cursor || error.head >= end) break
         stopAt = error.head
         continue

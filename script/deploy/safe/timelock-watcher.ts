@@ -704,6 +704,7 @@ export const watchNetwork = async (
           let logs: Awaited<ReturnType<typeof readTimelockLogs>> | undefined
           let lastError: unknown
           let furthest = -1n
+          let refusal: unknown
           for (let k = 0; k < logReaders.length && !logs; k++) {
             const at = (preferredReader + k) % logReaders.length
             const reader = logReaders[at] as PublicClient
@@ -729,17 +730,19 @@ export const watchNetwork = async (
               preferredReader = at
             } catch (error) {
               lastError = error
+              if (!(error instanceof LogRangeBehindError)) refusal = error
             }
           }
           // An endpoint that has reached part of the range can serve it up to its
           // head, whatever the others did; the next range narrows from there.
           if (!logs)
-            throw furthest >= 0n
+            throw furthest >= fromBlock
               ? new LogRangeBehindError(
                   `no endpoint served the range; the furthest is at block ${furthest}`,
-                  furthest
+                  furthest,
+                  refusal !== undefined
                 )
-              : lastError
+              : refusal ?? lastError
           const scheduled = []
           const salts = []
           const cancels = []

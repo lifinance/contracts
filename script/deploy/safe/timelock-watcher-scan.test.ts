@@ -507,6 +507,31 @@ describe('advanceScan', () => {
     expect(next.state.operations[id(5)]).toBeDefined()
   })
 
+  it('narrows first when another endpoint refused the range, past a lagging one', async () => {
+    const base = chain({ head: 20_000n, floor: 0n, logs: [] })
+    const deps = {
+      ...base,
+      getLogs: async (from: bigint, to: bigint) => {
+        if (to - from + 1n > 1_000n)
+          throw new LogRangeBehindError('behind', 19_500n, true)
+        return base.getLogs(from, to)
+      },
+    }
+    const outcome = await advanceScan(
+      {
+        ...initialScanState(undefined, TIMELOCK),
+        floor: '0',
+        low: '0',
+        high: '10000',
+        span: '100000',
+      },
+      deps,
+      0
+    )
+    expect(outcome.state.high).toBe('20000')
+    expect(outcome.forwardLag).toBe(0n)
+  })
+
   it('reads up to the furthest endpoint head, without narrowing the span', async () => {
     const base = chain({ head: 20_000n, floor: 0n, logs: [] })
     const deps = {
