@@ -35,7 +35,7 @@ import {
 import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
 import timelockConfig from '../../../config/timelockController.json'
-import type { INetworksObject } from '../../common/types'
+import type { INetworksObject, IWhitelistConfig } from '../../common/types'
 import { isEntrypoint } from '../../utils/is-entrypoint'
 import { redactUrls } from '../../utils/redactUrls'
 import { SlackNotifier, isUnattendedRun } from '../../utils/slack-notifier'
@@ -48,6 +48,7 @@ import {
   verifyCutTargets,
   type IGateReport,
 } from '../codehash/verify-cut-targets'
+import { getExpectedPairs } from '../healthCheckInvariants'
 import { ZERO_ADDRESS } from '../shared/constants'
 
 import {
@@ -531,6 +532,38 @@ const runCodehash = async (
   return result
 }
 
+/**
+ * The `<contract>:<selector>` pairs main's `config/whitelist.json` lists for a
+ * network, the same expansion the health check compares the diamond against.
+ *
+ * @param network - Network name.
+ * @param deployments - Main's deployments file for it.
+ * @param readPinned - Reader of files at main.
+ * @returns The pairs, or `undefined` when the file could not be read or expanded.
+ */
+export const expectedWhitelist = async (
+  network: string,
+  deployments: Record<string, unknown>,
+  readPinned: IRunContext['readPinned']
+): Promise<Set<string> | undefined> => {
+  const pinned = readPinned('config/whitelist.json')
+  if (!pinned.ok) return undefined
+  let failed = false
+  const pairs = await getExpectedPairs(
+    network,
+    deployments as Record<string, string>,
+    pinned.value as unknown as IWhitelistConfig,
+    () => {
+      failed = true
+    },
+    () => undefined
+  )
+  if (failed) return undefined
+  return new Set(
+    pairs.map((p) => `${p.contract.toLowerCase()}:${p.selector.toLowerCase()}`)
+  )
+}
+
 const knownAddresses = (
   deployments: Record<string, unknown>,
   safe: string | undefined,
@@ -817,6 +850,7 @@ export const watchNetwork = async (
   const safeOwners = new Set(
     globalConfig.safeOwners.map((owner) => owner.toLowerCase())
   )
+  const whitelist = await expectedWhitelist(name, deployments, ctx.readPinned)
   const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
@@ -869,6 +903,7 @@ export const watchNetwork = async (
       gradeAuthority(op, {
         known: knownForArguments,
         safeOwners,
+        whitelist,
         installed: installedAddresses(
           collectDiamondCutTargets(encodeOperation(op))
         ),

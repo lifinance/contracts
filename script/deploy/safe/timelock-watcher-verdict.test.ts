@@ -25,6 +25,7 @@ import {
 } from 'viem'
 
 import type { IGateReport } from '../codehash/verify-cut-targets'
+import { ZERO_ADDRESS } from '../shared/constants'
 
 import type { IPreBroadcastGateResult } from './prebroadcast-rederive'
 import type { ICollectedDiamondCuts } from './safe-decode-utils'
@@ -639,6 +640,111 @@ describe('gradeAuthority', () => {
     expect(graded.status).toBe('unknown')
     expect(graded.detail).toContain('deeper than this check reads')
   })
+
+  describe('selector whitelist', () => {
+    const USDC: Address = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
+    const TRANSFER_FROM: Hex = '0x23b872dd'
+    const SWAP: Hex = '0x7617b389'
+    const listed = {
+      ...context,
+      whitelist: new Set([`${PERIPHERY.toLowerCase()}:${SWAP}`]),
+    }
+    const single = (contract: Address, selector: Hex, on = true) =>
+      call('setContractSelectorWhitelist(address,bytes4,bool)', [
+        contract,
+        selector,
+        on,
+      ])
+    const batch = (contracts: Address[], selectors: Hex[], on = true) =>
+      call('batchSetContractSelectorWhitelist(address[],bytes4[],bool)', [
+        contracts,
+        selectors,
+        on,
+      ])
+
+    it('passes a pair main lists, and fails one it does not', () => {
+      expect(grade(DIAMOND, single(PERIPHERY, SWAP), listed)).toBe('pass')
+      const graded = gradeAuthority(
+        one(DIAMOND, single(USDC, TRANSFER_FROM)),
+        listed
+      )
+      expect(graded.status).toBe('fail')
+      expect(graded.detail).toContain(`${USDC.toLowerCase()}:${TRANSFER_FROM}`)
+    })
+
+    it('fails a batch carrying one unlisted pair among listed ones', () => {
+      expect(grade(DIAMOND, batch([PERIPHERY], [SWAP]), listed)).toBe('pass')
+      expect(
+        grade(DIAMOND, batch([PERIPHERY, USDC], [SWAP, TRANSFER_FROM]), listed)
+      ).toBe('fail')
+    })
+
+    it('passes a removal, which only narrows the whitelist', () => {
+      expect(
+        grade(DIAMOND, batch([USDC], [TRANSFER_FROM], false), listed)
+      ).toBe('pass')
+    })
+
+    it("is unverified when main's whitelist could not be read", () => {
+      expect(grade(DIAMOND, single(PERIPHERY, SWAP), context)).toBe('unknown')
+    })
+  })
+
+  describe('revoked roles', () => {
+    const revoke = (name: string, from: Address) =>
+      call('revokeRole(bytes32,address)', [role(name), from])
+    const renounce = (name: string, from: Address) =>
+      call('renounceRole(bytes32,address)', [role(name), from])
+
+    it('fails taking a governing role from anyone', () => {
+      expect(grade(TIMELOCK, revoke('PROPOSER_ROLE', SAFE))).toBe('fail')
+      expect(grade(TIMELOCK, revoke('TIMELOCK_ADMIN_ROLE', STRANGER))).toBe(
+        'fail'
+      )
+      expect(grade(TIMELOCK, renounce('PROPOSER_ROLE', SAFE))).toBe('fail')
+    })
+
+    it('fails taking the canceller role from the Safe, and passes an offboarded wallet', () => {
+      expect(grade(TIMELOCK, revoke('CANCELLER_ROLE', SAFE))).toBe('fail')
+      expect(grade(TIMELOCK, revoke('CANCELLER_ROLE', DEPLOYER))).toBe('pass')
+      expect(grade(TIMELOCK, revoke('CANCELLER_ROLE', STRANGER))).toBe('pass')
+    })
+
+    it('leaves another role unverified', () => {
+      expect(grade(TIMELOCK, revoke('EXECUTOR_ROLE', ZERO_ADDRESS))).toBe(
+        'unknown'
+      )
+    })
+  })
+
+  describe('calls it does not grade', () => {
+    it('leaves an owner-gated call it does not know unverified', () => {
+      const graded = gradeAuthority(
+        one(
+          DIAMOND,
+          call('registerOptimismBridge(address,address)', [STRANGER, STRANGER])
+        ),
+        context
+      )
+      expect(graded.status).toBe('unknown')
+      expect(graded.detail).toContain('does not grade')
+    })
+
+    it('passes a benign call', () => {
+      expect(grade(PERIPHERY, call('confirmOwnershipTransfer()', []))).toBe(
+        'pass'
+      )
+      expect(
+        grade(
+          DIAMOND,
+          call('registerPeripheryContract(string,address)', [
+            'Executor',
+            PERIPHERY,
+          ])
+        )
+      ).toBe('pass')
+    })
+  })
 })
 
 describe('installedAddresses', () => {
@@ -735,16 +841,21 @@ describe('gradeCodehash', () => {
     )
   })
 
-  it('passes an operation installing nothing, and says what it could not open', () => {
-    expect(
-      gradeCodehash({ kind: 'not-applicable', collected: collected() }).detail
-    ).toBe('installs no code')
-    expect(
-      gradeCodehash({
-        kind: 'not-applicable',
-        collected: collected({ unopened: ['0xdeadbeef'] }),
-      }).detail
-    ).toContain('0xdeadbeef')
+  it('passes an operation installing nothing', () => {
+    const graded = gradeCodehash({
+      kind: 'not-applicable',
+      collected: collected(),
+    })
+    expect(graded).toMatchObject({ status: 'pass', detail: 'installs no code' })
+  })
+
+  it('is unverified when calldata the decoder could not open may install code', () => {
+    const graded = gradeCodehash({
+      kind: 'not-applicable',
+      collected: collected({ unopened: ['0xdeadbeef'] }),
+    })
+    expect(graded.status).toBe('unknown')
+    expect(graded.detail).toContain('0xdeadbeef')
   })
 
   it('passes when every target matches', () => {

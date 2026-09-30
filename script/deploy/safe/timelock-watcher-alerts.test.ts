@@ -14,6 +14,7 @@ import {
   UNVERIFIED_REALERT_MS,
   decideAlerts,
   findingKey,
+  reasonsSignature,
   type IAlertRecord,
   type IWatchFinding,
 } from './timelock-watcher-alerts'
@@ -36,6 +37,7 @@ const recordAt = (
 ): IAlertRecord => ({
   verdict,
   alertedAt: new Date(NOW.getTime() - msAgo).toISOString(),
+  reasons: `${verdict} reason`,
 })
 
 describe('findingKey', () => {
@@ -51,6 +53,7 @@ describe('decideAlerts: first sight', () => {
     expect(decision.next[KEY]).toEqual({
       verdict: 'mismatch',
       alertedAt: NOW.toISOString(),
+      reasons: 'mismatch reason',
     })
   })
 
@@ -66,7 +69,75 @@ describe('decideAlerts: first sight', () => {
   })
 })
 
+describe('reasonsSignature', () => {
+  it('keys operation reasons on the check that did not pass', () => {
+    expect(
+      reasonsSignature([
+        'codehash: queued behind this run',
+        'authority: call 0 grants X',
+      ])
+    ).toBe(reasonsSignature(['authority: another detail', 'codehash: other']))
+  })
+
+  it('ignores a moving backfill cursor and error wording', () => {
+    expect(
+      reasonsSignature([
+        'history before block 100 is not scanned yet',
+        'getMinDelay() could not be read: timeout after 20000ms',
+      ])
+    ).toBe(
+      reasonsSignature([
+        'history before block 9000 is not scanned yet',
+        'getMinDelay() could not be read: HTTP 502',
+      ])
+    )
+  })
+
+  it('tells a new note apart', () => {
+    expect(
+      reasonsSignature(['history before block 100 is not scanned yet'])
+    ).not.toBe(
+      reasonsSignature([
+        'history before block 100 is not scanned yet',
+        'queued operation 0xabc is pending on chain but the log scan did not find it',
+      ])
+    )
+  })
+})
+
 describe('decideAlerts: standing findings', () => {
+  it('alerts a new reason under a standing verdict inside its throttle', () => {
+    const standing = recordAt('unverified', 1)
+    const decision = decideAlerts(
+      { [KEY]: standing },
+      [
+        {
+          ...finding('unverified'),
+          reasons: ['unverified reason', 'codehash: could not rebuild'],
+        },
+      ],
+      ALL,
+      NOW
+    )
+    expect(decision.alerts.map((a) => a.kind)).toEqual(['changed'])
+    expect(decision.next[KEY]?.alertedAt).toBe(NOW.toISOString())
+  })
+
+  it('adopts the reasons of a record written before they were kept, quietly', () => {
+    const { reasons: _, ...legacy } = recordAt('mismatch', 1)
+    const decision = decideAlerts(
+      { [KEY]: legacy },
+      [finding('mismatch')],
+      ALL,
+      NOW
+    )
+    expect(decision.alerts).toEqual([])
+    expect(decision.next[KEY]).toEqual({
+      ...legacy,
+      reasons: 'mismatch reason',
+    })
+  })
+
   it('suppresses a standing mismatch inside its throttle', () => {
     const standing = recordAt('mismatch', MISMATCH_REALERT_MS - 1)
     const decision = decideAlerts(

@@ -13,6 +13,7 @@ import {
   decodeFunctionData,
   keccak256,
   parseAbi,
+  toFunctionSelector,
   toHex,
   type Address,
   type Hex,
@@ -80,15 +81,31 @@ const AUTHORITY_ABI = parseAbi([
   'function setCanExecute(bytes4 selector, address executor, bool canExecute)',
   'function withdraw(address assetAddress, address to, uint256 amount)',
   'function executeCallAndWithdraw(address callTo, bytes callData, address assetAddress, address to, uint256 amount)',
+  'function revokeRole(bytes32 role, address account)',
+  'function renounceRole(bytes32 role, address account)',
+  'function setContractSelectorWhitelist(address _contract, bytes4 _selector, bool _whitelisted)',
+  'function batchSetContractSelectorWhitelist(address[] _contracts, bytes4[] _selectors, bool _whitelisted)',
 ])
 
-const AUTHORITY_SELECTORS = new Set([
-  '0xf2fde38b', // transferOwnership(address)
-  '0x2f2ff15d', // grantRole(bytes32,address)
-  '0xa4c3366e', // setCanExecute(bytes4,address,bool)
-  '0xd9caed12', // withdraw(address,address,uint256)
-  '0x1458d7ad', // executeCallAndWithdraw(address,bytes,address,address,uint256)
-])
+const AUTHORITY_SELECTORS = new Set<string>(
+  AUTHORITY_ABI.map((item) => toFunctionSelector(item))
+)
+
+/**
+ * Calls the repo's own flows schedule that hand nothing to anyone: taking over
+ * a pending ownership, or what another check judges (`registerPeripheryContract`
+ * by gate K, `updateDelay` by the delay check). Any other call is unverified.
+ */
+const BENIGN_SELECTORS = new Set<string>(
+  parseAbi([
+    'function acceptOwnershipTransfer()',
+    'function confirmOwnershipTransfer()',
+    'function cancelOwnershipTransfer()',
+    'function registerPeripheryContract(string _name, address _contractAddress)',
+    'function updateDelay(uint256 newDelay)',
+    'function owner() view returns (address)',
+  ]).map((item) => toFunctionSelector(item))
+)
 const DIAMOND_CUT_SELECTOR = '0x1f931c1c'
 
 const selectorOf = (data: Hex): string => data.slice(0, 10).toLowerCase()
@@ -466,6 +483,7 @@ const OPERATING_ROLES = new Map([
   [roleHash('EXECUTOR_ROLE'), 'EXECUTOR_ROLE'],
 ])
 const GOVERNORS = new Set(['Safe', 'LiFiTimelockController'])
+const CANCELLER_ROLE = roleHash('CANCELLER_ROLE')
 
 /** Deepest envelope `reachedCalls` opens; anything deeper is unverified. */
 const MAX_CALL_DEPTH = 3
@@ -571,6 +589,9 @@ export interface IAuthorityContext {
   safeOwners?: ReadonlySet<string>
   /** Lowercased addresses this operation installs, whose code gate K judges. */
   installed?: ReadonlySet<string>
+  /** Lowercased `<contract>:<selector>` pairs `config/whitelist.json` at main
+   *  lists for the network; unset when it could not be read. */
+  whitelist?: ReadonlySet<string>
 }
 
 /**
@@ -585,12 +606,17 @@ export interface IAuthorityContext {
  * - a timelock admin or proposer role only to the Safe or the timelock; the
  *   canceller or executor role to an address main names or a Safe owner;
  * - a selector executor only to the refund wallet or a contract the operation
- *   installs; a withdrawal only to the withdraw wallet.
+ *   installs; a withdrawal only to the withdraw wallet;
+ * - a contract selector whitelisted only when `config/whitelist.json` at main
+ *   lists it;
+ * - no timelock admin or proposer role revoked or renounced, and no canceller
+ *   role taken from the Safe or the timelock.
  *
  * An ownership, selector executor or withdrawal handed to an address main
  * does not know fails, and to another known address, or through an arbitrary
  * call from the diamond, is unverified. A governing role to anyone but the Safe
  * or the timelock fails; an unknown canceller or executor grantee is unverified.
+ * A call that is none of these, an envelope or a benign call is unverified.
  *
  * @param op - The operation.
  * @param context - The names that make an address an allowed recipient.
@@ -624,7 +650,17 @@ export const gradeAuthority = (
   for (const label of tooDeep)
     unknown.push(`${label} nests calls deeper than this check reads`)
   for (const call of calls) {
-    if (!AUTHORITY_SELECTORS.has(selectorOf(call.data))) continue
+    const selector = selectorOf(call.data)
+    if (ENVELOPE_SELECTORS.has(selector) || BENIGN_SELECTORS.has(selector))
+      continue
+    if (!AUTHORITY_SELECTORS.has(selector)) {
+      unknown.push(
+        `${call.label} calls ${selector} on ${
+          nameOf(call.target) ?? call.target
+        }, which this check does not grade`
+      )
+      continue
+    }
     let decoded: ReturnType<typeof decodeFunctionData<typeof AUTHORITY_ABI>>
     try {
       decoded = decodeFunctionData({ abi: AUTHORITY_ABI, data: call.data })
@@ -698,6 +734,67 @@ export const gradeAuthority = (
             `lets ${selector} be called by`,
             executor,
             (name) => name === 'refundWallet'
+          )
+        break
+      }
+      case 'revokeRole':
+      case 'renounceRole': {
+        const [role, from] = decoded.args
+        const governing = GOVERNING_ROLES.get(role.toLowerCase())
+        const name = nameOf(from)
+        const verb =
+          decoded.functionName === 'revokeRole' ? 'revokes' : 'renounces'
+        if (governing)
+          failures.push(
+            `${call.label} ${verb} ${governing} from ${name ?? from}`
+          )
+        else if (role.toLowerCase() === CANCELLER_ROLE)
+          if (name && GOVERNORS.has(name))
+            failures.push(`${call.label} ${verb} CANCELLER_ROLE from ${name}`)
+          else
+            granted.push(
+              `${call.label} ${verb} CANCELLER_ROLE from ${name ?? from}`
+            )
+        else
+          unknown.push(
+            `${call.label} ${verb} role ${role} from ${name ?? from}`
+          )
+        break
+      }
+      case 'setContractSelectorWhitelist':
+      case 'batchSetContractSelectorWhitelist': {
+        const [contracts, selectors, whitelisted] =
+          decoded.functionName === 'setContractSelectorWhitelist'
+            ? [[decoded.args[0]], [decoded.args[1]], decoded.args[2]]
+            : decoded.args
+        if (!whitelisted) {
+          granted.push(`${call.label} removes whitelist entries`)
+          break
+        }
+        if (!context.whitelist) {
+          unknown.push(
+            `${call.label} whitelists contract selectors, and main's config/whitelist.json could not be read`
+          )
+          break
+        }
+        if (contracts.length !== selectors.length) {
+          failures.push(
+            `${call.label} whitelists ${contracts.length} contract(s) against ${selectors.length} selector(s)`
+          )
+          break
+        }
+        const unlisted = contracts
+          .map((c, i) => `${c.toLowerCase()}:${selectors[i]?.toLowerCase()}`)
+          .filter((pair) => !context.whitelist?.has(pair))
+        if (unlisted.length > 0)
+          failures.push(
+            `${call.label} whitelists ${unlisted.join(
+              ', '
+            )}, which main's config/whitelist.json does not list`
+          )
+        else
+          granted.push(
+            `${call.label} whitelists ${contracts.length} pair(s) main's config/whitelist.json lists`
           )
         break
       }
@@ -819,16 +916,15 @@ export const installsCode = (collected: ICollectedDiamondCuts): boolean =>
  */
 export const gradeCodehash = (result: TCodehashResult): ICheckOutcome => {
   if (result.kind === 'not-applicable')
-    return {
-      check: 'codehash',
-      status: 'pass',
-      detail:
-        result.collected.unopened.length > 0
-          ? `installs nothing this decoder can see (unopened: ${result.collected.unopened.join(
-              ', '
-            )})`
-          : 'installs no code',
-    }
+    return result.collected.unopened.length > 0
+      ? {
+          check: 'codehash',
+          status: 'unknown',
+          detail: `calldata the decoder could not open may install code (unopened: ${result.collected.unopened.join(
+            ', '
+          )})`,
+        }
+      : { check: 'codehash', status: 'pass', detail: 'installs no code' }
   if (result.kind === 'deferred' || result.kind === 'error')
     return { check: 'codehash', status: 'unknown', detail: result.reason }
   if (result.kind === 'cached')

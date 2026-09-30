@@ -6,7 +6,10 @@
  * records it returns, and only once the alert carrying them was delivered.
  */
 
-import type { TWatcherVerdict } from './timelock-watcher-verdict'
+import {
+  REQUIRED_CHECKS,
+  type TWatcherVerdict,
+} from './timelock-watcher-verdict'
 
 /** A standing mismatch is re-sent every 6 hours until it resolves. */
 export const MISMATCH_REALERT_MS = 6 * 60 * 60 * 1000 // 6 hours
@@ -19,6 +22,8 @@ export interface IAlertRecord {
   verdict: Exclude<TWatcherVerdict, 'ok'>
   /** ISO timestamp of the delivery. */
   alertedAt: string
+  /** {@link reasonsSignature} of the reasons alerted; unset on older records. */
+  reasons?: string
 }
 
 /** One subject this run judged: an operation, or a network as a whole. */
@@ -56,11 +61,39 @@ export const findingKey = (network: string, subject: string): string =>
 
 const networkOfKey = (key: string): string => key.slice(0, key.indexOf(':'))
 
+const CHECK_PREFIX = new RegExp(`^(${REQUIRED_CHECKS.join('|')}): `)
+
+/**
+ * What must change for a standing verdict to alert again: which checks did not
+ * pass, and which notes the network carries. Numbers, hex and error details are
+ * dropped, so a backfill cursor moving or a node's error wording changing does
+ * not re-page every run.
+ *
+ * @param reasons - A finding's reasons.
+ * @returns A stable signature.
+ */
+export const reasonsSignature = (reasons: readonly string[]): string =>
+  [
+    ...new Set(
+      reasons.map((reason) => {
+        const check = CHECK_PREFIX.exec(reason)?.[1]
+        if (check) return check
+        return reason
+          .replace(/: .*$/s, '')
+          .replace(/0x[0-9a-fA-F]+/g, '0x…')
+          .replace(/\d+(\.\d+)?/g, '#')
+      })
+    ),
+  ]
+    .sort()
+    .join('\n')
+
 /**
  * Decides which findings to alert on.
  *
  * - A finding with no record alerts when it is not `ok`.
- * - A change of verdict alerts, including the return to `ok`.
+ * - A change of verdict alerts, including the return to `ok`, and so does a
+ *   change of {@link reasonsSignature} under the same verdict.
  * - A standing verdict alerts again once its throttle has elapsed.
  * - An operation this run no longer reports, on a network it read completely,
  *   was executed or cancelled: that is announced and its record dropped. A
@@ -94,15 +127,21 @@ export const decideAlerts = (
       continue
     }
 
+    const reasons = reasonsSignature(finding.reasons)
+    const alerted = { verdict: finding.verdict, alertedAt: stamp, reasons }
+
     if (!record) {
       alerts.push({ finding, kind: 'new' })
-      next[finding.key] = { verdict: finding.verdict, alertedAt: stamp }
+      next[finding.key] = alerted
       continue
     }
 
-    if (record.verdict !== finding.verdict) {
+    if (
+      record.verdict !== finding.verdict ||
+      (record.reasons !== undefined && record.reasons !== reasons)
+    ) {
       alerts.push({ finding, kind: 'changed', previous: record.verdict })
-      next[finding.key] = { verdict: finding.verdict, alertedAt: stamp }
+      next[finding.key] = alerted
       continue
     }
 
@@ -115,8 +154,8 @@ export const decideAlerts = (
     // elapsed so a corrupt record cannot silence a subject for good.
     if (!(elapsed < throttle)) {
       alerts.push({ finding, kind: 'repeat' })
-      next[finding.key] = { verdict: finding.verdict, alertedAt: stamp }
-    } else next[finding.key] = record
+      next[finding.key] = alerted
+    } else next[finding.key] = { ...record, reasons }
   }
 
   for (const [key, record] of Object.entries(previous)) {
