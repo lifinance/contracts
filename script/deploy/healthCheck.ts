@@ -26,17 +26,25 @@ import {
 
 import targetStateImport from './_targetState.json'
 import {
+  diagnoseBehindMain,
+  formatBehindMainLine,
+  loadDeployLog,
+} from './healthCheckBehindMain'
+import {
   getExemptCoreFacets,
   getExemptCorePeriphery,
+  readPeripheryRegistry,
   runHealthCheckInvariants,
   type IHealthCheckContext,
 } from './healthCheckInvariants'
+import { getContractVersion } from './shared/getContractVersion'
 import {
   deriveNonCoreFacets,
   getCoreFacets,
   getCorePeriphery,
   getTronWallet,
 } from './shared/globalContractLists'
+import { isFacetContract, loadDiamondLog } from './shared/immutableBindings'
 
 const targetState = targetStateImport as TargetState
 
@@ -48,6 +56,11 @@ export interface IHealthCheckNetworkResult {
   warnings: string[]
   /** Set when status is 'skipped'. */
   skipReason?: string
+  /**
+   * Report-only line naming the `latest` contracts whose live version is behind the repo. Never
+   * affects `status`; absent when the network was not checked in production.
+   */
+  behindMain?: string
 }
 
 /**
@@ -92,6 +105,7 @@ export async function runHealthCheckForNetwork(
 
   const errors: string[] = []
   const warnings: string[] = []
+  let behindMain: string | undefined
 
   try {
     const isTron = networkLower === 'tron'
@@ -246,6 +260,11 @@ export async function runHealthCheckForNetwork(
     consola.info(`[${networkLower}] Running post deployment checks...\n`)
 
     await runHealthCheckInvariants(ctx)
+
+    if (environment === 'production') {
+      behindMain = await summarizeBehindMain(ctx)
+      consola.info(behindMain)
+    }
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     errors.push(`[${networkLower}] health check aborted: ${errorMessage}`)
@@ -256,6 +275,45 @@ export async function runHealthCheckForNetwork(
     status: errors.length ? 'failed' : 'passed',
     errors,
     warnings,
+    ...(behindMain === undefined ? {} : { behindMain }),
+  }
+}
+
+/**
+ * Build the report-only "behind main" line for a network whose invariants have run.
+ *
+ * @param ctx - the context the invariants ran against, so the loupe and registry reads are reused
+ * @returns the line; a failure is rendered into it rather than thrown, because this summary must
+ *   never change a run's outcome
+ */
+async function summarizeBehindMain(ctx: IHealthCheckContext): Promise<string> {
+  try {
+    const report = await diagnoseBehindMain(
+      {
+        networkLower: ctx.networkLower,
+        targetContracts:
+          ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond,
+        onChainFacets: ctx.onChainFacets,
+        deployedContracts: Object.fromEntries(
+          Object.entries(ctx.deployedContracts).map(([name, address]) => [
+            name,
+            String(address),
+          ])
+        ),
+        diamondFacetLog: loadDiamondLog(ctx.networkLower)?.Facets ?? null,
+        deployLog: loadDeployLog(),
+      },
+      {
+        isFacet: (name) => isFacetContract(name),
+        readRegistry: (name) => readPeripheryRegistry(name, ctx),
+        repoVersion: getContractVersion,
+      }
+    )
+    return formatBehindMainLine(report)
+  } catch (error: unknown) {
+    return `[${ctx.networkLower}] behind main (report-only): unavailable - ${
+      error instanceof Error ? error.message : String(error)
+    }`
   }
 }
 
