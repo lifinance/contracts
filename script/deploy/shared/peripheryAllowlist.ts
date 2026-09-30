@@ -2,8 +2,7 @@
  * Which selectors a diamond-called periphery contract needs on the diamond's allowlist, and
  * whether one address has them.
  *
- * Pure, so the chain-side health check and a sign-time gate over a `registerPeripheryContract`
- * answer the same question from the same config the same way. The caller owns the reads.
+ * Pure: the caller owns the reads.
  */
 import type { Hex } from 'viem'
 

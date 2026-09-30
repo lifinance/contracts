@@ -223,13 +223,18 @@ export async function diagnoseBehindMain(
 /**
  * Render one network's report as the single summary line.
  *
- * @returns e.g. `[gnosis] behind main (report-only): 3 of 20 behind - TokenWrapper 1.0.0 < 1.2.1, …`
+ * @remarks Undiagnosed contracts count in the total and are named, so a network whose live
+ *   versions cannot be read never reads as nearly current.
+ * @returns e.g. `[gnosis] behind main (report-only): 3 behind, 2 undiagnosed, of 20 - TokenWrapper 1.0.0 < 1.2.1, … - undiagnosed: FeeForwarder, OutputValidator`
  */
 export function formatBehindMainLine(report: IBehindMainReport): string {
   const prefix = `[${report.networkLower}] behind main (report-only)`
   if (!report.hasTargetState) return `${prefix}: no production target state`
-  const diagnosed = report.behind.length + report.current.length
-  const parts = [`${prefix}: ${report.behind.length} of ${diagnosed} behind`]
+  const total =
+    report.behind.length + report.current.length + report.undiagnosed.length
+  const parts = [
+    `${prefix}: ${report.behind.length} behind, ${report.undiagnosed.length} undiagnosed, of ${total}`,
+  ]
   if (report.behind.length > 0)
     parts.push(
       report.behind

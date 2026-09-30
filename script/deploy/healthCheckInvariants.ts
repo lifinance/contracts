@@ -1295,7 +1295,7 @@ function report(
 /**
  * Read one PeripheryRegistry entry through the run-wide cache on `ctx`.
  *
- * Registry state does not change during a run, but four invariants now probe overlapping name
+ * Registry state does not change during a run, but several invariants probe overlapping name
  * sets; uncached that multiplies the RPC reads per network and feeds the rate limits that degrade
  * other checks. The promise is cached before it settles so concurrent invariants share one
  * in-flight read, and a failed read is evicted so a retry reaches the RPC again.

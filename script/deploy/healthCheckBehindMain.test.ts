@@ -214,6 +214,41 @@ describe('diagnoseBehindMain', () => {
   })
 })
 
+describe('a registered periphery address the deploy log does not record', () => {
+  const TW_UNLOGGED = '0x2222222222222222222222222222222222222222'
+  const input = makeInput({
+    targetContracts: { TokenWrapper: 'latest', Executor: 'latest' },
+  })
+
+  it('counts the contract as undiagnosed in the headline and names it', async () => {
+    const report = await diagnoseBehindMain(
+      input,
+      makeDeps({ TokenWrapper: TW_UNLOGGED, Executor: EXECUTOR })
+    )
+    expect(report.undiagnosed).toEqual([
+      {
+        contract: 'TokenWrapper',
+        reason: `no deploy-log version recorded for ${TW_UNLOGGED}`,
+      },
+    ])
+    const line = formatBehindMainLine(report)
+    expect(line).toContain('0 behind, 1 undiagnosed, of 2')
+    expect(line).toContain('undiagnosed: TokenWrapper')
+  })
+
+  it('diagnoses the same contract once its registered address is in the log', async () => {
+    const report = await diagnoseBehindMain(
+      input,
+      makeDeps({ TokenWrapper: TW_OLD, Executor: EXECUTOR })
+    )
+    expect(report.undiagnosed).toEqual([])
+    const line = formatBehindMainLine(report)
+    expect(line).toContain('1 behind, 0 undiagnosed, of 2')
+    expect(line).toContain('TokenWrapper 1.0.0 < 1.2.1')
+    expect(line).not.toContain('undiagnosed:')
+  })
+})
+
 describe('formatBehindMainLine', () => {
   it('lists each behind contract with both versions', async () => {
     const report = await diagnoseBehindMain(
@@ -233,7 +268,9 @@ describe('formatBehindMainLine', () => {
       makeInput({ targetContracts: { Executor: 'latest' } }),
       makeDeps({ Executor: EXECUTOR })
     )
-    expect(formatBehindMainLine(report)).toContain('0 of 1 behind')
+    expect(formatBehindMainLine(report)).toContain(
+      '0 behind, 0 undiagnosed, of 1'
+    )
   })
 })
 

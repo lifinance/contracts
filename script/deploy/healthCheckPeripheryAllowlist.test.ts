@@ -252,17 +252,20 @@ describe('registered-periphery-allowlisted invariant', () => {
     expect(ctx.errors[0]).toContain('whitelistPeripheryFunctions')
   })
 
-  const queued = (selector: Hex): IHealthCheckContext['pendingRegistrations'] =>
+  const queued = (
+    selector: Hex,
+    address: string = NEW_WRAPPER
+  ): IHealthCheckContext['pendingRegistrations'] =>
     new Map([
       [
         'testnet1',
         new Map<string, IPendingRegistration[]>([
           [
-            NEW_WRAPPER.toLowerCase(),
+            address.toLowerCase(),
             [
               {
                 kind: 'whitelist',
-                address: NEW_WRAPPER.toLowerCase(),
+                address: address.toLowerCase(),
                 selector,
                 operationId: `0x${'ab'.repeat(32)}` as Hex,
                 target: DIAMOND.toLowerCase(),
@@ -293,6 +296,19 @@ describe('registered-periphery-allowlisted invariant', () => {
         allowlisted: [pair(NEW_WRAPPER, DEPOSIT)],
       },
       { pendingRegistrations: queued(DEPOSIT) }
+    )
+    await allowlistInvariant().run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(WITHDRAW)
+  })
+
+  it('still errors when the queued operation allowlists the selector on a different address', async () => {
+    const { ctx } = makeCtx(
+      {
+        registry: { TokenWrapper: NEW_WRAPPER },
+        allowlisted: [pair(NEW_WRAPPER, DEPOSIT)],
+      },
+      { pendingRegistrations: queued(WITHDRAW, OLD_WRAPPER) }
     )
     await allowlistInvariant().run(ctx)
     expect(ctx.errors).toHaveLength(1)
