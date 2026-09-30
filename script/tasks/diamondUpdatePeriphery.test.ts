@@ -105,9 +105,22 @@ const run = (options: {
     cast() { case "$1" in codesize) echo 100 ;; calldata) echo 0xabcdef ;; estimate) echo 1000 ;; esac; }
     saveDiamondPeriphery() { echo "SAVED_LOG"; }
     universalCast() { echo "DIRECT_SEND $*"; }
-    bun() { echo "PLAIN_PROPOSE $*"; }
     sleep() { :; }
-    bunx() {
+    # Keyed on the script, not the launcher: "bun <script>" and "bunx tsx <script>"
+    # must land on the same branch, or a launcher change flips the verdict.
+    launch() {
+      [[ "$1" == "tsx" ]] && shift
+      case "$1" in
+        script/deploy/safe/propose-to-safe.ts)
+          echo "PLAIN_PROPOSE $*"
+          return 0
+          ;;
+        script/tasks/proposePeripheryWithWhitelist.ts) ;;
+        *)
+          echo "UNEXPECTED_LAUNCH $*"
+          return 1
+          ;;
+      esac
       if [[ " $* " == *" --preflight "* ]]; then
         echo "PREFLIGHT $*"
         case " $* " in
@@ -121,6 +134,8 @@ const run = (options: {
       esac
       return ${proposeDefault}
     }
+    bun() { launch "$@"; }
+    bunx() { launch "$@"; }
     MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=${options.attempts ?? 1}
     DEBUG="true"
     diamondUpdatePeriphery fuse "${
@@ -158,10 +173,10 @@ describe('diamondUpdatePeriphery on the Safe route', () => {
         preflight: { TokenWrapper: 0 },
       })
       expect(out).toContain(
-        `PREFLIGHT tsx script/tasks/proposePeripheryWithWhitelist.ts --contract TokenWrapper --networks fuse --address ${NEW_WRAPPER} --diamond ${DIAMOND} --preflight`
+        `PREFLIGHT script/tasks/proposePeripheryWithWhitelist.ts --contract TokenWrapper --networks fuse --address ${NEW_WRAPPER} --diamond ${DIAMOND} --preflight`
       )
       expect(out).toContain(
-        `PAIRED_PROPOSE tsx script/tasks/proposePeripheryWithWhitelist.ts --contract TokenWrapper --networks fuse --address ${NEW_WRAPPER} --diamond ${DIAMOND}`
+        `PAIRED_PROPOSE script/tasks/proposePeripheryWithWhitelist.ts --contract TokenWrapper --networks fuse --address ${NEW_WRAPPER} --diamond ${DIAMOND}`
       )
       expect(out).not.toContain('PLAIN_PROPOSE')
       expect(out).not.toContain('DIRECT_SEND')
