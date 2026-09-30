@@ -501,14 +501,25 @@ function proposeContractToNetworks() {
   # separate sync proposal could execute first and de-whitelist the address the
   # diamond still has registered.
   local WL_NETWORKS=()
+  local PAIRED_NETWORKS=()
   if [[ "$NEEDS_WHITELIST" == "true" ]]; then
     for TARGET_NETWORK in "${SUCCEEDED_NETWORKS[@]:-}"; do
       [[ -z "$TARGET_NETWORK" ]] && continue
-      if [[ "$PRODUCTION_FLAG" == "true" ]] && ! isTestnetNetwork "$TARGET_NETWORK"; then
+      if [[ "$PRODUCTION_FLAG" == "true" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] && ! isTestnetNetwork "$TARGET_NETWORK"; then
+        PAIRED_NETWORKS+=("$TARGET_NETWORK")
         continue
       fi
       WL_NETWORKS+=("$TARGET_NETWORK")
     done
+  fi
+
+  if [[ ${#PAIRED_NETWORKS[@]} -gt 0 ]]; then
+    echo ""
+    echo "[info] no separate allowlist sync on ${PAIRED_NETWORKS[*]}: each registration proposal carries its own whitelist writes"
+    echo "[info] regenerating config/whitelist.json locally for the deploy-records PR (file write only, nothing is proposed)"
+    if ! bunx tsx script/tasks/updateWhitelistPeriphery.ts; then
+      error "could not regenerate config/whitelist.json - run bunx tsx script/tasks/updateWhitelistPeriphery.ts before opening the PR"
+    fi
   fi
 
   if [[ ${#WL_NETWORKS[@]} -gt 0 ]]; then

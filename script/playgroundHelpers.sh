@@ -413,9 +413,6 @@ function proposePeripheryContractRegistration() {
     return 1
   fi
 
-  # Create calldata for registerPeripheryContract
-  local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT" "$CONTRACT_ADDRESS")
-
   # Get contracts directory and use absolute path for bunx
   local contracts_dir
   contracts_dir=$(getContractsDirectory)
@@ -424,10 +421,26 @@ function proposePeripheryContractRegistration() {
     return 1
   fi
 
-  set +e  # Temporarily disable exit on error to capture exit code
-  (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" >/dev/null 2>&1)
-  local PROPOSAL_STATUS=$?
-  set -e  # Re-enable exit on error
+  # A diamond-called contract's registration is proposed in one batch with its
+  # whitelist writes; proposed alone it executes into an entry the diamond may
+  # not call.
+  local ROUTE_RC=0
+  local PROPOSAL_STATUS
+  set +e
+  (cd "$contracts_dir" && bunx tsx ./script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --diamond "$DIAMOND_ADDRESS" --preflight)
+  ROUTE_RC=$?
+  if [[ "$ROUTE_RC" -eq 0 ]]; then
+    (cd "$contracts_dir" && bunx tsx ./script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --diamond "$DIAMOND_ADDRESS")
+    PROPOSAL_STATUS=$?
+  elif [[ "$ROUTE_RC" -eq 3 ]]; then
+    local CALLDATA=$(cast calldata "registerPeripheryContract(string,address)" "$CONTRACT" "$CONTRACT_ADDRESS")
+    (cd "$contracts_dir" && bunx tsx ./script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$CALLDATA" --network "$NETWORK" --rpcUrl "$RPC_URL" --timelock --privateKey "$(getPrivateKey "$NETWORK" "$ENVIRONMENT")" >/dev/null 2>&1)
+    PROPOSAL_STATUS=$?
+  else
+    error "[$NETWORK] refusing to propose the registration of $CONTRACT (see above); nothing was proposed"
+    PROPOSAL_STATUS=1
+  fi
+  set -e
 
   if [[ $PROPOSAL_STATUS -eq 0 ]]; then
     # Mark this network as successfully proposed

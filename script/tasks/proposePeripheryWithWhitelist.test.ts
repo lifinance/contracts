@@ -1,15 +1,18 @@
 /**
- * Tests for the whitelist pair logic behind the combined registration +
- * whitelist-sync proposal. The dangerous half is the REMOVAL set: any pair the
- * config fails to produce is proposed for de-whitelisting on a live diamond.
- *
- * The case that matters most is the approveTo-only entry — a DEXS or PERIPHERY
- * contract with no listed functions is whitelisted under the `0xffffffff`
- * sentinel (LibAllowList.sol). Reading such an entry as "no pairs" would
- * de-whitelist live approveTo DEX targets fleet-wide, so it is asserted
- * explicitly here and through the diff.
+ * Tests for the scoped paired registration batch: one registration, the
+ * removal of the replaced address's configured selectors, and the addition of
+ * the new address's — and nothing from any other contract.
  */
+import { spawn } from 'child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { createServer, type Server } from 'http'
+import type { AddressInfo } from 'net'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
+  afterAll,
+  beforeAll,
   describe,
   expect,
   it,
@@ -17,6 +20,7 @@ import {
 } from 'bun:test'
 import {
   decodeFunctionData,
+  encodeFunctionResult,
   getAddress,
   parseAbi,
   type Address,
@@ -26,237 +30,32 @@ import {
 import globalConfig from '../../config/global.json'
 
 import {
-  APPROVE_TO_ONLY,
-  assertRegisteredAddressIsDesired,
-  assertWhitelistListsRegistrations,
-  buildPairedRegistrationBatch,
+  EXIT_REFUSED,
+  PREFLIGHT_EXIT_NOT_PAIRED,
+  PairedRegistrationRefusal,
+  buildScopedPairedBatch,
   chunkPairs,
-  desiredPairs,
-  diffPairs,
-  pairKey,
+  normaliseSelector,
   peripheryRegistrationRoute,
+  planRegistrations,
+  readRegistrationState,
   requiredSelectorsFor,
+  type IPairedRegistrationReader,
   type IPeripheryRouteConfig,
-  type IWhitelistConfig,
+  type IRegistrationChainState,
 } from './proposePeripheryWithWhitelist'
-
-const NETWORK = 'arbitrum'
-const OTHER_NETWORK = 'polygon'
-
-// hex letters on purpose: an all-digit address makes any casing assertion vacuous
-const DEX_WITH_FUNCTIONS = '0xdef1c0ded9bec7f1a1670819833240f027b25eff'
-const DEX_APPROVE_TO_ONLY = '0x2222222222222222222222222222222222222222'
-const PERIPHERY_WITH_SELECTORS = '0x3333333333333333333333333333333333333333'
-const PERIPHERY_APPROVE_TO_ONLY = '0x4444444444444444444444444444444444444444'
-const FOREIGN_DEX = '0x5555555555555555555555555555555555555555'
-
-const SWAP = '0x12aa3caf'
-const DEPOSIT = '0xd0e30db0'
-const WITHDRAW = '0x2e1a7d4d'
-
-const config: IWhitelistConfig = {
-  DEXS: [
-    {
-      contracts: {
-        [NETWORK]: [
-          {
-            address: DEX_WITH_FUNCTIONS,
-            functions: { [SWAP]: 'swap(...)', [DEPOSIT]: 'deposit()' },
-          },
-          { address: DEX_APPROVE_TO_ONLY, functions: {} },
-        ],
-        [OTHER_NETWORK]: [
-          { address: FOREIGN_DEX, functions: { [SWAP]: 'swap(...)' } },
-        ],
-      },
-    },
-  ],
-  PERIPHERY: {
-    [NETWORK]: [
-      {
-        address: PERIPHERY_WITH_SELECTORS,
-        selectors: [{ selector: WITHDRAW }],
-      },
-      { address: PERIPHERY_APPROVE_TO_ONLY, selectors: [] },
-    ],
-  },
-}
-
-const pair = (contract: string, selector: string) => ({
-  contract: getAddress(contract),
-  selector: selector as Hex,
-})
-
-describe('desiredPairs', () => {
-  it('expands a DEX entry into one pair per listed function', () => {
-    const keys = desiredPairs(config, NETWORK).map(pairKey)
-    expect(keys).toContain(pairKey(pair(DEX_WITH_FUNCTIONS, SWAP)))
-    expect(keys).toContain(pairKey(pair(DEX_WITH_FUNCTIONS, DEPOSIT)))
-  })
-
-  it('maps a DEX entry with no functions to the approveTo-only sentinel', () => {
-    const keys = desiredPairs(config, NETWORK).map(pairKey)
-    expect(keys).toContain(pairKey(pair(DEX_APPROVE_TO_ONLY, APPROVE_TO_ONLY)))
-  })
-
-  it('maps a PERIPHERY entry with no selectors to the approveTo-only sentinel', () => {
-    const keys = desiredPairs(config, NETWORK).map(pairKey)
-    expect(keys).toContain(
-      pairKey(pair(PERIPHERY_APPROVE_TO_ONLY, APPROVE_TO_ONLY))
-    )
-  })
-
-  it('treats a missing functions/selectors key like an empty one', () => {
-    const pairs = desiredPairs(
-      {
-        DEXS: [
-          { contracts: { [NETWORK]: [{ address: DEX_APPROVE_TO_ONLY }] } },
-        ],
-        PERIPHERY: { [NETWORK]: [{ address: PERIPHERY_APPROVE_TO_ONLY }] },
-      },
-      NETWORK
-    )
-    expect(pairs.map((p) => p.selector)).toEqual([
-      APPROVE_TO_ONLY,
-      APPROVE_TO_ONLY,
-    ])
-  })
-
-  it('covers both sections and no other network', () => {
-    const keys = desiredPairs(config, NETWORK).map(pairKey)
-    expect(keys).toContain(pairKey(pair(PERIPHERY_WITH_SELECTORS, WITHDRAW)))
-    expect(keys).not.toContain(pairKey(pair(FOREIGN_DEX, SWAP)))
-    expect(keys.length).toBe(5)
-  })
-
-  it('checksums addresses so config casing cannot fork a pair', () => {
-    const upper = `0x${DEX_WITH_FUNCTIONS.slice(2).toUpperCase()}`
-    expect(upper).not.toBe(DEX_WITH_FUNCTIONS) // guard: the fixture must have letters
-    const [entry] = desiredPairs(
-      {
-        DEXS: [
-          {
-            contracts: {
-              [NETWORK]: [
-                { address: upper, functions: { [SWAP]: 'swap(...)' } },
-              ],
-            },
-          },
-        ],
-      },
-      NETWORK
-    )
-    expect(entry?.contract).toBe(getAddress(DEX_WITH_FUNCTIONS))
-    // the diff must see the differently-cased config and on-chain forms as one pair
-    const { toAdd, toRemove } = diffPairs(
-      [pair(upper, SWAP)],
-      [pair(DEX_WITH_FUNCTIONS.toLowerCase(), SWAP)]
-    )
-    expect(toAdd).toEqual([])
-    expect(toRemove).toEqual([])
-  })
-
-  it('returns nothing for a network absent from both sections', () => {
-    expect(desiredPairs(config, 'unknown-network')).toEqual([])
-    expect(desiredPairs({}, NETWORK)).toEqual([])
-  })
-})
-
-describe('diffPairs', () => {
-  it('never proposes removing a live approveTo-only pair the config still lists', () => {
-    const onChain = desiredPairs(config, NETWORK).map((p) => ({
-      contract: p.contract.toLowerCase() as `0x${string}`,
-      selector: p.selector,
-    }))
-    const { toAdd, toRemove } = diffPairs(
-      desiredPairs(config, NETWORK),
-      onChain
-    )
-    expect(toAdd).toEqual([])
-    expect(toRemove).toEqual([])
-  })
-
-  it('removes only the on-chain pairs the config no longer lists', () => {
-    const stale = pair(FOREIGN_DEX, SWAP)
-    const { toAdd, toRemove } = diffPairs(desiredPairs(config, NETWORK), [
-      pair(DEX_APPROVE_TO_ONLY, APPROVE_TO_ONLY),
-      stale,
-    ])
-    expect(toRemove.map(pairKey)).toEqual([pairKey(stale)])
-    expect(toAdd.map(pairKey)).not.toContain(
-      pairKey(pair(DEX_APPROVE_TO_ONLY, APPROVE_TO_ONLY))
-    )
-    expect(toAdd.length).toBe(4)
-  })
-
-  it('adds every desired pair when the diamond has none', () => {
-    const desired = desiredPairs(config, NETWORK)
-    const { toAdd, toRemove } = diffPairs(desired, [])
-    expect(toAdd.map(pairKey)).toEqual(desired.map(pairKey))
-    expect(toRemove).toEqual([])
-  })
-})
-
-describe('assertRegisteredAddressIsDesired', () => {
-  it('passes when the config lists the address being registered', () => {
-    expect(() =>
-      assertRegisteredAddressIsDesired(
-        desiredPairs(config, NETWORK),
-        getAddress(PERIPHERY_WITH_SELECTORS),
-        NETWORK
-      )
-    ).not.toThrow()
-  })
-
-  it('throws on a config that predates the deploy', () => {
-    // the stale-config inversion: the batch would register the new address while
-    // whitelisting the old one and de-whitelisting the new one
-    expect(() =>
-      assertRegisteredAddressIsDesired(
-        desiredPairs(config, NETWORK),
-        getAddress('0x9999999999999999999999999999999999999999'),
-        NETWORK
-      )
-    ).toThrow(/does not list/)
-  })
-
-  it('matches case-insensitively', () => {
-    expect(() =>
-      assertRegisteredAddressIsDesired(
-        [pair(DEX_WITH_FUNCTIONS.toLowerCase(), SWAP)],
-        getAddress(DEX_WITH_FUNCTIONS),
-        NETWORK
-      )
-    ).not.toThrow()
-  })
-})
-
-describe('chunkPairs', () => {
-  const many = Array.from({ length: 310 }, (_, i) =>
-    pair(`0x${(i + 1).toString(16).padStart(40, '0')}`, SWAP)
-  )
-
-  it('never emits a call above the per-call ceiling', () => {
-    const chunks = chunkPairs(many)
-    expect(chunks.every((c) => c.length <= 150)).toBe(true)
-    expect(chunks.flat().map(pairKey)).toEqual(many.map(pairKey))
-  })
-
-  it('emits one chunk when the set fits', () => {
-    expect(chunkPairs(many.slice(0, 7))).toHaveLength(1)
-  })
-
-  it('emits nothing for an empty set', () => {
-    expect(chunkPairs([])).toEqual([])
-  })
-})
 
 const DIAMOND = getAddress('0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE')
 const OLD_WRAPPER = getAddress('0x5215E9fd223BC909083fbdB2860213873046e45d')
 const NEW_WRAPPER = getAddress('0x254bA6498aDDA926C75d49E9909f308bFaf4720E')
-const OTHER_PERIPHERY = getAddress('0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80')
-const WRAP_DEPOSIT = '0xd0e30db0'
-const WRAP_WITHDRAW = '0x3ccfd60b'
+const OLD_GASZIP = getAddress('0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80')
+const NEW_GASZIP = getAddress('0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2')
+const FEE_COLLECTOR = getAddress('0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4')
+const WRAP_DEPOSIT = '0xd0e30db0' as Hex
+const WRAP_WITHDRAW = '0x3ccfd60b' as Hex
+const GASZIP_A = '0x8b71ae6c' as Hex
+const GASZIP_B = '0xc4af5a74' as Hex
+const UNRELATED = '0x12aa3caf' as Hex
 
 const routeConfig: IPeripheryRouteConfig = {
   whitelistPeripheryFunctions: {
@@ -264,26 +63,14 @@ const routeConfig: IPeripheryRouteConfig = {
       { selector: WRAP_DEPOSIT, signature: 'deposit()' },
       { selector: WRAP_WITHDRAW, signature: 'withdraw()' },
     ],
+    GasZipPeriphery: [
+      { selector: GASZIP_A, signature: 'a()' },
+      { selector: GASZIP_B, signature: 'b()' },
+    ],
     LiFiDEXAggregator: [{ selector: '0x2646478b', signature: 'x()' }],
   },
   whitelistPeripheryNetworks: { LiFiDEXAggregator: ['lens'] },
 }
-
-const wrapperConfig = (address: string, selectors: string[]) =>
-  ({
-    PERIPHERY: {
-      fuse: [
-        {
-          address,
-          selectors: selectors.map((selector) => ({ selector })),
-        },
-        {
-          address: OTHER_PERIPHERY,
-          selectors: [{ selector: '0x27444dab' }],
-        },
-      ],
-    },
-  } satisfies IWhitelistConfig)
 
 const DECODE_ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
@@ -292,6 +79,65 @@ const DECODE_ABI = parseAbi([
 
 const decodeAll = (calldatas: readonly Hex[]) =>
   calldatas.map((data) => decodeFunctionData({ abi: DECODE_ABI, data }))
+
+const wrapperSelectors = [WRAP_DEPOSIT, WRAP_WITHDRAW]
+
+const state = (
+  overrides: Partial<IRegistrationChainState> = {}
+): IRegistrationChainState => ({
+  current: undefined,
+  currentSelectors: [],
+  currentAlsoRegisteredAs: [],
+  hasCode: true,
+  ...overrides,
+})
+
+const build = (overrides: Partial<IRegistrationChainState> = {}) =>
+  buildScopedPairedBatch({
+    network: 'fuse',
+    diamond: DIAMOND,
+    registration: { name: 'TokenWrapper', address: NEW_WRAPPER },
+    configured: wrapperSelectors,
+    state: state(overrides),
+  })
+
+/** A reader over fixed chain state that records every read. */
+const fixedReader = (chain: {
+  registered?: Record<string, Address>
+  selectors?: Record<string, Hex[]>
+  codeless?: Address[]
+  failOn?: string
+}) => {
+  const reads: string[] = []
+  const reader: IPairedRegistrationReader = {
+    getPeripheryContract: async (name) => {
+      reads.push(`registry:${name}`)
+      if (chain.failOn === `registry:${name}`) throw new Error('rpc down')
+      return chain.registered?.[name]
+    },
+    getWhitelistedSelectors: async (contract) => {
+      reads.push(`allowlist:${contract}`)
+      if (chain.failOn === `allowlist:${contract}`) throw new Error('rpc down')
+      return chain.selectors?.[contract] ?? []
+    },
+    hasCode: async (address) => {
+      reads.push(`code:${address}`)
+      if (chain.failOn === `code:${address}`) throw new Error('rpc down')
+      return !(chain.codeless ?? []).includes(address)
+    },
+  }
+  return { reader, reads }
+}
+
+async function rejection(promise: Promise<unknown>): Promise<Error> {
+  try {
+    await promise
+  } catch (error) {
+    if (error instanceof Error) return error
+    throw error
+  }
+  throw new Error('expected a rejection')
+}
 
 describe('peripheryRegistrationRoute', () => {
   it('pairs a diamond-called contract on an unscoped network', () => {
@@ -352,11 +198,14 @@ describe('peripheryRegistrationRoute', () => {
 })
 
 describe('requiredSelectorsFor', () => {
-  it('lowercases the configured selectors', () => {
+  it('lowercases and de-duplicates the configured selectors', () => {
     expect(
       requiredSelectorsFor('Patcher', {
         whitelistPeripheryFunctions: {
-          Patcher: [{ selector: '0xEFAE576B', signature: 'x()' }],
+          Patcher: [
+            { selector: '0xEFAE576B', signature: 'x()' },
+            { selector: '0xefae576b', signature: 'x()' },
+          ],
         },
       })
     ).toEqual(['0xefae576b'])
@@ -371,215 +220,516 @@ describe('requiredSelectorsFor', () => {
   })
 })
 
-describe('assertWhitelistListsRegistrations', () => {
-  const required = [WRAP_DEPOSIT, WRAP_WITHDRAW] as Hex[]
-  const registration = (address: Address) => [
-    { name: 'TokenWrapper', address, required },
-  ]
-
-  it('passes when whitelist.json lists the new address with every selector', () => {
-    const desired = desiredPairs(
-      wrapperConfig(NEW_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]),
-      'fuse'
+describe('normaliseSelector', () => {
+  it('reads every form TronWeb and viem return as 0x-prefixed lowercase', () => {
+    expect(normaliseSelector('0x3CCFD60B')).toBe(WRAP_WITHDRAW)
+    expect(normaliseSelector('3ccfd60b')).toBe(WRAP_WITHDRAW)
+    expect(normaliseSelector('3CCFD60B')).toBe(WRAP_WITHDRAW)
+    expect(normaliseSelector(Uint8Array.from([0x3c, 0xcf, 0xd6, 0x0b]))).toBe(
+      WRAP_WITHDRAW
     )
-    expect(() =>
-      assertWhitelistListsRegistrations(
-        desired,
-        registration(NEW_WRAPPER),
-        'fuse'
-      )
-    ).not.toThrow()
+    expect(normaliseSelector([0x3c, 0xcf, 0xd6, 0x0b])).toBe(WRAP_WITHDRAW)
   })
 
-  it('refuses while whitelist.json still lists the old address', () => {
-    const desired = desiredPairs(
-      wrapperConfig(OLD_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]),
-      'fuse'
-    )
-    expect(() =>
-      assertWhitelistListsRegistrations(
-        desired,
-        registration(NEW_WRAPPER),
-        'fuse'
-      )
-    ).toThrow(/update config\/whitelist\.json first/)
-  })
-
-  it('refuses when whitelist.json lists the address without every selector', () => {
-    const desired = desiredPairs(
-      wrapperConfig(NEW_WRAPPER, [WRAP_DEPOSIT]),
-      'fuse'
-    )
-    expect(() =>
-      assertWhitelistListsRegistrations(
-        desired,
-        registration(NEW_WRAPPER),
-        'fuse'
-      )
-    ).toThrow(/without 0x3ccfd60b/)
+  it('refuses anything that is not four bytes', () => {
+    for (const bad of [
+      '0x3ccfd6',
+      '0x3ccfd60b00',
+      'zzzzzzzz',
+      1,
+      undefined,
+      [300, 1, 2, 3],
+    ])
+      expect(() => normaliseSelector(bad)).toThrow(/not a four-byte selector/)
   })
 })
 
-describe('buildPairedRegistrationBatch', () => {
-  const required = [WRAP_DEPOSIT, WRAP_WITHDRAW] as Hex[]
-  const onChain = [
-    pair(OLD_WRAPPER, WRAP_DEPOSIT),
-    pair(OLD_WRAPPER, WRAP_WITHDRAW),
-    pair(OTHER_PERIPHERY, '0x27444dab'),
-  ]
-  const build = (
-    config: IWhitelistConfig,
-    options: { actual?: typeof onChain; codeless?: string[] } = {}
-  ) =>
-    buildPairedRegistrationBatch({
-      network: 'fuse',
-      diamond: DIAMOND,
-      registrations: [{ name: 'TokenWrapper', address: NEW_WRAPPER, required }],
-      desired: desiredPairs(config, 'fuse'),
-      actual: options.actual ?? onChain,
-      codeless: new Set(options.codeless ?? []),
-    })
-
-  it('puts the registration and both whitelist writes in one batch, all on the diamond', () => {
-    const batch = build(
-      wrapperConfig(NEW_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT])
-    )
-    expect(batch.targets).toEqual([DIAMOND, DIAMOND, DIAMOND])
-    const [register, remove, add] = decodeAll(batch.calldatas)
+describe('buildScopedPairedBatch', () => {
+  it('registers a first deployment and whitelists its configured selectors', () => {
+    const batch = build()
+    expect(batch.targets).toEqual([DIAMOND, DIAMOND])
+    const [register, add] = decodeAll(batch.calldatas)
     expect(register?.functionName).toBe('registerPeripheryContract')
     expect(register?.args).toEqual(['TokenWrapper', NEW_WRAPPER])
-    expect(remove?.functionName).toBe('batchSetContractSelectorWhitelist')
-    expect(remove?.args).toEqual([
-      [OLD_WRAPPER, OLD_WRAPPER],
-      [WRAP_DEPOSIT, WRAP_WITHDRAW],
-      false,
+    expect(add?.args).toEqual([
+      [NEW_WRAPPER, NEW_WRAPPER],
+      wrapperSelectors,
+      true,
     ])
-    expect(add?.functionName).toBe('batchSetContractSelectorWhitelist')
-    expect(add?.args[2]).toBe(true)
-    expect(add?.args[0]).toEqual([NEW_WRAPPER, NEW_WRAPPER])
-    expect([...(add?.args[1] ?? [])].sort()).toEqual(
-      [WRAP_DEPOSIT, WRAP_WITHDRAW].sort()
-    )
+    expect(batch.toRemove).toEqual([])
+    expect(batch.replaced).toBeUndefined()
   })
 
-  it('refuses before building anything while whitelist.json predates the deploy', () => {
-    expect(() =>
-      build(wrapperConfig(OLD_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]))
-    ).toThrow(/update config\/whitelist\.json first/)
-  })
-
-  it('carries only the registration when the chain already allowlists the address', () => {
-    const batch = build(
-      wrapperConfig(NEW_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]),
-      {
-        actual: [
-          pair(NEW_WRAPPER, WRAP_DEPOSIT),
-          pair(NEW_WRAPPER, WRAP_WITHDRAW),
-          pair(OTHER_PERIPHERY, '0x27444dab'),
-        ],
-      }
-    )
-    expect(decodeAll(batch.calldatas).map((c) => c.functionName)).toEqual([
-      'registerPeripheryContract',
-    ])
-  })
-
-  it('refuses a registered address with no code rather than dropping its pairs', () => {
-    expect(() =>
-      build(wrapperConfig(NEW_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]), {
-        codeless: [NEW_WRAPPER.toLowerCase()],
-      })
-    ).toThrow(/no code/)
-  })
-
-  it('drops a codeless unrelated target and reports it', () => {
-    const batch = build(
-      wrapperConfig(NEW_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]),
-      {
-        actual: [pair(OLD_WRAPPER, WRAP_DEPOSIT)],
-        codeless: [OTHER_PERIPHERY.toLowerCase()],
-      }
-    )
-    expect(batch.skippedCodeless).toEqual([OTHER_PERIPHERY.toLowerCase()])
-    expect(batch.toAdd.map((p) => p.contract)).not.toContain(OTHER_PERIPHERY)
-    expect(batch.toAdd.map((p) => p.contract)).toContain(NEW_WRAPPER)
-  })
-
-  it('registers several contracts in the one batch, registrations first', () => {
-    const batch = buildPairedRegistrationBatch({
-      network: 'fuse',
-      diamond: DIAMOND,
-      registrations: [
-        { name: 'TokenWrapper', address: NEW_WRAPPER, required },
-        {
-          name: 'OutputValidator',
-          address: OTHER_PERIPHERY,
-          required: ['0x27444dab'],
-        },
-      ],
-      desired: desiredPairs(
-        wrapperConfig(NEW_WRAPPER, [WRAP_WITHDRAW, WRAP_DEPOSIT]),
-        'fuse'
-      ),
-      actual: [],
-      codeless: new Set(),
+  it('de-whitelists only the configured selectors the replaced address holds', () => {
+    const batch = build({
+      current: OLD_WRAPPER,
+      // one configured selector held, one unrelated selector that must stay
+      currentSelectors: [WRAP_WITHDRAW, UNRELATED],
     })
-    const names = decodeAll(batch.calldatas).map((c) => c.functionName)
-    expect(names).toEqual([
-      'registerPeripheryContract',
+    const [register, remove, add] = decodeAll(batch.calldatas)
+    expect(register?.args).toEqual(['TokenWrapper', NEW_WRAPPER])
+    expect(remove?.args).toEqual([[OLD_WRAPPER], [WRAP_WITHDRAW], false])
+    expect(add?.args?.[0]).toEqual([NEW_WRAPPER, NEW_WRAPPER])
+    expect(add?.args?.[2]).toBe(true)
+    expect(batch.calldatas).toHaveLength(3)
+    expect(batch.replaced).toBe(OLD_WRAPPER)
+  })
+
+  it('removes nothing when the name is already registered at the new address', () => {
+    const batch = build({
+      current: NEW_WRAPPER,
+      currentSelectors: wrapperSelectors,
+    })
+    expect(batch.toRemove).toEqual([])
+    expect(decodeAll(batch.calldatas).map((c) => c.functionName)).toEqual([
       'registerPeripheryContract',
       'batchSetContractSelectorWhitelist',
     ])
   })
 
-  it('refuses a batch above the combined-proposal cap', () => {
-    const many = Array.from({ length: 301 }, (_, i) => ({
-      address: `0x${(i + 1).toString(16).padStart(40, '0')}`,
-      selectors: [{ selector: SWAP }],
-    }))
-    const config: IWhitelistConfig = {
-      PERIPHERY: {
-        fuse: [
-          ...many,
-          {
-            address: NEW_WRAPPER,
-            selectors: [
-              { selector: WRAP_DEPOSIT },
-              { selector: WRAP_WITHDRAW },
-            ],
-          },
-        ],
-      },
-    }
-    expect(() => build(config, { actual: [] })).toThrow(/combined-proposal cap/)
+  it('keeps the replaced address whitelisted while another name still points at it', () => {
+    const batch = build({
+      current: OLD_WRAPPER,
+      currentSelectors: wrapperSelectors,
+      currentAlsoRegisteredAs: ['LidoWrapper'],
+    })
+    expect(batch.toRemove).toEqual([])
+    expect(batch.replacedKept).toContain('LidoWrapper')
+    expect(batch.calldatas).toHaveLength(2)
   })
 
-  it('refuses an empty registration list', () => {
+  it('refuses a codeless address', () => {
+    expect(() => build({ hasCode: false })).toThrow(PairedRegistrationRefusal)
+    expect(() => build({ hasCode: false })).toThrow(/has no code/)
+  })
+
+  it('refuses a batch above the combined-proposal cap', () => {
+    const many = Array.from(
+      { length: 301 },
+      (_, i) => `0x${(i + 1).toString(16).padStart(8, '0')}` as Hex
+    )
     expect(() =>
-      buildPairedRegistrationBatch({
+      buildScopedPairedBatch({
         network: 'fuse',
         diamond: DIAMOND,
-        registrations: [],
-        desired: [],
-        actual: [],
-        codeless: new Set(),
+        registration: { name: 'TokenWrapper', address: NEW_WRAPPER },
+        configured: many,
+        state: state(),
       })
-    ).toThrow(/no registration/)
+    ).toThrow(/exceeds the combined-proposal cap/)
   })
 })
 
-describe('desiredPairs with a network normaliser', () => {
-  it('uses the normaliser in place of the EVM checksum', () => {
-    const seen: string[] = []
-    const out = desiredPairs(
-      { PERIPHERY: { tron: [{ address: 'TBfUq', selectors: [] }] } },
-      'tron',
-      (raw) => {
-        seen.push(raw)
-        return NEW_WRAPPER
+describe('readRegistrationState', () => {
+  const read = (chain: Parameters<typeof fixedReader>[0]) => {
+    const { reader, reads } = fixedReader(chain)
+    return {
+      reads,
+      state: readRegistrationState({
+        registration: { name: 'TokenWrapper', address: NEW_WRAPPER },
+        configured: wrapperSelectors,
+        diamondCalledNames: Object.keys(
+          routeConfig.whitelistPeripheryFunctions ?? {}
+        ),
+        reader,
+      }),
+    }
+  }
+
+  it('finds the replaced address registered under another diamond-called name', async () => {
+    const { state: result } = read({
+      registered: { TokenWrapper: OLD_WRAPPER, GasZipPeriphery: OLD_WRAPPER },
+      selectors: { [OLD_WRAPPER]: wrapperSelectors },
+    })
+    expect((await result).currentAlsoRegisteredAs).toEqual(['GasZipPeriphery'])
+  })
+
+  it('does not read other names when the replaced address holds no configured selector', async () => {
+    const { state: result, reads } = read({
+      registered: { TokenWrapper: OLD_WRAPPER },
+      selectors: { [OLD_WRAPPER]: [UNRELATED] },
+    })
+    expect((await result).currentAlsoRegisteredAs).toEqual([])
+    expect(reads.filter((r) => r.startsWith('registry:'))).toEqual([
+      'registry:TokenWrapper',
+    ])
+  })
+})
+
+describe('planRegistrations', () => {
+  const plan = (
+    registrations: { name: string; address: Address }[],
+    chain: Parameters<typeof fixedReader>[0],
+    pair = true
+  ) => {
+    const { reader, reads } = fixedReader(chain)
+    return {
+      reads,
+      result: planRegistrations({
+        network: 'fuse',
+        diamond: DIAMOND,
+        registrations,
+        routeConfig,
+        pair,
+        reader,
+      }),
+    }
+  }
+
+  it('gives each registration on a network a batch holding only its own pairs', async () => {
+    const { result } = plan(
+      [
+        { name: 'TokenWrapper', address: NEW_WRAPPER },
+        { name: 'GasZipPeriphery', address: NEW_GASZIP },
+      ],
+      {
+        registered: { TokenWrapper: OLD_WRAPPER, GasZipPeriphery: OLD_GASZIP },
+        selectors: {
+          [OLD_WRAPPER]: wrapperSelectors,
+          [OLD_GASZIP]: [GASZIP_A, GASZIP_B],
+        },
       }
     )
-    expect(seen).toEqual(['TBfUq'])
-    expect(out).toEqual([{ contract: NEW_WRAPPER, selector: APPROVE_TO_ONLY }])
+    const { paired, plain } = await result
+    expect(plain).toEqual([])
+    expect(paired).toHaveLength(2)
+    const [wrapper, gasZip] = paired
+    const touched = (batch: typeof wrapper) =>
+      new Set(
+        [...(batch?.toAdd ?? []), ...(batch?.toRemove ?? [])].map(
+          (p) => p.contract
+        )
+      )
+    expect(touched(wrapper)).toEqual(new Set([NEW_WRAPPER, OLD_WRAPPER]))
+    expect(touched(gasZip)).toEqual(new Set([NEW_GASZIP, OLD_GASZIP]))
+    expect(decodeAll(wrapper?.calldatas ?? [])[0]?.args).toEqual([
+      'TokenWrapper',
+      NEW_WRAPPER,
+    ])
+    expect(decodeAll(gasZip?.calldatas ?? [])[0]?.args).toEqual([
+      'GasZipPeriphery',
+      NEW_GASZIP,
+    ])
+    expect(
+      decodeAll(gasZip?.calldatas ?? []).map((c) => c.args[0])
+    ).not.toContain('TokenWrapper')
   })
+
+  it('leaves a non-diamond-called registration plain and reads no allowlist for it', async () => {
+    const { result, reads } = plan(
+      [{ name: 'FeeCollector', address: FEE_COLLECTOR }],
+      {}
+    )
+    expect(await result).toEqual({
+      paired: [],
+      plain: [{ name: 'FeeCollector', address: FEE_COLLECTOR }],
+    })
+    expect(reads).toEqual([`code:${FEE_COLLECTOR}`])
+  })
+
+  it('pairs nothing when pairing is off', async () => {
+    const { result } = plan(
+      [{ name: 'TokenWrapper', address: NEW_WRAPPER }],
+      {},
+      false
+    )
+    expect((await result).paired).toEqual([])
+  })
+
+  it('collects every refusal, plain ones included, before returning', async () => {
+    const error = await rejection(
+      plan(
+        [
+          { name: 'FeeCollector', address: FEE_COLLECTOR },
+          { name: 'TokenWrapper', address: NEW_WRAPPER },
+          { name: 'GasZipPeriphery', address: NEW_GASZIP },
+        ],
+        {
+          registered: { GasZipPeriphery: OLD_GASZIP },
+          codeless: [FEE_COLLECTOR],
+          failOn: `allowlist:${OLD_GASZIP}`,
+        }
+      ).result
+    )
+    expect(error).toBeInstanceOf(PairedRegistrationRefusal)
+    expect(error.message).toContain('nothing was proposed')
+    expect(error.message).toContain(`FeeCollector ${FEE_COLLECTOR} has no code`)
+    expect(error.message).toContain(
+      `could not read the chain state of GasZipPeriphery`
+    )
+    // the one registration that could be built is not the reason it refused
+    expect(error.message).not.toContain('TokenWrapper')
+  })
+
+  it('refuses when the code of a plain registration cannot be read', async () => {
+    const error = await rejection(
+      plan([{ name: 'FeeCollector', address: FEE_COLLECTOR }], {
+        failOn: `code:${FEE_COLLECTOR}`,
+      }).result
+    )
+    expect(error.message).toContain('could not read the code of FeeCollector')
+  })
+})
+
+describe('chunkPairs', () => {
+  const pairs = Array.from({ length: 301 }, (_, i) => ({
+    contract: DIAMOND,
+    selector: `0x${i.toString(16).padStart(8, '0')}` as Hex,
+  }))
+
+  it('never emits a call above the per-call ceiling', () => {
+    const chunks = chunkPairs(pairs)
+    expect(chunks.map((c) => c.length)).toEqual([150, 150, 1])
+  })
+
+  it('emits nothing for an empty set', () => {
+    expect(chunkPairs([])).toEqual([])
+  })
+})
+
+/**
+ * The real CLI, against a local JSON-RPC stub and with `bunx` shimmed, so the
+ * propose step it spawns records its arguments and can do nothing else. The
+ * working directory holds no `.env`, the environment is built from nothing,
+ * and the store URI cannot be parsed, so a child that got past the shim still
+ * could not reach a real proposal store.
+ */
+describe('proposePeripheryWithWhitelist.ts', () => {
+  const REPO_ROOT = join(import.meta.dir, '..', '..')
+  const SCRIPT = join(
+    REPO_ROOT,
+    'script',
+    'tasks',
+    'proposePeripheryWithWhitelist.ts'
+  )
+  const TSX = join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
+  const TIMEOUT_MS = 60_000
+
+  const RPC_ABI = parseAbi([
+    'function getPeripheryContract(string) view returns (address)',
+    'function getWhitelistedSelectorsForContract(address) view returns (bytes4[])',
+  ])
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  let chain: {
+    registered: Record<string, Address>
+    selectors: Record<string, Hex[]>
+    codeless: string[]
+    unreadable?: boolean
+  }
+  let server: Server
+  let rpcUrl: string
+  let sandbox: string
+  let proposeLog: string
+
+  const answer = (method: string, params: unknown[]): unknown => {
+    if (method === 'eth_chainId') return '0x7a'
+    if (method === 'eth_getCode') {
+      const address = String(params[0]).toLowerCase()
+      return chain.codeless.includes(address) ? '0x' : '0x6080'
+    }
+    if (method === 'eth_call') {
+      const data =
+        (params[0] as { data?: Hex; input?: Hex }).data ??
+        (params[0] as { input?: Hex }).input
+      const call = decodeFunctionData({ abi: RPC_ABI, data: data as Hex })
+      if (call.functionName !== 'getPeripheryContract' && chain.unreadable)
+        throw new Error('stub: allowlist unreadable')
+      if (call.functionName === 'getPeripheryContract')
+        return encodeFunctionResult({
+          abi: RPC_ABI,
+          functionName: 'getPeripheryContract',
+          result: chain.registered[call.args[0]] ?? ZERO,
+        })
+      return encodeFunctionResult({
+        abi: RPC_ABI,
+        functionName: 'getWhitelistedSelectorsForContract',
+        result: chain.selectors[getAddress(call.args[0])] ?? [],
+      })
+    }
+    throw new Error(`stub: unexpected ${method}`)
+  }
+
+  beforeAll(async () => {
+    server = createServer((req, res) => {
+      let body = ''
+      req.on('data', (chunk) => (body += chunk))
+      req.on('end', () => {
+        const parsed = JSON.parse(body) as
+          | { id: number; method: string; params: unknown[] }
+          | { id: number; method: string; params: unknown[] }[]
+        const one = (r: { id: number; method: string; params: unknown[] }) => {
+          try {
+            return {
+              jsonrpc: '2.0',
+              id: r.id,
+              result: answer(r.method, r.params),
+            }
+          } catch (error) {
+            return {
+              jsonrpc: '2.0',
+              id: r.id,
+              error: { code: -32000, message: String(error) },
+            }
+          }
+        }
+        res.setHeader('content-type', 'application/json')
+        res.end(
+          JSON.stringify(Array.isArray(parsed) ? parsed.map(one) : one(parsed))
+        )
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    rpcUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+
+    sandbox = mkdtempSync(join(tmpdir(), 'paired-periphery-cli-'))
+    const shims = join(sandbox, 'shims')
+    mkdirSync(shims)
+    proposeLog = join(sandbox, 'propose.log')
+    writeFileSync(
+      join(shims, 'bunx'),
+      `#!/bin/sh\necho "$*" >> "${proposeLog}"\nexit 0\n`,
+      { mode: 0o755 }
+    )
+  })
+
+  afterAll(() => {
+    server.close()
+    rmSync(sandbox, { recursive: true, force: true })
+  })
+
+  const run = async (args: string[]) => {
+    rmSync(proposeLog, { force: true })
+    const env: Record<string, string> = {
+      PATH: `${join(sandbox, 'shims')}:${process.env.PATH ?? ''}`,
+      HOME: sandbox,
+      ETH_NODE_URI_FUSE: rpcUrl,
+      SC_MONGODB_URI: 'blocked-in-tests://no-store',
+      MONGODB_URI: 'blocked-in-tests://no-store',
+      PRIVATE_KEY: 'malformed-in-tests',
+      PRIVATE_KEY_PRODUCTION: 'malformed-in-tests',
+      SAFE_SIGNER_PRIVATE_KEY: 'malformed-in-tests',
+    }
+    const child = spawn(TSX, [SCRIPT, ...args], { cwd: sandbox, env })
+    let out = ''
+    child.stdout.on('data', (chunk) => (out += chunk))
+    child.stderr.on('data', (chunk) => (out += chunk))
+    const rc = await new Promise<number>((resolve) =>
+      child.on('close', (code) => resolve(code ?? -1))
+    )
+    let proposals: string[] = []
+    try {
+      proposals = readFileSync(proposeLog, 'utf8')
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+    } catch {
+      proposals = []
+    }
+    if (out.includes('Proposal stored'))
+      throw new Error('a probe reached a real proposal store')
+    return { rc, out, proposals }
+  }
+
+  const common = ['--networks', 'fuse', '--diamond', DIAMOND]
+
+  it(
+    'proposes each paired registration on its own',
+    async () => {
+      chain = {
+        registered: { TokenWrapper: OLD_WRAPPER },
+        selectors: { [OLD_WRAPPER]: wrapperSelectors },
+        codeless: [],
+      }
+      const { rc, proposals } = await run([
+        '--contract',
+        'TokenWrapper,GasZipPeriphery',
+        '--address',
+        `${NEW_WRAPPER},${NEW_GASZIP}`,
+        ...common,
+      ])
+      expect(rc).toBe(0)
+      expect(proposals).toHaveLength(2)
+      for (const proposal of proposals)
+        expect(proposal).toContain(
+          'script/deploy/safe/propose-to-safe.ts --network fuse --timelock'
+        )
+      // wrapper batch: register, remove old, add new; gas zip: register, add
+      expect(proposals[0]?.match(/--calldata/g)).toHaveLength(3)
+      expect(proposals[1]?.match(/--calldata/g)).toHaveLength(2)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses before any proposal when one of the registrations has no code',
+    async () => {
+      chain = {
+        registered: {},
+        selectors: {},
+        codeless: [NEW_GASZIP.toLowerCase()],
+      }
+      const { rc, out, proposals } = await run([
+        '--contract',
+        'TokenWrapper,GasZipPeriphery',
+        '--address',
+        `${NEW_WRAPPER},${NEW_GASZIP}`,
+        ...common,
+      ])
+      expect(rc).toBe(EXIT_REFUSED)
+      expect(out).toContain('nothing was proposed')
+      // TokenWrapper alone builds (case above); the refusal has to stop it too
+      expect(proposals).toEqual([])
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses on unreadable chain state instead of proposing',
+    async () => {
+      chain = {
+        registered: { TokenWrapper: OLD_WRAPPER },
+        selectors: {},
+        codeless: [],
+        unreadable: true,
+      }
+      const { rc, out, proposals } = await run([
+        '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, ...common,
+      ]) // prettier-ignore
+      expect(rc).toBe(EXIT_REFUSED)
+      expect(out).toContain('could not read the chain state of TokenWrapper')
+      expect(proposals).toEqual([])
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'answers the preflight without proposing',
+    async () => {
+      chain = {
+        registered: {},
+        selectors: {},
+        codeless: [FEE_COLLECTOR.toLowerCase()],
+      }
+      const paired = await run([
+        '--contract', 'TokenWrapper', '--address', NEW_WRAPPER, '--preflight', ...common,
+      ]) // prettier-ignore
+      const plainCodeless = await run([
+        '--contract', 'FeeCollector', '--address', FEE_COLLECTOR, '--preflight', ...common,
+      ]) // prettier-ignore
+      chain.codeless = []
+      const plain = await run([
+        '--contract', 'FeeCollector', '--address', FEE_COLLECTOR, '--preflight', ...common,
+      ]) // prettier-ignore
+      expect(paired.rc).toBe(0)
+      expect(plain.rc).toBe(PREFLIGHT_EXIT_NOT_PAIRED)
+      expect(plainCodeless.rc).toBe(EXIT_REFUSED)
+      expect([
+        ...paired.proposals,
+        ...plain.proposals,
+        ...plainCodeless.proposals,
+      ]).toEqual([])
+    },
+    TIMEOUT_MS
+  )
 })

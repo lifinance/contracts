@@ -1,8 +1,7 @@
 /**
- * The Tron registration pass: a diamond-called contract is proposed in one
- * timelock batch with the whitelist writes, every other name alone, and a
- * whitelist file that does not cover a paired registration refuses the pass
- * before anything is proposed.
+ * The Tron registration pass: a diamond-called contract is proposed in its own
+ * timelock batch with its allowlist writes, every other name alone, and any
+ * refusal lands before anything is proposed.
  */
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -21,11 +20,7 @@ import {
   type Hex,
 } from 'viem'
 
-import type {
-  IPair,
-  IPeripheryRouteConfig,
-  IWhitelistConfig,
-} from '../../tasks/proposePeripheryWithWhitelist'
+import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhitelist'
 
 import {
   proposeTronPeripheryRegistrations,
@@ -37,6 +32,7 @@ const TRON = {
   diamond: 'T_DIAMOND',
   newWrapper: 'T_NEW_WRAPPER',
   oldWrapper: 'T_OLD_WRAPPER',
+  newGasZip: 'T_NEW_GASZIP',
   feeCollector: 'T_FEE_COLLECTOR',
   lda: 'T_LDA',
 } as const
@@ -44,11 +40,13 @@ const EVM = {
   T_DIAMOND: getAddress('0xa1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1'),
   T_NEW_WRAPPER: getAddress('0xb2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2'),
   T_OLD_WRAPPER: getAddress('0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3'),
+  T_NEW_GASZIP: getAddress('0xf6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6f6'),
   T_FEE_COLLECTOR: getAddress('0xd4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4'),
   T_LDA: getAddress('0xe5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5'),
 } as const
 const DEPOSIT = '0xd0e30db0' as Hex
 const WITHDRAW = '0x3ccfd60b' as Hex
+const GASZIP = '0x8b71ae6c' as Hex
 
 const routeConfig: IPeripheryRouteConfig = {
   whitelistPeripheryFunctions: {
@@ -56,21 +54,11 @@ const routeConfig: IPeripheryRouteConfig = {
       { selector: DEPOSIT, signature: 'deposit()' },
       { selector: WITHDRAW, signature: 'withdraw()' },
     ],
+    GasZipPeriphery: [{ selector: GASZIP, signature: 'a()' }],
     LiFiDEXAggregator: [{ selector: '0x2646478b', signature: 'x()' }],
   },
   whitelistPeripheryNetworks: { LiFiDEXAggregator: ['lens'] },
 }
-
-const whitelistListing = (wrapper: string): IWhitelistConfig => ({
-  PERIPHERY: {
-    tron: [
-      {
-        address: wrapper,
-        selectors: [{ selector: WITHDRAW }, { selector: DEPOSIT }],
-      },
-    ],
-  },
-})
 
 const ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
@@ -84,37 +72,35 @@ interface IProposal {
 
 const harness = (
   options: {
-    whitelist?: IWhitelistConfig
-    actual?: IPair[]
     registered?: Record<string, Address>
+    /** As TronWeb returns them, keyed by the EVM address. */
+    selectors?: Record<string, unknown[]>
     pairWithWhitelist?: boolean
     codeless?: Address[]
+    unreadable?: string
   } = {}
 ) => {
   const proposals: IProposal[] = []
   const recorded: string[] = []
   const errors: string[] = []
-  let actualReads = 0
+  const reads: string[] = []
   const deps: ITronPeripheryRegistrationDeps = {
     network: 'tron',
     diamond: TRON.diamond,
     pairWithWhitelist: options.pairWithWhitelist ?? true,
     routeConfig,
-    whitelistConfig: options.whitelist ?? whitelistListing(TRON.newWrapper),
     toEvm: (address) => {
       const evm = (EVM as Record<string, Address | undefined>)[address]
       if (!evm) throw new Error(`fixture: no address for ${address}`)
       return evm
     },
-    readRegistered: async (name) => options.registered?.[name],
-    readActualPairs: async () => {
-      actualReads++
-      return (
-        options.actual ?? [
-          { contract: EVM[TRON.oldWrapper] as Address, selector: DEPOSIT },
-          { contract: EVM[TRON.oldWrapper] as Address, selector: WITHDRAW },
-        ]
-      )
+    readRegistered: async (name) => {
+      if (options.unreadable === name) throw new Error('429 forever')
+      return options.registered?.[name]
+    },
+    readWhitelistedSelectors: async (contract) => {
+      reads.push(contract)
+      return options.selectors?.[contract] ?? []
     },
     hasCode: async (address) => !(options.codeless ?? []).includes(address),
     propose: async (targets, calldatas) => {
@@ -132,13 +118,7 @@ const harness = (
       error: (message) => errors.push(message),
     },
   }
-  return {
-    deps,
-    proposals,
-    recorded,
-    errors,
-    actualReads: () => actualReads,
-  }
+  return { deps, proposals, recorded, errors, reads }
 }
 
 async function expectRejects(promise: Promise<unknown>, match: RegExp) {
@@ -153,9 +133,15 @@ async function expectRejects(promise: Promise<unknown>, match: RegExp) {
   throw new Error(`expected a rejection matching ${match}`)
 }
 
+const replacing = {
+  registered: { TokenWrapper: EVM[TRON.oldWrapper] as Address },
+  // TronWeb hands bytes4 back without the prefix and in upper case
+  selectors: { [EVM[TRON.oldWrapper]]: ['D0E30DB0', '3CCFD60B'] },
+}
+
 describe('proposeTronPeripheryRegistrations', () => {
-  it('proposes a TokenWrapper registration with its whitelist writes in one batch', async () => {
-    const h = harness()
+  it('proposes a TokenWrapper replacement with its own whitelist writes in one batch', async () => {
+    const h = harness(replacing)
     await proposeTronPeripheryRegistrations(
       [{ name: 'TokenWrapper', address: TRON.newWrapper }],
       h.deps
@@ -170,38 +156,58 @@ describe('proposeTronPeripheryRegistrations', () => {
     const [register, remove, add] = proposal?.calls ?? []
     expect(register?.functionName).toBe('registerPeripheryContract')
     expect(register?.args).toEqual(['TokenWrapper', EVM[TRON.newWrapper]])
-    expect(remove?.args?.[2]).toBe(false)
-    expect(remove?.args?.[0]).toEqual([
-      EVM[TRON.oldWrapper],
-      EVM[TRON.oldWrapper],
+    // only matched once the TronWeb selectors are normalised
+    expect(remove?.args).toEqual([
+      [EVM[TRON.oldWrapper], EVM[TRON.oldWrapper]],
+      [DEPOSIT, WITHDRAW],
+      false,
     ])
-    expect(add?.functionName).toBe('batchSetContractSelectorWhitelist')
-    expect(add?.args?.[0]).toEqual([EVM[TRON.newWrapper], EVM[TRON.newWrapper]])
-    expect([...((add?.args?.[1] as readonly Hex[]) ?? [])].sort()).toEqual(
-      [DEPOSIT, WITHDRAW].sort()
-    )
-    expect(add?.args?.[2]).toBe(true)
+    expect(add?.args).toEqual([
+      [EVM[TRON.newWrapper], EVM[TRON.newWrapper]],
+      [DEPOSIT, WITHDRAW],
+      true,
+    ])
     expect(h.recorded).toEqual([`TokenWrapper@${TRON.newWrapper}`])
   })
 
-  it('refuses the whole pass before any proposal while whitelist.json lists the old address', async () => {
-    const h = harness({ whitelist: whitelistListing(TRON.oldWrapper) })
+  it('refuses before any proposal when TronWeb returns a selector that is not four bytes', async () => {
+    const h = harness({
+      ...replacing,
+      selectors: { [EVM[TRON.oldWrapper]]: ['3ccfd6'] },
+    })
     await expectRejects(
       proposeTronPeripheryRegistrations(
-        [
-          { name: 'FeeCollector', address: TRON.feeCollector },
-          { name: 'TokenWrapper', address: TRON.newWrapper },
-        ],
+        [{ name: 'TokenWrapper', address: TRON.newWrapper }],
         h.deps
       ),
-      /update config\/whitelist\.json first/
+      /could not read the chain state of TokenWrapper/
     )
-    // FeeCollector alone would be proposed; the refusal must stop it too
     expect(h.proposals).toEqual([])
-    expect(h.recorded).toEqual([])
   })
 
-  it('refuses before any proposal when the registered address has no code', async () => {
+  it('gives two registrations on one network a batch each, holding only its own pairs', async () => {
+    const h = harness(replacing)
+    await proposeTronPeripheryRegistrations(
+      [
+        { name: 'TokenWrapper', address: TRON.newWrapper },
+        { name: 'GasZipPeriphery', address: TRON.newGasZip },
+      ],
+      h.deps
+    )
+    expect(h.proposals).toHaveLength(2)
+    const addresses = (proposal: IProposal | undefined) =>
+      new Set(
+        (proposal?.calls ?? [])
+          .filter((c) => c.functionName === 'batchSetContractSelectorWhitelist')
+          .flatMap((c) => c.args[0] as readonly Address[])
+      )
+    expect(addresses(h.proposals[0])).toEqual(
+      new Set([EVM[TRON.oldWrapper], EVM[TRON.newWrapper]])
+    )
+    expect(addresses(h.proposals[1])).toEqual(new Set([EVM[TRON.newGasZip]]))
+  })
+
+  it('refuses the whole pass before any proposal when a registered address has no code', async () => {
     const h = harness({ codeless: [EVM[TRON.newWrapper] as Address] })
     await expectRejects(
       proposeTronPeripheryRegistrations(
@@ -211,12 +217,44 @@ describe('proposeTronPeripheryRegistrations', () => {
         ],
         h.deps
       ),
-      /no code/
+      /nothing was proposed[\s\S]*no code/
+    )
+    // FeeCollector alone would be proposed; the refusal must stop it too
+    expect(h.proposals).toEqual([])
+    expect(h.recorded).toEqual([])
+  })
+
+  it('refuses before any proposal when a plain registration has no code', async () => {
+    const h = harness({ codeless: [EVM[TRON.feeCollector] as Address] })
+    await expectRejects(
+      proposeTronPeripheryRegistrations(
+        [
+          { name: 'TokenWrapper', address: TRON.newWrapper },
+          { name: 'FeeCollector', address: TRON.feeCollector },
+        ],
+        h.deps
+      ),
+      /FeeCollector .* has no code/
     )
     expect(h.proposals).toEqual([])
   })
 
-  it('proposes a name outside whitelistPeripheryFunctions alone, as before', async () => {
+  it('refuses before any proposal when a registration cannot be read', async () => {
+    const h = harness({ unreadable: 'FeeCollector' })
+    await expectRejects(
+      proposeTronPeripheryRegistrations(
+        [
+          { name: 'TokenWrapper', address: TRON.newWrapper },
+          { name: 'FeeCollector', address: TRON.feeCollector },
+        ],
+        h.deps
+      ),
+      /could not read the registration of FeeCollector/
+    )
+    expect(h.proposals).toEqual([])
+  })
+
+  it('proposes a name outside whitelistPeripheryFunctions alone and reads no allowlist', async () => {
     const h = harness()
     await proposeTronPeripheryRegistrations(
       [{ name: 'FeeCollector', address: TRON.feeCollector }],
@@ -227,8 +265,7 @@ describe('proposeTronPeripheryRegistrations', () => {
     expect(h.proposals[0]?.calls.map((c) => c.functionName)).toEqual([
       'registerPeripheryContract',
     ])
-    // a plain registration never needs the allowlist
-    expect(h.actualReads()).toBe(0)
+    expect(h.reads).toEqual([])
   })
 
   it('proposes an out-of-scope LiFiDEXAggregator alone', async () => {
@@ -240,25 +277,6 @@ describe('proposeTronPeripheryRegistrations', () => {
     expect(h.proposals).toHaveLength(1)
     expect(h.proposals[0]?.calls.map((c) => c.functionName)).toEqual([
       'registerPeripheryContract',
-    ])
-  })
-
-  it('keeps the plain and the paired registration in separate proposals', async () => {
-    const h = harness()
-    await proposeTronPeripheryRegistrations(
-      [
-        { name: 'FeeCollector', address: TRON.feeCollector },
-        { name: 'TokenWrapper', address: TRON.newWrapper },
-      ],
-      h.deps
-    )
-    expect(h.proposals.map((p) => p.calls.map((c) => c.functionName))).toEqual([
-      ['registerPeripheryContract'],
-      [
-        'registerPeripheryContract',
-        'batchSetContractSelectorWhitelist',
-        'batchSetContractSelectorWhitelist',
-      ],
     ])
   })
 
@@ -274,8 +292,8 @@ describe('proposeTronPeripheryRegistrations', () => {
     expect(outcome.proposed).toEqual([])
   })
 
-  it('does not pair on staging, where whitelist.json describes nothing', async () => {
-    const h = harness({ pairWithWhitelist: false, whitelist: {} })
+  it('does not pair on staging', async () => {
+    const h = harness({ pairWithWhitelist: false })
     await proposeTronPeripheryRegistrations(
       [{ name: 'TokenWrapper', address: TRON.newWrapper }],
       h.deps
@@ -285,16 +303,19 @@ describe('proposeTronPeripheryRegistrations', () => {
     ])
   })
 
-  it('counts a failed plain proposal and carries on', async () => {
+  it('counts a failed proposal and carries on', async () => {
     const h = harness()
     h.deps.propose = async () => {
       throw new Error('store down')
     }
     const outcome = await proposeTronPeripheryRegistrations(
-      [{ name: 'FeeCollector', address: TRON.feeCollector }],
+      [
+        { name: 'FeeCollector', address: TRON.feeCollector },
+        { name: 'TokenWrapper', address: TRON.newWrapper },
+      ],
       h.deps
     )
-    expect(outcome.failed).toEqual(['FeeCollector'])
+    expect(outcome.failed).toEqual(['FeeCollector', 'TokenWrapper'])
     expect(h.errors.join('\n')).toContain('store down')
   })
 })

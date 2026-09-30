@@ -1,5 +1,6 @@
-// Proposes a diamond-called periphery contract's registration together with its
-// whitelist sync as ONE timelock scheduleBatch per network.
+// Proposes a diamond-called periphery contract's registration together with the
+// allowlist writes for that contract alone, as ONE timelock scheduleBatch per
+// registration.
 import { spawnSync } from 'child_process'
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
@@ -11,6 +12,7 @@ import {
   getAddress,
   http,
   parseAbi,
+  toHex,
   type Address,
   type Hex,
 } from 'viem'
@@ -18,8 +20,6 @@ import {
 import 'dotenv/config'
 
 import globalConfig from '../../config/global.json'
-import networksConfig from '../../config/networks.json'
-import whitelistConfig from '../../config/whitelist.json'
 import {
   assertScopeContractsEligible,
   isNetworkInScope,
@@ -40,36 +40,19 @@ const WHITELIST_CALL_MAX_PAIRS = 150
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address
 
-// A contract with no listed functions is whitelisted as approveTo-only under this
-// sentinel selector (LibAllowList.sol); omitting it reads the contract as absent
-// from config and would propose removing a live approveTo target.
-export const APPROVE_TO_ONLY = '0xffffffff'
-
 const WHITELIST_ABI = parseAbi([
-  'function getAllContractSelectorPairs() view returns (address[],bytes4[][])',
+  'function getWhitelistedSelectorsForContract(address) view returns (bytes4[])',
   'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
 ])
 
 const REGISTRY_ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
+  'function getPeripheryContract(string) view returns (address)',
 ])
 
 export interface IPair {
   contract: Address
   selector: Hex
-}
-
-export interface IWhitelistConfig {
-  DEXS?: {
-    contracts?: Record<
-      string,
-      { address: string; functions?: Record<string, string> }[]
-    >
-  }[]
-  PERIPHERY?: Record<
-    string,
-    { address: string; selectors?: { selector: string }[] }[]
-  >
 }
 
 /** The two `config/global.json` keys that decide whether a registration is paired. */
@@ -92,19 +75,38 @@ export type PeripheryRegistrationRoute =
   | 'not-diamond-called'
   | 'out-of-scope'
 
-/** One registration a paired batch carries. */
-export interface IPairedRegistration {
+/** A contract about to be registered under a name. */
+export interface IRegistration {
   name: string
   address: Address
-  /** Selectors `whitelistPeripheryFunctions` requires for `name`, lowercased. */
-  required: readonly Hex[]
 }
 
 /** Exit code of `--preflight` for a registration that is not paired. */
 export const PREFLIGHT_EXIT_NOT_PAIRED = 3
 
+/**
+ * Exit code for a refusal that re-running cannot change: a codeless address,
+ * chain state that could not be read, a batch above the cap. Callers must not
+ * retry it.
+ */
+export const EXIT_REFUSED = 4
+
+/** A deterministic refusal; nothing was proposed for the network. */
+export class PairedRegistrationRefusal extends Error {
+  public constructor(message: string) {
+    super(message)
+    this.name = 'PairedRegistrationRefusal'
+  }
+}
+
 const hasOwn = (object: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(object, key)
+
+const errorText = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error)
+
+const sameAddress = (a: string, b: string): boolean =>
+  a.toLowerCase() === b.toLowerCase()
 
 /**
  * Decides whether a registration of `name` on `network` must be proposed
@@ -130,11 +132,12 @@ export function peripheryRegistrationRoute(
 }
 
 /**
- * The selectors a diamond-called contract must hold on the allowlist.
+ * The selectors a diamond-called contract must hold on the allowlist — the set
+ * gate W grades a registration against.
  *
  * @param name - A name `whitelistPeripheryFunctions` lists.
  * @param config - `config/global.json`, or the key of it this reads.
- * @returns The configured selectors, lowercased.
+ * @returns The configured selectors, lowercased and de-duplicated.
  * @throws When the name is absent or lists no selector, since nothing could then be required of it.
  */
 export function requiredSelectorsFor(
@@ -147,238 +150,179 @@ export function requiredSelectorsFor(
     throw new Error(
       `whitelistPeripheryFunctions.${name} lists no selector, so its registration cannot be paired`
     )
-  return entries.map((entry) => entry.selector.toLowerCase() as Hex)
+  return [...new Set(entries.map((entry) => normaliseSelector(entry.selector)))]
 }
 
 export const pairKey = (p: IPair): string =>
   `${p.contract.toLowerCase()}|${p.selector.toLowerCase()}`
 
 /**
- * Collects every (contract, selector) pair the config says should be whitelisted
- * on a network, across both the DEXS and PERIPHERY sections.
+ * A bytes4 as viem or TronWeb returns it, as 0x-prefixed lowercase hex.
+ *
+ * @param value - A hex string with or without `0x`, in any case, or four bytes.
+ * @returns The selector.
+ * @throws When the value is not four bytes.
  */
-export function desiredPairs(
-  config: IWhitelistConfig,
-  network: string,
-  normalize: (raw: string) => Address = getAddress
-): IPair[] {
-  const out: IPair[] = []
+export function normaliseSelector(value: unknown): Hex {
+  let text: string | undefined
+  if (typeof value === 'string') text = value
+  else if (value instanceof Uint8Array) text = toHex(value)
+  else if (
+    Array.isArray(value) &&
+    value.every((byte) => Number.isInteger(byte) && byte >= 0 && byte <= 255)
+  )
+    text = toHex(Uint8Array.from(value as number[]))
+  const hex = text?.replace(/^0x/iu, '').toLowerCase()
+  if (hex === undefined || !/^[0-9a-f]{8}$/u.test(hex))
+    throw new Error(`not a four-byte selector: ${String(value)}`)
+  return `0x${hex}`
+}
 
-  for (const dex of config.DEXS ?? [])
-    for (const entry of dex.contracts?.[network] ?? []) {
-      const selectors = Object.keys(entry.functions ?? {})
-      for (const selector of selectors.length ? selectors : [APPROVE_TO_ONLY])
-        out.push({
-          contract: normalize(entry.address),
-          selector: selector as Hex,
-        })
+/** What the chain holds for one registration before its batch runs. */
+export interface IRegistrationChainState {
+  /** The address registered under the name now; undefined when none is. */
+  current?: Address
+  /** Every selector the diamond allowlists for `current`, normalised. */
+  currentSelectors: readonly Hex[]
+  /** Other diamond-called names registered at `current`. */
+  currentAlsoRegisteredAs: readonly string[]
+  /** Whether the address being registered has code. */
+  hasCode: boolean
+}
+
+/** The chain reads a paired batch is built from. */
+export interface IPairedRegistrationReader {
+  /** `getPeripheryContract(name)`; undefined for the zero address. */
+  getPeripheryContract: (name: string) => Promise<Address | undefined>
+  /** `getWhitelistedSelectorsForContract(contract)`. */
+  getWhitelistedSelectors: (contract: Address) => Promise<readonly Hex[]>
+  hasCode: (address: Address) => Promise<boolean>
+}
+
+/**
+ * Reads what {@link buildScopedPairedBatch} needs for one registration.
+ *
+ * The other diamond-called names are read only when the replaced address holds
+ * one of the configured selectors, since only then could removing it matter.
+ *
+ * @param input.registration - What is being registered.
+ * @param input.configured - From {@link requiredSelectorsFor}.
+ * @param input.diamondCalledNames - Every `whitelistPeripheryFunctions` key.
+ * @param input.reader - The chain reads.
+ * @returns The chain state.
+ * @throws Whatever a read throws.
+ */
+export async function readRegistrationState(input: {
+  registration: IRegistration
+  configured: readonly Hex[]
+  diamondCalledNames: readonly string[]
+  reader: IPairedRegistrationReader
+}): Promise<IRegistrationChainState> {
+  const { registration, configured, diamondCalledNames, reader } = input
+  const hasCode = await reader.hasCode(registration.address)
+  const current = await reader.getPeripheryContract(registration.name)
+  if (!current || sameAddress(current, registration.address))
+    return {
+      current,
+      currentSelectors: [],
+      currentAlsoRegisteredAs: [],
+      hasCode,
     }
 
-  for (const entry of config.PERIPHERY?.[network] ?? []) {
-    const selectors = (entry.selectors ?? []).map((s) => s.selector)
-    for (const selector of selectors.length ? selectors : [APPROVE_TO_ONLY])
-      out.push({
-        contract: normalize(entry.address),
-        selector: selector as Hex,
-      })
-  }
-
-  return out
-}
-
-/**
- * Splits the config-vs-chain difference into the pairs to whitelist and the pairs
- * to de-whitelist. Keys are compared case-insensitively so a checksum-vs-lowercase
- * address never reads as both an addition and a removal.
- */
-export function diffPairs(
-  desired: IPair[],
-  actual: IPair[]
-): { toAdd: IPair[]; toRemove: IPair[] } {
-  const desiredKeys = new Set(desired.map(pairKey))
-  const actualKeys = new Set(actual.map(pairKey))
-  return {
-    toAdd: desired.filter((p) => !actualKeys.has(pairKey(p))),
-    toRemove: actual.filter((p) => !desiredKeys.has(pairKey(p))),
-  }
-}
-
-async function actualPairs(
-  diamond: Address,
-  network: string
-): Promise<IPair[]> {
-  const client = createPublicClient({
-    chain: getViemChainForNetworkName(network),
-    transport: http(),
-  })
-  const [contracts, selectors] = await client.readContract({
-    address: diamond,
-    abi: WHITELIST_ABI,
-    functionName: 'getAllContractSelectorPairs',
-  })
-
-  const out: IPair[] = []
-  contracts.forEach((contract, i) =>
-    (selectors[i] ?? []).forEach((selector) =>
-      out.push({ contract: getAddress(contract), selector })
-    )
+  const currentSelectors = (await reader.getWhitelistedSelectors(current)).map(
+    normaliseSelector
   )
-  return out
-}
-
-/**
- * Fails when the address about to be registered is not the one the config wants
- * whitelisted — the signature of a `config/whitelist.json` that predates the
- * deploy.
- */
-export function assertRegisteredAddressIsDesired(
-  desired: IPair[],
-  registered: Address,
-  network: string
-): void {
-  const target = registered.toLowerCase()
-  if (desired.some((p) => p.contract.toLowerCase() === target)) return
-  const listed = [
-    ...new Set(
-      desired
-        .filter((p) => p.contract.toLowerCase() !== target)
-        .map((p) => p.contract)
-    ),
-  ]
-  throw new Error(
-    `config/whitelist.json does not list ${registered} for ${network} (it lists ${listed.length} other address(es)) — update config/whitelist.json first (regenerate it with updateWhitelistPeriphery.ts); nothing was proposed`
+  const touched = configured.some((selector) =>
+    currentSelectors.includes(selector)
   )
-}
-
-/**
- * Fails unless `config/whitelist.json` lists every registration's address with
- * every selector `whitelistPeripheryFunctions` requires of it. Run before
- * anything is proposed: a batch built from a stale file would register the new
- * address and de-whitelist it in the same operation.
- *
- * @param desired - From {@link desiredPairs} for `network`.
- * @param registrations - What the batch registers.
- * @param network - Network name, for the message.
- * @throws Naming the first registration the file does not cover.
- */
-export function assertWhitelistListsRegistrations(
-  desired: IPair[],
-  registrations: readonly IPairedRegistration[],
-  network: string
-): void {
-  const listed = new Set(desired.map(pairKey))
-  for (const registration of registrations) {
-    assertRegisteredAddressIsDesired(desired, registration.address, network)
-    const absent = registration.required.filter(
-      (selector) =>
-        !listed.has(pairKey({ contract: registration.address, selector }))
-    )
-    if (absent.length)
-      throw new Error(
-        `config/whitelist.json lists ${registration.name} ${
-          registration.address
-        } for ${network} without ${absent.join(
-          ', '
-        )}, which whitelistPeripheryFunctions requires — update config/whitelist.json first; nothing was proposed`
-      )
-  }
+  const currentAlsoRegisteredAs: string[] = []
+  if (touched)
+    for (const other of diamondCalledNames) {
+      if (other === registration.name) continue
+      const at = await reader.getPeripheryContract(other)
+      if (at && sameAddress(at, current)) currentAlsoRegisteredAs.push(other)
+    }
+  return { current, currentSelectors, currentAlsoRegisteredAs, hasCode }
 }
 
 /** The inner calls of one paired scheduleBatch, and the pairs they write. */
-export interface IPairedRegistrationBatch {
+export interface IScopedPairedBatch {
+  name: string
+  address: Address
+  /** The address the registration replaces, when one is registered. */
+  replaced?: Address
   targets: Address[]
   calldatas: Hex[]
-  toAdd: IPair[]
   toRemove: IPair[]
-  /** Lowercased addresses whose additions were dropped for having no code. */
-  skippedCodeless: string[]
+  toAdd: IPair[]
+  /** Why `replaced` keeps its selectors, when it does. */
+  replacedKept?: string
 }
 
 /**
- * Builds the inner calls of one timelock scheduleBatch: every registration,
- * then the whitelist removals, then the additions, all sent to the diamond.
+ * Builds the inner calls of one timelock scheduleBatch for one registration:
+ * the registration, the de-whitelisting of the replaced address's configured
+ * selectors, then the whitelisting of the new address's — nothing else.
  *
  * @param input.network - Network name, for messages.
  * @param input.diamond - The diamond both the registry and the allowlist live on.
- * @param input.registrations - What to register; at least one.
- * @param input.desired - From {@link desiredPairs} for the network.
- * @param input.actual - The diamond's current pairs.
- * @param input.codeless - Lowercased addresses with no code on the chain.
+ * @param input.registration - What to register.
+ * @param input.configured - From {@link requiredSelectorsFor}.
+ * @param input.state - From {@link readRegistrationState}.
  * @returns The batch.
- * @throws When the whitelist file does not cover a registration, a registered
- * address has no code, a registration would still lack a selector once the
- * batch ran, or the batch exceeds the combined-proposal cap.
+ * @throws {PairedRegistrationRefusal} For a zero or codeless address, or a
+ * batch above the combined-proposal cap.
  */
-export function buildPairedRegistrationBatch(input: {
+export function buildScopedPairedBatch(input: {
   network: string
   diamond: Address
-  registrations: readonly IPairedRegistration[]
-  desired: IPair[]
-  actual: IPair[]
-  codeless: ReadonlySet<string>
-}): IPairedRegistrationBatch {
-  const { network, diamond, registrations, desired, actual, codeless } = input
-  if (!registrations.length)
-    throw new Error(`[${network}] no registration to pair`)
-  assertWhitelistListsRegistrations(desired, registrations, network)
+  registration: IRegistration
+  configured: readonly Hex[]
+  state: IRegistrationChainState
+}): IScopedPairedBatch {
+  const { network, diamond, registration, configured, state } = input
+  const { name, address } = registration
+  if (sameAddress(address, ZERO_ADDRESS))
+    throw new PairedRegistrationRefusal(
+      `[${network}] ${name} would be registered at the zero address`
+    )
+  if (!state.hasCode)
+    throw new PairedRegistrationRefusal(
+      `[${network}] ${name} ${address} has no code on the chain`
+    )
 
-  for (const registration of registrations)
-    if (codeless.has(registration.address.toLowerCase()))
-      throw new Error(
-        `[${network}] ${registration.name} ${registration.address} has no code on the chain; nothing was proposed`
-      )
-
-  const diff = diffPairs(desired, actual)
-  const skippedCodeless = [
-    ...new Set(
-      diff.toAdd
-        .map((p) => p.contract.toLowerCase())
-        .filter((address) => codeless.has(address))
-    ),
-  ]
-  const toAdd = diff.toAdd.filter(
-    (p) => !codeless.has(p.contract.toLowerCase())
-  )
-  const toRemove = diff.toRemove
+  const replaced =
+    state.current && !sameAddress(state.current, address)
+      ? state.current
+      : undefined
+  let toRemove: IPair[] = []
+  let replacedKept: string | undefined
+  if (replaced && state.currentAlsoRegisteredAs.length)
+    replacedKept = `${replaced} is still registered as ${state.currentAlsoRegisteredAs.join(
+      ', '
+    )}`
+  else if (replaced) {
+    const held = new Set(state.currentSelectors.map(normaliseSelector))
+    toRemove = configured
+      .filter((selector) => held.has(selector))
+      .map((selector) => ({ contract: replaced, selector }))
+  }
+  const toAdd = configured.map((selector) => ({ contract: address, selector }))
 
   const total = toAdd.length + toRemove.length
   if (total > COMBINED_PROPOSAL_MAX_PAIRS)
-    throw new Error(
-      `[${network}] ${total} pairs exceeds the combined-proposal cap (${COMBINED_PROPOSAL_MAX_PAIRS}); run the standalone whitelist sync for this network first, then re-run; nothing was proposed`
+    throw new PairedRegistrationRefusal(
+      `[${network}] ${name}: ${total} pairs exceeds the combined-proposal cap (${COMBINED_PROPOSAL_MAX_PAIRS})`
     )
 
-  const after = new Set(actual.map(pairKey))
-  for (const p of toRemove) after.delete(pairKey(p))
-  for (const p of toAdd) after.add(pairKey(p))
-  for (const registration of registrations) {
-    const missing = registration.required.filter(
-      (selector) =>
-        !after.has(pairKey({ contract: registration.address, selector }))
-    )
-    if (missing.length)
-      throw new Error(
-        `[${network}] ${registration.name} ${
-          registration.address
-        } would still lack ${missing.join(
-          ', '
-        )} after the batch; nothing was proposed`
-      )
-  }
-
-  const targets: Address[] = []
-  const calldatas: Hex[] = []
-  for (const registration of registrations) {
-    targets.push(diamond)
-    calldatas.push(
-      encodeFunctionData({
-        abi: REGISTRY_ABI,
-        functionName: 'registerPeripheryContract',
-        args: [registration.name, registration.address],
-      })
-    )
-  }
-  // Removals precede additions so a re-pointed address never sits whitelisted
-  // twice inside the same batch.
+  const targets: Address[] = [diamond]
+  const calldatas: Hex[] = [
+    encodeFunctionData({
+      abi: REGISTRY_ABI,
+      functionName: 'registerPeripheryContract',
+      args: [name, address],
+    }),
+  ]
   for (const chunk of chunkPairs(toRemove)) {
     targets.push(diamond)
     calldatas.push(whitelistCalldata(chunk, false))
@@ -388,33 +332,128 @@ export function buildPairedRegistrationBatch(input: {
     calldatas.push(whitelistCalldata(chunk, true))
   }
 
-  return { targets, calldatas, toAdd, toRemove, skippedCodeless }
+  return {
+    name,
+    address,
+    replaced,
+    targets,
+    calldatas,
+    toRemove,
+    toAdd,
+    replacedKept,
+  }
+}
+
+/** Every registration of one run on one network, checked and built. */
+export interface IRegistrationPlan {
+  paired: IScopedPairedBatch[]
+  plain: IRegistration[]
 }
 
 /**
- * Lowercased addresses among `pairs` that have no code on the chain. Whitelisting
- * one reverts (`LibAllowList.addAllowedContractSelector` → `InvalidContract`), and
- * because the batch is atomic that revert takes the registration down with it.
+ * Routes every registration, reads its chain state and builds its batch, so
+ * that every refusal is known before the caller proposes anything.
+ *
+ * @param input.network - Network name.
+ * @param input.diamond - The diamond.
+ * @param input.registrations - Everything the run would register here.
+ * @param input.routeConfig - `config/global.json`.
+ * @param input.pair - False where nothing is paired (staging); every
+ * registration is then plain.
+ * @param input.reader - The chain reads.
+ * @returns One batch per paired registration, and the plain ones.
+ * @throws {PairedRegistrationRefusal} Listing every registration that cannot be
+ * proposed, when any cannot.
  */
-async function codelessAddresses(
-  pairs: IPair[],
+export async function planRegistrations(input: {
   network: string
-): Promise<Set<string>> {
-  const client = createPublicClient({
-    chain: getViemChainForNetworkName(network),
-    transport: http(),
-  })
-  const unique = [...new Set(pairs.map((p) => p.contract))]
-  const codeless = new Set<string>()
-  for (const address of unique) {
-    if (address === ZERO_ADDRESS) {
-      codeless.add(address.toLowerCase())
-      continue
+  diamond: Address
+  registrations: readonly IRegistration[]
+  routeConfig: IPeripheryRouteConfig
+  pair: boolean
+  reader: IPairedRegistrationReader
+}): Promise<IRegistrationPlan> {
+  const { network, diamond, registrations, routeConfig, pair, reader } = input
+  const diamondCalledNames = Object.keys(
+    routeConfig.whitelistPeripheryFunctions ?? {}
+  )
+  const plan: IRegistrationPlan = { paired: [], plain: [] }
+  const refusals: string[] = []
+
+  for (const registration of registrations)
+    try {
+      const route = pair
+        ? peripheryRegistrationRoute(registration.name, network, routeConfig)
+        : 'not-diamond-called'
+      if (route !== 'paired') {
+        let hasCode: boolean
+        try {
+          hasCode = await reader.hasCode(registration.address)
+        } catch (error) {
+          throw new PairedRegistrationRefusal(
+            `[${network}] could not read the code of ${registration.name} ${
+              registration.address
+            }: ${errorText(error)}`
+          )
+        }
+        if (!hasCode)
+          throw new PairedRegistrationRefusal(
+            `[${network}] ${registration.name} ${registration.address} has no code on the chain`
+          )
+        plan.plain.push(registration)
+        continue
+      }
+
+      const configured = requiredSelectorsFor(registration.name, routeConfig)
+      let state: IRegistrationChainState
+      try {
+        state = await readRegistrationState({
+          registration,
+          configured,
+          diamondCalledNames,
+          reader,
+        })
+      } catch (error) {
+        throw new PairedRegistrationRefusal(
+          `[${network}] could not read the chain state of ${
+            registration.name
+          } ${registration.address}: ${errorText(error)}`
+        )
+      }
+      plan.paired.push(
+        buildScopedPairedBatch({
+          network,
+          diamond,
+          registration,
+          configured,
+          state,
+        })
+      )
+    } catch (error) {
+      refusals.push(errorText(error))
     }
-    const code = await client.getBytecode({ address })
-    if (!code || code === '0x') codeless.add(address.toLowerCase())
-  }
-  return codeless
+
+  if (refusals.length)
+    throw new PairedRegistrationRefusal(
+      `[${network}] nothing was proposed:\n  ${refusals.join('\n  ')}`
+    )
+  return plan
+}
+
+/** One log line per pair the batch writes: the signer sees only calldata. */
+export function describeBatch(batch: IScopedPairedBatch): string[] {
+  const lines = [
+    `${batch.name}=${batch.address}${
+      batch.replaced ? ` (replaces ${batch.replaced})` : ''
+    } | batch calls=${batch.calldatas.length} (remove=${
+      batch.toRemove.length
+    }, add=${batch.toAdd.length})`,
+  ]
+  if (batch.replacedKept)
+    lines.push(`  keeps the selectors of ${batch.replacedKept}`)
+  for (const p of batch.toRemove) lines.push(`  - ${p.contract} ${p.selector}`)
+  for (const p of batch.toAdd) lines.push(`  + ${p.contract} ${p.selector}`)
+  return lines
 }
 
 /** Splits pairs into per-call chunks of at most {@link WHITELIST_CALL_MAX_PAIRS}. */
@@ -441,6 +480,45 @@ function whitelistCalldata(pairs: IPair[], approved: boolean): Hex {
   })
 }
 
+/**
+ * The reads on an EVM diamond.
+ *
+ * @param diamond - The diamond.
+ * @param network - Network name; its RPC comes from the environment.
+ * @returns The reader.
+ */
+export function evmRegistrationReader(
+  diamond: Address,
+  network: string
+): IPairedRegistrationReader {
+  const client = createPublicClient({
+    chain: getViemChainForNetworkName(network),
+    transport: http(),
+  })
+  return {
+    getPeripheryContract: async (name) => {
+      const at = await client.readContract({
+        address: diamond,
+        abi: REGISTRY_ABI,
+        functionName: 'getPeripheryContract',
+        args: [name],
+      })
+      return sameAddress(at, ZERO_ADDRESS) ? undefined : getAddress(at)
+    },
+    getWhitelistedSelectors: async (contract) =>
+      client.readContract({
+        address: diamond,
+        abi: WHITELIST_ABI,
+        functionName: 'getWhitelistedSelectorsForContract',
+        args: [contract],
+      }),
+    hasCode: async (address) => {
+      const code = await client.getBytecode({ address })
+      return Boolean(code && code !== '0x')
+    },
+  }
+}
+
 const splitList = (value: string | undefined): string[] =>
   (value ?? '')
     .split(',')
@@ -451,14 +529,13 @@ const main = defineCommand({
   meta: {
     name: 'proposePeripheryWithWhitelist',
     description:
-      'Propose periphery registration + whitelist sync as one timelock batch per network',
+      'Propose each diamond-called periphery registration with its own allowlist writes as one timelock batch',
   },
   args: {
     contract: {
       type: 'string',
       required: true,
-      description:
-        'Comma-separated registry names, all registered in one batch',
+      description: 'Comma-separated registry names; each gets its own proposal',
     },
     networks: {
       type: 'string',
@@ -477,11 +554,11 @@ const main = defineCommand({
     },
     preflight: {
       type: 'boolean',
-      description: `Read config only and exit 0 when the registration is paired and whitelist.json covers it, ${PREFLIGHT_EXIT_NOT_PAIRED} when it is not paired, 1 when it must be refused. Needs exactly one network.`,
+      description: `Read config and chain, propose nothing. Exit 0 when every name is paired and its batch builds, ${PREFLIGHT_EXIT_NOT_PAIRED} when none is paired and each address has code, ${EXIT_REFUSED} when a registration must be refused. Needs exactly one network.`,
     },
     dryRun: {
       type: 'boolean',
-      description: 'Build and report the batch without proposing',
+      description: 'Build and report the batches without proposing',
     },
   },
   async run({ args }) {
@@ -515,8 +592,9 @@ const main = defineCommand({
 
     const routeConfig = globalConfig as unknown as IPeripheryRouteConfig
 
-    let failures = 0
-    for (const network of networks) {
+    let failed = 0
+    let refused = 0
+    for (const network of networks)
       try {
         const unpaired = names
           .map((name) => ({
@@ -524,97 +602,49 @@ const main = defineCommand({
             route: peripheryRegistrationRoute(name, network, routeConfig),
           }))
           .filter(({ route }) => route !== 'paired')
-        if (unpaired.length) {
-          const reason = unpaired
-            .map(({ name, route }) => `${name} (${route})`)
-            .join(', ')
-          if (preflight && unpaired.length === names.length) {
-            consola.info(`[${network}] not paired: ${reason}`)
-            process.exit(PREFLIGHT_EXIT_NOT_PAIRED)
-          }
-          throw new Error(
-            `${reason} must not be paired on ${network} — use the normal propose path`
+        const reason = unpaired
+          .map(({ name, route }) => `${name} (${route})`)
+          .join(', ')
+        // A preflight answers for one route; proposing takes paired names only.
+        if (unpaired.length && (!preflight || unpaired.length < names.length))
+          throw new PairedRegistrationRefusal(
+            `${reason} must not be paired on ${network}`
           )
-        }
 
-        const netConfig = (
-          networksConfig as Record<string, { rpcUrl?: string }>
-        )[network]
-        if (!netConfig) throw new Error('not present in networks.json')
-
-        const deployments = (await import(
-          `../../deployments/${network}.json`
-        )) as { default: Record<string, string> }
+        const deployments: Record<string, string> =
+          args.diamond && addresses.length
+            ? {}
+            : (
+                (await import(`../../deployments/${network}.json`)) as {
+                  default: Record<string, string>
+                }
+              ).default
         const diamond = getAddress(
-          args.diamond ?? deployments.default['LiFiDiamond'] ?? ''
+          args.diamond ?? deployments['LiFiDiamond'] ?? ''
         )
-        const registrations: IPairedRegistration[] = names.map((name, i) => ({
+        const registrations: IRegistration[] = names.map((name, i) => ({
           name,
-          address: getAddress(addresses[i] ?? deployments.default[name] ?? ''),
-          required: requiredSelectorsFor(name, routeConfig),
+          address: getAddress(addresses[i] ?? deployments[name] ?? ''),
         }))
 
-        const desired = desiredPairs(
-          whitelistConfig as unknown as IWhitelistConfig,
-          network
-        )
-        // The standalone sync regenerates config/whitelist.json from the deploy
-        // logs before diffing; this script reads the committed file, so a stale
-        // one would de-whitelist the address being registered and whitelist the
-        // one it replaces — leaving the diamond unable to call it at all.
-        assertWhitelistListsRegistrations(desired, registrations, network)
-        if (preflight) {
-          consola.success(
-            `[${network}] ${names.join(
-              ', '
-            )}: paired, config/whitelist.json covers it`
-          )
-          continue
-        }
-
-        const actual = await actualPairs(diamond, network)
-        const diff = diffPairs(desired, actual)
-        const batch = buildPairedRegistrationBatch({
+        const plan = await planRegistrations({
           network,
           diamond,
           registrations,
-          desired,
-          actual,
-          codeless: await codelessAddresses(
-            [
-              ...diff.toAdd,
-              ...registrations.map((r) => ({
-                contract: r.address,
-                selector: APPROVE_TO_ONLY as Hex,
-              })),
-            ],
-            network
-          ),
+          routeConfig,
+          pair: true,
+          reader: evmRegistrationReader(diamond, network),
         })
-        if (batch.skippedCodeless.length)
-          consola.warn(
-            `[${network}] skipping ${
-              batch.skippedCodeless.length
-            } whitelist target(s) with no on-chain code: ${batch.skippedCodeless.join(
-              ', '
-            )} — fix config/whitelist.json`
-          )
 
-        consola.info(
-          `[${network}] ${registrations
-            .map((r) => `${r.name}=${r.address}`)
-            .join(', ')} | batch calls=${batch.calldatas.length} (remove=${
-            batch.toRemove.length
-          }, add=${batch.toAdd.length})`
-        )
-        // The signer sees only calldata, so name every pair the batch touches.
-        for (const p of batch.toRemove)
-          consola.info(`[${network}]   - ${p.contract} ${p.selector}`)
-        for (const p of batch.toAdd)
-          consola.info(`[${network}]   + ${p.contract} ${p.selector}`)
-
-        if (flagIsOn(args.dryRun)) {
-          consola.success(`[${network}] dry-run: no proposal created`)
+        if (preflight && !plan.paired.length) {
+          consola.info(`[${network}] not paired: ${reason}`)
+          process.exit(PREFLIGHT_EXIT_NOT_PAIRED)
+        }
+        for (const batch of plan.paired)
+          for (const line of describeBatch(batch))
+            consola.info(`[${network}] ${line}`)
+        if (preflight || flagIsOn(args.dryRun)) {
+          consola.success(`[${network}] no proposal created`)
           continue
         }
 
@@ -622,35 +652,44 @@ const main = defineCommand({
         // runPropose hijacks this CLI's argv; drive its CLI instead. Neither the
         // signing key nor the RPC URL is passed as an argument — both would be
         // readable from the process table, and it resolves both from the env.
-        const proposeArgs = ['tsx', 'script/deploy/safe/propose-to-safe.ts', '--network', network, '--timelock'] // prettier-ignore
-        batch.targets.forEach((target, i) =>
-          proposeArgs.push(
-            '--to',
-            target,
-            '--calldata',
-            batch.calldatas[i] as string
+        for (const batch of plan.paired) {
+          const proposeArgs = ['tsx', 'script/deploy/safe/propose-to-safe.ts', '--network', network, '--timelock'] // prettier-ignore
+          batch.targets.forEach((target, i) =>
+            proposeArgs.push(
+              '--to',
+              target,
+              '--calldata',
+              batch.calldatas[i] as string
+            )
           )
-        )
-        const result = spawnSync('bunx', proposeArgs, {
-          stdio: 'inherit',
-          env: process.env,
-        })
-        if (result.status !== 0)
-          throw new Error(`propose-to-safe exited ${String(result.status)}`)
-        consola.success(`[${network}] proposed`)
+          const result = spawnSync('bunx', proposeArgs, {
+            stdio: 'inherit',
+            env: process.env,
+          })
+          if (result.status !== 0) {
+            failed++
+            consola.error(
+              `[${network}] ${batch.name}: propose-to-safe exited ${String(
+                result.status
+              )}`
+            )
+            continue
+          }
+          consola.success(`[${network}] ${batch.name} proposed`)
+        }
       } catch (error) {
-        failures++
-        consola.error(
-          `[${network}] ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        )
+        if (error instanceof PairedRegistrationRefusal) refused++
+        else failed++
+        consola.error(`[${network}] ${errorText(error)}`)
       }
-    }
 
-    if (failures) {
-      consola.error(`${failures}/${networks.length} network(s) failed`)
+    if (failed) {
+      consola.error(`${failed} proposal(s) or network(s) failed`)
       process.exit(1)
+    }
+    if (refused) {
+      consola.error(`${refused}/${networks.length} network(s) refused`)
+      process.exit(EXIT_REFUSED)
     }
   },
 })

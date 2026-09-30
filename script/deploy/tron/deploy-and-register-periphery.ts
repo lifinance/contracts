@@ -19,15 +19,11 @@ import {
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
-import { toHex, type Hex } from 'viem'
 
 import type { SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
-import type {
-  IPeripheryRouteConfig,
-  IWhitelistConfig,
-} from '../../tasks/proposePeripheryWithWhitelist'
+import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhitelist'
 import { sleep } from '../../utils/delay'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
@@ -123,13 +119,10 @@ async function ensureExecutorAuthorizedOnErc20Proxy(
 
 const TRON_WHITELIST_READ_ABI = [
   {
-    name: 'getAllContractSelectorPairs',
+    name: 'getWhitelistedSelectorsForContract',
     type: 'function' as const,
-    inputs: [],
-    outputs: [
-      { name: 'contracts', type: 'address[]' },
-      { name: 'selectors', type: 'bytes4[][]' },
-    ],
+    inputs: [{ name: '_contract', type: 'address' }],
+    outputs: [{ name: 'selectors', type: 'bytes4[]' }],
     stateMutability: 'view',
   },
 ] as const
@@ -1424,14 +1417,8 @@ async function deployAndRegisterPeripheryImpl(options: {
       {
         network: tvmKey,
         diamond: diamondAddress,
-        // whitelist.json describes production networks only
         pairWithWhitelist: environment === EnvironmentEnum.production,
         routeConfig: globalConfigRecord as IPeripheryRouteConfig,
-        // An unreadable file lists nothing, which refuses every paired registration.
-        whitelistConfig:
-          (await readJsonFile<IWhitelistConfig>(
-            resolve(process.cwd(), 'config/whitelist.json')
-          )) ?? {},
         toEvm,
         readRegistered: async (name) => {
           await sleep(REGISTRATION_RPC_DELAY_MS)
@@ -1443,21 +1430,14 @@ async function deployAndRegisterPeripheryImpl(options: {
             ? toEvm(registered)
             : undefined
         },
-        readActualPairs: async () => {
-          const result = await withRateLimit(() =>
-            whitelistManager.getAllContractSelectorPairs().call()
-          )
-          const [contracts, selectors] = result
-          return contracts.flatMap((contract, i) =>
-            (selectors[i] ?? []).map((selector) => ({
-              contract: toEvm(contract),
-              selector: (typeof selector === 'string'
-                ? selector
-                : toHex(selector)
-              ).toLowerCase() as Hex,
-            }))
-          )
-        },
+        readWhitelistedSelectors: (contract) =>
+          withRateLimit(() =>
+            whitelistManager
+              .getWhitelistedSelectorsForContract(
+                evmHexToTronBase58(tronWeb, contract)
+              )
+              .call()
+          ),
         hasCode: async (address) => {
           const contract = await withRateLimit(() =>
             tronWeb.trx.getContract(evmHexToTronBase58(tronWeb, address))

@@ -1,5 +1,69 @@
 #!/bin/bash
 
+# isPairOfSkippedAddress PAIR ADDRESS... - whether PAIR ("address|selector")
+# belongs to one of the lowercased ADDRESSes
+function isPairOfSkippedAddress {
+  local ADDRESS_LOWER
+  ADDRESS_LOWER=$(echo "${1%%|*}" | tr '[:upper:]' '[:lower:]')
+  shift
+  local SKIP
+  for SKIP in "$@"; do
+    [[ "$SKIP" == "$ADDRESS_LOWER" ]] && return 0
+  done
+  return 1
+}
+
+# dropPairedRegistrationPairs: Removes from NEW_PAIRS and REMOVED_PAIRS every pair
+# of a contract whose registration diamondUpdatePeriphery proposed in this shell
+# together with its whitelist writes (PAIRED_PERIPHERY_REGISTRATIONS). A separate
+# sync proposal for those pairs could execute before the registration batch and
+# de-whitelist the address the diamond still has registered.
+#
+# Usage: dropPairedRegistrationPairs NETWORK ENVIRONMENT
+# Returns: 0; logs the names it left out
+function dropPairedRegistrationPairs {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local SKIP_ADDRESSES=()
+  local SKIP_NAMES=()
+  local ENTRY E_ENVIRONMENT E_NETWORK E_NAME E_NEW E_OLD
+
+  for ENTRY in "${PAIRED_PERIPHERY_REGISTRATIONS[@]:-}"; do
+    [[ -z "$ENTRY" ]] && continue
+    IFS='|' read -r E_ENVIRONMENT E_NETWORK E_NAME E_NEW E_OLD <<<"$ENTRY"
+    [[ "$E_ENVIRONMENT" == "$ENVIRONMENT" && "$E_NETWORK" == "$NETWORK" ]] || continue
+    SKIP_NAMES+=("$E_NAME")
+    SKIP_ADDRESSES+=("$(echo "$E_NEW" | tr '[:upper:]' '[:lower:]')")
+    if [[ -n "$E_OLD" && "$E_OLD" != "null" && ! "$E_OLD" =~ ^0x0{40}$ ]]; then
+      SKIP_ADDRESSES+=("$(echo "$E_OLD" | tr '[:upper:]' '[:lower:]')")
+    fi
+  done
+  [[ ${#SKIP_ADDRESSES[@]} -eq 0 ]] && return 0
+
+  local PAIR DROPPED=0
+  local KEPT_NEW=()
+  local KEPT_REMOVED=()
+  for PAIR in "${NEW_PAIRS[@]}"; do
+    if isPairOfSkippedAddress "$PAIR" "${SKIP_ADDRESSES[@]}"; then
+      DROPPED=$((DROPPED + 1))
+    else
+      KEPT_NEW+=("$PAIR")
+    fi
+  done
+  for PAIR in "${REMOVED_PAIRS[@]}"; do
+    if isPairOfSkippedAddress "$PAIR" "${SKIP_ADDRESSES[@]}"; then
+      DROPPED=$((DROPPED + 1))
+    else
+      KEPT_REMOVED+=("$PAIR")
+    fi
+  done
+  NEW_PAIRS=("${KEPT_NEW[@]}")
+  REMOVED_PAIRS=("${KEPT_REMOVED[@]}")
+
+  echo "[info] [$NETWORK] leaving ${SKIP_NAMES[*]} out of this sync ($DROPPED pair(s)): the registration was proposed together with its whitelist writes in this run"
+  return 0
+}
+
 function diamondSyncWhitelist {
   echo ""
   echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> running script syncWhitelist now...."
@@ -815,6 +879,8 @@ function diamondSyncWhitelist {
         fi
       done
     fi
+
+    dropPairedRegistrationPairs "$NETWORK" "$ENVIRONMENT"
 
     # Check for token contracts in the new addresses that will be added
     if [[ ! ${#NEW_ADDRESSES[@]} -eq 0 ]]; then

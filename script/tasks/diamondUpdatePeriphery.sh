@@ -92,10 +92,10 @@ function diamondUpdatePeriphery() {
     SHOULD_PROPOSE_TO_SAFE=true
   fi
 
-  # A registration of a diamond-called periphery contract is proposed in the
-  # same timelock batch as its whitelist writes: proposed alone, it executes
-  # into a registry entry the diamond is not allowed to call. Every route is
-  # decided, and every refusal made, before the first proposal is created.
+  # A registration of a diamond-called periphery contract is proposed in its own
+  # timelock batch with its whitelist writes: proposed alone, it executes into a
+  # registry entry the diamond is not allowed to call. Every route is decided,
+  # and every refusal made, before the first proposal is created.
   local PAIRED_NAMES=()
   local PAIRED_ADDRESSES=()
   local PLAIN_NAMES=()
@@ -143,15 +143,18 @@ function diamondUpdatePeriphery() {
       if [ "$KNOWN_ADDRESS" != "$CONTRACT_ADDRESS" ]; then
         if [[ "$SHOULD_PROPOSE_TO_SAFE" == "true" ]]; then
           local ROUTE_RC=0
-          bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --preflight || ROUTE_RC=$?
+          bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$CONTRACT" --networks "$NETWORK" --address "$CONTRACT_ADDRESS" --diamond "$DIAMOND_ADDRESS" --preflight || ROUTE_RC=$?
           if [[ "$ROUTE_RC" -eq 0 ]]; then
             PAIRED_NAMES+=("$CONTRACT")
             PAIRED_ADDRESSES+=("$CONTRACT_ADDRESS")
+            # read by diamondSyncWhitelist: a later sync in this shell must not
+            # propose this name's pairs on their own
+            PAIRED_PERIPHERY_REGISTRATIONS+=("$ENVIRONMENT|$NETWORK|$CONTRACT|$CONTRACT_ADDRESS|$KNOWN_ADDRESS")
           elif [[ "$ROUTE_RC" -eq 3 ]]; then
             PLAIN_NAMES+=("$CONTRACT")
             PLAIN_ADDRESSES+=("$CONTRACT_ADDRESS")
           else
-            error "[$NETWORK] $CONTRACT $CONTRACT_ADDRESS cannot be proposed with its whitelist writes (see above)"
+            error "[$NETWORK] $CONTRACT $CONTRACT_ADDRESS cannot be proposed (see above)"
             REFUSED=true
           fi
         else
@@ -168,7 +171,7 @@ function diamondUpdatePeriphery() {
   done
 
   if [[ "$REFUSED" == "true" ]]; then
-    error "[$NETWORK] nothing was proposed: update config/whitelist.json for the contract(s) above first, then re-run"
+    error "[$NETWORK] nothing was proposed: fix the contract(s) above, then re-run"
     if [[ "$EXIT_ON_ERROR" == "true" ]]; then
       exit 1
     fi
@@ -185,16 +188,13 @@ function diamondUpdatePeriphery() {
     fi
   done
 
-  if [[ ${#PAIRED_NAMES[@]} -gt 0 ]]; then
-    local PAIRED_NAMES_CSV PAIRED_ADDRESSES_CSV
-    PAIRED_NAMES_CSV=$(IFS=,; echo "${PAIRED_NAMES[*]}")
-    PAIRED_ADDRESSES_CSV=$(IFS=,; echo "${PAIRED_ADDRESSES[*]}")
-    if registerWithWhitelist "$NETWORK" "$DIAMOND_ADDRESS" "$PAIRED_NAMES_CSV" "$PAIRED_ADDRESSES_CSV"; then
-      echo "[info] registration of $PAIRED_NAMES_CSV proposed together with its whitelist writes on diamond $DIAMOND_ADDRESS"
+  for I in "${!PAIRED_NAMES[@]}"; do
+    if registerWithWhitelist "$NETWORK" "$DIAMOND_ADDRESS" "${PAIRED_NAMES[$I]}" "${PAIRED_ADDRESSES[$I]}"; then
+      echo "[info] registration of ${PAIRED_NAMES[$I]} proposed together with its whitelist writes on diamond $DIAMOND_ADDRESS"
     else
       LAST_CALL=1
     fi
-  fi
+  done
 
   # check the return code the last call
   if [ $LAST_CALL -ne 0 ]; then
@@ -224,35 +224,43 @@ function diamondUpdatePeriphery() {
   return 0
 }
 
-# registerWithWhitelist: Proposes the registration of diamond-called periphery
-# contracts and the diamond's whitelist sync as one timelock scheduleBatch.
+# registerWithWhitelist: Proposes the registration of one diamond-called
+# periphery contract and its own whitelist writes as one timelock scheduleBatch.
 #
-# Usage: registerWithWhitelist NETWORK DIAMOND NAMES ADDRESSES
-#   NETWORK   - Network name
-#   DIAMOND   - Diamond the contracts are registered on
-#   NAMES     - Comma-separated registry names
-#   ADDRESSES - Comma-separated addresses, parallel to NAMES
+# Usage: registerWithWhitelist NETWORK DIAMOND NAME ADDRESS
+#   NETWORK - Network name
+#   DIAMOND - Diamond the contract is registered on
+#   NAME    - Registry name
+#   ADDRESS - Address to register
 #
-# Returns: 0 once the proposal is created, 1 when every attempt failed
+# Returns: 0 once the proposal is created, 1 when it was refused or every attempt failed
 # Example: registerWithWhitelist "fuse" "$DIAMOND_ADDRESS" "TokenWrapper" "0x254b..."
 function registerWithWhitelist() {
   local NETWORK="$1"
   local DIAMOND="$2"
-  local NAMES="$3"
-  local ADDRESSES="$4"
+  local NAME="$3"
+  local ADDRESS="$4"
   local ATTEMPTS=1
+  local RC
 
   while [ $ATTEMPTS -le "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; do
     doNotContinueUnlessGasIsBelowThreshold "$NETWORK"
-    echo "Now proposing registerPeripheryContract for ${NAMES} together with the whitelist writes in one timelock batch"
-    if bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$NAMES" --networks "$NETWORK" --address "$ADDRESSES" --diamond "$DIAMOND"; then
+    echo "Now proposing registerPeripheryContract for ${NAME} together with its whitelist writes in one timelock batch"
+    RC=0
+    bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract "$NAME" --networks "$NETWORK" --address "$ADDRESS" --diamond "$DIAMOND" || RC=$?
+    if [[ "$RC" -eq 0 ]]; then
       return 0
+    fi
+    # exit 4 is a refusal a retry cannot change
+    if [[ "$RC" -eq 4 ]]; then
+      error "the registration of $NAME with its whitelist writes on network $NETWORK was refused (see above)"
+      return 1
     fi
     ATTEMPTS=$((ATTEMPTS + 1))
     sleep 1
   done
 
-  error "failed to propose the registration of $NAMES with its whitelist writes on network $NETWORK"
+  error "failed to propose the registration of $NAME with its whitelist writes on network $NETWORK"
   return 1
 }
 
