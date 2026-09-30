@@ -6,8 +6,10 @@ import {
   describe,
   expect,
   it,
+  spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { consola } from 'consola'
 import type { Hex } from 'viem'
 
 import {
@@ -190,6 +192,19 @@ describe('registered-periphery-allowlisted invariant', () => {
     expect(ctx.warnings[0]).toContain('TokenWrapper')
   })
 
+  it('errors when the registry read reverts', async () => {
+    const { ctx, allowlistReads } = makeCtx({
+      registryError: new Error('execution reverted'),
+    })
+    await allowlistInvariant().run(ctx)
+    expect(allowlistReads).toEqual([])
+    expect(ctx.warnings).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(
+      'TokenWrapper: could not read the PeripheryRegistry'
+    )
+  })
+
   const LDA = '0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc'
   const LDA_SELECTOR = '0x2646478b'
   const scopedConfig = (networks: string[]): Partial<IHealthCheckContext> => ({
@@ -284,7 +299,19 @@ describe('registered-periphery-allowlisted invariant', () => {
       },
       { pendingRegistrations: queued(WITHDRAW) }
     )
-    await allowlistInvariant().run(ctx)
+    const info = spyOn(consola, 'info')
+    try {
+      await allowlistInvariant().run(ctx)
+      expect(
+        info.mock.calls.some(([line]) =>
+          String(line).startsWith(
+            `${NEW_WRAPPER} / ${WITHDRAW} is registered but not yet allowlisted — expected-pending`
+          )
+        )
+      ).toBe(true)
+    } finally {
+      info.mockRestore()
+    }
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings).toEqual([])
   })

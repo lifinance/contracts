@@ -59,9 +59,16 @@ export interface IHealthCheckNetworkResult {
   skipReason?: string
   /**
    * Report-only line naming the `latest` contracts whose live version is behind the repo. Never
-   * affects `status`; absent when the network was not checked in production.
+   * affects `status`; absent outside production, or when the run aborted before its context
+   * was built. Still reported when the invariants abort.
    */
   behindMain?: string
+}
+
+/** The two stages {@link runHealthCheckForNetwork} runs against the context it builds. */
+export interface IHealthCheckRunStages {
+  runInvariants: (ctx: IHealthCheckContext) => Promise<void>
+  summarizeBehindMain: (ctx: IHealthCheckContext) => Promise<string>
 }
 
 /**
@@ -74,11 +81,16 @@ export interface IHealthCheckNetworkResult {
  * @param signal - Optional AbortSignal wired into the (EVM) viem transport so a caller that
  *   abandons this run on a deadline (see the multi-network runner) actually cancels its
  *   in-flight RPC reads instead of leaving them running above the concurrency budget.
+ * @param stages - Overridable for tests; defaults to the real invariant registry and summary.
  */
 export async function runHealthCheckForNetwork(
   networkStr: string,
   environment: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  stages: IHealthCheckRunStages = {
+    runInvariants: runHealthCheckInvariants,
+    summarizeBehindMain,
+  }
 ): Promise<IHealthCheckNetworkResult> {
   const networkLower = networkStr.toLowerCase()
 
@@ -107,6 +119,7 @@ export async function runHealthCheckForNetwork(
   const errors: string[] = []
   const warnings: string[] = []
   let behindMain: string | undefined
+  let ctx: IHealthCheckContext | undefined
 
   try {
     const isTron = networkLower === 'tron'
@@ -219,7 +232,7 @@ export async function runHealthCheckForNetwork(
       pauserWallet = getAddress(globalConfig.pauserWallet)
     }
 
-    const ctx: IHealthCheckContext = {
+    ctx = {
       network: networkStr,
       networkLower,
       environment,
@@ -260,15 +273,22 @@ export async function runHealthCheckForNetwork(
 
     consola.info(`[${networkLower}] Running post deployment checks...\n`)
 
-    await runHealthCheckInvariants(ctx)
-
-    if (environment === 'production') {
-      behindMain = await summarizeBehindMain(ctx)
-      consola.info(behindMain)
-    }
+    await stages.runInvariants(ctx)
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     errors.push(`[${networkLower}] health check aborted: ${errorMessage}`)
+  }
+
+  // Outside the invariants' try so an aborted run still reports how far behind main it is.
+  if (ctx && environment === 'production') {
+    try {
+      behindMain = await stages.summarizeBehindMain(ctx)
+    } catch (error: unknown) {
+      behindMain = `[${networkLower}] behind main (report-only): unavailable - ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    }
+    consola.info(behindMain)
   }
 
   return {
@@ -284,38 +304,31 @@ export async function runHealthCheckForNetwork(
  * Build the report-only "behind main" line for a network whose invariants have run.
  *
  * @param ctx - the context the invariants ran against, so the loupe and registry reads are reused
- * @returns the line; a failure is rendered into it rather than thrown, because this summary must
- *   never change a run's outcome
+ * @returns the line
  */
 async function summarizeBehindMain(ctx: IHealthCheckContext): Promise<string> {
-  try {
-    const report = await diagnoseBehindMain(
-      {
-        networkLower: ctx.networkLower,
-        targetContracts:
-          ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond,
-        onChainFacets: ctx.onChainFacets,
-        deployedContracts: Object.fromEntries(
-          Object.entries(ctx.deployedContracts).map(([name, address]) => [
-            name,
-            String(address),
-          ])
-        ),
-        diamondFacetLog: loadDiamondLog(ctx.networkLower)?.Facets ?? null,
-        deployLog: loadDeployLog(),
-      },
-      {
-        isFacet: (name) => isFacetContract(name),
-        readRegistry: (name) => readPeripheryRegistry(name, ctx),
-        repoVersion: getContractVersion,
-      }
-    )
-    return formatBehindMainLine(report)
-  } catch (error: unknown) {
-    return `[${ctx.networkLower}] behind main (report-only): unavailable - ${
-      error instanceof Error ? error.message : String(error)
-    }`
-  }
+  const report = await diagnoseBehindMain(
+    {
+      networkLower: ctx.networkLower,
+      targetContracts:
+        ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond,
+      onChainFacets: ctx.onChainFacets,
+      deployedContracts: Object.fromEntries(
+        Object.entries(ctx.deployedContracts).map(([name, address]) => [
+          name,
+          String(address),
+        ])
+      ),
+      diamondFacetLog: loadDiamondLog(ctx.networkLower)?.Facets ?? null,
+      deployLog: loadDeployLog(),
+    },
+    {
+      isFacet: (name) => isFacetContract(name),
+      readRegistry: (name) => readPeripheryRegistry(name, ctx),
+      repoVersion: getContractVersion,
+    }
+  )
+  return formatBehindMainLine(report)
 }
 
 const main = defineCommand({

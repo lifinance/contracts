@@ -155,6 +155,6 @@ Two boundaries are not negotiable:
   `no-stale-registered-facets` exists _only_ to police queue coverage, so without the queue
   every finding it could make is noise: it skips and reports the reduced coverage.
   `facets-registered`, `periphery-registered`, `whitelist-integrity` and
-  `registered-periphery-allowlisted` stand on an independent on-chain signal, so they keep every error and add a warning naming the
-  degraded coverage — a MongoDB blip turning genuinely missing registrations green is far
-  worse than a false alert during a rollout.
+  `registered-periphery-allowlisted` stand on an independent on-chain signal, so they keep
+  every error and add a warning naming the degraded coverage — a MongoDB blip turning
+  genuinely missing registrations green is far worse than a false alert during a rollout.
