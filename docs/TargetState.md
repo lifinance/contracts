@@ -74,6 +74,12 @@ These read `Object.keys` and ignore the value entirely.
 - The sign-time target-state gate, `script/deploy/safe/pinned-target-state.ts`
   ([docs/MultisigSigningProcess.md](./MultisigSigningProcess.md)).
 
+One health-check invariant reports against the version without enforcing it:
+`facet-versions-match-target-state` compares each registered facet's version in
+`deployments/<network>.diamond.json` with the expected version (a pin as written, `latest` as the
+checkout's `@custom:version`) and warns when the facet is behind, ahead, or cannot be compared.
+It is a warning, so a network that has not caught up stays green.
+
 `printDeploymentsStatusV2` also displays the policy value beside the deployed version. A
 `latest : 1.2.0` row means the entry follows the repo and the deployment log records `1.2.0`;
 it does not mean `latest` is a deployed version.
