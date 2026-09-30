@@ -15,6 +15,7 @@ import {
   MAX_LOG_SPAN,
   MIN_LOG_SPAN,
   REORG_MARGIN_BLOCKS,
+  LogRangeBehindError,
   advanceScan,
   bisectCreationBlock,
   initialScanState,
@@ -472,6 +473,82 @@ describe('advanceScan', () => {
     const outcome = await advanceScan(previous, deps, 0)
     expect(outcome.state.high).toBe('20000')
     expect(outcome.state.operations[id(5)]).toBeDefined()
+  })
+
+  it('stops the forward leg at the deadline and keeps what it read, so a long gap is caught up over runs', async () => {
+    const deps = chain({
+      head: 20_000n,
+      floor: 0n,
+      maxSpan: 1_000n,
+      logs: [scheduledAt(19_500n, id(5))],
+    })
+    const previous = {
+      ...initialScanState(undefined, TIMELOCK),
+      floor: '0',
+      low: '0',
+      high: '10000',
+      span: '1000',
+    }
+    let calls = 0
+    const outcome = await advanceScan(previous, deps, 0, {
+      until: 4,
+      now: () => calls++,
+    })
+    expect(BigInt(outcome.state.high ?? 0)).toBeGreaterThan(10_000n)
+    expect(BigInt(outcome.state.high ?? 0)).toBeLessThan(20_000n)
+    expect(outcome.forwardLag).toBe(20_000n - BigInt(outcome.state.high ?? 0))
+    expect(covers(deps.served, 9_744n, BigInt(outcome.state.high ?? 0))).toBe(
+      true
+    )
+
+    const next = await advanceScan(outcome.state, deps, 0)
+    expect(next.state.high).toBe('20000')
+    expect(next.forwardLag).toBe(0n)
+    expect(next.state.operations[id(5)]).toBeDefined()
+  })
+
+  it('stops, without narrowing the span, where no endpoint has reached the range yet', async () => {
+    const base = chain({ head: 20_000n, floor: 0n, logs: [] })
+    const deps = {
+      ...base,
+      getLogs: async (from: bigint, to: bigint) => {
+        if (to > 19_990n) throw new LogRangeBehindError('behind')
+        return base.getLogs(from, to)
+      },
+    }
+    const outcome = await advanceScan(
+      {
+        ...initialScanState(undefined, TIMELOCK),
+        floor: '0',
+        low: '0',
+        high: '10000',
+        span: '100000',
+      },
+      deps,
+      0
+    )
+    expect(outcome.state.high).toBe('10000')
+    expect(outcome.state.span).toBe('1000000')
+    expect(outcome.forwardLag).toBe(10_000n)
+  })
+
+  it('does not save a creation block it could not resolve, so the next run retries it', async () => {
+    let asked = 0
+    const deps = {
+      ...chain({ head: 1_000n, floor: 0n, logs: [] }),
+      floor: async () => {
+        asked++
+        return undefined
+      },
+    }
+    const first = await advanceScan(
+      initialScanState(undefined, TIMELOCK),
+      deps,
+      10
+    )
+    expect(first.state.floor).toBeUndefined()
+    await advanceScan(first.state, deps, 10)
+    expect(asked).toBe(2)
   })
 
   it('re-reads the reorg margin below the previous head', async () => {

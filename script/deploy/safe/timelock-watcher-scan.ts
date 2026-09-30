@@ -121,10 +121,16 @@ export interface INetworkScanState {
   cancels?: Record<string, string>
 }
 
+/**
+ * No endpoint has reached the end of the range yet. Not a refusal: a narrower
+ * range would not help, so the leg stops where it got to.
+ */
+export class LogRangeBehindError extends Error {}
+
 export interface IScanDependencies {
   head: () => Promise<bigint>
-  /** Resolves the creation block of the timelock. */
-  floor: () => Promise<bigint>
+  /** Resolves the creation block of the timelock; undefined when it could not. */
+  floor: () => Promise<bigint | undefined>
   getLogs: (fromBlock: bigint, toBlock: bigint) => Promise<IRangeLogs>
 }
 
@@ -144,6 +150,8 @@ export interface IScanOutcome {
   head: bigint
   /** True once `[floor, head]` is covered. */
   historyComplete: boolean
+  /** Blocks between the head and the highest block scanned. */
+  forwardLag: bigint
   logCalls: number
   /** `CallScheduled` logs read this run. */
   scheduledLogs: number
@@ -279,7 +287,7 @@ export const isProvenCancelled = (
  * @param to - Last block, inclusive.
  * @param span - Range to try first.
  * @param budget - Calls left; decremented per attempt.
- * @returns The logs and the span that worked.
+ * @returns The logs, the span that worked, and the last block read.
  * @throws When even {@link MIN_LOG_SPAN} is refused.
  */
 const readRange = async (
@@ -288,7 +296,7 @@ const readRange = async (
   to: bigint,
   span: bigint,
   budget: IBudget
-): Promise<{ logs: IRangeLogs; span: bigint }> => {
+): Promise<{ logs: IRangeLogs; span: bigint; reachedTo: bigint }> => {
   const logs = emptyLogs()
   let cursor = from
   let width = span
@@ -299,12 +307,13 @@ const readRange = async (
       appendLogs(logs, await deps.getLogs(cursor, end))
       cursor = end + 1n
     } catch (error) {
+      if (error instanceof LogRangeBehindError) break
       if (width <= MIN_LOG_SPAN) throw error
       width =
         width / SPAN_SHRINK > MIN_LOG_SPAN ? width / SPAN_SHRINK : MIN_LOG_SPAN
     }
   }
-  return { logs, span: width }
+  return { logs, span: width, reachedTo: cursor - 1n }
 }
 
 /**
@@ -357,7 +366,7 @@ const readRangeDownward = async (
       reachedFrom = (ranges[i] as [bigint, bigint])[0]
     }
     if (refused !== undefined) {
-      if (width <= MIN_LOG_SPAN)
+      if (refused instanceof LogRangeBehindError || width <= MIN_LOG_SPAN)
         return { logs, span: width, reachedFrom, error: refused }
       width =
         width / SPAN_SHRINK > MIN_LOG_SPAN ? width / SPAN_SHRINK : MIN_LOG_SPAN
@@ -370,10 +379,12 @@ const readRangeDownward = async (
  * Advances a network's scan: head first, then history, within `logBudget`
  * `eth_getLogs` calls.
  *
- * The forward leg always runs to completion, budget or not: it is what makes a
- * fresh schedule visible within one run, and it is short after the first run.
- * A history range no endpoint will serve stops the history leg and is reported
- * in `historyError`; it does not discard what the forward leg found.
+ * The forward leg runs first and has no call budget: it is what makes a fresh
+ * schedule visible within one run. It stops at the history deadline too, and
+ * keeps what it read, so a long gap is caught up over several runs rather than
+ * overrunning the network's time on every one. A history range no endpoint
+ * will serve stops the history leg and is reported in `historyError`; it does
+ * not discard what the forward leg found.
  *
  * @param previous - State from the last run, already matched to this timelock.
  * @param deps - Chain readers.
@@ -390,8 +401,10 @@ export const advanceScan = async (
   history: { until?: number; now?: () => number; parallel?: number } = {}
 ): Promise<IScanOutcome> => {
   const head = await deps.head()
-  const floor =
+  // A floor that could not be resolved is not saved, so the next run retries it.
+  const resolvedFloor =
     previous.floor !== undefined ? BigInt(previous.floor) : await deps.floor()
+  const floor = resolvedFloor ?? 0n
   // One step wider than last time: a span that shrank on a transient refusal
   // would otherwise stay narrow for good, at up to ten times the calls.
   const widened =
@@ -412,8 +425,14 @@ export const advanceScan = async (
       : high > REORG_MARGIN_BLOCKS
       ? high - REORG_MARGIN_BLOCKS
       : 0n
-  const forwardBudget = { left: Number.MAX_SAFE_INTEGER }
+  const forwardBudget: IBudget = {
+    left: Number.MAX_SAFE_INTEGER,
+    ...(history.until !== undefined ? { until: history.until } : {}),
+    ...(history.now ? { now: history.now } : {}),
+  }
   const forward = await readRange(deps, forwardFrom, head, span, forwardBudget)
+  const reached =
+    high !== undefined && high > forward.reachedTo ? high : forward.reachedTo
   logCalls += Number.MAX_SAFE_INTEGER - forwardBudget.left
   operations = mergeScheduledLogs(operations, forward.logs)
   cancels = mergeCancels(cancels, forward.logs.cancels)
@@ -453,12 +472,15 @@ export const advanceScan = async (
     logCalls,
     scheduledLogs,
     historyComplete: low <= floor,
+    forwardLag: head - reached,
     ...(historyError !== undefined ? { historyError } : {}),
     state: {
       timelock: previous.timelock,
-      floor: floor.toString(),
+      ...(resolvedFloor !== undefined
+        ? { floor: resolvedFloor.toString() }
+        : {}),
       low: low.toString(),
-      high: head.toString(),
+      high: reached.toString(),
       span: span.toString(),
       operations,
       cancels,

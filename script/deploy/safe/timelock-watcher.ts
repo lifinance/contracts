@@ -96,6 +96,8 @@ import {
   CALL_SALT_EVENT,
   CALL_SCHEDULED_EVENT,
   CANCELLED_EVENT,
+  LogRangeBehindError,
+  REORG_MARGIN_BLOCKS,
   advanceScan,
   bisectCreationBlock,
   initialScanState,
@@ -719,23 +721,23 @@ export const watchNetwork = async (
           const head = await client.getBlockNumber()
           try {
             return await bisectCreationBlock(head, async (blockNumber) => {
-              const code = await withTimeout(
-                client.getCode({ address: timelock, blockNumber }),
-                RPC_CALL_TIMEOUT_MS,
-                `getCode at block ${blockNumber}`
-              )
+              const code = await client.getCode({
+                address: timelock,
+                blockNumber,
+              })
               return code !== undefined && code !== '0x'
             })
           } catch (error) {
             floorNote = `creation block unknown (${describe(
               error
-            )}); history is scanned from genesis`
-            return 0n
+            )}); history is scanned from genesis this run, and the next run tries again`
+            return undefined
           }
         },
         getLogs: async (fromBlock, toBlock) => {
           let logs: Awaited<ReturnType<typeof readTimelockLogs>> | undefined
           let lastError: unknown
+          let allBehind = true
           for (let k = 0; k < logReaders.length && !logs; k++) {
             const at = (preferredReader + k) % logReaders.length
             const reader = logReaders[at] as PublicClient
@@ -746,7 +748,7 @@ export const watchNetwork = async (
                 readerHeads.set(at, readerHead)
               }
               if (readerHead < toBlock)
-                throw new Error(
+                throw new LogRangeBehindError(
                   `the endpoint is at block ${readerHead}, behind ${toBlock}`
                 )
               logs = await readTimelockLogs(
@@ -758,9 +760,14 @@ export const watchNetwork = async (
               preferredReader = at
             } catch (error) {
               lastError = error
+              if (!(error instanceof LogRangeBehindError)) allBehind = false
             }
           }
-          if (!logs) throw lastError
+          // Behind on one endpoint and refused on another is a refusal: narrower may work.
+          if (!logs)
+            throw allBehind || !(lastError instanceof LogRangeBehindError)
+              ? lastError
+              : new Error(lastError.message)
           const scheduled = []
           const salts = []
           const cancels = []
@@ -800,6 +807,12 @@ export const watchNetwork = async (
         .split('\n')[0]
         ?.slice(0, 200)}`
     )
+  if (scan.forwardLag > REORG_MARGIN_BLOCKS) {
+    flagUnverified = true
+    notes.push(
+      `blocks after ${scan.state.high} are not scanned yet; an operation scheduled since is not yet visible`
+    )
+  }
   if (!scan.historyComplete) {
     flagUnverified = true
     notes.push(
