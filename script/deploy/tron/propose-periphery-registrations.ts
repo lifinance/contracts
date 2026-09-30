@@ -9,7 +9,6 @@ import { encodeFunctionData, parseAbi } from 'viem'
 import {
   PairedRegistrationRefusal,
   describeBatch,
-  normaliseSelector,
   planRegistrations,
   type IPeripheryRouteConfig,
   type IRegistration,
@@ -119,8 +118,7 @@ export async function proposeTronPeripheryRegistrations(
     pair: deps.pairWithWhitelist,
     reader: {
       getPeripheryContract: deps.readRegistered,
-      getWhitelistedSelectors: async (contract) =>
-        (await deps.readWhitelistedSelectors(contract)).map(normaliseSelector),
+      getWhitelistedSelectors: deps.readWhitelistedSelectors,
       hasCode: deps.hasCode,
     },
   })

@@ -194,8 +194,8 @@ export interface IRegistrationChainState {
 export interface IPairedRegistrationReader {
   /** `getPeripheryContract(name)`; undefined for the zero address. */
   getPeripheryContract: (name: string) => Promise<Address | undefined>
-  /** `getWhitelistedSelectorsForContract(contract)`. */
-  getWhitelistedSelectors: (contract: Address) => Promise<readonly Hex[]>
+  /** `getWhitelistedSelectorsForContract(contract)`, in whatever form the client returns. */
+  getWhitelistedSelectors: (contract: Address) => Promise<readonly unknown[]>
   hasCode: (address: Address) => Promise<boolean>
 }
 
