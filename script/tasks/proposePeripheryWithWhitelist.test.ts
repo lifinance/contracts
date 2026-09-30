@@ -671,7 +671,10 @@ describe('proposePeripheryWithWhitelist.ts', () => {
             return {
               jsonrpc: '2.0',
               id: r.id,
-              error: { code: -32000, message: String(error) },
+              error: {
+                code: -32000,
+                message: error instanceof Error ? error.message : 'stub error',
+              },
             }
           }
         }
