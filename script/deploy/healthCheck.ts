@@ -5,7 +5,8 @@
  * and asserts every invariant in {@link HEALTH_CHECK_INVARIANTS} holds. Invoke via
  * `bunx tsx ./script/deploy/healthCheck.ts --network <network> [--environment production|staging]`.
  * The check layer (what is asserted) lives in `healthCheckInvariants.ts`; this file builds
- * the per-network context and runs the registry. The reusable entry point is
+ * the per-network context, runs the registry, then prints a report-only "behind main" line
+ * (`healthCheckBehindMain.ts`) that never affects the outcome. The reusable entry point is
  * {@link runHealthCheckForNetwork} (returns a result, never exits) so the multi-network
  * runner can fan it out in-process; the CLI wrapper maps that result to an exit code.
  */

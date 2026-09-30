@@ -3,8 +3,8 @@
  *
  * For every `latest` key in a network's production target state, compares the version live on
  * chain with the repo's `@custom:version` and lists the contracts that lag. It never fails a run:
- * most of the fleet runs an older CalldataVerificationFacet on purpose, so as an error it would
- * red every network.
+ * a rollout reaches the fleet over weeks, so at any time most networks lag main somewhere, and as
+ * an error it would red every one of them.
  *
  * The live version is diagnosed from the live address: the diamond loupe for facets, the
  * PeripheryRegistry (falling back to the deploy log) for everything else. The committed logs are
@@ -167,7 +167,8 @@ async function livePeripheryVersion(
 /**
  * Diagnose which `latest` contracts on one network run a version older than the repo's.
  *
- * @returns the report; every read failure lands in `undiagnosed`, never in `current`
+ * @returns the report; a contract whose live or repo version cannot be established lands in
+ *   `undiagnosed`, never in `current`
  */
 export async function diagnoseBehindMain(
   input: IBehindMainInput,
