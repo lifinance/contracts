@@ -27,7 +27,8 @@ import type { IExecutabilityVerdict } from './executability-simulation'
 import {
   describeExpected,
   describeObserved,
-  PERIPHERY_ALLOWLIST_REMEDY,
+  ledgerPrintable,
+  peripheryAllowlistRemedy,
   STATUSES_CLEARED as PERIPHERY_STATUSES_CLEARED,
   type IPeripheryAllowlistFinding,
   type IPeripheryAllowlistVerdict,
@@ -56,11 +57,14 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   title: 'Contract version matches target state',
 }
 
+/** Gate W's ledger check id. */
 export const PERIPHERY_ALLOWLIST_CHECK_ID = 'periphery-allowlist'
 
-// `integrity`: a registration the diamond cannot call breaks every route through
-// that contract the moment the backend reads the registry, and nothing a signer
-// could acknowledge makes those calls succeed.
+/**
+ * Gate W. `integrity`: a registration the diamond cannot call breaks every
+ * route through that contract the moment the backend reads the registry, and
+ * nothing a signer could acknowledge makes those calls succeed.
+ */
 export const PERIPHERY_ALLOWLIST_CHECK: ICheckDefinition = {
   checkId: PERIPHERY_ALLOWLIST_CHECK_ID,
   section: 'Intent',
@@ -678,6 +682,7 @@ export const worstResultPerCheck = (
   return [...worst.values()]
 }
 
+/** Gate W's row expectation when no registration is graded. */
 export const EVERY_REGISTERED_PERIPHERY_ALLOWLISTED =
   'every diamond-called periphery a registration binds has its selectors allowlisted'
 
@@ -740,7 +745,10 @@ export const peripheryAllowlistCheckResult = (
         verdict.findings.length === 0
           ? NO_DIAMOND_CALLED_REGISTRATION
           : `${NO_DIAMOND_CALLED_REGISTRATION}: ${verdict.findings
-              .map((finding) => `${finding.name} is ${finding.status}`)
+              .map(
+                (finding) =>
+                  `${ledgerPrintable(finding.name)} is ${finding.status}`
+              )
               .join('; ')}`,
       anchor: 'A-LOCAL',
     }
@@ -760,25 +768,25 @@ export const peripheryAllowlistCheckResult = (
       ? graded
           .map(
             (finding) =>
-              `${finding.name}: ${describeExpected(finding)} allowlisted for ${
-                finding.address
-              }`
+              `${ledgerPrintable(finding.name)}: ${describeExpected(
+                finding
+              )} allowlisted for ${finding.address}`
           )
           .join('; ')
       : EVERY_REGISTERED_PERIPHERY_ALLOWLISTED,
     actual: [
       ...graded.map(
         (finding) =>
-          `${finding.name}: ${finding.status}, observed ${describeObserved(
-            finding
-          )}`
+          `${ledgerPrintable(finding.name)}: ${
+            finding.status
+          }, observed ${describeObserved(finding, ledgerPrintable)}`
       ),
       ...verdict.unreadable.map((entry) => `unreadable: ${entry}`),
     ].join('; '),
     anchor,
     ...(status === 'fail'
       ? {
-          detail: `${PERIPHERY_ALLOWLIST_REMEDY}; proposePeripheryWithWhitelist.ts proposes both in one batch`,
+          detail: peripheryAllowlistRemedy(network),
         }
       : {}),
   }

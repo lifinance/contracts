@@ -1,11 +1,4 @@
-/**
- * Pins where gate W sits inside `confirm-safe-tx.ts`.
- *
- * Source order, because the confirmation CLI signs and broadcasts and cannot be
- * spawned from a test. The row on the ledger is what makes the gate observable
- * on a real run; these assertions cover the refusal's position and that the row
- * is handed the same verdict the refusal acts on.
- */
+/** Pins gate W's position in `confirm-safe-tx.ts` by source order, since that CLI signs and cannot be spawned from a test. */
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -46,7 +39,9 @@ describe('gate W placement in confirm-safe-tx', () => {
   it('skips the proposal as blocked rather than proceeding', () => {
     const at = source.indexOf(GATE)
     expect(at).toBeGreaterThan(-1)
-    const block = source.slice(at, source.indexOf('\n    }', at))
+    const end = source.indexOf('\n    }', at)
+    expect(end).toBeGreaterThan(at)
+    const block = source.slice(at, end)
     expect(block).toContain('renderPeripheryAllowlistRefusal(')
     expect(block).toContain('recordProposalOutcome({ blocked: true })')
     expect(block).toContain('continue')
@@ -62,7 +57,10 @@ describe('gate W placement in confirm-safe-tx', () => {
 
   it('hands the ledger the verdict the refusal acts on', () => {
     const at = source.indexOf('proposalCheckResults({')
-    const call = source.slice(at, source.indexOf('\n    })', at))
+    expect(at).toBeGreaterThan(-1)
+    const end = source.indexOf('\n    })', at)
+    expect(end).toBeGreaterThan(at)
+    const call = source.slice(at, end)
     expect(call).toContain('peripheryAllowlist,')
   })
 

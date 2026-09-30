@@ -14,6 +14,7 @@ import {
 } from 'bun:test'
 import {
   encodeFunctionData,
+  getAddress,
   parseAbi,
   toFunctionSelector,
   type Address,
@@ -21,6 +22,7 @@ import {
 } from 'viem'
 
 import globalConfig from '../../../config/global.json'
+import { DIAMOND_CUT_ABI } from '../shared/constants'
 
 import { gateLabel } from './check-ledger'
 import {
@@ -34,7 +36,10 @@ import {
   blockedPeripheryAllowlist,
   evaluatePeripheryAllowlist,
   PERIPHERY_ALLOWLIST_GATE_HEADING,
+  peripheryAllowlistRemedy,
   peripheryFunctionsFromConfig,
+  peripheryNetworksFromConfig,
+  readAllowlistThrough,
   renderPeripheryAllowlistLines,
   renderPeripheryAllowlistRefusal,
   type IPeripheryAllowlistDeps,
@@ -50,7 +55,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE' as Address
 const OTHER_DIAMOND = '0xF3B20515d9B193531c48E47c18aF16d1e5d28f9a' as Address
 const TIMELOCK = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29' as Address
-// gnosis op 38's TokenWrapper, whose allowlist was empty when it was signed
+// real TokenWrapper address
 const TOKEN_WRAPPER = '0x31F6b192Ec4a7eEF00E09ee17c36ca518c65bbfe' as Address
 const SAFE = '0x00000000000000000000000000000000000005a1' as Address
 const ZERO = '0x0000000000000000000000000000000000000000' as Address
@@ -127,6 +132,10 @@ const schedule = (payload: Hex, target: Address = DIAMOND): Hex =>
 const PERIPHERY_FUNCTIONS = peripheryFunctionsFromConfig(
   globalConfig.whitelistPeripheryFunctions
 )
+const PERIPHERY_NETWORKS = peripheryNetworksFromConfig(
+  globalConfig.whitelistPeripheryNetworks,
+  PERIPHERY_FUNCTIONS
+)
 
 /** A reader that answers from a fixed table and counts what it was asked. */
 const chain = (
@@ -136,6 +145,7 @@ const chain = (
   return {
     reads,
     peripheryFunctions: PERIPHERY_FUNCTIONS,
+    peripheryNetworks: PERIPHERY_NETWORKS,
     readWhitelistedSelectors: async (diamond, contract) => {
       reads.push(`${diamond}:${contract}`)
       if (allowlisted instanceof Error) throw allowlisted
@@ -144,19 +154,21 @@ const chain = (
   }
 }
 
-const viaTimelock = (data: Hex) => ({
+const viaTimelock = (data: Hex, network = 'gnosis') => ({
   calldatas: [data],
   targets: [TIMELOCK],
   caller: SAFE,
+  network,
 })
-const direct = (data: Hex) => ({
+const direct = (data: Hex, network = 'gnosis') => ({
   calldatas: [data],
   targets: [DIAMOND],
   caller: SAFE,
+  network,
 })
 
-const rowOf = (verdict: IPeripheryAllowlistVerdict) =>
-  peripheryAllowlistCheckResult(verdict, 'gnosis')
+const rowOf = (verdict: IPeripheryAllowlistVerdict, network = 'gnosis') =>
+  peripheryAllowlistCheckResult(verdict, network)
 
 describe('peripheryFunctionsFromConfig', () => {
   it('reads the selectors main lists for a diamond-called periphery', () => {
@@ -582,7 +594,12 @@ describe('evaluatePeripheryAllowlist — reads that fail', () => {
 
   it('is unverified when the diamond the registration is sent to is unknown', async () => {
     const verdict = await evaluatePeripheryAllowlist(
-      { calldatas: [register('TokenWrapper')], targets: [], caller: SAFE },
+      {
+        calldatas: [register('TokenWrapper')],
+        targets: [],
+        caller: SAFE,
+        network: 'gnosis',
+      },
       chain([DEPOSIT, WITHDRAW])
     )
     expect(verdict.cleared).toBe(false)
@@ -590,7 +607,7 @@ describe('evaluatePeripheryAllowlist — reads that fail', () => {
   })
 
   it('a verdict for an evaluation that threw blocks', () => {
-    const verdict = blockedPeripheryAllowlist('config unreadable')
+    const verdict = blockedPeripheryAllowlist('gnosis', 'config unreadable')
     expect(verdict.cleared).toBe(false)
     expect(rowOf(verdict).status).toBe('error')
   })
@@ -698,5 +715,418 @@ describe('gate W rendering', () => {
       'utf8'
     )
     expect(doc).toContain(PERIPHERY_ALLOWLIST_GATE_HEADING)
+  })
+})
+
+const LDA_ADDRESS = getAddress('0x5e3cf1b6c8f4d2a0b9e7c3d1f2a4b6c8d0e2f4a6')
+const LDA_SELECTORS = (PERIPHERY_FUNCTIONS.get('LiFiDEXAggregator') ?? []).map(
+  (one) => one.selector
+)
+
+describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
+  it('clears a LiFiDEXAggregator registration on a network config does not whitelist it on', async () => {
+    const deps = chain(new Error('must not be read'))
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
+        'mainnet'
+      ),
+      deps
+    )
+    expect(verdict.findings.map((finding) => finding.status)).toEqual([
+      'out-of-scope',
+    ])
+    expect(verdict.cleared).toBe(true)
+    expect(deps.reads).toEqual([])
+    const row = rowOf(verdict, 'mainnet')
+    expect(row.status).toBe('not-applicable')
+    expect(row.actual).toContain('LiFiDEXAggregator is out-of-scope')
+    expect(renderPeripheryAllowlistLines(verdict).join('\n')).toContain(
+      'not whitelisted on mainnet by config'
+    )
+  })
+
+  it('still refuses LiFiDEXAggregator with an empty allowlist on a network config scopes it to', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
+        'lens'
+      ),
+      chain([])
+    )
+    expect(verdict.findings.map((finding) => finding.status)).toEqual([
+      'missing',
+    ])
+    expect(verdict.findings[0]?.missing).toEqual(LDA_SELECTORS)
+    expect(verdict.cleared).toBe(false)
+    expect(rowOf(verdict, 'lens').status).toBe('fail')
+    expect(renderPeripheryAllowlistLines(verdict).join('\n')).not.toContain(
+      'not whitelisted on'
+    )
+  })
+
+  it('matches the network case-insensitively, as the whitelist sync does', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
+        'LENS'
+      ),
+      chain([])
+    )
+    expect(verdict.findings[0]?.status).toBe('missing')
+  })
+
+  it('grades a name config does not scope on every network, mainnet included', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([register('TokenWrapper')]), 'mainnet'),
+      chain([])
+    )
+    expect(verdict.findings[0]?.status).toBe('missing')
+    expect(verdict.cleared).toBe(false)
+  })
+
+  it('refuses a scope map naming a contract whitelistPeripheryFunctions lacks', () => {
+    expect(() =>
+      peripheryNetworksFromConfig(
+        { LiFiDexAggregator: ['lens'] },
+        PERIPHERY_FUNCTIONS
+      )
+    ).toThrow(/LiFiDexAggregator/u)
+    expect(() =>
+      peripheryNetworksFromConfig(
+        { LiFiDEXAggregator: 'lens' },
+        PERIPHERY_FUNCTIONS
+      )
+    ).toThrow(/LiFiDEXAggregator/u)
+    expect(() =>
+      peripheryNetworksFromConfig(['lens'], PERIPHERY_FUNCTIONS)
+    ).toThrow(/not an object/u)
+  })
+
+  it('scopes nothing when config carries no scope map', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
+        'mainnet'
+      ),
+      {
+        ...chain([]),
+        peripheryNetworks: peripheryNetworksFromConfig(
+          undefined,
+          PERIPHERY_FUNCTIONS
+        ),
+      }
+    )
+    expect(verdict.findings[0]?.status).toBe('missing')
+  })
+})
+
+const FACET = getAddress('0x7d1d53d1f2b7a3a5c0cf4e8f5b8f1c0b9b6e7a21')
+const REGISTER_SELECTOR = toFunctionSelector(
+  'registerPeripheryContract(string,address)'
+)
+const GET_PERIPHERY_SELECTOR = toFunctionSelector(
+  'getPeripheryContract(string)'
+)
+
+const diamondCut = (
+  init: Address,
+  initCalldata: Hex,
+  cuts: readonly {
+    facetAddress: Address
+    action: number
+    functionSelectors: readonly Hex[]
+  }[] = []
+): Hex =>
+  encodeFunctionData({
+    abi: DIAMOND_CUT_ABI,
+    functionName: 'diamondCut',
+    args: [
+      cuts.map((cut) => ({
+        ...cut,
+        functionSelectors: [...cut.functionSelectors],
+      })),
+      init,
+      initCalldata,
+    ],
+  })
+
+describe('evaluatePeripheryAllowlist — a diamondCut _init', () => {
+  it.each([
+    ['the diamond', DIAMOND],
+    ['a facet', FACET],
+  ])(
+    'grades a registration delegatecalled through _init on %s',
+    async (_, init) => {
+      const deps = chain([])
+      const verdict = await evaluatePeripheryAllowlist(
+        viaTimelock(
+          scheduleBatch([diamondCut(init, register('TokenWrapper'))])
+        ),
+        deps
+      )
+      expect(verdict.findings.map((finding) => finding.status)).toEqual([
+        'missing',
+      ])
+      expect(verdict.findings[0]?.path).toContain('_init')
+      expect(deps.reads).toEqual([`${DIAMOND}:${TOKEN_WRAPPER}`])
+      expect(verdict.cleared).toBe(false)
+    }
+  )
+
+  it('applies a whitelist removal carried in _init to the registration beside it', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          register('TokenWrapper'),
+          diamondCut(DIAMOND, singleWhitelist(TOKEN_WRAPPER, DEPOSIT, false)),
+        ])
+      ),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.findings[0]?.missing).toEqual([DEPOSIT])
+    expect(verdict.cleared).toBe(false)
+  })
+
+  it('pairs a registration with a whitelist add carried in _init', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          diamondCut(
+            DIAMOND,
+            batchWhitelist(TOKEN_WRAPPER, [DEPOSIT, WITHDRAW])
+          ),
+          register('TokenWrapper'),
+        ])
+      ),
+      chain(new Error('must not be read'))
+    )
+    expect(verdict.findings[0]?.status).toBe('paired')
+    expect(verdict.cleared).toBe(true)
+  })
+
+  it('grades a registration in the _init of a cut nested inside another _init', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(diamondCut(DIAMOND, diamondCut(FACET, register('TokenWrapper')))),
+      chain([])
+    )
+    expect(verdict.findings[0]?.status).toBe('missing')
+  })
+
+  it('refuses an _init whose calldata hides a registration in a call it does not open', async () => {
+    const hidden = encodeFunctionData({
+      abi: ABI,
+      functionName: 'mysteryEnvelope',
+      args: [register('TokenWrapper')],
+    })
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([diamondCut(FACET, hidden)])),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.unreadable).toHaveLength(1)
+    expect(verdict.unreadable[0]).toContain('_init')
+    expect(verdict.cleared).toBe(false)
+  })
+
+  it('stands down on a facet cut listing the registry selectors with no _init', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          diamondCut(ZERO, '0x', [
+            {
+              facetAddress: FACET,
+              action: 0,
+              functionSelectors: [REGISTER_SELECTOR, GET_PERIPHERY_SELECTOR],
+            },
+          ]),
+        ])
+      ),
+      chain(new Error('must not be read'))
+    )
+    expect(verdict.findings).toEqual([])
+    expect(verdict.unreadable).toEqual([])
+    expect(verdict.cleared).toBe(true)
+    expect(rowOf(verdict).status).toBe('not-applicable')
+  })
+
+  it('stands down on an _init that initialises something other than the registry', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          diamondCut(FACET, toFunctionSelector('initSomething()'), [
+            {
+              facetAddress: FACET,
+              action: 0,
+              functionSelectors: [REGISTER_SELECTOR],
+            },
+          ]),
+        ])
+      ),
+      chain(new Error('must not be read'))
+    )
+    expect(verdict.findings).toEqual([])
+    expect(verdict.unreadable).toEqual([])
+    expect(verdict.cleared).toBe(true)
+  })
+
+  it('refuses a registration nested in _init past the unwrap bound', async () => {
+    let data = register('TokenWrapper')
+    for (let depth = 0; depth < 6; depth++) data = diamondCut(DIAMOND, data)
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(data),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.findings).toEqual([])
+    expect(verdict.unreadable).toHaveLength(1)
+    expect(verdict.unreadable[0]).toContain('nested too deep')
+    expect(verdict.cleared).toBe(false)
+  })
+
+  it('refuses a cut that does not decode but carries the registration selector', async () => {
+    const whole = diamondCut(FACET, register('TokenWrapper'))
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(whole.slice(0, whole.length - 64) as Hex),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.unreadable).toHaveLength(1)
+    expect(verdict.cleared).toBe(false)
+  })
+})
+
+describe('gate W remedy', () => {
+  it.each(['tron', 'tronshasta'])(
+    'on %s names the whitelist sync, since the paired proposer refuses Tron',
+    async (network) => {
+      const verdict = await evaluatePeripheryAllowlist(
+        direct(register('TokenWrapper'), network),
+        chain([])
+      )
+      const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+      expect(lines).toContain(
+        `./script/tasks/syncWhitelistToNetworks.sh ${network} --production`
+      )
+      expect(lines).not.toContain('proposePeripheryWithWhitelist.ts')
+      const row = rowOf(verdict, network)
+      expect(row.detail).toContain('syncWhitelistToNetworks.sh')
+      expect(row.detail).not.toContain('proposePeripheryWithWhitelist.ts')
+    }
+  )
+
+  it('on an EVM network names the paired proposer', async () => {
+    expect(peripheryAllowlistRemedy('gnosis')).toContain(
+      'proposePeripheryWithWhitelist.ts'
+    )
+    expect(peripheryAllowlistRemedy('gnosis')).toContain('--networks gnosis')
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(register('TokenWrapper')),
+      chain([])
+    )
+    expect(rowOf(verdict).detail).toContain('proposePeripheryWithWhitelist.ts')
+  })
+})
+
+describe('gate W printing of proposer-controlled text', () => {
+  const INVISIBLE = 'Token\u3164Wrapper'
+  const CONTROL = 'Executor\u001b[2J'
+
+  it('discloses an invisible character in a registered name', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(register(INVISIBLE)),
+      chain([])
+    )
+    expect(verdict.findings[0]?.status).toBe('not-diamond-called')
+    const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+    expect(lines).toContain('1 invisible character')
+    const row = rowOf(verdict)
+    expect(row.actual).toContain('1 invisible character')
+    expect(row.actual).not.toContain('\u001b')
+  })
+
+  it('strips a control sequence from a registered name and says so', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(register(CONTROL)),
+      chain([])
+    )
+    const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+    expect(lines).toContain('Executor[2J')
+    expect(lines).toContain('sanitised for display')
+    expect(lines).not.toContain('\u001b[2J')
+    const row = rowOf(verdict)
+    expect(row.actual).toContain('sanitised for display')
+    expect(row.actual).not.toContain('\u001b')
+  })
+
+  it('adds no notice to a clean name', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(register('Executor')),
+      chain([])
+    )
+    const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+    expect(lines).toContain('Executor')
+    expect(lines).not.toContain('sanitised for display')
+    expect(lines).not.toContain('invisible character')
+  })
+
+  it('sanitises the reason an evaluation threw', () => {
+    const verdict = blockedPeripheryAllowlist('gnosis', 'bad\u001b[2Jconfig')
+    const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+    expect(lines).toContain('bad[2Jconfig')
+    expect(lines).toContain('sanitised for display')
+    expect(lines).not.toContain('\u001b')
+  })
+
+  it('sanitises a read failure reason in the lines and on the row', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(register('TokenWrapper')),
+      chain(new Error('boom\u001b[31m'))
+    )
+    const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+    expect(lines).toContain('boom[31m')
+    expect(lines).toContain('sanitised for display')
+    expect(lines).not.toContain('boom\u001b[31m')
+    const row = rowOf(verdict)
+    expect(row.actual).toContain('boom[31m')
+    expect(row.actual).not.toContain('\u001b')
+  })
+})
+
+describe('gate W — remaining paths', () => {
+  it('builds the client once, and only when a read is made', async () => {
+    let built = 0
+    const read = readAllowlistThrough(() => {
+      built++
+      return {
+        readContract: (async () => [DEPOSIT]) as never,
+      }
+    })
+    expect(built).toBe(0)
+    expect(await read(DIAMOND, TOKEN_WRAPPER)).toEqual([DEPOSIT])
+    await read(DIAMOND, TOKEN_WRAPPER)
+    expect(built).toBe(1)
+  })
+
+  it('refuses a registration beside an unopened call carrying a whitelist selector', async () => {
+    const hidden = encodeFunctionData({
+      abi: ABI,
+      functionName: 'mysteryEnvelope',
+      args: [singleWhitelist(TOKEN_WRAPPER, DEPOSIT, false)],
+    })
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([register('TokenWrapper'), hidden])),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.unreadable).toHaveLength(1)
+    expect(verdict.unreadable[0]).toContain('whitelist selector')
+    expect(verdict.cleared).toBe(false)
+  })
+
+  it('prints a deregistration as one line', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      direct(register('TokenWrapper', ZERO)),
+      chain([])
+    )
+    expect(renderPeripheryAllowlistLines(verdict).join('\n')).toContain(
+      'bound to the zero address'
+    )
   })
 })

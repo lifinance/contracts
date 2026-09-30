@@ -7,6 +7,7 @@
  * verdict onto the run's ledger.
  */
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import {
   decodeFunctionData,
   getAddress,
@@ -18,25 +19,44 @@ import {
 } from 'viem'
 
 import {
+  assertScopeContractsEligible,
+  isNetworkInScope,
+  type WhitelistNetworkScope,
+} from '../../common/whitelistScope'
+import {
   carriesAnySelectorAligned,
   collectLeafCalls,
+  diamondCutCallsIn,
   DIAMOND_CUT_SELECTOR,
+  MAX_UNWRAP_DEPTH,
 } from '../shared/diamond-cut-calls'
 
+import { asPrintable, printableField } from './printable-field'
+
 /**
- * The heading this gate prints under.
- *
- * Declared here rather than imported from the registry, which imports this
- * module; the tests hold it to `gateLabel(PERIPHERY_ALLOWLIST_CHECK)`.
+ * The heading this gate prints under. Declared here because the registry
+ * imports this module.
  */
 export const PERIPHERY_ALLOWLIST_GATE_HEADING =
   'Gate W · Registered periphery allowlist'
 
+/** What a refused registration needs, before the network-specific command. */
 export const PERIPHERY_ALLOWLIST_REMEDY =
   'propose the whitelist sync with, or before, this registration'
 
-const PAIRING_COMMAND =
-  'bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract <name> --networks <network>'
+/**
+ * The remedy for a refused registration on `network`.
+ *
+ * Tron gets the standalone sync, because the paired proposer refuses Tron
+ * networks: there the allowlist has to be synced and executed first.
+ *
+ * @param network - The network the registration is proposed on.
+ * @returns The remedy sentence, naming the command to run.
+ */
+export const peripheryAllowlistRemedy = (network: string): string =>
+  isTronNetworkKey(network)
+    ? `sync the whitelist first — ./script/tasks/syncWhitelistToNetworks.sh ${network} --production — and propose this registration once that sync has executed`
+    : `${PERIPHERY_ALLOWLIST_REMEDY} — bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract <name> --networks ${network} proposes both in one batch`
 
 const GATE_ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
@@ -67,6 +87,8 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
  * - `missing`: at least one selector is absent once the batch has run.
  * - `read-failed`: the allowlist could not be read, so nothing was compared.
  * - `not-diamond-called`: the name is not in `whitelistPeripheryFunctions`.
+ * - `out-of-scope`: `whitelistPeripheryNetworks` does not whitelist the name
+ *   on this network, so the diamond is not meant to call it here.
  * - `deregistration`: the name is bound to the zero address, which calls nothing.
  */
 export type PeripheryAllowlistStatus =
@@ -75,6 +97,7 @@ export type PeripheryAllowlistStatus =
   | 'missing'
   | 'read-failed'
   | 'not-diamond-called'
+  | 'out-of-scope'
   | 'deregistration'
 
 /**
@@ -85,12 +108,13 @@ export const STATUSES_CLEARED: ReadonlySet<PeripheryAllowlistStatus> = new Set([
   'allowlisted',
   'paired',
   'not-diamond-called',
+  'out-of-scope',
   'deregistration',
 ])
 
 /** One `registerPeripheryContract` the proposal reaches, graded. */
 export interface IPeripheryAllowlistFinding {
-  /** Where in the proposal it was found, e.g. `call[0].registerPeripheryContract[1]`. */
+  /** Where in the proposal it was found, e.g. `call[0][1].diamondCut._init.registerPeripheryContract`. */
   path: string
   name: string
   address: Address
@@ -109,7 +133,10 @@ export interface IPeripheryAllowlistFinding {
   reason?: string
 }
 
+/** Gate W's answer for one proposal. */
 export interface IPeripheryAllowlistVerdict {
+  /** The network the proposal is on, as `config/networks.json` names it. */
+  network: string
   findings: IPeripheryAllowlistFinding[]
   /**
    * Calls that could be carrying a registration or a whitelist change this
@@ -126,9 +153,12 @@ export interface IPeripheryFunction {
   signature: string
 }
 
+/** The configuration and chain reader gate W grades against. */
 export interface IPeripheryAllowlistDeps {
   /** `whitelistPeripheryFunctions`, keyed by the exact registry name. */
   peripheryFunctions: ReadonlyMap<string, readonly IPeripheryFunction[]>
+  /** `whitelistPeripheryNetworks`, from {@link peripheryNetworksFromConfig}. */
+  peripheryNetworks: WhitelistNetworkScope
   /** `getWhitelistedSelectorsForContract(contract)` on `diamond`. */
   readWhitelistedSelectors: (
     diamond: Address,
@@ -165,7 +195,10 @@ export const readAllowlistThrough = (
   }
 }
 
+/** The proposal gate W grades. */
 export interface IPeripheryAllowlistInput {
+  /** The network the proposal is on, as `config/networks.json` names it. */
+  network: string
   /** The proposal's top-level calls. */
   calldatas: readonly Hex[]
   /** Where each top-level call is sent, by index. */
@@ -216,6 +249,40 @@ export const peripheryFunctionsFromConfig = (
   return functions
 }
 
+/**
+ * Reads `config/global.json` `whitelistPeripheryNetworks`.
+ *
+ * Fails closed on a name `whitelistPeripheryFunctions` lacks, because
+ * `isNetworkInScope` reads an unmatched name as unscoped.
+ *
+ * @param config - The `whitelistPeripheryNetworks` value; absent is no scoping.
+ * @param functions - From {@link peripheryFunctionsFromConfig}.
+ * @returns The scope map, on a null prototype.
+ * @throws When the value is not name → network list, or names an ineligible contract.
+ */
+export const peripheryNetworksFromConfig = (
+  config: unknown,
+  functions: ReadonlyMap<string, readonly IPeripheryFunction[]>
+): WhitelistNetworkScope => {
+  if (config === undefined) return Object.create(null) as WhitelistNetworkScope
+  if (typeof config !== 'object' || config === null || Array.isArray(config))
+    throw new Error('whitelistPeripheryNetworks is not an object')
+
+  const scope = Object.create(null) as WhitelistNetworkScope
+  for (const [name, networks] of Object.entries(config)) {
+    if (
+      !Array.isArray(networks) ||
+      !networks.every((network) => typeof network === 'string')
+    )
+      throw new Error(
+        `whitelistPeripheryNetworks.${name} is not a list of network names`
+      )
+    scope[name] = networks
+  }
+  assertScopeContractsEligible(scope, functions.keys())
+  return scope
+}
+
 interface IRegistration {
   path: string
   name: string
@@ -233,8 +300,8 @@ const pairKey = (diamond: Address, contract: Address, selector: string) =>
  * not open, and an envelope it could not open, are scanned for the
  * registration selector on a byte boundary, because the envelope list is a
  * snapshot and a registration inside an unknown wrapper would otherwise pass
- * ungraded. A `diamondCut` is exempt from the scan: installing
- * `PeripheryRegistryFacet` lists this selector in its `bytes4[]`.
+ * ungraded. A `diamondCut`'s `_init` calldata is read as a call on the
+ * diamond; only its `FacetCut[]` is exempt from the scan.
  *
  * The batch's own whitelist calls are applied over the chain's answer in
  * calldata order, the order the timelock executes them in, so a batch that
@@ -262,37 +329,50 @@ export const evaluatePeripheryAllowlist = async (
   const whitelistUnreadable: string[] = []
   const ordinals = new Map<number, number>()
 
-  for (const leaf of walked.leaves) {
-    const ordinal = ordinals.get(leaf.callIndex) ?? 0
-    ordinals.set(leaf.callIndex, ordinal + 1)
-    const where = `call[${leaf.callIndex}] leaf ${ordinal}`
+  const scanUnopened = (data: Hex, where: string) => {
+    if (carriesAnySelectorAligned(data, [REGISTER_SELECTOR as Hex]))
+      unreadable.push(
+        `${where} (carries a registerPeripheryContract selector inside a call this does not open, or by coincidence in its arguments)`
+      )
+    else if (carriesAnySelectorAligned(data, WHITELIST_SELECTORS))
+      whitelistUnreadable.push(
+        `${where} (carries a whitelist selector inside a call this does not open)`
+      )
+  }
 
-    if (leaf.selector === REGISTER_SELECTOR) {
+  const examine = (
+    data: Hex,
+    target: Address | undefined,
+    callIndex: number,
+    where: string,
+    path: string,
+    initDepth: number
+  ): void => {
+    const selector = data.slice(0, 10).toLowerCase()
+
+    if (selector === REGISTER_SELECTOR) {
       try {
-        const { args } = decodeFunctionData({ abi: GATE_ABI, data: leaf.data })
+        const { args } = decodeFunctionData({ abi: GATE_ABI, data })
         const [name, address] = args as readonly [string, Address]
         registrations.push({
-          path: `call[${leaf.callIndex}].registerPeripheryContract[${ordinal}]`,
+          path: `${path}.registerPeripheryContract`,
           name,
           address: getAddress(address),
-          ...(leaf.target ? { diamond: getAddress(leaf.target) } : {}),
+          ...(target ? { diamond: getAddress(target) } : {}),
         })
       } catch {
         unreadable.push(
           `${where} (a registerPeripheryContract whose arguments do not decode)`
         )
       }
-      continue
+      return
     }
 
-    if (
-      leaf.selector === SET_SELECTOR ||
-      leaf.selector === BATCH_SET_SELECTOR
-    ) {
+    if (selector === SET_SELECTOR || selector === BATCH_SET_SELECTOR) {
       try {
-        if (!leaf.target) throw new Error('no target')
-        const diamond = getAddress(leaf.target)
-        const decoded = decodeFunctionData({ abi: GATE_ABI, data: leaf.data })
+        if (!target) throw new Error('no target')
+        const diamond = getAddress(target)
+        const decoded = decodeFunctionData({ abi: GATE_ABI, data })
         if (decoded.functionName === 'setContractSelectorWhitelist') {
           const [contract, selector, on] = decoded.args
           batchWrites.set(pairKey(diamond, contract, selector), on)
@@ -314,37 +394,66 @@ export const evaluatePeripheryAllowlist = async (
           `${where} (a whitelist change that could not be read)`
         )
       }
-      continue
+      return
     }
 
-    if (leaf.selector === DIAMOND_CUT_SELECTOR.toLowerCase()) continue
+    if (selector === DIAMOND_CUT_SELECTOR) {
+      // Only the FacetCut[] is exempt from the scan: installing
+      // `PeripheryRegistryFacet` lists the registration selector there. The
+      // diamond delegatecalls `_init` with `_calldata` in its own storage, so
+      // that runs as a call on the diamond and is read like one.
+      const [cut] = diamondCutCallsIn({
+        leaves: [{ callIndex, data, selector, depth: 0 }],
+        undecodable: [],
+      }).calls
+      if (!cut) {
+        scanUnopened(data, `${where}, a diamondCut that does not decode,`)
+        return
+      }
+      if (cut.init.toLowerCase() === ZERO_ADDRESS) return
+      if (initDepth >= MAX_UNWRAP_DEPTH) {
+        scanUnopened(
+          cut.initCalldata,
+          `${where} diamondCut _init, nested too deep,`
+        )
+        return
+      }
+      examine(
+        cut.initCalldata,
+        target,
+        callIndex,
+        `${where} diamondCut _init`,
+        `${path}.diamondCut._init`,
+        initDepth + 1
+      )
+      return
+    }
 
-    if (carriesAnySelectorAligned(leaf.data, [REGISTER_SELECTOR as Hex]))
-      unreadable.push(
-        `${where} (carries a registerPeripheryContract selector inside a call this does not open, or by coincidence in its arguments)`
-      )
-    else if (carriesAnySelectorAligned(leaf.data, WHITELIST_SELECTORS))
-      whitelistUnreadable.push(
-        `${where} (carries a whitelist selector inside a call this does not open)`
-      )
+    scanUnopened(data, where)
+  }
+
+  for (const leaf of walked.leaves) {
+    const ordinal = ordinals.get(leaf.callIndex) ?? 0
+    ordinals.set(leaf.callIndex, ordinal + 1)
+    examine(
+      leaf.data,
+      leaf.target,
+      leaf.callIndex,
+      `call[${leaf.callIndex}] leaf ${ordinal}`,
+      `call[${leaf.callIndex}][${ordinal}]`,
+      0
+    )
   }
 
   for (const index of walked.undecodable) {
     const data = input.calldatas[index]
     if (data === undefined) continue
-    if (carriesAnySelectorAligned(data, [REGISTER_SELECTOR as Hex]))
-      unreadable.push(
-        `call[${index}] (an envelope that could not be opened, carrying a registerPeripheryContract selector)`
-      )
-    else if (carriesAnySelectorAligned(data, WHITELIST_SELECTORS))
-      whitelistUnreadable.push(
-        `call[${index}] (an envelope that could not be opened, carrying a whitelist selector)`
-      )
+    scanUnopened(data, `call[${index}], an envelope that could not be opened,`)
   }
 
   const findings: IPeripheryAllowlistFinding[] = []
   for (const registration of registrations)
-    findings.push(await grade(registration, batchWrites, deps))
+    findings.push(await grade(registration, input.network, batchWrites, deps))
 
   // A whitelist change nobody read could be the removal that empties the
   // allowlist, so it matters exactly when there is a registration to grade.
@@ -352,6 +461,7 @@ export const evaluatePeripheryAllowlist = async (
     unreadable.push(...whitelistUnreadable)
 
   return {
+    network: input.network,
     findings,
     unreadable,
     cleared:
@@ -362,6 +472,7 @@ export const evaluatePeripheryAllowlist = async (
 
 const grade = async (
   registration: IRegistration,
+  network: string,
   batchWrites: ReadonlyMap<string, boolean>,
   deps: IPeripheryAllowlistDeps
 ): Promise<IPeripheryAllowlistFinding> => {
@@ -377,6 +488,15 @@ const grade = async (
     return {
       ...base,
       status: 'not-diamond-called',
+      expected: [],
+      signatures: [],
+      missing: [],
+    }
+
+  if (!isNetworkInScope(registration.name, network, deps.peripheryNetworks))
+    return {
+      ...base,
+      status: 'out-of-scope',
       expected: [],
       signatures: [],
       missing: [],
@@ -449,14 +569,17 @@ const grade = async (
 /**
  * A blocking verdict for an evaluation that threw. No verdict is not a pass.
  *
+ * @param network - The network the proposal is on.
  * @param reason - What went wrong, shown to the signer.
  * @returns A verdict that is not cleared.
  */
 export const blockedPeripheryAllowlist = (
+  network: string,
   reason: string
 ): IPeripheryAllowlistVerdict => ({
+  network,
   findings: [],
-  unreadable: [`the gate could not be evaluated: ${reason}`],
+  unreadable: [`the gate could not be evaluated: ${ledgerPrintable(reason)}`],
   cleared: false,
 })
 
@@ -471,19 +594,42 @@ export const describeExpected = (finding: IPeripheryAllowlistFinding): string =>
     .map((selector, at) => `${selector} ${finding.signatures[at] ?? ''}`.trim())
     .join(', ')
 
+const SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'gu')
+
+/**
+ * A proposer- or machine-supplied value for a ledger row.
+ *
+ * The ledger renderer strips control characters, which would leave a notice's
+ * colour codes behind as literal text, so the notice is carried as plain words.
+ *
+ * @param value - The value to print.
+ * @returns The printable text, with any notice in parentheses after it.
+ */
+export const ledgerPrintable = (value: unknown): string => {
+  const { text, notice } = asPrintable(value)
+  return notice === '' ? text : `${text} (${notice.replace(SGR, '').trim()})`
+}
+
 /**
  * What the chain held, as the signer reads it after "observed".
  *
  * @param finding - A graded registration.
+ * @param printable - How a stored or reported value is made printable; the
+ * ledger passes {@link ledgerPrintable}.
  * @returns `none`, the selectors, or why nothing was read.
  */
 export const describeObserved = (
-  finding: IPeripheryAllowlistFinding
+  finding: IPeripheryAllowlistFinding,
+  printable: (value: unknown) => string = printableField
 ): string => {
   if (finding.status === 'paired' && finding.observed === undefined)
     return 'not read; this batch allowlists every selector itself'
   if (finding.observed === undefined)
-    return `not read: ${finding.reason ?? 'no read was made'}`
+    return `not read: ${
+      finding.reason === undefined
+        ? 'no read was made'
+        : printable(finding.reason)
+    }`
   return finding.observed.length === 0 ? 'none' : finding.observed.join(', ')
 }
 
@@ -501,7 +647,13 @@ export const renderPeripheryAllowlistLines = (
 
   const lines = [`${PERIPHERY_ALLOWLIST_GATE_HEADING}:`]
   for (const finding of verdict.findings) {
-    const head = `  ${finding.name} → ${finding.address}`
+    const head = `  ${printableField(finding.name)} → ${finding.address}`
+    if (finding.status === 'out-of-scope') {
+      lines.push(
+        `${head}: not whitelisted on ${verdict.network} by config, so the diamond does not call it here`
+      )
+      continue
+    }
     if (finding.status === 'not-diamond-called') {
       lines.push(
         `${head}: not in whitelistPeripheryFunctions, so the diamond does not call it`
@@ -524,9 +676,7 @@ export const renderPeripheryAllowlistLines = (
       `    observed ${describeObserved(finding)}`
     )
     if (finding.status === 'missing')
-      lines.push(
-        `    remedy: ${PERIPHERY_ALLOWLIST_REMEDY} — ${PAIRING_COMMAND} proposes both in one batch`
-      )
+      lines.push(`    remedy: ${peripheryAllowlistRemedy(verdict.network)}`)
   }
   for (const entry of verdict.unreadable) lines.push(`  ✗ unreadable: ${entry}`)
   return lines

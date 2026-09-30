@@ -77,7 +77,7 @@ for F in deployments/*.diamond.json; do
 done
 ```
 
-Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new per network. Check if the contract is diamond-called (needs a second allowlist proposal per network):
+Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new per network. Check if the contract is diamond-called (its registration and allowlist must be proposed together, see below):
 
 ```bash
 jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json
@@ -91,7 +91,7 @@ Triggered by `--propose-only <Contract>` (or natural language: “create the cut
 
 - Explicit networks if the user named them; otherwise `--all-where-deployed` (every network with a non-null address in `deployments/<net>.json`).
 - Report per network: log address, whether on-chain code exists, whether the diamond already registers that address.
-- Diamond-called periphery (`jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json`) → expect a second allowlist proposal per OK network (handled inside the script).
+- Diamond-called periphery (`jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json`) → do **not** use `proposeContractToNetworks.sh`: it proposes the registration and then the allowlist sync as two proposals, and signing gate W refuses a registration whose selectors will not be allowlisted once it runs, so the first cannot be signed and the second cannot execute past it. On EVM networks propose both in one batch with `bunx tsx script/tasks/proposePeripheryWithWhitelist.ts --contract <Contract> --networks <network,network,...>`. On Tron, which that script refuses, run `./script/tasks/syncWhitelistToNetworks.sh tron --production`, have it signed and executed, and only then propose the registration.
 
 ### whitelist mode — resolve targets
 
@@ -119,7 +119,7 @@ The sync itself is on-chain-diff-driven, so a too-wide network list is harmless 
 
 ## Phase 2 — Confirm plan, then execute
 
-Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — **two** for a diamond-called periphery: registration + whitelist). Wait for explicit go-ahead before proceeding.
+Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain; for a diamond-called periphery that one proposal carries registration + whitelist, except on Tron, where the whitelist sync is proposed and executed first). Wait for explicit go-ahead before proceeding.
 
 Set the interaction model up front: this rollout is **semi-automated** — it will pause for Ledger signing; the user comes back saying “signed”; then you verify + post Slack. Do not let them do Phases 7–8 by hand.
 
@@ -131,7 +131,7 @@ After confirmation:
 /deploy-contract <Contract> <network...> --production
 ```
 
-It deploys (CREATE3), verifies on the explorer, and registers in the diamond (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), plus the allowlist sync for diamond-called periphery. Carry forward: deployed addresses, succeeded/failed networks, allowlist sync flag. Files changed on disk are committed in Phase 5.
+It deploys (CREATE3), verifies on the explorer, and registers in the diamond (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), plus, for a diamond-called periphery, the paired registration + allowlist proposal of its Phase 3b (whose standalone registration from the deploy step the user has to delete). Carry forward: deployed addresses, succeeded/failed networks, allowlist sync flag. Files changed on disk are committed in Phase 5.
 
 **propose-only mode** — run (do **not** call `deploy-contract`):
 
@@ -225,7 +225,7 @@ Variants (both scripts): `--network <name>` (one chain), `--excludeNetworks '["m
 bunx tsx script/deploy/safe/list-pending-proposals.ts --network <csv> --maxAgeHours 2 --json
 ```
 
-Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), plus **one more** when a diamond-called periphery's allowlist synced (registration + whitelist) — so **one or two** per network. The Phase 3.5 deferred-cleanup drain adds **no** extra proposal: its removals are folded into the network's facet-cut proposal as extra `scheduleBatch` elements (visible via that proposal's `parkedTaskRefs`), so do **not** wait for or count a separate removal proposal. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a periphery network showing only one proposal means its allowlist sync didn't land.
+Expect one `pending` proposal per succeeded network with `signatureCount: 1` (the signature added at creation), For a diamond-called periphery the one proposal to keep is the paired registration + whitelist batch; a standalone registration from the deploy step beside it is superseded and awaits the user's deletion (on Tron, the whitelist sync proposal comes first and the registration only after it executed). The Phase 3.5 deferred-cleanup drain adds **no** extra proposal: its removals are folded into the network's facet-cut proposal as extra `scheduleBatch` elements (visible via that proposal's `parkedTaskRefs`), so do **not** wait for or count a separate removal proposal. Targets are the chain's `LiFiTimelockController` (proposals wrap in a timelock `scheduleBatch`). Keep `nonce` per network — the PR table needs it. Missing networks here mean the propose step failed even though the deploy succeeded — investigate before continuing; a diamond-called periphery network with no paired batch means Phase 3b didn't land.
 
 ## Phase 5 — Draft PR (deploy mode; propose-only when files dirty)
 

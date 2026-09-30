@@ -1160,7 +1160,12 @@ const verdicts = (
   integrity: integrityRun({ includeTimelockDelay: true }),
   codehash: codehashGate(),
   targetState: cleanTargetState,
-  peripheryAllowlist: { findings: [], unreadable: [], cleared: true },
+  peripheryAllowlist: {
+    network: NETWORK,
+    findings: [],
+    unreadable: [],
+    cleared: true,
+  },
   executability: executabilityVerdict(),
   rpcQuorum: quorumVerdict(),
   storageAuthority: cleanAuthorities(),
