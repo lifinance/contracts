@@ -691,6 +691,28 @@ describe('gradeAuthority', () => {
       ).toBe('fail')
     })
 
+    it('passes a pair on a contract the operation installs, which gate K judges', () => {
+      const rollout = {
+        ...listed,
+        installed: new Set([STRANGER.toLowerCase()]),
+      }
+      expect(grade(DIAMOND, single(STRANGER, TRANSFER_FROM), rollout)).toBe(
+        'pass'
+      )
+      expect(grade(DIAMOND, single(STRANGER, TRANSFER_FROM), listed)).toBe(
+        'fail'
+      )
+    })
+
+    it('leaves an unlisted pair on an address main names unverified', () => {
+      const graded = gradeAuthority(
+        one(DIAMOND, single(PERIPHERY, TRANSFER_FROM)),
+        listed
+      )
+      expect(graded.status).toBe('unknown')
+      expect(graded.detail).toContain('ERC20Proxy')
+    })
+
     it('passes a removal, which only narrows the whitelist', () => {
       expect(
         grade(DIAMOND, batch([USDC], [TRANSFER_FROM], false), listed)

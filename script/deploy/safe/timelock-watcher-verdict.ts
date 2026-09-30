@@ -614,7 +614,8 @@ export interface IAuthorityContext {
  * - a selector executor only to the refund wallet or a contract the operation
  *   installs; a withdrawal only to the withdraw wallet;
  * - a contract selector whitelisted only when `config/whitelist.json` at main
- *   lists it;
+ *   lists it or the contract is one this operation installs; an unlisted one on
+ *   an address main names is unverified, on any other address it fails;
  * - no timelock admin or proposer role revoked or renounced, and no canceller
  *   role taken from the Safe or the timelock.
  *
@@ -803,18 +804,38 @@ export const gradeAuthority = (
           )
           break
         }
+        // A rollout whitelists the contract it registers before main lists it;
+        // gate K judges that contract's code instead.
         const unlisted = contracts
-          .map((c, i) => `${c.toLowerCase()}:${selectors[i]?.toLowerCase()}`)
-          .filter((pair) => !context.whitelist?.has(pair))
-        if (unlisted.length > 0)
-          failures.push(
-            `${call.label} whitelists ${unlisted.join(
-              ', '
-            )}, which main's config/whitelist.json does not list`
+          .map((c, i) => ({
+            contract: c.toLowerCase(),
+            pair: `${c.toLowerCase()}:${selectors[i]?.toLowerCase()}`,
+          }))
+          .filter(
+            ({ contract, pair }) =>
+              !context.whitelist?.has(pair) && !context.installed?.has(contract)
           )
-        else
+        const strangers = unlisted.filter(
+          ({ contract }) => !context.known.has(contract)
+        )
+        if (strangers.length > 0)
+          failures.push(
+            `${call.label} whitelists ${strangers
+              .map((u) => u.pair)
+              .join(
+                ', '
+              )} on an address main does not know, and main's config/whitelist.json does not list it`
+          )
+        if (unlisted.length > strangers.length)
+          unknown.push(
+            `${call.label} whitelists ${unlisted
+              .filter(({ contract }) => context.known.has(contract))
+              .map((u) => `${nameOf(u.contract)} ${u.pair}`)
+              .join(', ')}, which main's config/whitelist.json does not list`
+          )
+        if (unlisted.length === 0)
           granted.push(
-            `${call.label} whitelists ${contracts.length} pair(s) main's config/whitelist.json lists`
+            `${call.label} whitelists ${contracts.length} pair(s) main's config/whitelist.json lists or this operation installs`
           )
         break
       }
