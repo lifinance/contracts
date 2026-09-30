@@ -326,6 +326,65 @@ describe('evaluatePeripheryAllowlist — paired in the same batch', () => {
     expect(verdict.findings[0]?.missing).toEqual([WITHDRAW])
   })
 
+  it('refuses a single-pair removal of a selector the chain holds', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          register('TokenWrapper'),
+          singleWhitelist(TOKEN_WRAPPER, DEPOSIT, false),
+        ])
+      ),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.missing).toEqual([DEPOSIT])
+  })
+
+  it('refuses beside a whitelist change it could not read, which could be a removal', async () => {
+    const garbled = `${toFunctionSelector(
+      'setContractSelectorWhitelist(address,bytes4,bool)'
+    )}00ff` as Hex
+    const withRegistration = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([register('TokenWrapper'), garbled])),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(withRegistration.cleared).toBe(false)
+    expect(withRegistration.unreadable).toHaveLength(1)
+
+    const alone = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([garbled])),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(alone.cleared).toBe(true)
+    expect(alone.unreadable).toEqual([])
+  })
+
+  it('lets a later write in the batch supersede an earlier one', async () => {
+    const readd = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          register('TokenWrapper'),
+          singleWhitelist(TOKEN_WRAPPER, DEPOSIT, false),
+          singleWhitelist(TOKEN_WRAPPER, DEPOSIT, true),
+        ])
+      ),
+      chain([WITHDRAW])
+    )
+    expect(readd.cleared).toBe(true)
+
+    const remove = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          register('TokenWrapper'),
+          singleWhitelist(TOKEN_WRAPPER, DEPOSIT, true),
+          singleWhitelist(TOKEN_WRAPPER, DEPOSIT, false),
+        ])
+      ),
+      chain([WITHDRAW])
+    )
+    expect(remove.cleared).toBe(false)
+  })
+
   it('does not pair a whitelist op aimed at a different diamond', async () => {
     const verdict = await evaluatePeripheryAllowlist(
       viaTimelock(
