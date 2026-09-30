@@ -6,13 +6,16 @@ import {
   describe,
   expect,
   it,
+  spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { consola } from 'consola'
 import { toFunctionSelector } from 'viem'
 
 import {
   buildSelectorMapFromClearSigningFormats,
   buildSelectorMapFromWhitelist,
+  getArtifactSelectorInfo,
   getLocalSelectorInfo,
   parseFourByteBatchResponse,
   resolveSelectorsViaFourByte,
@@ -192,6 +195,91 @@ describe('buildSelectorMapFromWhitelist', () => {
   })
 })
 
+describe('getArtifactSelectorInfo', () => {
+  const GETTER = 'LIFI_INTENT_ESCROW_SETTLER_V2()'
+  const GETTER_SELECTOR = toFunctionSelector(GETTER) // 0x6577661f
+
+  function makeOutDir(
+    contractName: string,
+    artifact: string | undefined
+  ): string {
+    const outDir = path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'selector-artifact-')),
+      'out'
+    )
+    const contractDir = path.join(outDir, `${contractName}.sol`)
+    fs.mkdirSync(contractDir, { recursive: true })
+    if (artifact !== undefined)
+      fs.writeFileSync(path.join(contractDir, `${contractName}.json`), artifact)
+    return outDir
+  }
+
+  it('names a public getter from the artifact methodIdentifiers', () => {
+    const outDir = makeOutDir(
+      'EscrowFacet',
+      JSON.stringify({
+        methodIdentifiers: {
+          [GETTER]: GETTER_SELECTOR.slice(2),
+          'transfer(address,uint256)': TRANSFER_SELECTOR.slice(2),
+        },
+      })
+    )
+    const map = getArtifactSelectorInfo('EscrowFacet', outDir)
+    expect(map.get(GETTER_SELECTOR)).toEqual({
+      name: 'LIFI_INTENT_ESCROW_SETTLER_V2',
+      signature: GETTER,
+      source: 'out/EscrowFacet.sol/EscrowFacet.json',
+    })
+    expect(map.get(TRANSFER_SELECTOR)?.name).toBe('transfer')
+  })
+
+  it('drops a pair whose signature does not hash to its selector', () => {
+    const outDir = makeOutDir(
+      'EscrowFacet',
+      JSON.stringify({
+        methodIdentifiers: {
+          'drainEverything()': GETTER_SELECTOR.slice(2),
+          [GETTER]: 12345,
+        },
+      })
+    )
+    expect(getArtifactSelectorInfo('EscrowFacet', outDir).size).toBe(0)
+  })
+
+  it('returns nothing for a missing out directory', () => {
+    const missing = path.join(os.tmpdir(), 'selector-artifact-none', 'out')
+    expect(getArtifactSelectorInfo('EscrowFacet', missing).size).toBe(0)
+  })
+
+  it('returns nothing for a missing artifact', () => {
+    const outDir = makeOutDir('EscrowFacet', undefined)
+    expect(getArtifactSelectorInfo('EscrowFacet', outDir).size).toBe(0)
+  })
+
+  it('returns nothing for unreadable artifact JSON', () => {
+    const outDir = makeOutDir('EscrowFacet', '{ not json')
+    expect(getArtifactSelectorInfo('EscrowFacet', outDir).size).toBe(0)
+  })
+
+  it('returns nothing for an artifact without methodIdentifiers', () => {
+    const outDir = makeOutDir('EscrowFacet', JSON.stringify({ abi: [] }))
+    expect(getArtifactSelectorInfo('EscrowFacet', outDir).size).toBe(0)
+  })
+
+  it('refuses a contract name that is not a Solidity identifier', () => {
+    const artifact = JSON.stringify({
+      methodIdentifiers: { [GETTER]: GETTER_SELECTOR },
+    })
+    const outDir = makeOutDir('EscrowFacet', artifact)
+    // Where `../EscrowFacet` would land if the name were joined unchecked.
+    fs.writeFileSync(path.join(outDir, 'EscrowFacet.json'), artifact)
+    const nested = path.join(outDir, 'nested')
+    fs.mkdirSync(nested)
+    expect(getArtifactSelectorInfo('../EscrowFacet', nested).size).toBe(0)
+    expect(getArtifactSelectorInfo('', outDir).size).toBe(0)
+  })
+})
+
 describe('parseFourByteBatchResponse', () => {
   const RESPONSE = {
     ok: true,
@@ -365,5 +453,55 @@ describe('resolveSelectorsViaFourByte', () => {
       fetcher,
     })
     expect(map.get('0xa9059cbb')).toBe('transfer(address,uint256)')
+  })
+
+  async function warningsDuring(run: () => Promise<unknown>): Promise<string> {
+    const warn = spyOn(consola, 'warn').mockImplementation((() => {}) as never)
+    try {
+      await run()
+      return warn.mock.calls.map((call) => String(call[0])).join('\n')
+    } finally {
+      warn.mockRestore()
+    }
+  }
+
+  it('warns with the selectors and the error when the request throws', async () => {
+    const cachePath = makeTmpCachePath()
+    let map = new Map<string, string>()
+    const warned = await warningsDuring(async () => {
+      map = await resolveSelectorsViaFourByte(['0xdeadbee2', '0xdeadbee3'], {
+        cachePath,
+        fetcher: async () => {
+          throw new Error('getaddrinfo ENOTFOUND')
+        },
+      })
+    })
+    expect(map.size).toBe(0)
+    expect(warned).toContain('0xdeadbee2')
+    expect(warned).toContain('0xdeadbee3')
+    expect(warned).toContain('getaddrinfo ENOTFOUND')
+  })
+
+  it('warns with the selectors and the status on a non-OK response', async () => {
+    const cachePath = makeTmpCachePath()
+    let map = new Map<string, string>()
+    const warned = await warningsDuring(async () => {
+      map = await resolveSelectorsViaFourByte(['0xdeadbee4'], {
+        cachePath,
+        fetcher: async () => new Response('busy', { status: 503 }),
+      })
+    })
+    expect(map.size).toBe(0)
+    expect(warned).toContain('0xdeadbee4')
+    expect(warned).toContain('503')
+  })
+
+  it('does not warn when 4byte simply has no signature', async () => {
+    const cachePath = makeTmpCachePath()
+    const { fetcher } = makeFetcher({})
+    const warned = await warningsDuring(() =>
+      resolveSelectorsViaFourByte(['0xdeadbee5'], { cachePath, fetcher })
+    )
+    expect(warned).toBe('')
   })
 })
