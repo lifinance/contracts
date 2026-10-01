@@ -4858,6 +4858,22 @@
           }
         ]
       }
+    },
+    {
+      "name": "Peach",
+      "key": "peach",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/peach.svg",
+      "webUrl": "https://peach.ag",
+      "contracts": {
+        "arc": [
+          {
+            "address": "0x2528f3190603b85a155d48c31946703d71f921ed",
+            "functions": {
+              "0x02fcde22": "executePlan((uint64,uint64,uint256,address,address,address,address,address,address,uint8,uint8,uint256,uint256,uint256,bytes32,bytes32,bytes32,uint16,address,uint64,uint256),(address,address,uint256,uint256,(address,address,address,address,uint256,bytes)[],address[],uint256,bytes32,uint256,address,uint16),bytes32[],uint8[],bytes,bytes)"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
