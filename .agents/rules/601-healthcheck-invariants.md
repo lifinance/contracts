@@ -101,9 +101,10 @@ already records — the **contract names** in `_targetState.json` for `facets-re
 source file for `no-stale-registered-facets`. Between that merge and the multisig operation
 acting on it the two legitimately disagree, and the remediation is "wait", not "fix".
 
-Only the keys are read. A target-state value is `latest` (follow the repo) or a deliberate
-version pin, and no health-check invariant consults it — membership is what the file states
-to them ([docs/TargetState.md](../../docs/TargetState.md)).
+These invariants read only the keys. A target-state value is `latest` (follow the repo) or a
+deliberate version pin; the one invariant that consults it is
+`facet-versions-match-target-state`, which warns when a registered facet is behind or ahead of
+that version and never fails the run ([docs/TargetState.md](../../docs/TargetState.md)).
 
 Invariants may consult operator intent to resolve that window and report the finding as
 **expected-pending** instead of a failure:
