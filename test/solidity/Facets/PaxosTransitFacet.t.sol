@@ -46,6 +46,17 @@ interface ITransitStation {
 
     function messageGasLimit(uint32 eid) external view returns (uint64);
 
+    function thisChainEID() external view returns (uint32);
+
+    function setRouteApprovals(
+        IPaxosTransit.Route[] calldata routes,
+        bool[] calldata approved
+    ) external;
+
+    function pendingOrderIdsContains(
+        bytes32 uuid
+    ) external view returns (bool);
+
     function offerReceiver() external view returns (address);
 
     function protocolFeeRecipient() external view returns (address);
@@ -84,6 +95,9 @@ contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
     // keyed on it, so an arbitrary placeholder would revert with RouteNotApproved
     address internal constant WANT_ASSET =
         0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168;
+    // want asset of the same-chain USDC -> USDG route on Ethereum
+    address internal constant ADDRESS_USDG_ETHEREUM =
+        0xe343167631d89B6Ffc58B88d6b7fB0228795491D;
 
     PaxosTransitFacet.PaxosTransitData internal validPaxosData;
     TestPaxosTransitFacet internal paxosFacet;
@@ -251,6 +265,174 @@ contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
 
     function testBase_CanSwapAndBridgeNativeTokens() public override {
         // facet does not support bridging of native assets
+    }
+
+    function testBase_Revert_BridgeToSameChainId() public override {
+        // same-chain orders are supported, but the default quote routes to Robinhood, so a
+        // same-chain bridgeData no longer matches it
+        bridgeData.destinationChainId = block.chainid;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testBase_Revert_SwapAndBridgeToSameChainId() public override {
+        bridgeData.destinationChainId = block.chainid;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanBridgeTokensSameChain() public {
+        _useSameChainOrder();
+        bytes32 digest = _paxosQuoteDigest(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+        address offerReceiver = TRANSIT_STATION.offerReceiver();
+        uint256 offerReceiverBefore = usdc.balanceOf(offerReceiver);
+        uint256 senderNativeBefore = USER_SENDER.balance;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        // the station queues a same-chain order locally (no LayerZero message) for its
+        // executor to fill, and no native is spent
+        assertTrue(TRANSIT_STATION.pendingOrderIdsContains(digest));
+        assertEq(
+            usdc.balanceOf(offerReceiver),
+            offerReceiverBefore + defaultUSDCAmount
+        );
+        assertEq(USER_SENDER.balance, senderNativeBefore);
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+    }
+
+    function test_CanSwapAndBridgeTokensSameChain() public {
+        _useSameChainOrder();
+        bytes32 digest = _paxosQuoteDigest(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertTrue(TRANSIT_STATION.pendingOrderIdsContains(digest));
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function test_SameChainExcessNativeIsRefundedToRefundRecipient() public {
+        // native sent with a same-chain order is never forwarded to the station (which
+        // would revert SameChainOrdersRequireNoValue); it is refunded instead
+        _useSameChainOrder();
+        uint256 excess = 0.002 ether;
+        uint256 refundNativeBefore = USER_REFUND.balance;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        validPaxosData.signature = _signPaxosQuote(
+            validPaxosData.quote,
+            address(TRANSIT_STATION)
+        );
+
+        paxosFacet.startBridgeTokensViaPaxosTransit{ value: excess }(
+            bridgeData,
+            validPaxosData
+        );
+        vm.stopPrank();
+
+        assertEq(USER_REFUND.balance, refundNativeBefore + excess);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    function testRevert_WhenSameChainOrderHasNativeFee() public {
+        _useSameChainOrder();
+        validPaxosData.nativeFee = 1;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeSameChainOrderHasNativeFee() public {
+        _useSameChainOrder();
+        validPaxosData.nativeFee = 1;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSameChainQuoteButCrossChainBridgeData() public {
+        _useSameChainOrder();
+        bridgeData.destinationChainId = DEST_CHAIN_ID;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// @dev Switches the default order to the same-chain USDC -> USDG route on Ethereum.
+    ///      Paxos approved it on mainnet after the pinned fork block, so it is approved here
+    ///      by the station owner (an owner-gated allowlist write, like the signer rotation).
+    function _useSameChainOrder() internal {
+        IPaxosTransit.Route memory route = IPaxosTransit.Route({
+            destEID: TRANSIT_STATION.thisChainEID(),
+            offerAsset: ADDRESS_USDC,
+            wantAsset: ADDRESS_USDG_ETHEREUM
+        });
+        IPaxosTransit.Route[] memory routes = new IPaxosTransit.Route[](1);
+        routes[0] = route;
+        bool[] memory approved = new bool[](1);
+        approved[0] = true;
+        vm.prank(TRANSIT_STATION.owner());
+        TRANSIT_STATION.setRouteApprovals(routes, approved);
+
+        validPaxosData.quote.route = route;
+        validPaxosData.nativeFee = 0;
+        bridgeData.destinationChainId = block.chainid;
     }
 
     function test_WillStoreConstructorParametersCorrectly() public {

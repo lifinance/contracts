@@ -5,16 +5,34 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IPaxosTransit } from "../Interfaces/IPaxosTransit.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title PaxosTransitFacet
 /// @author LI.FI (https://li.fi)
-/// @notice Provides functionality for bridging through Paxos Transit
-/// @custom:version 1.0.0
+/// @notice Provides functionality for bridging through Paxos Transit. Also supports
+///         same-chain swaps when `bridgeData.destinationChainId == block.chainid`.
+/// @custom:version 1.1.0
 contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+    /// @notice Validates bridge data for Paxos Transit orders.
+    /// @dev Does not enforce a same-network guard because same-chain
+    ///      orders are supported.
+    /// @param _bridgeData The core information needed for bridging
+    modifier validateBridgeDataPaxosTransit(
+        ILiFi.BridgeData memory _bridgeData
+    ) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+        if (_bridgeData.minAmount == 0) {
+            revert InvalidAmount();
+        }
+        _;
+    }
+
     /// Storage ///
 
     /// @notice The Paxos Transit station contract on the source chain.
@@ -28,7 +46,8 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// @param quote The Paxos-signed quote describing the transit order
     /// @param signature The Paxos signature over the EIP-712 quote digest
-    /// @param nativeFee The native amount forwarded to Transit to pay the LayerZero messaging fee
+    /// @param nativeFee The native amount forwarded to Transit to pay the LayerZero messaging fee.
+    ///        Must be zero for same-chain orders.
     /// @param refundRecipient Address that receives swap leftovers and positive slippage
     ///        from pre-bridge swaps, as well as any excess source-side native — including
     ///        LayerZero fee overage that the TransitStation's endpoint refunds to the
@@ -65,7 +84,7 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         payable
         nonReentrant
         refundExcessNative(payable(_paxosData.refundRecipient))
-        validateBridgeData(_bridgeData)
+        validateBridgeDataPaxosTransit(_bridgeData)
         doesNotContainSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
@@ -109,7 +128,7 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         refundExcessNative(payable(_paxosData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
-        validateBridgeData(_bridgeData)
+        validateBridgeDataPaxosTransit(_bridgeData)
         noNativeAsset(_bridgeData)
     {
         // msg.sender may be a relayer or the Permit2Proxy, so value that belongs to the
@@ -122,8 +141,8 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         uint256 offerAmount = _paxosData.quote.offerAmount;
 
         // The Paxos-signed quote locks the exact amount to bridge, so minAmount must match it
-        // here too - this also extends validateBridgeData's non-zero minAmount guarantee to
-        // the swap floor below.
+        // here too - this also extends validateBridgeDataPaxosTransit's non-zero minAmount guarantee
+        // to the swap floor below.
         if (_bridgeData.minAmount != offerAmount) {
             revert InformationMismatch();
         }
@@ -179,17 +198,30 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // Ensure the on-chain bridgeData matches the Paxos-signed quote so we never bridge a
         // different asset or receiver than was authorized, and our volume stays attributed.
         // The amount needs no check here: both entrypoints validate minAmount == offerAmount.
-        // NOTE: the routing (quote.route.destEID) and the destination asset (quote.route.wantAsset)
-        // are intentionally NOT cross-checked against _bridgeData.destinationChainId. Funds always
-        // follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated,
-        // Paxos-signed calldata (same trust model as AcrossFacetV4's outputAmount). Only use
-        // backend-generated calldata. _bridgeData.destinationChainId is for analytics/events only.
+        // NOTE: beyond same-chain vs cross-chain (checked below), the routing (quote.route.destEID)
+        // and the destination asset (quote.route.wantAsset) are intentionally NOT cross-checked
+        // against _bridgeData.destinationChainId. Funds always follow the Paxos-signed quote, so
+        // these are trusted from the LI.FI-backend-generated, Paxos-signed calldata (same trust
+        // model as AcrossFacetV4's outputAmount). Only use backend-generated calldata.
         if (
             _bridgeData.sendingAssetId != quote.route.offerAsset ||
             _bridgeData.receiver != quote.receiver ||
             quote.distributorCode != LIFI_DISTRIBUTOR_CODE
         ) {
             revert InformationMismatch();
+        }
+
+        // The station treats destEID == its own EID as a same-chain order: queued locally with no
+        // LayerZero message, and it reverts if any native value is attached.
+        bool isSameChain = _bridgeData.destinationChainId == block.chainid;
+        if (
+            isSameChain !=
+            (quote.route.destEID == TRANSIT_STATION.thisChainEID())
+        ) {
+            revert InformationMismatch();
+        }
+        if (isSameChain && _paxosData.nativeFee != 0) {
+            revert InvalidCallData();
         }
 
         LibAsset.maxApproveERC20(
