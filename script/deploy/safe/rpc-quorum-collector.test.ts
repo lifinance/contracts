@@ -22,6 +22,7 @@ import {
   collectProviderObservations,
   createCodeReader,
   createPinnedBlock,
+  readCodeQuorumPastTipReorgs,
   readQuorumPastTipReorgs,
 } from './rpc-quorum-collector'
 
@@ -548,8 +549,90 @@ describe('readQuorumPastTipReorgs', () => {
     }
   })
 
+  it('keeps the fork seen at the tip when the re-read cannot be made', async () => {
+    let round = 0
+    const verdict = await readQuorumPastTipReorgs(async () => {
+      round += 1
+      if (round === 1) return forked
+      throw new Error('no endpoint reported a block height to pin the read to')
+    })
+
+    expect(round).toBe(2)
+    expect(verdict.status).toBe('fork-divergence')
+    expect(verdict.detail).toContain('could not be re-read')
+    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+  })
+
   it('re-reads a few blocks back, not at the tip again', () => {
     expect(REORG_RECHECK_DEPTH).toBe(5n)
+  })
+})
+
+/**
+ * The code read the sign flow makes, end to end over a stubbed transport.
+ *
+ * The depth behind the head is applied here rather than by the caller, so a
+ * call site cannot ask for the re-read and still pin it at the tip.
+ */
+describe('readCodeQuorumPastTipReorgs', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  const HEAD = 100n
+  const ADDRESS = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+  const A = 'https://eth-mainnet.g.alchemy.com/v2/key-one'
+  const B = 'https://mainnet.infura.io/v3/key-two'
+
+  /** Two providers that disagree on the hash of the head block only. */
+  const forkedAtTheHead = (): bigint[] => {
+    const blocksAsked: bigint[] = []
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      const host = new URL(String(input)).host
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+        params?: unknown[]
+      }
+      const hex = (value: bigint) => `0x${value.toString(16)}`
+      let result: unknown
+      if (body.method === 'eth_chainId') result = '0x1'
+      else if (body.method === 'eth_blockNumber') result = hex(HEAD)
+      else if (body.method === 'eth_getCode') result = '0x6080'
+      else if (body.method === 'eth_getBlockByNumber') {
+        const number = BigInt(String(body.params?.[0]))
+        blocksAsked.push(number)
+        const fill = number === HEAD && host.includes('infura') ? 'cd' : 'ab'
+        result = {
+          number: hex(number),
+          hash: `0x${fill.repeat(32)}`,
+          parentHash: `0x${'00'.repeat(32)}`,
+          timestamp: '0x0',
+          transactions: [],
+        }
+      }
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+    return blocksAsked
+  }
+
+  it('re-reads a fork at the head the recheck depth behind it', async () => {
+    const blocksAsked = forkedAtTheHead()
+
+    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A, B], 1)
+
+    expect(new Set(blocksAsked)).toEqual(
+      new Set([HEAD, HEAD - REORG_RECHECK_DEPTH])
+    )
+    expect(verdict.status).toBe('agreed')
   })
 })
 describe('codeReadLabel', () => {

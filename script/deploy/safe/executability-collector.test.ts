@@ -596,6 +596,54 @@ describe('simulating across several endpoints', () => {
     }
   })
 
+  it('a code-3 link is a revert with no other signal', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      clientThat(async () => {
+        throw Object.assign(new Error('call failed'), { code: 3 })
+      }),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  it("viem's revert error is a revert with no other signal", async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      clientThat(async () => {
+        throw new ExecutionRevertedError()
+      }),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  // viem's composed message names the endpoint, and a host is not evidence.
+  it('judges the node string, not the report around it', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      clientThat(async () => {
+        throw Object.assign(
+          new Error(
+            'RPC Request failed.\n\nURL: https://rpc-cache.example/\nDetails: execution reverted'
+          ),
+          { code: -32000, details: 'execution reverted' }
+        )
+      }),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
   it('an unreachable endpoint hands the question to the next one', async () => {
     const reader = createExecutabilityChainReader(succeeding(), [
       unreachable(),
@@ -915,6 +963,10 @@ describe('a node error is a revert only when the chain says so', () => {
   it('lets a revert stop the walk, so a later success cannot overwrite it', async () => {
     for (const body of [
       REVERT,
+      { code: 3, message: 'error' },
+      { code: 3, message: 'execution reverted: rate limited' },
+      { code: -32015, message: 'VM execution error.', data: 'revert' },
+      { code: -32015, message: 'VM execution error.', data: '0x08c379a0' },
       { code: -32000, message: 'Reverted 0xdeadbeef' },
       {
         code: -32015,
@@ -926,5 +978,27 @@ describe('a node error is a revert only when the chain says so', () => {
       expect((await simulate([answering(body), succeeding])).outcome).toBe(
         'reverted'
       )
+  })
+
+  // Each says something about the endpoint rather than the payload: a throttle
+  // or cache message that happens to contain the word, revert-shaped data on a
+  // code no node uses for a revert, and a gas allowance that is the node's own
+  // cap. Read as reverts they are definite reds no chain produced.
+  it('reads endpoint-side failures that look like reverts as errored', async () => {
+    for (const body of [
+      { code: -32005, message: 'request reverted to cache, try later' },
+      { code: -32000, message: 'execution reverted: rate limited' },
+      { code: -32000, message: 'execution reverted: too many requests' },
+      { code: -32000, message: 'execution reverted: cached response expired' },
+      { code: -32603, message: 'backend reverted to an archive node' },
+      { code: -32603, message: 'Internal error', data: '0xdeadbeef' },
+      { code: -32000, message: 'execution failed', data: '0x' },
+      { code: -32000, message: 'gas required exceeds allowance (0)' },
+    ]) {
+      expect((await simulate([answering(body)])).outcome).toBe('errored')
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'succeeded'
+      )
+    }
   })
 })

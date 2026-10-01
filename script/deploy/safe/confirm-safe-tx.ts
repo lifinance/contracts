@@ -162,13 +162,7 @@ import {
 } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict } from './rpc-quorum'
-import {
-  collectProviderObservations,
-  createCodeReader,
-  createPinnedBlock,
-  ENDPOINT_READ_BUDGET_MS,
-  readQuorumPastTipReorgs,
-} from './rpc-quorum-collector'
+import { readCodeQuorumPastTipReorgs } from './rpc-quorum-collector'
 import {
   applyRunSubmissionStatuses,
   type IExecutionSummaryEntry,
@@ -1349,16 +1343,10 @@ const processTxs = async (
     let rpcQuorum: IRpcQuorumVerdict | undefined
     if (evmSimulatable && endpoints.length > 0)
       try {
-        rpcQuorum = await readQuorumPastTipReorgs((behindHead) =>
-          collectProviderObservations(
-            endpoints,
-            createCodeReader(
-              quorumTarget,
-              chain.id,
-              ENDPOINT_READ_BUDGET_MS,
-              createPinnedBlock(endpoints, chain.id, behindHead)
-            )
-          )
+        rpcQuorum = await readCodeQuorumPastTipReorgs(
+          quorumTarget,
+          endpoints,
+          chain.id
         )
       } catch (error) {
         log.warn(

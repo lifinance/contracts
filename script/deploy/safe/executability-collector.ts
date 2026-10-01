@@ -467,7 +467,29 @@ export const collectExecutabilityInput = async (
 /** A selector at least: the shape of a custom error, `Error(string)` or `Panic`. */
 const REVERT_DATA = /^0x(?:[0-9a-f]{2}){4,}$/iu
 
-const REVERT_WORDING = /\brevert(?:ed)?\b|\binvalid opcode\b/iu
+/**
+ * The codes a node answers a reverting `eth_call` with when it does not use 3:
+ * geth-family `-32000` and Nethermind `-32015`. Revert-shaped data on any
+ * other code is an endpoint attaching bytes to its own failure.
+ */
+const REVERT_DATA_CODES: ReadonlySet<unknown> = new Set([-32000, -32015])
+
+/**
+ * The whole node string, not a word inside it: geth's `execution reverted`
+ * with an optional reason, Nethermind's `revert` / `Reverted 0x…`, Ganache and
+ * Hardhat's `VM Exception …: revert`, and an invalid opcode.
+ */
+const REVERT_WORDING =
+  /^(?:execution reverted(?::.*)?|revert(?:ed)?(?: 0x[0-9a-f]*)?|vm exception while processing transaction: revert.*|invalid opcode\b.*)$/isu
+
+/**
+ * Throttling and caching, which some gateways report inside a revert-shaped
+ * string, and the gas allowance viem files under `ExecutionRevertedError`.
+ * The allowance is the node's own gas cap, so like out of gas it says as much
+ * about the endpoint as about the payload.
+ */
+const ENDPOINT_WORDING =
+  /\brate[- ]?limit|\btoo many requests\b|\bcache[ds]?\b|\bgas required exceeds allowance\b/iu
 
 /**
  * Whether an error is the chain answering that the payload does not execute,
@@ -480,6 +502,10 @@ const REVERT_WORDING = /\brevert(?:ed)?\b|\binvalid opcode\b/iu
  * not recognised here is the endpoint's failure and the next one is asked, so a
  * revert behind an unusable endpoint is still found.
  *
+ * Code 3 is decisive on its own. Every other signal yields to endpoint wording
+ * anywhere in the chain, because viem names an error `ExecutionRevertedError`
+ * from a substring of the node's message, not from the chain.
+ *
  * Out of gas is deliberately not here: `eth_call` runs under the node's own
  * gas cap, which differs between providers, so it says as much about the
  * endpoint as about the payload.
@@ -488,25 +514,41 @@ const REVERT_WORDING = /\brevert(?:ed)?\b|\binvalid opcode\b/iu
  * @returns True only when some link of the chain carries a revert.
  */
 const isExecutionRevert = (error: unknown): boolean => {
-  const seen = new Set<unknown>()
+  const links: Record<string, unknown>[] = []
   for (
     let link: unknown = error;
-    typeof link === 'object' && link !== null && !seen.has(link);
+    typeof link === 'object' && link !== null && !links.includes(link as never);
     link = (link as { cause?: unknown }).cause
-  ) {
-    seen.add(link)
-    const { name, code, data, message, details } = link as Record<
-      string,
-      unknown
-    >
+  )
+    links.push(link as Record<string, unknown>)
 
-    if (name === 'ExecutionRevertedError' || code === 3) return true
-    if (typeof data === 'string' && REVERT_DATA.test(data)) return true
+  // viem's `details` is the node's own string; its `message` is a composed
+  // report that also carries the endpoint URL, which is no evidence either way.
+  const nodeTexts = (link: Record<string, unknown>): unknown[] => [
+    typeof link.details === 'string' ? link.details : link.message,
+    link.data,
+  ]
 
-    for (const text of [details, message, data])
-      if (typeof text === 'string' && REVERT_WORDING.test(text)) return true
-  }
-  return false
+  if (links.some((link) => link.code === 3)) return true
+  if (
+    links.some((link) =>
+      nodeTexts(link).some(
+        (text) => typeof text === 'string' && ENDPOINT_WORDING.test(text)
+      )
+    )
+  )
+    return false
+
+  return links.some(
+    (link) =>
+      link.name === 'ExecutionRevertedError' ||
+      (REVERT_DATA_CODES.has(link.code) &&
+        typeof link.data === 'string' &&
+        REVERT_DATA.test(link.data)) ||
+      nodeTexts(link).some(
+        (text) => typeof text === 'string' && REVERT_WORDING.test(text.trim())
+      )
+  )
 }
 
 const ECHOED_BLOCK =

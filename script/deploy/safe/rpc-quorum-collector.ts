@@ -142,7 +142,17 @@ export const readQuorumPastTipReorgs = async (
   const atTip = evaluateRpcQuorum(await collectAt(0n))
   if (atTip.status !== 'fork-divergence') return atTip
 
-  const settled = evaluateRpcQuorum(await collectAt(REORG_RECHECK_DEPTH))
+  let settled: IRpcQuorumVerdict
+  try {
+    settled = evaluateRpcQuorum(await collectAt(REORG_RECHECK_DEPTH))
+  } catch {
+    // The fork at the tip was read; only the excuse for it failed. Dropping
+    // both would leave the gate with no verdict at all.
+    return {
+      ...atTip,
+      detail: `${atTip.detail}; the fork could not be re-read ${REORG_RECHECK_DEPTH} blocks behind the head`,
+    }
+  }
   return settled.status === 'fork-divergence'
     ? {
         ...settled,
@@ -150,6 +160,34 @@ export const readQuorumPastTipReorgs = async (
       }
     : settled
 }
+
+/**
+ * Reads the code at one address from every endpoint, at a pinned height, and
+ * grades it with {@link readQuorumPastTipReorgs}.
+ *
+ * @param address - The address whose code is read.
+ * @param endpointUrls - Every endpoint configured for the network.
+ * @param chainId - The chain they must serve.
+ * @param budgetMs - The per-endpoint read budget.
+ * @returns The verdict on the last read made.
+ */
+export const readCodeQuorumPastTipReorgs = (
+  address: Address,
+  endpointUrls: readonly string[],
+  chainId: number,
+  budgetMs: number = ENDPOINT_READ_BUDGET_MS
+): Promise<IRpcQuorumVerdict> =>
+  readQuorumPastTipReorgs((behindHead) =>
+    collectProviderObservations(
+      endpointUrls,
+      createCodeReader(
+        address,
+        chainId,
+        budgetMs,
+        createPinnedBlock(endpointUrls, chainId, behindHead)
+      )
+    )
+  )
 
 /**
  * Names the read a quorum verdict is about, for the operator's line.

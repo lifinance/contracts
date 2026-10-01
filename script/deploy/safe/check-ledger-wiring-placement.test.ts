@@ -603,8 +603,8 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
     },
     {
       gate: 'rpc quorum',
-      reader: 'collectProviderObservations(',
-      evaluator: 'readQuorumPastTipReorgs(',
+      reader: 'readCodeQuorumPastTipReorgs(',
+      evaluator: 'readCodeQuorumPastTipReorgs(',
       field: 'rpcQuorum',
     },
   ]
