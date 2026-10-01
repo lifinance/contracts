@@ -38,6 +38,8 @@ import {
   blockedPeripheryAllowlist,
   evaluatePeripheryAllowlist,
   PERIPHERY_ALLOWLIST_GATE_HEADING,
+  PERIPHERY_CONFIG_REPO_PATH,
+  peripheryConfigAtPinnedRef,
   peripheryAllowlistRemedy,
   peripheryFunctionsFromConfig,
   peripheryNetworksFromConfig,
@@ -47,6 +49,11 @@ import {
   type IPeripheryAllowlistDeps,
   type IPeripheryAllowlistVerdict,
 } from './periphery-allowlist-gate'
+import {
+  createPinnedBlobReader,
+  type IPinnedStateGit,
+  type PinnedJsonRead,
+} from './pinned-target-state'
 import { renderCheckLedger } from './render-check-ledger'
 import {
   TIMELOCK_SCHEDULE_ABI,
@@ -1293,5 +1300,334 @@ describe('gate W — remaining paths', () => {
     expect(renderPeripheryAllowlistLines(verdict).join('\n')).toContain(
       'bound to the zero address'
     )
+  })
+})
+
+describe('gate W — configuration pinned at origin/main', () => {
+  type Config = Record<string, Record<string, unknown>>
+  const asConfig = (): Config =>
+    structuredClone(globalConfig) as unknown as Config
+  const pinnedAs = (value: Config): PinnedJsonRead => ({ ok: true, value })
+
+  const deps = (
+    pinned: PinnedJsonRead,
+    local: Config,
+    allowlisted: readonly Hex[] | Error = []
+  ): IPeripheryAllowlistDeps & { reads: string[] } => ({
+    ...chain(allowlisted),
+    ...peripheryConfigAtPinnedRef(pinned, local),
+  })
+
+  const op38 = () => viaTimelock(scheduleBatch([register('TokenWrapper')]))
+
+  /** The checkout as a branch that edited the list would have it. */
+  const withoutTokenWrapper = (): Config => {
+    const config = asConfig()
+    delete config.whitelistPeripheryFunctions?.TokenWrapper
+    return config
+  }
+  const tokenWrapperListing = (selectors: readonly Hex[]): Config => {
+    const config = asConfig()
+    ;(config.whitelistPeripheryFunctions as Record<string, unknown>)[
+      'TokenWrapper'
+    ] = selectors.map((selector) => ({ selector, signature: selector }))
+    return config
+  }
+
+  it('reads config/global.json, the file the static import carries', () => {
+    expect(PERIPHERY_CONFIG_REPO_PATH).toBe('config/global.json')
+  })
+
+  it('grades exactly as the checkout did when the checkout agrees with main', async () => {
+    for (const allowlisted of [[], [DEPOSIT, WITHDRAW], [DEPOSIT]] as Hex[][]) {
+      const before = await evaluatePeripheryAllowlist(
+        op38(),
+        chain(allowlisted)
+      )
+      const pinned = await evaluatePeripheryAllowlist(
+        op38(),
+        deps(pinnedAs(asConfig()), asConfig(), allowlisted)
+      )
+      expect(pinned).toEqual(before)
+      expect(rowOf(pinned)).toEqual(rowOf(before))
+      expect(renderPeripheryAllowlistLines(pinned)).toEqual(
+        renderPeripheryAllowlistLines(before)
+      )
+    }
+    const paired = scheduleBatch([
+      register('TokenWrapper'),
+      batchWhitelist(TOKEN_WRAPPER, [DEPOSIT, WITHDRAW]),
+    ])
+    const honest = rowOf(
+      await evaluatePeripheryAllowlist(
+        viaTimelock(paired),
+        deps(pinnedAs(asConfig()), asConfig(), new Error('must not be read'))
+      )
+    )
+    expect(honest.status).toBe('pass')
+    expect(honest.anchor).toBe('A-LOCAL')
+    expect(honest.detail).toBeUndefined()
+  })
+
+  it('still refuses op 38 when the checkout drops TokenWrapper from the list', async () => {
+    const local = withoutTokenWrapper()
+    // The edit is real: graded from the edited checkout, op 38 would clear.
+    const fromLocal = await evaluatePeripheryAllowlist(op38(), {
+      ...chain([]),
+      peripheryFunctions: peripheryFunctionsFromConfig(
+        local.whitelistPeripheryFunctions
+      ),
+    })
+    expect(fromLocal.cleared).toBe(true)
+    expect(fromLocal.findings[0]?.status).toBe('not-diamond-called')
+
+    const d = deps(pinnedAs(asConfig()), local)
+    const verdict = await evaluatePeripheryAllowlist(op38(), d)
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.status).toBe('missing')
+    expect(verdict.findings[0]?.missing).toEqual([DEPOSIT, WITHDRAW])
+    expect(verdict.findings[0]?.localConfigDiffers).toBe(true)
+    expect(d.reads).toEqual([`${DIAMOND}:${TOKEN_WRAPPER}`])
+
+    const row = rowOf(verdict)
+    expect(row.status).toBe('fail')
+    expect(row.detail).toContain(
+      "this checkout's config/global.json differs from origin/main for TokenWrapper; graded against origin/main"
+    )
+    expect(row.detail).toContain('propose the whitelist sync')
+    expect(renderPeripheryAllowlistLines(verdict).join('\n')).toContain(
+      "config: this checkout's config/global.json differs from origin/main for TokenWrapper"
+    )
+  })
+
+  it('requires the selector main lists even when the checkout removes it', async () => {
+    const local = tokenWrapperListing([DEPOSIT])
+    const fromLocal = await evaluatePeripheryAllowlist(op38(), {
+      ...chain([DEPOSIT]),
+      peripheryFunctions: peripheryFunctionsFromConfig(
+        local.whitelistPeripheryFunctions
+      ),
+    })
+    expect(fromLocal.cleared).toBe(true)
+
+    const verdict = await evaluatePeripheryAllowlist(
+      op38(),
+      deps(pinnedAs(asConfig()), local, [DEPOSIT])
+    )
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.missing).toEqual([WITHDRAW])
+    expect(verdict.findings[0]?.localConfigDiffers).toBe(true)
+  })
+
+  it('does not require a selector only the checkout adds, and says the checkout differs', async () => {
+    const extra = '0x12345678' as Hex
+    const local = tokenWrapperListing([DEPOSIT, WITHDRAW, extra])
+    const fromLocal = await evaluatePeripheryAllowlist(op38(), {
+      ...chain([DEPOSIT, WITHDRAW]),
+      peripheryFunctions: peripheryFunctionsFromConfig(
+        local.whitelistPeripheryFunctions
+      ),
+    })
+    expect(fromLocal.cleared).toBe(false)
+
+    const verdict = await evaluatePeripheryAllowlist(
+      op38(),
+      deps(pinnedAs(asConfig()), local, [DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.cleared).toBe(true)
+    expect(verdict.findings[0]?.expected).toEqual([DEPOSIT, WITHDRAW])
+    const row = rowOf(verdict)
+    expect(row.status).toBe('pass')
+    expect(row.anchor).toBe('A-CHAIN')
+    expect(row.detail).toContain('differs from origin/main for TokenWrapper')
+  })
+
+  it('moves a config-decided row from A-LOCAL to A-MAIN when the checkout differs', async () => {
+    const paired = viaTimelock(
+      scheduleBatch([
+        register('TokenWrapper'),
+        batchWhitelist(TOKEN_WRAPPER, [DEPOSIT, WITHDRAW]),
+      ])
+    )
+    const agreeing = rowOf(
+      await evaluatePeripheryAllowlist(
+        paired,
+        deps(pinnedAs(asConfig()), asConfig())
+      )
+    )
+    const drifted = rowOf(
+      await evaluatePeripheryAllowlist(
+        paired,
+        deps(pinnedAs(asConfig()), withoutTokenWrapper())
+      )
+    )
+    expect(agreeing.anchor).toBe('A-LOCAL')
+    expect(drifted.anchor).toBe('A-MAIN')
+    expect(drifted.status).toBe('pass')
+    expect(drifted.detail).toContain('graded against origin/main')
+  })
+
+  it('reports a name only the checkout lists as main grades it, on A-MAIN', async () => {
+    const executor = '0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D' as Address
+    const local = asConfig()
+    ;(local.whitelistPeripheryFunctions as Record<string, unknown>)[
+      'Executor'
+    ] = [{ selector: DEPOSIT, signature: 'deposit()' }]
+    const registration = viaTimelock(
+      scheduleBatch([register('Executor', executor)])
+    )
+
+    const agreeing = rowOf(
+      await evaluatePeripheryAllowlist(
+        registration,
+        deps(pinnedAs(asConfig()), asConfig())
+      )
+    )
+    const drifted = await evaluatePeripheryAllowlist(
+      registration,
+      deps(pinnedAs(asConfig()), local)
+    )
+    expect(agreeing.status).toBe('not-applicable')
+    expect(agreeing.anchor).toBe('A-LOCAL')
+    expect(agreeing.detail).toBeUndefined()
+    expect(drifted.findings[0]?.status).toBe('not-diamond-called')
+    expect(rowOf(drifted).status).toBe('not-applicable')
+    expect(rowOf(drifted).anchor).toBe('A-MAIN')
+    expect(rowOf(drifted).detail).toContain('for Executor')
+  })
+
+  it('reads a scope edit in whitelistPeripheryNetworks as the checkout differing', async () => {
+    const local = asConfig()
+    local.whitelistPeripheryNetworks = { TokenWrapper: ['lens'] }
+    const verdict = await evaluatePeripheryAllowlist(
+      op38(),
+      deps(pinnedAs(asConfig()), local)
+    )
+    expect(verdict.findings[0]?.status).toBe('missing')
+    expect(verdict.findings[0]?.localConfigDiffers).toBe(true)
+    const untouched = await evaluatePeripheryAllowlist(
+      op38(),
+      deps(pinnedAs(asConfig()), asConfig())
+    )
+    expect(untouched.findings[0]?.localConfigDiffers).toBeUndefined()
+  })
+
+  it('blocks a registration when the pinned read fails, never falling back to the checkout', async () => {
+    const d = deps({ ok: false, reason: 'fetch-failed' }, asConfig(), [
+      DEPOSIT,
+      WITHDRAW,
+    ])
+    // The checkout alone would clear it: the chain holds both selectors.
+    expect(
+      (await evaluatePeripheryAllowlist(op38(), chain([DEPOSIT, WITHDRAW])))
+        .cleared
+    ).toBe(true)
+
+    const verdict = await evaluatePeripheryAllowlist(op38(), d)
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.status).toBe('read-failed')
+    expect(verdict.findings[0]?.reason).toBe(
+      'config/global.json could not be read at origin/main (fetch-failed), so no periphery allowlist expectation could be established'
+    )
+    expect(d.reads).toEqual([])
+
+    const row = rowOf(verdict)
+    expect(row.status).toBe('error')
+    expect(row.anchor).toBe('A-UNRESOLVED')
+    expect(row.actual).toContain('fetch-failed')
+    const lines = renderPeripheryAllowlistLines(verdict).join('\n')
+    expect(lines).toContain('✗ read-failed')
+    expect(lines).toContain(
+      'the selectors origin/main lists, which could not be read'
+    )
+  })
+
+  it('blocks a paired registration too when the pinned read fails', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(
+        scheduleBatch([
+          register('TokenWrapper'),
+          batchWhitelist(TOKEN_WRAPPER, [DEPOSIT, WITHDRAW]),
+        ])
+      ),
+      deps({ ok: false, reason: 'blob-unreadable' }, asConfig())
+    )
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.status).toBe('read-failed')
+  })
+
+  it('blocks a registration when main carries a malformed list', async () => {
+    const pinned = asConfig()
+    delete (pinned as Record<string, unknown>).whitelistPeripheryFunctions
+    const resolved = peripheryConfigAtPinnedRef(pinnedAs(pinned), asConfig())
+    expect(resolved.configUnavailable).toContain(
+      'whitelistPeripheryFunctions is not an object'
+    )
+    const verdict = await evaluatePeripheryAllowlist(op38(), {
+      ...chain([DEPOSIT, WITHDRAW]),
+      ...resolved,
+    })
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.status).toBe('read-failed')
+  })
+
+  it('leaves a proposal that registers nothing unaffected by a failed read', async () => {
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([singleWhitelist(TOKEN_WRAPPER, DEPOSIT)])),
+      deps({ ok: false, reason: 'fetch-failed' }, asConfig())
+    )
+    expect(verdict.findings).toEqual([])
+    expect(verdict.cleared).toBe(true)
+    expect(rowOf(verdict).status).toBe('not-applicable')
+  })
+
+  it('reads the pinned file through the shared blob reader at the anchored commit', async () => {
+    const shown: string[] = []
+    const git: IPinnedStateGit = {
+      remoteUrl: () => 'https://github.com/lifinance/contracts.git',
+      fetch: () => undefined,
+      revParse: () => 'c0ffee\n',
+      show: (revSpec) => {
+        shown.push(revSpec)
+        return JSON.stringify(globalConfig)
+      },
+    }
+    const read = createPinnedBlobReader({ git })
+    const verdict = await evaluatePeripheryAllowlist(
+      op38(),
+      deps(read(PERIPHERY_CONFIG_REPO_PATH), withoutTokenWrapper())
+    )
+    expect(shown).toEqual(['c0ffee:config/global.json'])
+    expect(verdict.findings[0]?.status).toBe('missing')
+    expect(verdict.findings[0]?.localConfigDiffers).toBe(true)
+
+    const failing = createPinnedBlobReader({
+      git: {
+        ...git,
+        fetch: () => {
+          throw new Error('offline')
+        },
+      },
+    })
+    const blocked = await evaluatePeripheryAllowlist(
+      op38(),
+      deps(failing(PERIPHERY_CONFIG_REPO_PATH), asConfig(), [DEPOSIT, WITHDRAW])
+    )
+    expect(blocked.findings[0]?.status).toBe('read-failed')
+    expect(blocked.findings[0]?.reason).toContain('fetch-failed')
+  })
+
+  it('reads a name neither side lists as agreeing, and an empty checkout as differing', () => {
+    const resolved = peripheryConfigAtPinnedRef(
+      pinnedAs(asConfig()),
+      asConfig()
+    )
+    expect(resolved.localConfigDiffers?.('constructor')).toBe(false)
+    expect(resolved.localConfigDiffers?.('TokenWrapper')).toBe(false)
+    expect(
+      peripheryConfigAtPinnedRef(pinnedAs(asConfig()), {}).localConfigDiffers?.(
+        'TokenWrapper'
+      )
+    ).toBe(true)
   })
 })

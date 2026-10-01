@@ -25,6 +25,7 @@ import {
 } from './confirm-integrity-asserts'
 import type { IExecutabilityVerdict } from './executability-simulation'
 import {
+  describeConfigDrift,
   describeExpected,
   describeObserved,
   ledgerPrintable,
@@ -705,10 +706,12 @@ const peripheryRowStatus = (
 /**
  * Reduces gate W's verdict to the one row the ledger holds.
  *
- * The expectation is `config/global.json`, so a pass decided from the batch's
- * own whitelist calls is `A-LOCAL`, and one that needed the chain's answer is
- * `A-CHAIN`. A failed read and an unreadable call are `A-UNRESOLVED`: nothing
- * was compared, and the row must not read as a check that ran.
+ * The expectation is `config/global.json` at `origin/main`. A pass decided from
+ * the batch's own whitelist calls is `A-LOCAL` while the checkout agrees with
+ * `main` on every registered name, and `A-MAIN`, with the names in `detail`,
+ * when it does not. One that needed the chain's answer is `A-CHAIN`. A failed
+ * read and an unreadable call are `A-UNRESOLVED`: nothing was compared, and the
+ * row must not read as a check that ran.
  *
  * @param verdict - Gate W's verdict, or undefined when it was never evaluated.
  * @param network - The network the verdict is about.
@@ -734,6 +737,9 @@ export const peripheryAllowlistCheckResult = (
   const graded = verdict.findings.filter(
     (finding) => peripheryRowStatus(finding) !== 'not-applicable'
   )
+  const drift = describeConfigDrift(verdict, ledgerPrintable)
+  const configAnchor: ICheckResult['anchor'] =
+    drift === undefined ? 'A-LOCAL' : 'A-MAIN'
 
   if (status === 'not-applicable')
     return {
@@ -750,7 +756,8 @@ export const peripheryAllowlistCheckResult = (
                   `${ledgerPrintable(finding.name)} is ${finding.status}`
               )
               .join('; ')}`,
-      anchor: 'A-LOCAL',
+      anchor: configAnchor,
+      ...(drift === undefined ? {} : { detail: drift }),
     }
 
   const anchor: ICheckResult['anchor'] =
@@ -758,7 +765,11 @@ export const peripheryAllowlistCheckResult = (
       ? 'A-UNRESOLVED'
       : graded.some((finding) => finding.observed !== undefined)
       ? 'A-CHAIN'
-      : 'A-LOCAL'
+      : configAnchor
+  const details = [
+    ...(status === 'fail' ? [peripheryAllowlistRemedy(network)] : []),
+    ...(drift === undefined ? [] : [drift]),
+  ]
 
   return {
     checkId: PERIPHERY_ALLOWLIST_CHECK_ID,
@@ -784,11 +795,7 @@ export const peripheryAllowlistCheckResult = (
       ...verdict.unreadable.map((entry) => `unreadable: ${entry}`),
     ].join('; '),
     anchor,
-    ...(status === 'fail'
-      ? {
-          detail: peripheryAllowlistRemedy(network),
-        }
-      : {}),
+    ...(details.length === 0 ? {} : { detail: details.join('; ') }),
   }
 }
 

@@ -31,6 +31,7 @@ import {
   MAX_UNWRAP_DEPTH,
 } from '../shared/diamond-cut-calls'
 
+import { PINNED_REF, type PinnedJsonRead } from './pinned-target-state'
 import { asPrintable, printableField } from './printable-field'
 
 /**
@@ -133,6 +134,8 @@ export interface IPeripheryAllowlistFinding {
   missing: readonly Hex[]
   /** Why nothing was compared, for `read-failed`. */
   reason?: string
+  /** This checkout's `config/global.json` disagrees with the pinned one for `name`. */
+  localConfigDiffers?: true
 }
 
 /** Gate W's answer for one proposal. */
@@ -166,6 +169,13 @@ export interface IPeripheryAllowlistDeps {
     diamond: Address,
     contract: Address
   ) => Promise<readonly Hex[]>
+  /**
+   * Why the configuration could not be established. When set, every
+   * registration grades `read-failed` whatever the two maps hold.
+   */
+  configUnavailable?: string
+  /** Whether this checkout's `config/global.json` disagrees with the pinned one for a name. */
+  localConfigDiffers?: (name: string) => boolean
 }
 
 const ALLOWLIST_READ_ABI = parseAbi([
@@ -283,6 +293,83 @@ export const peripheryNetworksFromConfig = (
   }
   assertScopeContractsEligible(scope, functions.keys())
   return scope
+}
+
+/** Where gate W's configuration is read from, inside the pinned tree. */
+export const PERIPHERY_CONFIG_REPO_PATH = 'config/global.json'
+
+const PERIPHERY_CONFIG_SECTIONS = [
+  'whitelistPeripheryFunctions',
+  'whitelistPeripheryNetworks',
+] as const
+
+/** The part of {@link IPeripheryAllowlistDeps} that comes from configuration. */
+export type PeripheryConfigDeps = Pick<
+  IPeripheryAllowlistDeps,
+  | 'peripheryFunctions'
+  | 'peripheryNetworks'
+  | 'configUnavailable'
+  | 'localConfigDiffers'
+>
+
+const ownEntry = (value: unknown, key: string): unknown =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.hasOwn(value, key)
+    ? (value as Record<string, unknown>)[key]
+    : undefined
+
+const sectionEntry = (config: unknown, section: string, name: string) =>
+  JSON.stringify(ownEntry(ownEntry(config, section), name))
+
+/**
+ * Gate W's configuration as {@link PINNED_REF} has it.
+ *
+ * The signer's checkout is only compared against, never graded from: a branch
+ * that edits the list would otherwise grade its own registration. A pinned read
+ * that failed, or a pinned config that does not parse, leaves every
+ * registration unverified rather than falling back to the local file.
+ *
+ * @param pinned - `config/global.json` read at the pinned ref.
+ * @param local - This checkout's `config/global.json`, for the drift note only.
+ * @returns The configuration deps for {@link evaluatePeripheryAllowlist}.
+ */
+export const peripheryConfigAtPinnedRef = (
+  pinned: PinnedJsonRead,
+  local: unknown
+): PeripheryConfigDeps => {
+  const unavailable = (reason: string): PeripheryConfigDeps => ({
+    peripheryFunctions: new Map(),
+    peripheryNetworks: Object.create(null) as WhitelistNetworkScope,
+    configUnavailable: `${PERIPHERY_CONFIG_REPO_PATH} could not be read at ${PINNED_REF} (${reason}), so no periphery allowlist expectation could be established`,
+  })
+  if (!pinned.ok) return unavailable(pinned.reason)
+
+  let peripheryFunctions: ReadonlyMap<string, readonly IPeripheryFunction[]>
+  let peripheryNetworks: WhitelistNetworkScope
+  try {
+    peripheryFunctions = peripheryFunctionsFromConfig(
+      ownEntry(pinned.value, 'whitelistPeripheryFunctions')
+    )
+    peripheryNetworks = peripheryNetworksFromConfig(
+      ownEntry(pinned.value, 'whitelistPeripheryNetworks'),
+      peripheryFunctions
+    )
+  } catch (error) {
+    return unavailable(error instanceof Error ? error.message : String(error))
+  }
+
+  return {
+    peripheryFunctions,
+    peripheryNetworks,
+    localConfigDiffers: (name) =>
+      PERIPHERY_CONFIG_SECTIONS.some(
+        (section) =>
+          sectionEntry(pinned.value, section, name) !==
+          sectionEntry(local, section, name)
+      ),
+  }
 }
 
 interface IRegistration {
@@ -492,7 +579,20 @@ const grade = async (
     name: registration.name,
     address: registration.address,
     ...(registration.diamond ? { diamond: registration.diamond } : {}),
+    ...(deps.localConfigDiffers?.(registration.name)
+      ? { localConfigDiffers: true as const }
+      : {}),
   }
+
+  if (deps.configUnavailable !== undefined)
+    return {
+      ...base,
+      status: 'read-failed',
+      expected: [],
+      signatures: [],
+      missing: [],
+      reason: deps.configUnavailable,
+    }
 
   const configured = deps.peripheryFunctions.get(registration.name)
   if (!configured)
@@ -601,9 +701,38 @@ export const blockedPeripheryAllowlist = (
  * @returns The expected selectors, labelled.
  */
 export const describeExpected = (finding: IPeripheryAllowlistFinding): string =>
-  finding.expected
-    .map((selector, at) => `${selector} ${finding.signatures[at] ?? ''}`.trim())
-    .join(', ')
+  finding.expected.length === 0
+    ? `the selectors ${PINNED_REF} lists, which could not be read,`
+    : finding.expected
+        .map((selector, at) =>
+          `${selector} ${finding.signatures[at] ?? ''}`.trim()
+        )
+        .join(', ')
+
+/**
+ * Names the graded registrations whose local config disagrees with the pinned one.
+ *
+ * @param verdict - The gate's verdict.
+ * @param printable - How a proposer-supplied name is made printable.
+ * @returns The note, or undefined when the checkout agrees on every name.
+ */
+export const describeConfigDrift = (
+  verdict: IPeripheryAllowlistVerdict,
+  printable: (value: unknown) => string = printableField
+): string | undefined => {
+  const names = [
+    ...new Set(
+      verdict.findings
+        .filter((finding) => finding.localConfigDiffers)
+        .map((finding) => printable(finding.name))
+    ),
+  ]
+  return names.length === 0
+    ? undefined
+    : `this checkout's ${PERIPHERY_CONFIG_REPO_PATH} differs from ${PINNED_REF} for ${names.join(
+        ', '
+      )}; graded against ${PINNED_REF}`
+}
 
 const SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'gu')
 
@@ -690,6 +819,8 @@ export const renderPeripheryAllowlistLines = (
       lines.push(`    remedy: ${peripheryAllowlistRemedy(verdict.network)}`)
   }
   for (const entry of verdict.unreadable) lines.push(`  ✗ unreadable: ${entry}`)
+  const drift = describeConfigDrift(verdict)
+  if (drift !== undefined) lines.push(`  config: ${drift}`)
   return lines
 }
 
