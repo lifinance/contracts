@@ -118,13 +118,13 @@ This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` 
 
 ## Phase 3c — Verify deployed contracts
 
-The deploy framework attempts explorer verification inline, but it can fail, and the MongoDB `verified` flag is written separately from on-chain verification. Confirm every freshly deployed contract is verified by invoking the `verify-contracts` skill for each target network:
+The deploy framework attempts explorer verification inline and, when it passes, already writes `verified:true` to MongoDB. Re-verify only what it left unverified, once for the whole rollout — `<env>` is `production` or `staging`, `<version>` is the repo version from Phase 1, and the networks are this rollout's targets:
 
-```text
-/verify-contracts <network>
+```bash
+bash script/deploy/verifyRolloutContracts.sh <env> <Contract> <version> <network...>
 ```
 
-It verifies the deployment's addresses on the explorer and writes `verified:true` to MongoDB (both must hold).
+One MongoDB query selects the `verified:false` records of that contract version. Only records on the listed networks whose address matches `deployments/<net>.json` are verified on the explorer, and the flag is flipped for each one that passes. Networks in `DO_NOT_VERIFY_IN_THESE_NETWORKS` are reported as excluded. It exits `0` when nothing needed re-verifying, and exits `1` naming each failed network/address, or when the query itself failed (an unreachable MongoDB is never read as "nothing to do").
 
 ## Phase 4 — Commit logs & draft PR (staging path only)
 
@@ -179,7 +179,7 @@ In production, note the files changed on disk (`deployments/<net>.json`, and `co
 - `--production` / `.env` mismatch → script aborts with a clear message; do not edit `.env`, relay it.
 - Deploy succeeded but production proposal missing → the propose step failed; check the network's deploy log and re-run that single network.
 - A network has no diamond → drop it from the list (this skill adds to existing diamonds only).
-- Explorer verification flaky → re-run `/verify-contracts <network>`; the MongoDB `verified` flag and on-chain verification must both hold.
+- Explorer verification flaky → re-run `bash script/deploy/verifyRolloutContracts.sh <env> <Contract> <version> <network...>` (Phase 3c); it picks up only the records still unverified, and the MongoDB `verified` flag and on-chain verification must both hold.
 - `is not verified on Sourcify` warning (mainnet, non-zkEVM) → the deploy still succeeded, but the ERC-7730 clear-signing sync leaves that network out of the registry descriptor until every facet is on Sourcify. Run the `Retry with:` command from the warning; `https://sourcify.dev/server/v2/contract/<chainId>/<address>` returning 200 confirms it.
 - zkEVM-only target list (zksync/lens/abstract) exits non-zero right after `building zksync artifacts`, with no error in a redirected log → `out/` is missing. The deploy salt comes from the standard artifact (`out/<C>.sol/<C>.json`), which the zk build never writes and `prepareGroupBuild zkevm` (a no-op) never triggers. Run `forge build --skip 'test/**'` first; only the salt/address depends on it, never the deployed bytecode. A mixed group list hides this because london/cancun builds `out/` first.
 - `Failed to deploy script` plus a "sufficient funds" warning on a funded deployer → re-run with `DEBUG=true` before chasing balances or RPCs. If the real stderr is ``header validation error: `prevrandao` not set``, the chain's RPC omits `mixHash` and no post-Merge `evm_version` can build the fork environment; set `targetEvmVersion: "london"` so the chain joins the london group (keeps build, deploy and verification consistent). `--legacy`, `--skip-simulation` and `block_prevrandao` do not help. Probe with `cast rpc eth_getBlockByNumber latest false --rpc-url "$R" | tr ',' '\n' | grep -i mixhash`.
