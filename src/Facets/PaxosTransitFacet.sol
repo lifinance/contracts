@@ -17,22 +17,6 @@ import { InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, Inv
 ///         same-chain swaps when `bridgeData.destinationChainId == block.chainid`.
 /// @custom:version 1.1.0
 contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
-    /// @notice Validates bridge data for Paxos Transit orders.
-    /// @dev Does not enforce a same-network guard because same-chain
-    ///      orders are supported.
-    /// @param _bridgeData The core information needed for bridging
-    modifier validateBridgeDataPaxosTransit(
-        ILiFi.BridgeData memory _bridgeData
-    ) {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.minAmount == 0) {
-            revert InvalidAmount();
-        }
-        _;
-    }
-
     /// Storage ///
 
     /// @notice The Paxos Transit station contract on the source chain.
@@ -58,6 +42,24 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         bytes signature;
         uint256 nativeFee;
         address refundRecipient;
+    }
+
+    /// Modifiers ///
+
+    /// @notice Validates bridge data for Paxos Transit orders.
+    /// @dev Does not enforce a same-network guard because same-chain
+    ///      orders are supported.
+    /// @param _bridgeData The core information needed for bridging
+    modifier validateBridgeDataPaxosTransit(
+        ILiFi.BridgeData memory _bridgeData
+    ) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+        if (_bridgeData.minAmount == 0) {
+            revert InvalidAmount();
+        }
+        _;
     }
 
     /// Constructor ///
