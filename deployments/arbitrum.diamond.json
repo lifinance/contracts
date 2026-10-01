@@ -101,9 +101,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.1.1"
       },
-      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+      "0x0FC3045A569f55233BA26d92dB2e7DbB47C30D76": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x711e80A9c1eB906d9Ae9d37E5432E6E7aCeEdA0B": {
         "Name": "WithdrawFacet",

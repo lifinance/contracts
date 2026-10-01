@@ -53,9 +53,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.5"
       },
-      "0x5FaBBa7348C2f2129754D9E4C0Ed04DA2877F414": {
+      "0x201b4F113668b21Eb465b98E3486E8324562D83b": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x8163C2Ca79046E4789DC978d82836EDBdaf71b4B": {
         "Name": "GardenFacet",

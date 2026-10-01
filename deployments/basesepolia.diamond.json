@@ -49,13 +49,13 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x93ef02A8dE6b729868ceB9605f868A34B0402857": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
-      },
       "0xed86e8F84072BC066A353a2180F38E5268F32B26": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
+      },
+      "0xFF0Bef43ecA68e90bD29A887baFdC1833dACfC67": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
