@@ -6,6 +6,7 @@ import {
   ALL_GATE_DEFINITIONS,
   CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
+  EXECUTABILITY_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK_ID,
 } from './confirm-check-registry'
@@ -13,6 +14,11 @@ import { bucketOf, renderProposalOutcome } from './signer-view'
 import { signerChecks, viewDefinitions } from './signer-zones'
 
 const NETWORK = 'arbitrum'
+
+const NOTHING_REFUSED = {
+  definiteReds: [],
+  delegatecallRefused: false,
+} as const
 
 const ESC = String.fromCharCode(27)
 const stripAnsi = (s: string): string =>
@@ -52,7 +58,9 @@ const bucketed = (codehash: ICheckResult) =>
   })
 
 const outcomeFor = (codehash: ICheckResult): string =>
-  stripAnsi(renderProposalOutcome(bucketed(codehash)).join('\n'))
+  stripAnsi(
+    renderProposalOutcome(bucketed(codehash), NOTHING_REFUSED).join('\n')
+  )
 
 const codehashBucket = (codehash: ICheckResult): string | undefined => {
   const entry = bucketed(codehash).find(
@@ -151,7 +159,8 @@ describe('the closing verdict on a proposal that installs nothing', () => {
         signerChecks({
           results: standingDown(),
           definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
-        })
+        }),
+        NOTHING_REFUSED
       ).join('\n')
     )
 
@@ -159,5 +168,88 @@ describe('the closing verdict on a proposal that installs nothing', () => {
     expect(outcome).not.toContain('could not be checked')
     expect(outcome).not.toContain('Gate G')
     expect(outcome).not.toContain('Gate H')
+  })
+})
+
+/**
+ * The closing verdict against the action menu.
+ *
+ * The menu withholds every signing option on a definite red from G, I, J or L
+ * and offers Sign otherwise, so the sentence printed above it must say the
+ * same: never "cannot be signed" over a Sign that would produce a signature,
+ * and never a signable proposal while Sign is withheld.
+ */
+describe('the closing verdict agrees with the action menu', () => {
+  const withRows = (...overrides: ICheckResult[]) =>
+    signerChecks({
+      results: [
+        ...CONFIRM_CHECK_DEFINITIONS.filter(
+          (definition) =>
+            !overrides.some((one) => one.checkId === definition.checkId)
+        ).map((definition) => row(definition.checkId, 'pass')),
+        ...overrides,
+      ],
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+
+  const say = (
+    rows: ReturnType<typeof withRows>,
+    refusal: Parameters<typeof renderProposalOutcome>[1]
+  ): string => stripAnsi(renderProposalOutcome(rows, refusal).join('\n'))
+
+  const reverting = row(EXECUTABILITY_CHECK_ID, 'fail', {
+    actual: '1 of 2 call(s) would revert',
+    anchor: 'A-CHAIN',
+  })
+
+  it('refuses in words on a definite red, naming the gate', () => {
+    const outcome = say(withRows(reverting), {
+      definiteReds: [
+        { gate: 'I', reason: 'call[0].diamondCut[0] would revert' },
+      ],
+      delegatecallRefused: false,
+    })
+    expect(outcome).toContain('This proposal cannot be signed or executed')
+    expect(outcome).toContain('Gate I')
+    expect(outcome).toContain('call[0].diamondCut[0] would revert')
+    expect(outcome).toContain('Only Do Nothing is offered')
+  })
+
+  it('does not refuse in words on the same rows when the menu refused nothing', () => {
+    // The present half: what decides the sentence is the refusal the menu was
+    // built from, not the row alone.
+    const outcome = say(withRows(reverting), NOTHING_REFUSED)
+    expect(outcome).not.toContain('cannot be signed')
+    expect(outcome).toContain('Every mandatory gate passed')
+  })
+
+  it('words a gate G that could not read its authorities as advisory', () => {
+    const unread = row(STORAGE_AUTHORITY_CHECK_ID, 'error', {
+      actual: 'TokenWrapper.owner: NOT READ — rpc timeout',
+      anchor: 'A-UNRESOLVED',
+    })
+    const outcome = say(withRows(unread), NOTHING_REFUSED)
+    expect(outcome).not.toContain('cannot be signed')
+    expect(outcome).toContain('Nothing here blocks the signature')
+    expect(outcome).toContain('Gate G')
+  })
+
+  it('still says cannot be signed yet when a gate that refuses inside the signer is unchecked', () => {
+    const unchecked = row(CODEHASH_CHECK_ID, 'error', {
+      actual: 'the codehash gate could not be evaluated',
+      anchor: 'A-UNRESOLVED',
+    })
+    const outcome = say(withRows(unchecked), NOTHING_REFUSED)
+    expect(outcome).toContain('This proposal cannot be signed yet')
+    expect(outcome).toContain('Gate K')
+  })
+
+  it('says cannot be signed on a delegatecall refusal', () => {
+    const outcome = say(withRows(), {
+      definiteReds: [],
+      delegatecallRefused: true,
+    })
+    expect(outcome).toContain('This proposal cannot be signed')
+    expect(say(withRows(), NOTHING_REFUSED)).toContain('Every gate passed')
   })
 })

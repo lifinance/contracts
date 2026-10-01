@@ -110,6 +110,11 @@ import {
   type IPrefetchedEvidence,
 } from './confirm-safe-tx-prefetch'
 import {
+  assertNoDefiniteRed,
+  evaluateDefiniteReds,
+  type IDefiniteRedVerdict,
+} from './definite-red-gate'
+import {
   describeOperationValue,
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
@@ -217,6 +222,7 @@ import {
   toSignedAuthorityEntries,
   toSignedCodehashEntries,
 } from './signed-set-record'
+import { buildSignerActionOptions } from './signer-action-menu'
 import {
   networkPreflight,
   PREFLIGHT_EXIT_CODE,
@@ -511,6 +517,11 @@ const processTxs = async (
   // that refusal compares against the one reaching the signer.
   let integrityRun: IIntegrityAssertRun | undefined
 
+  // Gates G, I, J and L's definite reds for the proposal on screen, read by the
+  // menu, the outcome banner and both funnels. Absent refuses, for the same
+  // reason as the integrity run above.
+  let definiteRed: IDefiniteRedVerdict | undefined
+
   /**
    * Signs a SafeTransaction.
    *
@@ -541,6 +552,7 @@ const processTxs = async (
         integrityRun,
         proposalKeyOf(safeTransaction.data)
       )
+      assertNoDefiniteRed(definiteRed, proposalKeyOf(safeTransaction.data))
 
       consola.info('Signing transaction')
       try {
@@ -800,6 +812,7 @@ const processTxs = async (
       integrityRun,
       proposalKeyOf(safeTransaction.data)
     )
+    assertNoDefiniteRed(definiteRed, proposalKeyOf(safeTransaction.data))
 
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
@@ -1565,6 +1578,7 @@ const processTxs = async (
 
     codehashGate = blockingUnevaluatedGate()
     integrityRun = undefined
+    definiteRed = undefined
     if (proposalIndex++ > 0) consola.log(PROPOSAL_SEPARATOR.join('\n'))
 
     // This proposal's own reads, started before its first zone is drawn. The
@@ -1835,6 +1849,22 @@ const processTxs = async (
         : {}),
       rpcQuorum,
     })
+    // From the same entries, simulation, quorum read and codehash gate the rows
+    // above were built from, so the menu cannot refuse on a reading the screen
+    // does not show.
+    const definiteRedVerdict = evaluateDefiniteReds({
+      gradedKey: proposalKeyOf(tx.safeTransaction.data),
+      storageAuthority: observedSet
+        ? toSignedAuthorityEntries(installedAuthorities)
+        : undefined,
+      executability,
+      rpcQuorum,
+      codehash: codehashGate,
+    })
+    definiteRed = definiteRedVerdict
+    const signingRefused =
+      operationVerdict.refuses || definiteRedVerdict.reds.length > 0
+
     proposalChecks.push(
       ...proposalResults.map((row) => ({ ...row, proposalNonce: headingNonce }))
     )
@@ -1955,9 +1985,9 @@ const processTxs = async (
         alreadySigned: tx.hasSignedAlready,
         signedThisRun: false,
         executedThisRun: false,
-        // A refused operation leaves `Do Nothing` as the only option, so the
-        // proposal is blocked from here on whatever the operator picks.
-        blocked: operationVerdict.refuses,
+        // A refused proposal leaves `Do Nothing` as the only option, so it is
+        // blocked from here on whatever the operator picks.
+        blocked: signingRefused,
         ...update,
       })
     }
@@ -1969,69 +1999,43 @@ const processTxs = async (
     // Restated here rather than left to the rows above: by the time the prompt
     // appears the signer has scrolled past every gate, the calldata and the
     // device panel, and this is the screen the decision is made on.
-    consola.log(renderProposalOutcome(signerCheckRows).join('\n'))
+    consola.log(
+      renderProposalOutcome(signerCheckRows, {
+        definiteReds: definiteRedVerdict.reds,
+        delegatecallRefused: operationVerdict.refuses,
+      }).join('\n')
+    )
 
     // Determine available actions based on signature status
     // Execute options are offered regardless of nonce status; the nonce gate runs
     // after the choice so the operator sees why a specific proposal is refused
-    let action: string
-    if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
-      const options = ['Do Nothing']
-      if (!operationVerdict.refuses) {
-        if (!tx.hasSignedAlready) {
-          options.push('Sign')
-
-          // Check if signing with current user + deployer (if needed) would meet threshold
-          if (
-            shouldShowSignAndExecuteWithDeployer(
-              tx.safeTransaction,
-              tx.threshold,
-              signerAddress
-            )
-          )
-            options.push('Sign and Execute With Deployer')
-        }
-
-        if (tx.canExecute) {
-          options.push('Execute')
-          options.push('Execute with Deployer')
-        }
-      }
-
-      action = await consola.prompt('Select action:', {
-        type: 'select',
-        options,
-      })
-    } else {
-      const options = ['Do Nothing']
-      if (!operationVerdict.refuses) {
-        if (!tx.hasSignedAlready) {
-          options.push('Sign')
-          if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
-            options.push('Sign & Execute')
-
-          // Check if signing with current user + deployer (if needed) would meet threshold
-          if (
-            shouldShowSignAndExecuteWithDeployer(
-              tx.safeTransaction,
-              tx.threshold,
-              signerAddress
-            )
-          )
-            options.push('Sign and Execute With Deployer')
-        }
-
-        if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
-          options.push('Execute')
-          options.push('Execute with Deployer')
-        }
-      }
-
-      action = await consola.prompt('Select action:', {
-        type: 'select',
-        options,
-      })
-    }
+    // Consulted only where the menu can still offer a signing option: the
+    // deployer check reads the deployer key.
+    const offersSigning = !signingRefused && !tx.hasSignedAlready
+    const safeSigner = privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER
+    const options = buildSignerActionOptions({
+      refused: signingRefused,
+      safeSigner,
+      hasSignedAlready: tx.hasSignedAlready,
+      wouldMeetThreshold:
+        offersSigning &&
+        !safeSigner &&
+        wouldMeetThreshold(tx.safeTransaction, tx.threshold),
+      showSignAndExecuteWithDeployer:
+        offersSigning &&
+        shouldShowSignAndExecuteWithDeployer(
+          tx.safeTransaction,
+          tx.threshold,
+          signerAddress
+        ),
+      executable: safeSigner
+        ? tx.canExecute
+        : hasEnoughSignatures(tx.safeTransaction, tx.threshold),
+    })
+    const action = await consola.prompt('Select action:', {
+      type: 'select',
+      options,
+    })
 
     if (action === 'Do Nothing') continue
 

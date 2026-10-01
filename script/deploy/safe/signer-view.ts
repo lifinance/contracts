@@ -12,6 +12,10 @@
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import { gateLabel, isAcknowledgeable } from './check-ledger'
+import {
+  GATES_ADVISORY_SHORT_OF_DEFINITE_RED,
+  type IDefiniteRed,
+} from './definite-red-gate'
 
 const ESC = String.fromCharCode(27)
 const RESET = `${ESC}[0m`
@@ -1067,6 +1071,14 @@ export const renderTodos = (todos: readonly ITodo[]): string[] => {
  * @param results - The same results zone 2 renders.
  * @returns A summary such as "3 wrong · 2 unchecked · 3 passed".
  */
+/** What the action menu was built from, so the banner can say the same thing. */
+export interface IProposalRefusal {
+  /** Gate G, I, J and L's definite reds; any one leaves `Do Nothing` alone. */
+  definiteReds: readonly IDefiniteRed[]
+  /** The delegatecall gate refused, which also leaves `Do Nothing` alone. */
+  delegatecallRefused: boolean
+}
+
 /**
  * What this proposal's gates add up to, in one sentence, before the prompt.
  *
@@ -1075,15 +1087,28 @@ export const renderTodos = (todos: readonly ITodo[]): string[] => {
  * appears — so the conclusion is restated where the decision is actually made,
  * naming the gates it rests on.
  *
+ * It reads the refusal the menu was built from rather than re-deriving one, so
+ * it never says "cannot be signed" over a signature the run would produce, and
+ * never calls a proposal signable while Sign is withheld. A G, I, J or L that
+ * could not establish its answer is worded as advisory for the same reason.
+ *
  * @param results - The proposal's bucketed rows.
+ * @param refusal - What the action menu refused on.
  * @returns Lines, already coloured.
  */
 export const renderProposalOutcome = (
-  results: readonly IBucketedResult[]
+  results: readonly IBucketedResult[],
+  refusal: IProposalRefusal
 ): string[] => {
-  const inBucket = (want: CheckBucket): string[] =>
+  const isAdvisory = (entry: IBucketedResult): boolean =>
+    entry.definition !== undefined &&
+    GATES_ADVISORY_SHORT_OF_DEFINITE_RED.has(entry.definition.gate)
+  const inBucket = (
+    want: CheckBucket,
+    keep: (entry: IBucketedResult) => boolean = () => true
+  ): string[] =>
     results
-      .filter((entry) => bucketOf(entry) === want)
+      .filter((entry) => bucketOf(entry) === want && keep(entry))
       .map((entry) =>
         entry.definition
           ? `Gate ${entry.definition.gate}`
@@ -1092,7 +1117,8 @@ export const renderProposalOutcome = (
 
   const name = (gates: readonly string[]): string => gates.join(', ')
   const wrong = inBucket('wrong')
-  const unchecked = inBucket('unchecked')
+  const unchecked = inBucket('unchecked', (entry) => !isAdvisory(entry))
+  const unestablished = inBucket('unchecked', isAdvisory)
   const ack = inBucket('ack')
 
   const say = (colour: string, text: string): string[] => [
@@ -1100,7 +1126,23 @@ export const renderProposalOutcome = (
     ...wrapValue('', text, `${BOLD}${colour}`, '  '),
   ]
 
-  if (wrong.length)
+  if (refusal.definiteReds.length) {
+    const gates = [
+      ...new Set(refusal.definiteReds.map((red) => `Gate ${red.gate}`)),
+    ]
+    return say(
+      RED,
+      `This proposal cannot be signed or executed: ${name(
+        gates
+      )} found a definite red — ${refusal.definiteReds
+        .map((red) => red.reason)
+        .join(
+          '; '
+        )}. Only Do Nothing is offered; fix the proposal and propose it again.`
+    )
+  }
+
+  if (wrong.length || refusal.delegatecallRefused)
     return say(
       RED,
       `This proposal cannot be signed: ${
@@ -1118,6 +1160,20 @@ export const renderProposalOutcome = (
       } gate(s) could not be checked — ${name(
         unchecked
       )}. That is your environment rather than the proposal; fix it and run again.`
+    )
+
+  if (unestablished.length)
+    return say(
+      YELLOW,
+      `Nothing here blocks the signature, but ${
+        unestablished.length
+      } gate(s) could not establish their answer — ${name(unestablished)}${
+        ack.length
+          ? `, and ${ack.length} reached a weaker answer than a pass — ${name(
+              ack
+            )}`
+          : ''
+      }. Neither refuses: signing means you accept what each of them says it could not establish.`
     )
 
   if (ack.length)

@@ -51,6 +51,10 @@ import {
 } from 'bun:test'
 
 const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
+const MENU = readFileSync(
+  join(import.meta.dir, 'signer-action-menu.ts'),
+  'utf8'
+)
 
 /**
  * Every spelling of "produce a signature" the Safe client and Ledger seam
@@ -250,8 +254,16 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
 
   it('keeps Sign on offer, so a refusal states its reason', () => {
     // Decision 1: the option list is unchanged and the refusal happens after
-    // the choice, the same convention the nonce gate follows.
-    expect(SOURCE).toContain("options.push('Sign')")
+    // the choice, the same convention the nonce gate follows. The menu refuses
+    // on the delegatecall gate and on G/I/J/L's definite reds only, so a
+    // codehash verdict must never reach what it is built from.
+    const refusedAt = SOURCE.indexOf('const signingRefused =')
+    expect(refusedAt).toBeGreaterThan(-1)
+    const refusedOn = SOURCE.slice(refusedAt, SOURCE.indexOf('\n\n', refusedAt))
+    expect(refusedOn).toContain('operationVerdict.refuses')
+    expect(refusedOn).not.toContain('codehash')
+    expect(SOURCE).toContain('refused: signingRefused,')
+    expect(MENU).toContain("options.push('Sign')")
   })
 
   it('releases the gate dependencies when the run ends', () => {

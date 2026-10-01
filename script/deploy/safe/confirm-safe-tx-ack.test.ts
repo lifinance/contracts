@@ -699,9 +699,14 @@ describe('confirm-safe-tx.ts previews the hash the device will sign', () => {
   // somewhere else, or an option list that offers no signing action. Both need
   // the behavioural seam `processTxs` does not have.
   it('still offers the action select the acknowledgement rests on', () => {
+    const menu = readFileSync(
+      join(import.meta.dir, 'signer-action-menu.ts'),
+      'utf8'
+    )
     expect(source).toContain("await consola.prompt('Select action:'")
-    expect(source).toContain("const options = ['Do Nothing']")
-    expect(source).toContain("options.push('Sign')")
+    expect(source).toContain('const options = buildSignerActionOptions({')
+    expect(menu).toContain("const options = ['Do Nothing']")
+    expect(menu).toContain("options.push('Sign')")
   })
 
   it('still lets the operator decline a proposal outright', () => {
