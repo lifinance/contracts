@@ -3,7 +3,8 @@
 # - a ticked area that covers a protected path bounces the ticket
 # - an invalid factory or rule file blocks every ticket and DMs the engineer
 # - a protected path in the diff blocks the push
-# The factory's own protected paths always apply; `protected` below can only add to them.
+# Nothing is protected unless `protected` below or the engineer's local factory config lists it.
+# One exception: factory PRs can never change .agents/factory/**, so only a human edits these rules.
 
 areas:
   contracts: ['src/**']
