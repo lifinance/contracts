@@ -1854,7 +1854,7 @@
         "contractName": "PaxosTransitFacet",
         "sourceId": "src/Facets/PaxosTransitFacet.sol",
         "version": "1.1.0",
-        "closureHash": "0x84d619bd8d01bec1708887c2127e952115313651426b2872f784b147b223268e",
+        "closureHash": "0x136c8a5260ff5a19c23922b350db09cd67cdb9f1b3a7f622ea077ee106a2bb52",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -1874,24 +1874,28 @@
           }
         }
       },
-      "maskedHash": "0xaac1f5d73e4e0447d1d6cd630acb3b9c91fdc56c48141c02254bc51be99b5ce5",
+      "maskedHash": "0x03c6871efd96463900411435f07ab24f45b5aab977a7464c099735df553e858a",
       "lineage": "PaxosTransitFacet@1.1.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 8931,
+      "rawByteLength": 8886,
       "immutableOffsets": [
         {
-          "start": 193,
+          "start": 219,
           "length": 32
         },
         {
-          "start": 2125,
+          "start": 291,
           "length": 32
         },
         {
-          "start": 2862,
+          "start": 2225,
           "length": 32
         },
         {
-          "start": 2926,
+          "start": 2849,
+          "length": 32
+        },
+        {
+          "start": 2913,
           "length": 32
         }
       ]

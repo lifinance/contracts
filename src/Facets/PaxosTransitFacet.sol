@@ -22,6 +22,9 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// @notice The Paxos Transit station contract on the source chain.
     IPaxosTransit public immutable TRANSIT_STATION;
 
+    /// @notice The station's own LayerZero endpoint ID; a quote routed here is a same-chain order.
+    uint32 public immutable THIS_CHAIN_EID;
+
     /// @notice The LI.FI distributor code (left-adjusted bytes32 encoding of "LIFI").
     bytes32 public constant LIFI_DISTRIBUTOR_CODE =
         0x4c49464900000000000000000000000000000000000000000000000000000000;
@@ -71,6 +74,7 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidConfig();
         }
         TRANSIT_STATION = _transitStation;
+        THIS_CHAIN_EID = _transitStation.thisChainEID();
     }
 
     /// External Methods ///
@@ -204,8 +208,7 @@ contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // LayerZero message, and it reverts if any native value is attached.
         bool isSameChain = _bridgeData.destinationChainId == block.chainid;
         if (
-            isSameChain !=
-            (_paxosData.quote.route.destEID == TRANSIT_STATION.thisChainEID())
+            isSameChain != (_paxosData.quote.route.destEID == THIS_CHAIN_EID)
         ) {
             revert InformationMismatch();
         }
