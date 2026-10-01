@@ -1,6 +1,6 @@
 /**
- * Where the codehash refusal sits inside `confirm-safe-tx.ts`, not what it
- * decides.
+ * Where the codehash refusal sits inside `confirm-safe-tx.ts` and the funnels
+ * it builds from `signing-funnels.ts`, not what it decides.
  *
  * The decision is driven for real in `codehash-sign-gate.test.ts`, against a
  * spy, in both directions. What cannot be driven here is the script itself:
@@ -32,7 +32,7 @@
  * 15. the nonce gate on execute actions, then `continue` on stale/unreachable
  * 16. the target-state refusal, then `continue` when it did not clear
  * 17. `recordAcknowledgement`
- * 18. the sign and execute branches
+ * 18. `runAction`: the sign and execute branches, in `signing-funnels.ts`
  *
  * Nothing in 1-7 returns or continues, so the gate at 8 swallows no existing
  * check; and the refusal itself goes first inside the signer, where nothing
@@ -50,9 +50,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { SIGNER_ACTIONS } from './signer-action-menu'
+
 const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
-const MENU = readFileSync(
-  join(import.meta.dir, 'signer-action-menu.ts'),
+const FUNNELS = readFileSync(
+  join(import.meta.dir, 'signing-funnels.ts'),
   'utf8'
 )
 
@@ -111,24 +113,29 @@ const EXECUTE_CALLS = /\w+\.executeTransaction\(/g
 /** Calls to the funnel itself, which is a bare identifier. */
 const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
 
-const matches = (pattern: RegExp): string[] =>
-  [...SOURCE.matchAll(pattern)].map((match) => match[0])
+const matches = (pattern: RegExp, text = SOURCE): string[] =>
+  [...text.matchAll(pattern)].map((match) => match[0])
 
 describe('the codehash refusal is in the one funnel every sign path uses', () => {
   it('builds the signer with createGatedSigner', () => {
-    expect(SOURCE).toContain('createGatedSigner<')
-    expect(SOURCE).toContain('gate: () => codehashGate')
+    expect(FUNNELS).toContain('createGatedSigner<')
+    expect(FUNNELS).toContain('gate: () => deps.verdicts().codehashGate')
+    expect(SOURCE).toContain(
+      'verdicts: () => ({ codehashGate, integrityRun, definiteRed }),'
+    )
   })
 
   it('has exactly one call that signs, and it is the funnel body', () => {
-    const signing = matches(CLIENT_SIGN_CALLS)
+    const signing = matches(CLIENT_SIGN_CALLS, FUNNELS)
 
     // The paired positive: the marker exists at all. An assertion that "no
     // ungated call is present" passes trivially against a file with no signing
     // call in it.
     expect(signing.length).toBeGreaterThan(0)
     expect(signing).toEqual(['client.signTransaction('])
+    expect(matches(CLIENT_SIGN_CALLS)).toEqual([])
     expect(matches(EXOTIC_RECEIVER_CALLS)).toEqual([])
+    expect(matches(EXOTIC_RECEIVER_CALLS, FUNNELS)).toEqual([])
 
     // Ends at the signer's own closing `})`, not at the next declaration and
     // not at that declaration's docstring. Prose meant rewording a comment
@@ -136,11 +143,11 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // the gap between the two as somewhere a signing helper can sit, be reached
     // from an ungated branch, and still be counted as inside the funnel. Both
     // ends guarded.
-    const bodyStart = SOURCE.indexOf('createGatedSigner<')
+    const bodyStart = FUNNELS.indexOf('createGatedSigner<')
     expect(bodyStart).toBeGreaterThan(-1)
-    const bodyEnd = SOURCE.indexOf('\n  })\n', bodyStart)
+    const bodyEnd = FUNNELS.indexOf('\n  })\n', bodyStart)
     expect(bodyEnd).toBeGreaterThan(bodyStart)
-    expect(SOURCE.slice(bodyStart, bodyEnd)).toContain(
+    expect(FUNNELS.slice(bodyStart, bodyEnd)).toContain(
       'client.signTransaction('
     )
   })
@@ -149,8 +156,9 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // Four call sites: Sign, Sign & Execute, and both steps of Sign and Execute
     // With Deployer. The deployer's own signature used to call the Safe client
     // directly, which is a fourth sign path the gate would not have covered.
-    expect(matches(FUNNEL_CALLS).length).toBeGreaterThanOrEqual(4)
-    expect(SOURCE).toContain('await signTransaction(signedTx, deployerSafe)')
+    expect(matches(FUNNEL_CALLS, FUNNELS).length).toBeGreaterThanOrEqual(4)
+    expect(FUNNELS).toContain('await signTransaction(signedTx, deployerSafe)')
+    expect(matches(FUNNEL_CALLS)).toEqual([])
   })
 
   it('routes every execute path through one funnel that asserts the gate', () => {
@@ -167,8 +175,10 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // Exactly one, whatever the receiver is called. A second broadcast site is
     // a second route, and the assert below only covers the funnel's.
     expect(executing).toEqual(['safeClient.executeTransaction('])
+    expect(matches(EXECUTE_CALLS, FUNNELS)).toEqual([])
 
-    // …and it lives inside the one local helper every execute branch calls.
+    // …and it lives inside the broadcast body, whose one reference is the
+    // dependency handed to the factory's execute funnel.
     //
     // Bounded by the helper's own dedented closing brace rather than by a
     // character count: a fixed window silently stops covering the tail of the
@@ -177,18 +187,33 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // guarded, because an unfound delimiter widens the window to the rest of
     // the file instead of narrowing it, and the assertions then hold on text
     // outside the helper.
-    const funnelStart = SOURCE.indexOf('async function executeTransaction(')
-    expect(funnelStart).toBeGreaterThan(-1)
-    const funnelEnd = SOURCE.indexOf('\n  }\n', funnelStart)
-    expect(funnelEnd).toBeGreaterThan(funnelStart)
-    const funnelBody = SOURCE.slice(funnelStart, funnelEnd)
-    expect(funnelBody).toContain('safeClient.executeTransaction(')
-    expect(funnelBody).toContain('assertCodehashSignGateAllowsSigning')
+    const bodyStart = SOURCE.indexOf('async function broadcastSafeTransaction(')
+    expect(bodyStart).toBeGreaterThan(-1)
+    const bodyEnd = SOURCE.indexOf('\n  }\n', bodyStart)
+    expect(bodyEnd).toBeGreaterThan(bodyStart)
+    expect(SOURCE.slice(bodyStart, bodyEnd)).toContain(
+      'safeClient.executeTransaction('
+    )
+    expect(
+      [...SOURCE.matchAll(/broadcastSafeTransaction/gu)].map(
+        (match) => match.index
+      )
+    ).toHaveLength(2)
+    expect(SOURCE).toContain('broadcast: broadcastSafeTransaction,')
 
-    // The assert must precede the broadcast inside that helper.
+    // The assert must precede the broadcast inside the factory's funnel.
+    const funnelStart = FUNNELS.indexOf('const executeTransaction = async (')
+    expect(funnelStart).toBeGreaterThan(-1)
+    const funnelEnd = FUNNELS.indexOf('\n  }\n', funnelStart)
+    expect(funnelEnd).toBeGreaterThan(funnelStart)
+    const funnelBody = FUNNELS.slice(funnelStart, funnelEnd)
+    expect(funnelBody).toContain('deps.broadcast(')
     expect(
       funnelBody.indexOf('assertCodehashSignGateAllowsSigning')
-    ).toBeLessThan(funnelBody.indexOf('safeClient.executeTransaction('))
+    ).toBeGreaterThan(-1)
+    expect(
+      funnelBody.indexOf('assertCodehashSignGateAllowsSigning')
+    ).toBeLessThan(funnelBody.indexOf('deps.broadcast('))
   })
 
   it('starts each proposal in the blocking state rather than the last verdict', () => {
@@ -263,7 +288,7 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(refusedOn).toContain('operationVerdict.refuses')
     expect(refusedOn).not.toContain('codehash')
     expect(SOURCE).toContain('refused: signingRefused,')
-    expect(MENU).toContain("options.push('Sign')")
+    expect(SIGNER_ACTIONS).toContain('Sign')
   })
 
   it('releases the gate dependencies when the run ends', () => {

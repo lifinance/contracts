@@ -21,6 +21,37 @@ export interface ISignerActionMenuInput {
   executable: boolean
 }
 
+export const DO_NOTHING = 'Do Nothing'
+
+/**
+ * Every option the prompt can offer, in prompt order. `confirm-safe-tx.ts`
+ * dispatches each one other than `DO_NOTHING` through `createSigningFunnels`.
+ */
+export const SIGNER_ACTIONS = [
+  DO_NOTHING,
+  'Sign',
+  'Sign & Execute',
+  'Sign and Execute With Deployer',
+  'Execute',
+  'Execute with Deployer',
+] as const
+
+export type TSignerAction = (typeof SIGNER_ACTIONS)[number]
+
+const OFFERED: Record<
+  TSignerAction,
+  (input: ISignerActionMenuInput) => boolean
+> = {
+  [DO_NOTHING]: () => true,
+  Sign: (input) => !input.hasSignedAlready,
+  'Sign & Execute': (input) =>
+    !input.hasSignedAlready && !input.safeSigner && input.wouldMeetThreshold,
+  'Sign and Execute With Deployer': (input) =>
+    !input.hasSignedAlready && input.showSignAndExecuteWithDeployer,
+  Execute: (input) => input.executable,
+  'Execute with Deployer': (input) => input.executable,
+}
+
 /**
  * The options, `Do Nothing` first.
  *
@@ -33,21 +64,6 @@ export interface ISignerActionMenuInput {
 export const buildSignerActionOptions = (
   input: ISignerActionMenuInput
 ): string[] => {
-  const options = ['Do Nothing']
-  if (input.refused) return options
-
-  if (!input.hasSignedAlready) {
-    options.push('Sign')
-    if (!input.safeSigner && input.wouldMeetThreshold)
-      options.push('Sign & Execute')
-    if (input.showSignAndExecuteWithDeployer)
-      options.push('Sign and Execute With Deployer')
-  }
-
-  if (input.executable) {
-    options.push('Execute')
-    options.push('Execute with Deployer')
-  }
-
-  return options
+  if (input.refused) return [DO_NOTHING]
+  return SIGNER_ACTIONS.filter((action) => OFFERED[action](input))
 }

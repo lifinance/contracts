@@ -6,8 +6,9 @@
  * unknown action towards printing — so a new prompt option added without a
  * classification would not break a signer, it would quietly put device
  * instructions in front of one who is broadcasting. Nothing else would notice.
- * This reads the options out of the menu builder rather than restating them,
- * because a list restated here is a list that stops matching.
+ * This reads the options from `SIGNER_ACTIONS`, the list the menu builder
+ * filters, rather than restating them, because a list restated here is a list
+ * that stops matching.
  */
 
 import { readFileSync } from 'fs'
@@ -16,6 +17,7 @@ import { join } from 'path'
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
+import { DO_NOTHING, SIGNER_ACTIONS } from './signer-action-menu'
 import {
   DEVICE_SIGNING_ACTIONS,
   NON_DEVICE_ACTIONS,
@@ -23,13 +25,9 @@ import {
 } from './signer-zones'
 
 const SPINE = join(__dirname, 'confirm-safe-tx.ts')
-const MENU = join(__dirname, 'signer-action-menu.ts')
 
 /**
- * Every string the action prompt can put in front of a signer.
- *
- * Both shapes the menu builder uses: the literal the options array is seeded with, and
- * every value pushed onto it afterwards.
+ * Every literal the spine pushes onto, or seeds, an options array.
  *
  * @param text - The source to scrape.
  * @returns The option strings, deduplicated.
@@ -43,35 +41,35 @@ const promptOptions = (text: string): string[] => {
   return [...found]
 }
 
+const unplacedOf = (options: readonly string[]): string[] =>
+  options.filter(
+    (option) =>
+      !DEVICE_SIGNING_ACTIONS.has(option) && !NON_DEVICE_ACTIONS.has(option)
+  )
+
 describe('the prompt options are all classified', () => {
-  const text = readFileSync(MENU, 'utf8')
-  const options = promptOptions(text)
+  const options: readonly string[] = SIGNER_ACTIONS
 
   it('builds the prompt options only through the menu builder', () => {
-    // An option pushed in the spine itself would escape the scrape below.
+    // An option pushed in the spine itself would escape the list below.
     const spine = readFileSync(SPINE, 'utf8')
     expect(spine).toContain('buildSignerActionOptions({')
     expect(promptOptions(spine)).toEqual([])
   })
 
   it('finds the options in the menu builder at all', () => {
-    // Without this the sweep below passes on an empty list, which is the shape
-    // this file takes if the prompt is ever rewritten past the two patterns.
+    // Without this the sweep below passes on an empty list.
     expect(options.length).toBeGreaterThanOrEqual(6)
-    expect(options).toContain('Do Nothing')
+    expect(options).toContain(DO_NOTHING)
     expect(options).toContain('Sign')
   })
 
   it('places each option in exactly one set', () => {
-    const unplaced = options.filter(
-      (option) =>
-        !DEVICE_SIGNING_ACTIONS.has(option) && !NON_DEVICE_ACTIONS.has(option)
-    )
     const inBoth = options.filter(
       (option) =>
         DEVICE_SIGNING_ACTIONS.has(option) && NON_DEVICE_ACTIONS.has(option)
     )
-    expect(unplaced).toEqual([])
+    expect(unplacedOf(options)).toEqual([])
     expect(inBoth).toEqual([])
   })
 
@@ -98,21 +96,14 @@ describe('the prompt options are all classified', () => {
 
   describe('falsification — the assertions fail on the regressions they name', () => {
     it('fails when a new option is added without a classification', () => {
-      const withNew = promptOptions(
-        text.replace(
-          "options.push('Sign')",
-          "options.push('Sign')\noptions.push('Sign On Two Devices')"
-        )
-      )
-      const unplaced = withNew.filter(
-        (option) =>
-          !DEVICE_SIGNING_ACTIONS.has(option) && !NON_DEVICE_ACTIONS.has(option)
-      )
-      expect(unplaced).toEqual(['Sign On Two Devices'])
+      expect(unplacedOf([...options, 'Sign On Two Devices'])).toEqual([
+        'Sign On Two Devices',
+      ])
     })
 
-    it('fails when the option scraper stops matching the menu builder', () => {
+    it('fails when the spine scraper stops matching', () => {
       expect(promptOptions('nothing that looks like a prompt')).toEqual([])
+      expect(promptOptions("options.push('Sign')")).toEqual(['Sign'])
     })
   })
 })

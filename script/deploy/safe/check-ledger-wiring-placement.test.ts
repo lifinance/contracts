@@ -98,7 +98,7 @@ const proposalLoop = (): { start: number; end: number; body: string } => {
   // Proves the window reaches the loop's real tail. A shrunken window would
   // still satisfy every positive assertion below while hiding a call from the
   // negative one, so the span itself is checked rather than assumed.
-  expect(body).toContain("consola.error('Error executing with deployer:'")
+  expect(body).toContain('recordProposalOutcome(outcome)')
 
   return { start, end, body }
 }

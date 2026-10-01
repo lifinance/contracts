@@ -1,15 +1,16 @@
 /**
  * Where gate G, I, J and L's definite-red refusal sits inside
- * `confirm-safe-tx.ts`, not what it decides.
+ * `confirm-safe-tx.ts` and `signing-funnels.ts`, not what it decides.
  *
- * The decision is driven in `definite-red-gate.test.ts`, the menu in
+ * The decision is driven in `definite-red-gate.test.ts`, the funnels and the
+ * action dispatch in `definite-red-funnels.test.ts`, the menu in
  * `signer-action-menu.test.ts` and the closing sentence in
  * `signer-outcome.test.ts`. `confirm-safe-tx.ts` calls `runMain` at module
  * scope and signs and broadcasts, so it is neither imported nor spawned here;
  * these assertions read the source, shaped so the ways the refusal could come
- * loose fail them: a verdict surviving into the next proposal, a funnel the
- * refusal does not cover, a refusal ahead of the more specific ones, and a menu
- * or banner reading something other than the one verdict.
+ * loose fail them: a verdict surviving into the next proposal, a route to the
+ * chain that bypasses the funnels, a refusal ahead of the more specific ones,
+ * and a menu or banner reading something other than the one verdict.
  */
 
 import { readFileSync } from 'fs'
@@ -19,58 +20,77 @@ import { join } from 'path'
 import { describe, expect, it } from 'bun:test'
 
 const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
+const FUNNELS = readFileSync(
+  join(import.meta.dir, 'signing-funnels.ts'),
+  'utf8'
+)
 
 const REFUSAL = 'assertNoDefiniteRed('
 const INTEGRITY_REFUSAL = 'assertIntegrityAssertsAllowSigning('
 
-const indicesOf = (needle: string): number[] => {
+const indicesOf = (needle: string, text = SOURCE): number[] => {
   const found: number[] = []
   for (
-    let at = SOURCE.indexOf(needle);
+    let at = text.indexOf(needle);
     at !== -1;
-    at = SOURCE.indexOf(needle, at + 1)
+    at = text.indexOf(needle, at + 1)
   )
     found.push(at)
   return found
 }
 
 /** First index of `needle` at or after `from`, failing the test when absent. */
-const after = (needle: string, from: number): number => {
-  const at = SOURCE.indexOf(needle, from)
+const after = (needle: string, from: number, text = SOURCE): number => {
+  const at = text.indexOf(needle, from)
   expect(at).toBeGreaterThan(-1)
   return at
 }
 
 describe('the refusal covers both routes to the chain', () => {
   it('is called on exactly the two funnels, plus its import', () => {
-    const calls = indicesOf(REFUSAL)
-    expect(calls).toHaveLength(2)
-    expect(SOURCE).toContain("from './definite-red-gate'")
+    expect(indicesOf(REFUSAL, FUNNELS)).toHaveLength(2)
+    expect(FUNNELS).toContain("from './definite-red-gate'")
+    expect(indicesOf(REFUSAL)).toHaveLength(0)
   })
 
   it('sits inside the sign funnel, after the integrity refusal and before the signature', () => {
-    const funnel = after('sign: async (safeTransaction, client = safe) => {', 0)
-    const integrity = after(INTEGRITY_REFUSAL, funnel)
-    const refusal = after(REFUSAL, funnel)
-    const signs = after('client.signTransaction(', funnel)
+    const funnel = after(
+      'sign: async (safeTransaction, client = safe) => {',
+      0,
+      FUNNELS
+    )
+    const integrity = after(INTEGRITY_REFUSAL, funnel, FUNNELS)
+    const refusal = after(REFUSAL, funnel, FUNNELS)
+    const signs = after('client.signTransaction(', funnel, FUNNELS)
     expect(refusal).toBeGreaterThan(integrity)
     expect(refusal).toBeLessThan(signs)
   })
 
   it('sits inside the execute funnel, after the integrity refusal and before the broadcast', () => {
-    const funnel = after('async function executeTransaction(', 0)
-    const integrity = after(INTEGRITY_REFUSAL, funnel)
-    const refusal = after(REFUSAL, funnel)
-    const broadcast = after('.executeTransaction(', funnel)
+    const funnel = after('const executeTransaction = async (', 0, FUNNELS)
+    const integrity = after(INTEGRITY_REFUSAL, funnel, FUNNELS)
+    const refusal = after(REFUSAL, funnel, FUNNELS)
+    const broadcast = after('deps.broadcast(', funnel, FUNNELS)
     expect(refusal).toBeGreaterThan(integrity)
     expect(refusal).toBeLessThan(broadcast)
   })
 
   it('keys every refusal on the transaction reaching it', () => {
-    for (const at of indicesOf(REFUSAL))
-      expect(SOURCE.slice(at, at + 80)).toContain(
+    for (const at of indicesOf(REFUSAL, FUNNELS))
+      expect(FUNNELS.slice(at, at + 80)).toContain(
         'assertNoDefiniteRed(definiteRed, proposalKeyOf(safeTransaction.data))'
       )
+  })
+
+  it('reaches the chain from confirm-safe-tx only through the factory', () => {
+    // The broadcast body is unguarded on its own; it is safe only while the
+    // factory's execute funnel is its one caller.
+    expect(indicesOf('broadcastSafeTransaction')).toHaveLength(2)
+    expect(SOURCE).toContain('broadcast: broadcastSafeTransaction,')
+    expect(SOURCE).toContain(
+      'verdicts: () => ({ codehashGate, integrityRun, definiteRed }),'
+    )
+    expect(indicesOf('await runAction(action, tx)')).toHaveLength(1)
   })
 })
 
