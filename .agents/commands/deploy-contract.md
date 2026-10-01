@@ -124,7 +124,9 @@ The deploy framework attempts explorer verification inline and, when it passes, 
 bash script/deploy/verifyRolloutContracts.sh <env> <Contract> <version> <network...>
 ```
 
-One MongoDB query selects the `verified:false` records of that contract version. Only records on the listed networks whose address matches `deployments/<net>.json` are verified on the explorer, and the flag is flipped for each one that passes. Networks in `DO_NOT_VERIFY_IN_THESE_NETWORKS` are reported as excluded. It exits `0` when nothing needed re-verifying, and exits `1` naming each failed network/address, or when the query itself failed (an unreachable MongoDB is never read as "nothing to do").
+Run it from a checkout with submodules initialized (`git submodule update --init --recursive`) — an empty `lib/` makes every verify fail with a misleading `Unable to verify`.
+
+One MongoDB query loads every record of that contract version. On each listed network the record at the `deployments/<net>.json` address is verified on the explorer with the `solcVersion`/`evmVersion`/`optimizerRuns` it was deployed with (so london networks verify correctly whatever `FOUNDRY_PROFILE` the shell has), unless it is already flagged; the flag is flipped once it passes. Networks run concurrently up to `MAX_CONCURRENT_JOBS`. Tron networks and networks in `DO_NOT_VERIFY_IN_THESE_NETWORKS` are reported as skipped. It exits `0` only when every listed network is verified, already was, or was skipped, and exits `1` naming each failed network — including a network not in `networks.json`, a network with no record of `<version>` at its deployment-file address (a wrong version or contract argument is never read as "nothing to do"), or a failed query.
 
 ## Phase 4 — Commit logs & draft PR (staging path only)
 
