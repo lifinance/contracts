@@ -30,8 +30,8 @@ import { getEnvVar } from '../../utils/utils'
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import type { IObservedTarget } from './prebroadcast-gate'
 
-const SIGNED_SET_DB_NAME = 'timelock-operations'
-const SIGNED_SET_COLLECTION_NAME = 'signed-sets'
+export const SIGNED_SET_DB_NAME = 'timelock-operations'
+export const SIGNED_SET_COLLECTION_NAME = 'signed-sets'
 
 /** One address the signed calldata touches, and the code seen at it. */
 export interface ISignedCodehashEntry {

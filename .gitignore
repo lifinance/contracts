@@ -81,3 +81,7 @@ config/whitelist.staging.json
 # in docs/ClearSigningProposal.md (must live inside the repo — the generator
 # will not write outside the working directory)
 /ledger-registry/
+
+# local runs of script/deploy/safe/timelock-watcher.ts
+/timelock-watcher-state.json
+/watcher.log
