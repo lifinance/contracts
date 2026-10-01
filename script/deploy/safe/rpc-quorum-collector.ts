@@ -134,7 +134,7 @@ export const collectProviderObservations = async (
  *
  * @param collectAt - Collects every endpoint's observation, pinned this many
  *   blocks behind the lowest head.
- * @returns The verdict on the last read made.
+ * @returns The verdict, re-read behind the head when the tip shows a fork.
  */
 export const readQuorumPastTipReorgs = async (
   collectAt: (behindHead: bigint) => Promise<readonly IProviderObservation[]>
@@ -169,7 +169,7 @@ export const readQuorumPastTipReorgs = async (
  * @param endpointUrls - Every endpoint configured for the network.
  * @param chainId - The chain they must serve.
  * @param budgetMs - The per-endpoint read budget.
- * @returns The verdict on the last read made.
+ * @returns The verdict, re-read behind the head when the tip shows a fork.
  */
 export const readCodeQuorumPastTipReorgs = (
   address: Address,
