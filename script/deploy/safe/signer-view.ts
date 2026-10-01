@@ -1130,15 +1130,16 @@ export const renderProposalOutcome = (
     const gates = [
       ...new Set(refusal.definiteReds.map((red) => `Gate ${red.gate}`)),
     ]
+    const alsoWrong = wrong.filter((gate) => !gates.includes(gate))
     return say(
       RED,
       `This proposal cannot be signed or executed: ${name(
         gates
       )} found a definite red — ${refusal.definiteReds
         .map((red) => red.reason)
-        .join(
-          '; '
-        )}. Only Do Nothing is offered; fix the proposal and propose it again.`
+        .join('; ')}.${
+        alsoWrong.length ? ` Also disagreed: ${name(alsoWrong)}.` : ''
+      } Only Do Nothing is offered; fix the proposal and propose it again.`
     )
   }
 

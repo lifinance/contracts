@@ -213,6 +213,25 @@ describe('the closing verdict agrees with the action menu', () => {
     expect(outcome).toContain('Gate I')
     expect(outcome).toContain('call[0].diamondCut[0] would revert')
     expect(outcome).toContain('Only Do Nothing is offered')
+    expect(outcome).not.toContain('Also disagreed')
+  })
+
+  it('names the other gates that disagreed beside a definite red', () => {
+    const tampered = row(CODEHASH_CHECK_ID, 'fail', {
+      actual: '1 address does not match its attested build',
+      anchor: 'A-CHAIN',
+    })
+    const outcome = say(withRows(tampered), {
+      definiteReds: [
+        {
+          gate: 'L',
+          reason: '0x5AfE… holds an immutable value config does not declare',
+        },
+      ],
+      delegatecallRefused: false,
+    })
+    expect(outcome).toContain('Gate L found a definite red')
+    expect(outcome.replace(/\s+/g, ' ')).toContain('Also disagreed: Gate K.')
   })
 
   it('does not refuse in words on the same rows when the menu refused nothing', () => {
