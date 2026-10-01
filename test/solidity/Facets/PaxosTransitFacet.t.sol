@@ -475,7 +475,7 @@ contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
             address(TRANSIT_STATION)
         );
         assertEq(paxosFacet.LIFI_DISTRIBUTOR_CODE(), LIFI_DISTRIBUTOR_CODE);
-        assertEq(paxosFacet.THIS_CHAIN_EID(), 30101);
+        assertEq(paxosFacet.PAXOS_TRANSIT_THIS_CHAIN_EID(), 30101);
     }
 
     function testRevert_WhenConstructedWithZeroAddress() public {

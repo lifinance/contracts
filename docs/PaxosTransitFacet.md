@@ -118,7 +118,7 @@ Same-chain vs cross-chain must agree between the two: `bridgeData.destinationCha
 block.chainid` if and only if `route.destEID == TransitStation.thisChainEID()`, else the facet
 reverts `InformationMismatch`. A same-chain order must carry `nativeFee == 0` (reverts
 `InvalidCallData`); any native sent with it is refunded to `refundRecipient`. The station's
-`thisChainEID()` is read once in the constructor and stored as the `THIS_CHAIN_EID` immutable. Both checks run at the
+`thisChainEID()` is read once in the constructor and stored as the `PAXOS_TRANSIT_THIS_CHAIN_EID` immutable. Both checks run at the
 start of each entrypoint, before any deposit or swap.
 
 **Not enforced on-chain:** beyond same-chain vs cross-chain, the destination routing

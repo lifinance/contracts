@@ -267,7 +267,7 @@
       "configData": "_transitStation",
       "authorityBearing": true
     },
-    "THIS_CHAIN_EID": {
+    "PAXOS_TRANSIT_THIS_CHAIN_EID": {
       "source": "derived",
       "rule": "TRANSIT_STATION.thisChainEID() read in the constructor, so it equals the station's own LayerZero endpoint ID on that network (30101 on Ethereum). No evaluator kind reads a value from another contract."
     }
