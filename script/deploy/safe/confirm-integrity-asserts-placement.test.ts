@@ -1,6 +1,6 @@
 /**
- * Where the integrity refusal sits inside `confirm-safe-tx.ts`, not what it
- * decides.
+ * Where the integrity refusal sits inside `confirm-safe-tx.ts` and the funnels
+ * it builds from `signing-funnels.ts`, not what it decides.
  *
  * The decision is driven for real in `confirm-integrity-asserts.test.ts`, in
  * both directions, against injected lookups. What cannot be driven here is the
@@ -29,7 +29,7 @@
  * 13. the nonce gate on execute actions, then `continue` on stale/unreachable
  * 14. the target-state refusal, then `continue` when it did not clear
  * 15. `recordAcknowledgement`
- * 16. the sign and execute branches
+ * 16. `runAction`: the sign and execute branches, in `signing-funnels.ts`
  *
  * Nothing in 1-8 returns or continues, so inserting at 9 swallows no existing
  * check, and 12-15 keep their order relative to each other — the ledger write
@@ -49,6 +49,10 @@ import {
 } from 'bun:test'
 
 const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
+const FUNNELS = readFileSync(
+  join(import.meta.dir, 'signing-funnels.ts'),
+  'utf8'
+)
 
 const PREFETCH = readFileSync(
   join(import.meta.dir, 'confirm-safe-tx-prefetch.ts'),
@@ -58,12 +62,12 @@ const PREFETCH = readFileSync(
 const REFUSAL = 'assertIntegrityAssertsAllowSigning('
 const CODEHASH_REFUSAL = 'assertCodehashSignGateAllowsSigning('
 
-const indicesOf = (needle: string): number[] => {
+const indicesOf = (needle: string, text = SOURCE): number[] => {
   const found: number[] = []
   for (
-    let at = SOURCE.indexOf(needle);
+    let at = text.indexOf(needle);
     at !== -1;
-    at = SOURCE.indexOf(needle, at + 1)
+    at = text.indexOf(needle, at + 1)
   )
     found.push(at)
   return found
@@ -73,16 +77,17 @@ describe('the integrity refusal covers both routes to the chain', () => {
   it('is called on exactly the two funnels, plus its import', () => {
     // Paired positive: the marker exists at all, or every "no ungated route"
     // assertion below passes against a file that never calls the refusal.
-    const calls = indicesOf(REFUSAL)
+    const calls = indicesOf(REFUSAL, FUNNELS)
     expect(calls.length).toBeGreaterThan(0)
     // Two call sites. A third would be a third route, and the two funnels
     // already cover every sign and execute branch by construction.
     expect(calls).toHaveLength(2)
-    expect(SOURCE).toContain("from './confirm-integrity-asserts'")
+    expect(FUNNELS).toContain("from './confirm-integrity-asserts'")
+    expect(indicesOf(REFUSAL)).toHaveLength(0)
   })
 
   it('sits inside the sign funnel, after the codehash refusal', () => {
-    const funnelStart = SOURCE.indexOf(
+    const funnelStart = FUNNELS.indexOf(
       'sign: async (safeTransaction, client = safe) => {'
     )
     expect(funnelStart).toBeGreaterThan(-1)
@@ -90,27 +95,27 @@ describe('the integrity refusal covers both routes to the chain', () => {
     // -1, the window silently becomes the rest of the file, and the execute
     // funnel's own refusal then satisfies the assertion below — so a refusal
     // moved to after the signature would still read as covered.
-    const signsAt = SOURCE.indexOf('client.signTransaction(', funnelStart)
+    const signsAt = FUNNELS.indexOf('client.signTransaction(', funnelStart)
     expect(signsAt).toBeGreaterThan(funnelStart)
-    const funnelBody = SOURCE.slice(funnelStart, signsAt)
+    const funnelBody = FUNNELS.slice(funnelStart, signsAt)
     expect(funnelBody).toContain(REFUSAL)
 
     // The codehash refusal for this route lives in `createGatedSigner`, which
     // runs before `sign` is entered at all — so being anywhere in this body is
     // already after it. Pinned so a future inlining of that wrapper into this
     // body cannot silently put ours first.
-    expect(SOURCE).toContain('createGatedSigner<')
-    expect(SOURCE).toContain('gate: () => codehashGate')
+    expect(FUNNELS).toContain('createGatedSigner<')
+    expect(FUNNELS).toContain('gate: () => deps.verdicts().codehashGate')
   })
 
   it('sits inside the execute funnel, after the codehash refusal and before the broadcast', () => {
-    const funnelStart = SOURCE.indexOf('async function executeTransaction(')
+    const funnelStart = FUNNELS.indexOf('const executeTransaction = async (')
     expect(funnelStart).toBeGreaterThan(-1)
-    const broadcast = SOURCE.indexOf('.executeTransaction(', funnelStart)
+    const broadcast = FUNNELS.indexOf('deps.broadcast(', funnelStart)
     expect(broadcast).toBeGreaterThan(funnelStart)
 
-    const codehashAt = SOURCE.indexOf(CODEHASH_REFUSAL, funnelStart)
-    const integrityAt = SOURCE.indexOf(REFUSAL, funnelStart)
+    const codehashAt = FUNNELS.indexOf(CODEHASH_REFUSAL, funnelStart)
+    const integrityAt = FUNNELS.indexOf(REFUSAL, funnelStart)
     expect(codehashAt).toBeGreaterThan(funnelStart)
     expect(integrityAt).toBeGreaterThan(codehashAt)
     expect(integrityAt).toBeLessThan(broadcast)
@@ -120,11 +125,19 @@ describe('the integrity refusal covers both routes to the chain', () => {
     // A verdict is a statement about one transaction. Both call sites pass the
     // key of the struct in hand, so a run left over from the previous proposal
     // cannot authorise this one.
-    for (const at of indicesOf(REFUSAL)) {
-      const call = SOURCE.slice(at, at + 200)
+    const calls = indicesOf(REFUSAL, FUNNELS)
+    expect(calls).toHaveLength(2)
+    for (const at of calls) {
+      const call = FUNNELS.slice(at, at + 200)
       expect(call).toContain('integrityRun')
       expect(call).toContain('proposalKeyOf(safeTransaction.data)')
     }
+  })
+
+  it('hands the funnels the run confirm-safe-tx adopts per proposal', () => {
+    expect(SOURCE).toContain(
+      'verdicts: () => ({ codehashGate, integrityRun, definiteRed }),'
+    )
   })
 })
 

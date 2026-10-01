@@ -123,9 +123,15 @@ describe('the operation refusal sits on every operation-bearing route of the cli
   })
 
   it('does not offer a sign or execute action once the gate has refused', () => {
-    expect(CONFIRM).toContain('if (!operationVerdict.refuses)')
+    // What the menu offers a refused proposal is driven for real in
+    // `signer-action-menu.test.ts`; this pins that the delegatecall verdict
+    // reaches it.
     expect(CONFIRM).toMatch(
-      /if \(!operationVerdict\.refuses\) \{[\s\S]*options\.push\('Sign'\)/
+      /const signingRefused =\s+operationVerdict\.refuses \|\|/
+    )
+    expect(CONFIRM).toContain('refused: signingRefused,')
+    expect(CONFIRM.indexOf('refused: signingRefused,')).toBeLessThan(
+      CONFIRM.indexOf("consola.prompt('Select action:'")
     )
   })
 })

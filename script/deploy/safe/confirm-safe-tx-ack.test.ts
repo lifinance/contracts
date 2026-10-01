@@ -22,6 +22,7 @@ import {
   type IAcknowledgementLedger,
   type INetworkOutcome,
 } from './confirm-safe-tx-ack'
+import { DO_NOTHING, SIGNER_ACTIONS } from './signer-action-menu'
 
 /**
  * The ledger's read side. Local to the tests: production code records and rolls
@@ -700,8 +701,9 @@ describe('confirm-safe-tx.ts previews the hash the device will sign', () => {
   // the behavioural seam `processTxs` does not have.
   it('still offers the action select the acknowledgement rests on', () => {
     expect(source).toContain("await consola.prompt('Select action:'")
-    expect(source).toContain("const options = ['Do Nothing']")
-    expect(source).toContain("options.push('Sign')")
+    expect(source).toContain('const options = buildSignerActionOptions({')
+    expect(SIGNER_ACTIONS).toContain(DO_NOTHING)
+    expect(SIGNER_ACTIONS).toContain('Sign')
   })
 
   it('still lets the operator decline a proposal outright', () => {

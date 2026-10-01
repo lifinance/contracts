@@ -19,7 +19,9 @@ import {
   custom,
   encodeFunctionData,
   ExecutionRevertedError,
+  http,
   parseAbi,
+  RpcRequestError,
   type Address,
   type Hex,
   type PublicClient,
@@ -484,7 +486,10 @@ describe('createExecutabilityChainReader', () => {
   it('distinguishes a revert from an endpoint that could not answer', async () => {
     const reverting = {
       call: async () => {
-        throw new Error('execution reverted: FunctionAlreadyExists')
+        throw Object.assign(
+          new Error('execution reverted: FunctionAlreadyExists'),
+          { code: -32000 }
+        )
       },
     } as unknown as PublicClient
     const unreachable = {
@@ -515,12 +520,13 @@ describe('simulating across several endpoints', () => {
   const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
     ({ call: behaviour } as unknown as PublicClient)
 
+  /** A node's JSON-RPC answer, which carries a code a wrapper does not. */
   const reverting = (message: string) =>
     clientThat(async () => {
-      throw new Error(message)
+      throw Object.assign(new Error(message), { code: -32000 })
     })
   const succeeding = () => clientThat(async () => ({}))
-  /** A transport-level failure, which is the only thing that may fail over. */
+  /** A transport-level failure, which fails over to the next endpoint. */
   const unreachable = () =>
     clientThat(async () => {
       const error = new Error('HTTP request failed: 503 Service Unavailable')
@@ -552,18 +558,103 @@ describe('simulating across several endpoints', () => {
     }
   })
 
-  // An execution failure the node words without "revert" — an invalid opcode,
-  // an out-of-gas — must stop the walk too. Treating it as an unreachable
-  // endpoint lets the next endpoint's success stand in for a failure the first
-  // one really saw.
-  it('an execution failure stops the walk even without the word revert', async () => {
+  // An invalid opcode is the EVM's own answer, so it stops the walk like a
+  // revert. An out-of-gas runs under the node's own gas cap and an unworded
+  // failure says nothing about the payload, so both ask the next endpoint.
+  it('an invalid opcode stops the walk even without the word revert', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      reverting('invalid opcode: INVALID'),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  it('an out-of-gas or an unworded failure asks the next endpoint', async () => {
     for (const wording of [
-      'invalid opcode: INVALID',
       'out of gas',
       'CallExecutionError: An unknown error occurred while executing the call',
     ]) {
+      const alone = createExecutabilityChainReader(succeeding(), [
+        reverting(wording),
+      ])
+      expect(
+        (await alone.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+          .outcome
+      ).toBe('errored')
+
       const reader = createExecutabilityChainReader(succeeding(), [
         reverting(wording),
+        succeeding(),
+      ])
+      expect(
+        (
+          await reader.staticCall({
+            from: SAFE,
+            to: DIAMOND,
+            data: '0x' as Hex,
+          })
+        ).outcome
+      ).toBe('succeeded')
+    }
+  })
+
+  it('a code-3 link is a revert with no other signal', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      clientThat(async () => {
+        throw Object.assign(new Error('call failed'), { code: 3 })
+      }),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  it("viem's revert error over a node answer is a revert with no other signal", async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      clientThat(async () => {
+        throw new ExecutionRevertedError({
+          cause: Object.assign(new BaseError('RPC Request failed.'), {
+            code: -32000,
+          }),
+        })
+      }),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  // A proxy's report or an HTTP body is not the chain: only a link carrying
+  // a JSON-RPC code is a node's answer.
+  it('reads revert wording on a wrapper with no node code as errored', async () => {
+    for (const thrown of [
+      new Error('execution reverted'),
+      Object.assign(new Error('proxy error'), {
+        details: 'execution reverted: FunctionAlreadyExists',
+      }),
+      new ExecutionRevertedError({
+        cause: new BaseError('HTTP request failed.', {
+          details: 'execution reverted',
+        }),
+      }),
+      Object.assign(new Error('execution reverted'), {
+        cause: { code: -32603, message: 'Internal error' },
+      }),
+    ]) {
+      const reader = createExecutabilityChainReader(succeeding(), [
+        clientThat(async () => {
+          throw thrown
+        }),
         succeeding(),
       ])
 
@@ -575,8 +666,28 @@ describe('simulating across several endpoints', () => {
             data: '0x' as Hex,
           })
         ).outcome
-      ).not.toBe('succeeded')
+      ).toBe('succeeded')
     }
+  })
+
+  // viem's composed message names the endpoint, and a host is not evidence.
+  it('judges the node string, not the report around it', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      clientThat(async () => {
+        throw Object.assign(
+          new Error(
+            'RPC Request failed.\n\nURL: https://rpc-cache.example/\nDetails: execution reverted'
+          ),
+          { code: -32000, details: 'execution reverted' }
+        )
+      }),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
   })
 
   it('an unreachable endpoint hands the question to the next one', async () => {
@@ -670,7 +781,14 @@ describe('summariseRpcError', () => {
     const data = `0x1f931c1c${'ab'.repeat(300)}` as Hex
     const reverting = clientThat(async () => {
       throw new CallExecutionError(
-        new ExecutionRevertedError({ message: 'execution reverted' }),
+        new ExecutionRevertedError({
+          cause: new RpcRequestError({
+            body: {},
+            error: { code: -32000, message: 'execution reverted' },
+            url: 'https://node.example/',
+          }),
+          message: 'execution reverted',
+        }),
         { account: parseAccount(SAFE), to: DIAMOND, data }
       )
     })
@@ -825,4 +943,341 @@ describe('the sender a payload is simulated from', () => {
     expect(seen.find((call) => call.data === inner)?.from).toBe(TIMELOCK)
     expect(seen.find((call) => call.to === TIMELOCK)?.from).toBe(SAFE)
   })
+})
+
+/**
+ * Real endpoint failures, as viem raises them.
+ *
+ * Built through viem's own client so the error chain is the one a live endpoint
+ * produces: every failure arrives as a `CallExecutionError`, so a test that
+ * throws a bare `Error` with a chosen name never reaches the case that matters.
+ * The two rejections are the bodies a keyless `rpc.ankr.com/eth` and
+ * `cloudflare-eth.com` return to `eth_call`; the revert is a node's code-3
+ * answer with the custom error's selector as data.
+ */
+describe('a node error is a revert only when the chain says so', () => {
+  const answering = (body: Record<string, unknown>): PublicClient =>
+    createPublicClient({
+      transport: custom(
+        {
+          request: async () => {
+            throw body
+          },
+        },
+        { retryCount: 0 }
+      ),
+    })
+  const succeeding = createPublicClient({
+    transport: custom({ request: async () => '0x' }, { retryCount: 0 }),
+  })
+
+  const KEYLESS = {
+    code: -32000,
+    message:
+      'Unauthorized: You must authenticate your request with an API key. Create an account and generate your personal API key for free.',
+  }
+  const INTERNAL = { code: -32603, message: 'Internal error' }
+  const REVERT = { code: 3, message: 'execution reverted', data: '0x277d76f8' }
+
+  const simulate = (simulators: PublicClient[]) =>
+    createExecutabilityChainReader(succeeding, simulators).staticCall({
+      from: SAFE,
+      to: DIAMOND,
+      data: '0x8da5cb5b' as Hex,
+    })
+
+  it('reads a keyless rejection and an internal error as errored, not reverted', async () => {
+    for (const body of [KEYLESS, INTERNAL]) {
+      const outcome = await simulate([answering(body)])
+      expect(outcome.outcome).toBe('errored')
+      expect(outcome.revertReason).toBeUndefined()
+    }
+  })
+
+  it('asks the next endpoint after a rejection, and takes its answer', async () => {
+    for (const body of [KEYLESS, INTERNAL])
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'succeeded'
+      )
+  })
+
+  it('reads a code-3 answer carrying revert data as reverted', async () => {
+    const outcome = await simulate([answering(REVERT)])
+    expect(outcome.outcome).toBe('reverted')
+  })
+
+  it('still finds a revert behind a flaky first endpoint', async () => {
+    for (const body of [KEYLESS, INTERNAL])
+      expect(
+        (await simulate([answering(body), answering(REVERT)])).outcome
+      ).toBe('reverted')
+  })
+
+  it('lets a revert stop the walk, so a later success cannot overwrite it', async () => {
+    for (const body of [
+      REVERT,
+      { code: 3, message: 'error' },
+      { code: 3, message: 'execution reverted: rate limited' },
+      { code: -32015, message: 'VM execution error.', data: 'revert' },
+      { code: -32015, message: 'VM execution error.', data: '0x08c379a0' },
+      { code: -32000, message: 'Reverted 0xdeadbeef' },
+      {
+        code: -32015,
+        message: 'VM execution error.',
+        data: 'Reverted 0x08c379a0',
+      },
+      { code: -32000, message: 'execution failed', data: '0x08c379a0' },
+    ])
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'reverted'
+      )
+  })
+
+  // Each says something about the endpoint rather than the payload: a throttle
+  // or cache message that happens to contain the word, revert-shaped data on a
+  // code no node uses for a revert or beside a node missing the state, and a
+  // gas allowance that is the node's own cap. Read as reverts they are definite reds no chain produced.
+  // viem names an HTTP failure `ExecutionRevertedError` when its body says so,
+  // though no node answered.
+  it('reads a gateway body that says reverted as errored', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: 'execution reverted' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      })) as unknown as typeof fetch
+    try {
+      const gateway = createPublicClient({
+        transport: http('https://gateway.example/', { retryCount: 0 }),
+      })
+      expect((await simulate([gateway])).outcome).toBe('errored')
+      expect((await simulate([gateway, succeeding])).outcome).toBe('succeeded')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  it('reads endpoint-side failures that look like reverts as errored', async () => {
+    for (const body of [
+      { code: -32005, message: 'request reverted to cache, try later' },
+      { code: -32603, message: 'backend reverted to an archive node' },
+      { code: -32000, message: 'upstream timeout: revert' },
+      { code: -32601, message: 'the method eth_revert does not exist' },
+      { code: -32603, message: 'Internal error', data: '0xdeadbeef' },
+      { code: -32000, message: 'execution failed', data: '0x' },
+      { code: -32000, message: 'header not found', data: '0xdeadbeef' },
+      {
+        code: -32000,
+        message: 'missing trie node 4a2b (path ) state 0x9c is not available',
+        data: '0x08c379a0',
+      },
+      { code: -32000, message: 'gas required exceeds allowance (0)' },
+    ]) {
+      expect((await simulate([answering(body)])).outcome).toBe('errored')
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'succeeded'
+      )
+    }
+  })
+
+  // The reason after `execution reverted:` is the reverting contract's own
+  // string, which a proposer can word as a throttle or a cache miss.
+  it('reads endpoint wording inside a revert reason as reverted', async () => {
+    for (const body of [
+      { code: -32000, message: 'execution reverted: rate limited' },
+      { code: -32000, message: 'execution reverted: too many requests' },
+      { code: -32000, message: 'execution reverted: cached response expired' },
+      { code: -32000, message: 'execution reverted: header not found' },
+    ])
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'reverted'
+      )
+    expect(
+      (
+        await simulate([
+          answering({ code: -32005, message: 'rate limited' }),
+          succeeding,
+        ])
+      ).outcome
+    ).toBe('succeeded')
+  })
+})
+
+/**
+ * Bodies recorded verbatim from public endpoints on 2026-10-01, served back
+ * through viem's HTTP transport so the whole client path is the live one. Each
+ * source names the chain, the host and the client `web3_clientVersion`
+ * reported. No Besu or Erigon endpoint was reachable without a key.
+ *
+ * Every node family answered a revert with code 3, which is what decides it;
+ * the bodies are kept so a change to that rule is measured against what nodes
+ * really send rather than against shapes written for the test.
+ */
+describe('revert bodies captured from live nodes', () => {
+  const TRANSFER_REASON =
+    '0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002645524332303a207472616e7366657220616d6f756e7420657863656564732062616c616e63650000000000000000000000000000000000000000000000000000'
+  const BURN_REASON =
+    '0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002245524332303a206275726e20616d6f756e7420657863656564732062616c616e6365000000000000000000000000000000000000000000000000000000000000'
+
+  const REVERTS: ReadonlyArray<[string, Record<string, unknown>]> = [
+    [
+      'ethereum · ethereum-rpc.publicnode.com · Geth/v1.17.1 · custom error',
+      { code: 3, message: 'execution reverted', data: '0x277d76f8' },
+    ],
+    [
+      'ethereum · ethereum-rpc.publicnode.com · Geth/v1.17.1 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+        data: TRANSFER_REASON,
+      },
+    ],
+    [
+      'ethereum · ethereum-rpc.publicnode.com · Geth/v1.17.1 · bare require',
+      { code: 3, message: 'execution reverted', data: '0x' },
+    ],
+    [
+      'ethereum · eth-mainnet.public.blastapi.io · reth/v2.5.2 · bare require, no data',
+      { code: 3, message: 'execution reverted' },
+    ],
+    [
+      'ethereum · mainnet.gateway.tenderly.co · Tenderly/1.0 · unknown selector',
+      { code: 3, message: 'execution reverted', data: '0xa9ad62f8' },
+    ],
+    [
+      'arbitrum · arb1.arbitrum.io · nitro/v3.12.0 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: burn amount exceeds balance',
+        data: BURN_REASON,
+      },
+    ],
+    [
+      'base · mainnet.base.org · reth/v2.5.2 base/v1.4.2 · custom error',
+      { code: 3, message: 'execution reverted', data: '0x277d76f8' },
+    ],
+    [
+      'gnosis · gnosis-rpc.publicnode.com · Nethermind/v1.39.3 · Error(string) with data 0x',
+      { code: 3, message: 'execution reverted', data: '0x' },
+    ],
+    [
+      'gnosis · rpc.gnosischain.com · Tenderly/1.0 · Error(string), no data',
+      { code: 3, message: 'execution reverted' },
+    ],
+    [
+      'linea · rpc.linea.build · Geth/v1.16.9 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+        data: TRANSFER_REASON,
+      },
+    ],
+    [
+      'zksync · mainnet.era.zksync.io · zkSync/v2.0 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+        data: TRANSFER_REASON,
+      },
+    ],
+    [
+      'zksync · mainnet.era.zksync.io · zkSync/v2.0 · bare burn require',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: burn amount exceeds balance',
+        data: BURN_REASON,
+      },
+    ],
+  ]
+
+  // The same reverting calls, refused by the endpoint instead of answered.
+  // cloudflare-eth.com answers every eth_call this way, reverting or not, so a
+  // revert behind it is found only by the next endpoint.
+  const REFUSALS: ReadonlyArray<[string, number, string]> = [
+    [
+      'ethereum · cloudflare-eth.com · Internal error on every call',
+      200,
+      '{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}',
+    ],
+    [
+      'ethereum · rpc.flashbots.net · reth/v1.11.2 · eth_call not whitelisted',
+      403,
+      '{"jsonrpc":"2.0","error":{"code":-32601,"message":"rpc method is not whitelisted"},"id":1}',
+    ],
+    [
+      'ethereum · 1rpc.io · throttled',
+      429,
+      '{"jsonrpc":"2.0","error":{"code":-32029,"message":"Too Many Requests, Please apply an OnFinality API key or contact us to receive a higher rate limit"},"id":1}',
+    ],
+    [
+      'ethereum · eth.merkle.io · throttled',
+      429,
+      '{"id":null,"error":{"code":-32005,"message":"Rate limit exceeded"},"jsonrpc":"2.0"}',
+    ],
+    [
+      'ethereum · eth.llamarpc.com · Cloudflare 525 page',
+      525,
+      '<!DOCTYPE html><html><head><title>llamarpc.com | 525: SSL handshake failed</title></head></html>',
+    ],
+  ]
+
+  const succeeding = createPublicClient({
+    transport: custom({ request: async () => '0x' }, { retryCount: 0 }),
+  })
+
+  const serving = async (
+    status: number,
+    body: string,
+    run: (endpoint: PublicClient) => Promise<void>
+  ): Promise<void> => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(body, {
+        status,
+        headers: {
+          'Content-Type': body.startsWith('{')
+            ? 'application/json'
+            : 'text/html',
+        },
+      })) as unknown as typeof fetch
+    try {
+      await run(
+        createPublicClient({
+          transport: http('https://node.example/', { retryCount: 0 }),
+        })
+      )
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  const simulate = (simulators: PublicClient[]) =>
+    createExecutabilityChainReader(succeeding, simulators).staticCall({
+      from: SAFE,
+      to: DIAMOND,
+      data: '0x8da5cb5b' as Hex,
+    })
+
+  for (const [source, error] of REVERTS)
+    it(`reads ${source} as reverted, ahead of a later success`, async () => {
+      await serving(
+        200,
+        JSON.stringify({ jsonrpc: '2.0', id: 1, error }),
+        async (endpoint) => {
+          expect((await simulate([endpoint, succeeding])).outcome).toBe(
+            'reverted'
+          )
+        }
+      )
+    })
+
+  for (const [source, status, body] of REFUSALS)
+    it(`reads ${source} as errored, and asks the next endpoint`, async () => {
+      await serving(status, body, async (endpoint) => {
+        expect((await simulate([endpoint])).outcome).toBe('errored')
+        expect((await simulate([endpoint, succeeding])).outcome).toBe(
+          'succeeded'
+        )
+      })
+    })
 })

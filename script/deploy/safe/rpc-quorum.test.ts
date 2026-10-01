@@ -830,23 +830,59 @@ describe('where the identity refusal sits among the other verdicts', () => {
   const forked = (url: string) =>
     ok(url, { blockHash: '0xaaaa', value: '0xcode' })
 
-  it('is settled before a fork, because a fork verdict rests on the provider count', () => {
-    // Not an arbitrary order: every verdict below this one reads a provider
-    // count, and an identity nobody can establish makes that count unsound
-    // rather than merely thin.
+  // An extra endpoint nobody can identify adds nothing to two providers that
+  // can be told apart, so it cannot hide their disagreement: otherwise anyone
+  // who can add an endpoint to the list can turn a refusal into an advisory.
+  it('settles after a fork between two countable providers', () => {
     const verdict = evaluateRpcQuorum([
       forked(ALCHEMY),
       ok(INFURA, { blockHash: '0xbbbb', value: '0xcode' }),
       ok('http://203.0.113.7:8545/'),
     ])
 
-    expect(verdict.status).toBe('provider-identity-unverifiable')
+    expect(verdict.status).toBe('fork-divergence')
+    expect(verdict.respondingProviders).toBe(2)
+    expect(verdict.transient).toBe(false)
   })
 
-  it('is settled before a disagreement, for the same reason', () => {
+  it('settles after a disagreement between two countable providers', () => {
     const verdict = evaluateRpcQuorum([
       ok(ALCHEMY, { value: '0xcode' }),
       ok(INFURA, { value: '0xOTHER' }),
+      ok('http://203.0.113.7:8545/'),
+    ])
+
+    expect(verdict.status).toBe('disagreement')
+    expect(verdict.respondingProviders).toBe(2)
+    expect(verdict.transient).toBe(false)
+  })
+
+  it('still settles first when only the unidentifiable endpoint disagrees', () => {
+    // The other half: an IP endpoint's own answer is not a second provider's,
+    // so a difference only it reports stays the identity refusal.
+    for (const ip of [
+      ok('http://203.0.113.7:8545/', { value: OTHER_CODE }),
+      ok('http://203.0.113.7:8545/', { blockHash: OTHER_HASH }),
+    ])
+      expect(evaluateRpcQuorum([ok(ALCHEMY), ok(INFURA), ip]).status).toBe(
+        'provider-identity-unverifiable'
+      )
+  })
+
+  it('still settles first when only one countable provider answered', () => {
+    const verdict = evaluateRpcQuorum([
+      ok(ALCHEMY),
+      failed(INFURA),
+      ok('http://203.0.113.7:8545/', { value: OTHER_CODE }),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+  })
+
+  it('still settles first when the countable providers answered from different blocks', () => {
+    const verdict = evaluateRpcQuorum([
+      ok(ALCHEMY),
+      ok(INFURA, { blockNumber: BLOCK + 1n, value: OTHER_CODE }),
       ok('http://203.0.113.7:8545/'),
     ])
 

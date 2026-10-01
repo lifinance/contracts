@@ -62,11 +62,9 @@ import {
 } from './check-ledger'
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
-  assertCodehashSignGateAllowsSigning,
   gateInputFor,
   proposalKeyOf,
   blockingUnevaluatedGate,
-  createGatedSigner,
   evaluateCodehashSignGate,
   renderCodehashSignGate,
   type ICodehashSignGate,
@@ -86,7 +84,6 @@ import {
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
-  assertIntegrityAssertsAllowSigning,
   createIntegrityAssertDeps,
   runIntegrityAsserts,
   type IIntegrityAssertRun,
@@ -110,6 +107,10 @@ import {
   type IDeferredLine,
   type IPrefetchedEvidence,
 } from './confirm-safe-tx-prefetch'
+import {
+  evaluateDefiniteReds,
+  type IDefiniteRedVerdict,
+} from './definite-red-gate'
 import {
   describeOperationValue,
   evaluateDelegateCallGate,
@@ -167,13 +168,8 @@ import {
   reconcileRunSubmissions,
 } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
-import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
-import {
-  collectProviderObservations,
-  createCodeReader,
-  createPinnedBlock,
-  ENDPOINT_READ_BUDGET_MS,
-} from './rpc-quorum-collector'
+import type { IRpcQuorumVerdict } from './rpc-quorum'
+import { readCodeQuorumPastTipReorgs } from './rpc-quorum-collector'
 import {
   applyRunSubmissionStatuses,
   type IExecutionSummaryEntry,
@@ -228,6 +224,7 @@ import {
   toSignedAuthorityEntries,
   toSignedCodehashEntries,
 } from './signed-set-record'
+import { buildSignerActionOptions } from './signer-action-menu'
 import {
   networkPreflight,
   PREFLIGHT_EXIT_CODE,
@@ -255,6 +252,7 @@ import {
   signerTodos,
   viewDefinitions,
 } from './signer-zones'
+import { createSigningFunnels } from './signing-funnels'
 import {
   computeOperationIdBatch,
   decodeScheduleBatch,
@@ -522,48 +520,29 @@ const processTxs = async (
   // that refusal compares against the one reaching the signer.
   let integrityRun: IIntegrityAssertRun | undefined
 
-  /**
-   * Signs a SafeTransaction.
-   *
-   * Every sign path goes through here — Sign, Sign & Execute, and both deployer
-   * steps of Sign and Execute With Deployer — so the codehash refusal is
-   * evaluated once and cannot be missed by a path added later. It is the first
-   * statement, ahead of every other check in this function, so nothing it would
-   * otherwise swallow runs first.
-   *
-   * @param safeTransaction - The transaction to sign
-   * @param client - Which Safe client signs; the run's own by default
-   * @returns The signed transaction
-   */
-  const signTransaction = createGatedSigner<
-    [ISafeTransaction, SafeClient?],
-    ISafeTransaction
-  >({
-    gate: () => codehashGate,
-    // Which transaction this signature will cover, so the verdict is checked
-    // against it rather than merely being non-blocking.
-    keyOf: (safeTransaction) => proposalKeyOf(safeTransaction.data),
-    sign: async (safeTransaction, client = safe) => {
-      // After the codehash refusal `createGatedSigner` has already run, never
-      // before it: placed first this would swallow that refusal, and the
-      // codehash verdict is the more specific answer of the two. Still ahead of
-      // every statement of this body, so nothing signs before it.
-      assertIntegrityAssertsAllowSigning(
-        integrityRun,
-        proposalKeyOf(safeTransaction.data)
-      )
+  // Gates G, I, J and L's definite reds for the proposal on screen, read by the
+  // menu, the outcome banner and both funnels. Absent refuses, for the same
+  // reason as the integrity run above.
+  let definiteRed: IDefiniteRedVerdict | undefined
 
-      consola.info('Signing transaction')
-      try {
-        const signedTx = await client.signTransaction(safeTransaction)
-        consola.success('Transaction signed')
-        return signedTx
-      } catch (error: unknown) {
-        const errorMsg = error instanceof Error ? error.message : String(error)
-        consola.error('Error signing transaction:', error)
-        throw new Error(`Failed to sign transaction: ${errorMsg}`)
-      }
+  const { runAction } = createSigningFunnels({
+    safe,
+    verdicts: () => ({ codehashGate, integrityRun, definiteRed }),
+    broadcast: broadcastSafeTransaction,
+    persistSigned: persistSignedSafeTx,
+    initDeployerClient: async () => {
+      const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
+      const { safe: deployerSafe } = await getOrInitializeSafeClient(
+        network,
+        deployerPrivateKey,
+        rpcUrl,
+        false, // Not using ledger for deployer
+        undefined,
+        txSafeAddress
+      )
+      return deployerSafe
     },
+    isSignedByDeployer: isSignedByProductionWallet,
   })
 
   /**
@@ -771,10 +750,12 @@ const processTxs = async (
   }
 
   /**
-   * Executes a SafeTransaction and updates its status in MongoDB
+   * Broadcasts a SafeTransaction and updates its status in MongoDB. Reached
+   * only through `createSigningFunnels`, whose execute funnel runs every
+   * refusal first.
    * @param safeTransaction - The transaction to execute
    * @param txDoc - The pendingTransactions row being processed
-   * @param safeClient - The Safe client to use for execution (defaults to main safe client)
+   * @param safeClient - The Safe client to use for execution
    */
   // Returns true only for the 'executed' status (receipt success, or the Tron
   // no-receipt path) — the only outcome that consumes the Safe nonce. A
@@ -783,35 +764,11 @@ const processTxs = async (
   // surfaces as a top-level revert (GS013) rather than ExecutionFailure). Both
   // 'reverted' and the unknown 'submitted' outcome return false, and the caller
   // must not advance expectedNonce in either case.
-  async function executeTransaction(
+  async function broadcastSafeTransaction(
     safeTransaction: ISafeTransaction,
     txDoc: ISafeTxMongoDocument,
-    safeClient: SafeClient = safe
+    safeClient: SafeClient
   ): Promise<boolean> {
-    // Execution is the irreversible step, and it needs no signature of ours: a
-    // proposal already at threshold is broadcast from here with other people's
-    // signatures, so the sign funnel is never consulted and the gate's verdict
-    // sat on screen in red while nothing refused.
-    //
-    // Two route-disjoint gates is D23's ruling. WP-1.4 read D9's "the gate is
-    // never in two places" as forbidding a second gate anywhere and left the
-    // direct-broadcast route open; the same reading would leave this one open.
-    // Every execute branch calls this helper, so asserting here covers all of
-    // them by construction, and the sign-then-execute paths simply assert twice.
-    assertCodehashSignGateAllowsSigning(
-      codehashGate,
-      proposalKeyOf(safeTransaction.data)
-    )
-
-    // The same route-disjoint pair, for the same reason: a proposal already at
-    // threshold reaches the chain from here without the sign funnel being
-    // consulted. Ordered after the codehash refusal so that one still reports
-    // first, and before anything this function broadcasts.
-    assertIntegrityAssertsAllowSigning(
-      integrityRun,
-      proposalKeyOf(safeTransaction.data)
-    )
-
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
     try {
@@ -1346,16 +1303,10 @@ const processTxs = async (
     let rpcQuorum: IRpcQuorumVerdict | undefined
     if (evmSimulatable && endpoints.length > 0)
       try {
-        rpcQuorum = evaluateRpcQuorum(
-          await collectProviderObservations(
-            endpoints,
-            createCodeReader(
-              quorumTarget,
-              chain.id,
-              ENDPOINT_READ_BUDGET_MS,
-              createPinnedBlock(endpoints, chain.id)
-            )
-          )
+        rpcQuorum = await readCodeQuorumPastTipReorgs(
+          quorumTarget,
+          endpoints,
+          chain.id
         )
       } catch (error) {
         log.warn(
@@ -1576,6 +1527,7 @@ const processTxs = async (
 
     codehashGate = blockingUnevaluatedGate()
     integrityRun = undefined
+    definiteRed = undefined
     if (proposalIndex++ > 0) consola.log(PROPOSAL_SEPARATOR.join('\n'))
 
     // This proposal's own reads, started before its first zone is drawn. The
@@ -1890,6 +1842,22 @@ const processTxs = async (
         : {}),
       rpcQuorum,
     })
+    // From the same entries, simulation, quorum read and codehash gate the rows
+    // above were built from, so the menu cannot refuse on a reading the screen
+    // does not show.
+    const definiteRedVerdict = evaluateDefiniteReds({
+      gradedKey: proposalKeyOf(tx.safeTransaction.data),
+      storageAuthority: observedSet
+        ? toSignedAuthorityEntries(installedAuthorities)
+        : undefined,
+      executability,
+      rpcQuorum,
+      codehash: codehashGate,
+    })
+    definiteRed = definiteRedVerdict
+    const signingRefused =
+      operationVerdict.refuses || definiteRedVerdict.reds.length > 0
+
     proposalChecks.push(
       ...proposalResults.map((row) => ({ ...row, proposalNonce: headingNonce }))
     )
@@ -2011,9 +1979,9 @@ const processTxs = async (
         alreadySigned: tx.hasSignedAlready,
         signedThisRun: false,
         executedThisRun: false,
-        // A refused operation leaves `Do Nothing` as the only option, so the
-        // proposal is blocked from here on whatever the operator picks.
-        blocked: operationVerdict.refuses,
+        // A refused proposal leaves `Do Nothing` as the only option, so it is
+        // blocked from here on whatever the operator picks.
+        blocked: signingRefused,
         ...update,
       })
     }
@@ -2025,69 +1993,43 @@ const processTxs = async (
     // Restated here rather than left to the rows above: by the time the prompt
     // appears the signer has scrolled past every gate, the calldata and the
     // device panel, and this is the screen the decision is made on.
-    consola.log(renderProposalOutcome(signerCheckRows).join('\n'))
+    consola.log(
+      renderProposalOutcome(signerCheckRows, {
+        definiteReds: definiteRedVerdict.reds,
+        delegatecallRefused: operationVerdict.refuses,
+      }).join('\n')
+    )
 
     // Determine available actions based on signature status
     // Execute options are offered regardless of nonce status; the nonce gate runs
     // after the choice so the operator sees why a specific proposal is refused
-    let action: string
-    if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
-      const options = ['Do Nothing']
-      if (!operationVerdict.refuses) {
-        if (!tx.hasSignedAlready) {
-          options.push('Sign')
-
-          // Check if signing with current user + deployer (if needed) would meet threshold
-          if (
-            shouldShowSignAndExecuteWithDeployer(
-              tx.safeTransaction,
-              tx.threshold,
-              signerAddress
-            )
-          )
-            options.push('Sign and Execute With Deployer')
-        }
-
-        if (tx.canExecute) {
-          options.push('Execute')
-          options.push('Execute with Deployer')
-        }
-      }
-
-      action = await consola.prompt('Select action:', {
-        type: 'select',
-        options,
-      })
-    } else {
-      const options = ['Do Nothing']
-      if (!operationVerdict.refuses) {
-        if (!tx.hasSignedAlready) {
-          options.push('Sign')
-          if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
-            options.push('Sign & Execute')
-
-          // Check if signing with current user + deployer (if needed) would meet threshold
-          if (
-            shouldShowSignAndExecuteWithDeployer(
-              tx.safeTransaction,
-              tx.threshold,
-              signerAddress
-            )
-          )
-            options.push('Sign and Execute With Deployer')
-        }
-
-        if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
-          options.push('Execute')
-          options.push('Execute with Deployer')
-        }
-      }
-
-      action = await consola.prompt('Select action:', {
-        type: 'select',
-        options,
-      })
-    }
+    // Consulted only where the menu can still offer a signing option: the
+    // deployer check reads the deployer key.
+    const offersSigning = !signingRefused && !tx.hasSignedAlready
+    const safeSigner = privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER
+    const options = buildSignerActionOptions({
+      refused: signingRefused,
+      safeSigner,
+      hasSignedAlready: tx.hasSignedAlready,
+      wouldMeetThreshold:
+        offersSigning &&
+        !safeSigner &&
+        wouldMeetThreshold(tx.safeTransaction, tx.threshold),
+      showSignAndExecuteWithDeployer:
+        offersSigning &&
+        shouldShowSignAndExecuteWithDeployer(
+          tx.safeTransaction,
+          tx.threshold,
+          signerAddress
+        ),
+      executable: safeSigner
+        ? tx.canExecute
+        : hasEnoughSignatures(tx.safeTransaction, tx.threshold),
+    })
+    const action = await consola.prompt('Select action:', {
+      type: 'select',
+      options,
+    })
 
     if (action === 'Do Nothing') continue
 
@@ -2227,13 +2169,6 @@ const processTxs = async (
       integrityOk: integrity.ok,
     })
 
-    // What the run did to this proposal, as observed rather than as chosen: a
-    // sign path that throws is caught below, and the summary must not report a
-    // signature that never reached the store.
-    let signedThisRun = false
-    let executedThisRun = false
-    let signatures = tx.safeTransaction.signatures.size
-
     // Zone 3, held back from the decision screen and printed here instead: after
     // the nonce and expected-state interlocks, which can still end the run, and
     // immediately before the device is touched. A signer comparing a hash
@@ -2261,119 +2196,12 @@ const processTxs = async (
       )
     }
 
-    if (action === 'Sign')
-      try {
-        const safeTransaction = tx.safeTransaction
-        const signedTx = await signTransaction(safeTransaction)
-        await persistSignedSafeTx(tx, signedTx)
-        signedThisRun = true
-        signatures = signedTx.signatures.size
-      } catch (error) {
-        consola.error('Error signing transaction:', error)
-      }
-
-    if (action === 'Sign & Execute')
-      try {
-        const safeTransaction = tx.safeTransaction
-        const signedTx = await signTransaction(safeTransaction)
-        await persistSignedSafeTx(tx, signedTx)
-        signedThisRun = true
-        signatures = signedTx.signatures.size
-        if (await executeTransaction(signedTx, tx)) {
-          executedThisRun = true
-          expectedNonce++
-        }
-      } catch (error) {
-        consola.error('Error signing and executing transaction:', error)
-      }
-
-    if (action === 'Sign and Execute With Deployer')
-      try {
-        // Step 1: Sign with current user
-        const safeTransaction = tx.safeTransaction
-        const signedTx = await signTransaction(safeTransaction)
-
-        // Step 2: Update MongoDB with current user's signature
-        await persistSignedSafeTx(tx, signedTx)
-        signedThisRun = true
-        signatures = signedTx.signatures.size
-
-        // Step 3: Initialize deployer Safe client
-        consola.info('Initializing deployer wallet...')
-        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-        const { safe: deployerSafe } = await getOrInitializeSafeClient(
-          network,
-          deployerPrivateKey,
-          rpcUrl,
-          false, // Not using ledger for deployer
-          undefined,
-          txSafeAddress
-        )
-
-        // Step 4: Check if deployer needs to sign
-        const needsDeployerSignature = !isSignedByProductionWallet(signedTx)
-        let finalTx = signedTx
-
-        if (needsDeployerSignature) {
-          consola.info('Deployer signature needed - signing with deployer...')
-          // Sign with deployer
-          const deployerSignedTx = await signTransaction(signedTx, deployerSafe)
-
-          // Update MongoDB with deployer's signature
-          await persistSignedSafeTx(tx, deployerSignedTx)
-          finalTx = deployerSignedTx
-          signatures = deployerSignedTx.signatures.size
-        } else
-          consola.info(
-            'Deployer has already signed - proceeding to execution...'
-          )
-
-        // Step 5: Execute with deployer using shared executeTransaction function
-        consola.info('Executing transaction with deployer wallet...')
-        if (await executeTransaction(finalTx, tx, deployerSafe)) {
-          executedThisRun = true
-          expectedNonce++
-        }
-      } catch (error) {
-        consola.error(
-          'Error signing and executing transaction with deployer:',
-          error
-        )
-      }
-
-    if (action === 'Execute')
-      try {
-        if (await executeTransaction(tx.safeTransaction, tx)) {
-          executedThisRun = true
-          expectedNonce++
-        }
-      } catch (error) {
-        consola.error('Error executing transaction:', error)
-      }
-
-    if (action === 'Execute with Deployer')
-      try {
-        const safeTransaction = tx.safeTransaction
-        consola.info('Initializing deployer wallet...')
-        const deployerPrivateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-        const { safe: deployerSafe } = await getOrInitializeSafeClient(
-          network,
-          deployerPrivateKey,
-          rpcUrl,
-          false,
-          undefined,
-          txSafeAddress
-        )
-        consola.info('Executing transaction with deployer wallet...')
-        if (await executeTransaction(safeTransaction, tx, deployerSafe)) {
-          executedThisRun = true
-          expectedNonce++
-        }
-      } catch (error) {
-        consola.error('Error executing with deployer:', error)
-      }
-
-    recordProposalOutcome({ signatures, signedThisRun, executedThisRun })
+    // What the run did to this proposal, as observed rather than as chosen: a
+    // sign path that throws is caught inside, and the summary must not report a
+    // signature that never reached the store.
+    const outcome = await runAction(action, tx)
+    if (outcome.executedThisRun) expectedNonce++
+    recordProposalOutcome(outcome)
   }
 
   // One row per network, written once every proposal on it has been graded and

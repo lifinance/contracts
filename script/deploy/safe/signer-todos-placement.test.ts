@@ -157,13 +157,7 @@ describe('zone 3 reaches the signer at the device, not at the prompt', () => {
 
   it('renders the checklist before anything signs', () => {
     const todos = callOffsets(source, 'renderTodos')[0] as number
-    const signs = callOffsets(source, 'signTransaction')
-    // The declaration of the gated signer is itself a call, and it sits far
-    // above; what matters is that every *invocation* in the proposal loop is
-    // below zone 3.
-    const invocations = signs.filter(
-      (offset) => offset > (acknowledgeStart(source) as number)
-    )
+    const invocations = callOffsets(source, 'runAction')
     expect(invocations.length).toBeGreaterThan(0)
     for (const offset of invocations) expect(offset).toBeGreaterThan(todos)
   })
@@ -212,13 +206,3 @@ describe('zone 3 reaches the signer at the device, not at the prompt', () => {
     })
   })
 })
-
-/**
- * Where the proposal loop's acknowledgement is written.
- *
- * @param source - The parsed spine.
- * @returns The offset, or undefined when the call is gone.
- */
-function acknowledgeStart(source: SourceFile): number | undefined {
-  return callOffsets(source, 'recordAcknowledgement')[0]
-}

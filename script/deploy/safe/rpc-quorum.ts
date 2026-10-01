@@ -389,6 +389,56 @@ const countProviders = (
   predicate: (observation: IUsableObservation) => boolean = () => true
 ): number => new Set(usable.filter(predicate).map((o) => o.provider)).size
 
+const largestGroupOf = (usable: readonly IUsableObservation[]): number =>
+  Math.max(
+    0,
+    ...[...new Set(usable.map((o) => o.value))].map((value) =>
+      countProviders(usable, (o) => o.value === value)
+    )
+  )
+
+type TVerdictBase = Omit<
+  IRpcQuorumVerdict,
+  'status' | 'reachesQuorum' | 'transient' | 'detail'
+>
+
+/**
+ * A fork or a disagreement among observations from one block height.
+ *
+ * @param usable - Observations that all name the same block number.
+ * @param base - The counts the verdict reports.
+ * @returns The diverging verdict, or undefined when they agree.
+ */
+const divergenceAmong = (
+  usable: readonly IUsableObservation[],
+  base: TVerdictBase
+): IRpcQuorumVerdict | undefined => {
+  const hashes = new Set(usable.map((o) => o.blockHash))
+  if (hashes.size > 1)
+    return {
+      ...base,
+      status: 'fork-divergence',
+      reachesQuorum: false,
+      transient: false,
+      detail: `providers report ${hashes.size} different block hashes at block ${usable[0]?.blockNumber}: they are not on the same chain, so no comparison between them carries evidence`,
+    }
+
+  const values = new Set(usable.map((o) => o.value))
+  if (values.size <= 1) return undefined
+
+  const largestAgreeingGroup = largestGroupOf(usable)
+  return {
+    ...base,
+    largestAgreeingGroup,
+    status: 'disagreement',
+    reachesQuorum: false,
+    // A majority is not a quorum: a provider that lies about one value is not
+    // evidence about the others, so no subset of a divergent read is believed.
+    transient: false,
+    detail: `providers returned ${values.size} different values at block ${usable[0]?.blockNumber} (largest agreeing group: ${largestAgreeingGroup} provider(s) of ${base.respondingProviders} that answered): one of them is wrong and this read cannot say which`,
+  }
+}
+
 /**
  * Grade one integrity read across the providers that were consulted.
  *
@@ -398,12 +448,12 @@ const countProviders = (
  * where there is lag. Provider shortfall is settled after divergence, so a
  * thinly-configured chain still surfaces a real disagreement, and before any
  * counting of agreement, so a chain with one provider can never read as
- * consensus. An identity that cannot be established is the exception, settled
- * ahead of divergence: every later verdict reads a provider count, and an
- * unknowable identity makes that count unsound rather than merely thin — so a
- * fork or a disagreement reported alongside it would rest on a denominator
- * this module cannot vouch for. The green branch is last and requires every
- * condition affirmatively, so an unforeseen combination refuses.
+ * consensus. An identity that cannot be established is settled ahead of
+ * everything else except a divergence among the providers that *can* be told
+ * apart: every other verdict reads a provider count the unknowable identity
+ * makes unsound, but two identified providers disagreeing is evidence however
+ * many unidentified endpoints sit beside them. The green branch is last and
+ * requires every condition affirmatively, so an unforeseen combination refuses.
  *
  * @param observations - one entry per endpoint consulted, in any order
  * @param quorum - independent providers that must agree; defaults to
@@ -477,8 +527,21 @@ export const evaluateRpcQuorum = (
   // Ahead of every other verdict, because each of them reads a provider count
   // that an unknowable identity makes unsound: a name may resolve to the
   // address, so an IP endpoint alongside a hostname one cannot be shown to be a
-  // second provider.
-  if (unverifiableIpEndpoint)
+  // second provider. The IP endpoint's own answer is left out of the divergence
+  // check for the same reason.
+  if (unverifiableIpEndpoint) {
+    const countable = usable.filter((o) => isCountableIdentity(o.provider))
+    const countableProviders = countProviders(countable)
+    const diverged =
+      countableProviders >= MIN_INDEPENDENT_PROVIDERS &&
+      new Set(countable.map((o) => o.blockNumber)).size === 1
+        ? divergenceAmong(countable, {
+            ...base,
+            respondingProviders: countableProviders,
+          })
+        : undefined
+    if (diverged) return diverged
+
     return {
       ...base,
       status: 'provider-identity-unverifiable',
@@ -486,6 +549,7 @@ export const evaluateRpcQuorum = (
       transient: false,
       detail: `an endpoint names its host as a bare IP address, which cannot be shown independent of a hostname endpoint that may resolve to it: give every endpoint a hostname, or declare a providerId so the endpoints are counted as one`,
     }
+  }
 
   if (usable.length === 0)
     return {
@@ -520,34 +584,10 @@ export const evaluateRpcQuorum = (
         )}): values from different blocks are not comparable, so pin a block and re-read`,
     }
 
-  const hashes = new Set(usable.map((o) => o.blockHash))
-  if (hashes.size > 1)
-    return {
-      ...base,
-      status: 'fork-divergence',
-      reachesQuorum: false,
-      transient: false,
-      detail: `providers report ${hashes.size} different block hashes at block ${usable[0]?.blockNumber}: they are not on the same chain, so no comparison between them carries evidence`,
-    }
+  const diverged = divergenceAmong(usable, base)
+  if (diverged) return diverged
 
-  const values = new Set(usable.map((o) => o.value))
-  const largestAgreeingGroup = Math.max(
-    ...[...values].map((value) =>
-      countProviders(usable, (o) => o.value === value)
-    )
-  )
-
-  if (values.size > 1)
-    return {
-      ...base,
-      largestAgreeingGroup,
-      status: 'disagreement',
-      reachesQuorum: false,
-      // A majority is not a quorum: a provider that lies about one value is not
-      // evidence about the others, so no subset of a divergent read is believed.
-      transient: false,
-      detail: `providers returned ${values.size} different values at block ${usable[0]?.blockNumber} (largest agreeing group: ${largestAgreeingGroup} provider(s) of ${respondingProviders} that answered): one of them is wrong and this read cannot say which`,
-    }
+  const largestAgreeingGroup = largestGroupOf(usable)
 
   if (independentProviders < quorum)
     return {
