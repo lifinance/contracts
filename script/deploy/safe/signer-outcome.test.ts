@@ -238,6 +238,18 @@ describe('the closing verdict agrees with the action menu', () => {
     expect(outcome.replace(/\s+/g, ' ')).toContain('Also disagreed: Gate K.')
   })
 
+  it('names an advisory gate that disagreed short of its own definite red', () => {
+    const uncompared = row(STORAGE_AUTHORITY_CHECK_ID, 'fail', {
+      actual: 'the owner slot could not be compared',
+      anchor: 'A-CHAIN',
+    })
+    const outcome = say(withRows(uncompared), {
+      definiteReds: [{ gate: 'L', reason: 'an immutable differs' }],
+      delegatecallRefused: false,
+    })
+    expect(outcome.replace(/\s+/g, ' ')).toContain('Also disagreed: Gate G.')
+  })
+
   it('does not refuse in words on the same rows when the menu refused nothing', () => {
     // The present half: what decides the sentence is the refusal the menu was
     // built from, not the row alone.
@@ -267,12 +279,22 @@ describe('the closing verdict agrees with the action menu', () => {
     expect(outcome).toContain('Gate K')
   })
 
-  it('says cannot be signed on a delegatecall refusal', () => {
-    const outcome = say(withRows(), {
-      definiteReds: [],
-      delegatecallRefused: true,
+  it('names the delegatecall gate when it is the only refusal', () => {
+    const refusal = { definiteReds: [], delegatecallRefused: true }
+    const outcome = say(withRows(), refusal)
+    const options = buildSignerActionOptions({
+      refused: refusal.delegatecallRefused,
+      safeSigner: false,
+      hasSignedAlready: false,
+      wouldMeetThreshold: true,
+      showSignAndExecuteWithDeployer: true,
+      executable: false,
     })
-    expect(outcome).toContain('This proposal cannot be signed')
+
+    expect(outcome).toContain('This proposal cannot be signed or executed')
+    expect(outcome).toContain('delegatecall gate')
+    expect(outcome).not.toContain('mandatory gate(s) disagreed')
+    expect(options).not.toContain('Sign')
     expect(say(withRows(), NOTHING_REFUSED)).toContain('Every gate passed')
   })
 })

@@ -19,7 +19,9 @@ import {
   custom,
   encodeFunctionData,
   ExecutionRevertedError,
+  http,
   parseAbi,
+  RpcRequestError,
   type Address,
   type Hex,
   type PublicClient,
@@ -484,7 +486,10 @@ describe('createExecutabilityChainReader', () => {
   it('distinguishes a revert from an endpoint that could not answer', async () => {
     const reverting = {
       call: async () => {
-        throw new Error('execution reverted: FunctionAlreadyExists')
+        throw Object.assign(
+          new Error('execution reverted: FunctionAlreadyExists'),
+          { code: -32000 }
+        )
       },
     } as unknown as PublicClient
     const unreachable = {
@@ -515,9 +520,10 @@ describe('simulating across several endpoints', () => {
   const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
     ({ call: behaviour } as unknown as PublicClient)
 
+  /** A node's JSON-RPC answer, which carries a code a wrapper does not. */
   const reverting = (message: string) =>
     clientThat(async () => {
-      throw new Error(message)
+      throw Object.assign(new Error(message), { code: -32000 })
     })
   const succeeding = () => clientThat(async () => ({}))
   /** A transport-level failure, which fails over to the next endpoint. */
@@ -610,10 +616,14 @@ describe('simulating across several endpoints', () => {
     ).toBe('reverted')
   })
 
-  it("viem's revert error is a revert with no other signal", async () => {
+  it("viem's revert error over a node answer is a revert with no other signal", async () => {
     const reader = createExecutabilityChainReader(succeeding(), [
       clientThat(async () => {
-        throw new ExecutionRevertedError()
+        throw new ExecutionRevertedError({
+          cause: Object.assign(new BaseError('RPC Request failed.'), {
+            code: -32000,
+          }),
+        })
       }),
       succeeding(),
     ])
@@ -622,6 +632,42 @@ describe('simulating across several endpoints', () => {
       (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
         .outcome
     ).toBe('reverted')
+  })
+
+  // A proxy's report or an HTTP body is not the chain: only a link carrying
+  // a JSON-RPC code is a node's answer.
+  it('reads revert wording on a wrapper with no node code as errored', async () => {
+    for (const thrown of [
+      new Error('execution reverted'),
+      Object.assign(new Error('proxy error'), {
+        details: 'execution reverted: FunctionAlreadyExists',
+      }),
+      new ExecutionRevertedError({
+        cause: new BaseError('HTTP request failed.', {
+          details: 'execution reverted',
+        }),
+      }),
+      Object.assign(new Error('execution reverted'), {
+        cause: { code: -32603, message: 'Internal error' },
+      }),
+    ]) {
+      const reader = createExecutabilityChainReader(succeeding(), [
+        clientThat(async () => {
+          throw thrown
+        }),
+        succeeding(),
+      ])
+
+      expect(
+        (
+          await reader.staticCall({
+            from: SAFE,
+            to: DIAMOND,
+            data: '0x' as Hex,
+          })
+        ).outcome
+      ).toBe('succeeded')
+    }
   })
 
   // viem's composed message names the endpoint, and a host is not evidence.
@@ -735,7 +781,14 @@ describe('summariseRpcError', () => {
     const data = `0x1f931c1c${'ab'.repeat(300)}` as Hex
     const reverting = clientThat(async () => {
       throw new CallExecutionError(
-        new ExecutionRevertedError({ message: 'execution reverted' }),
+        new ExecutionRevertedError({
+          cause: new RpcRequestError({
+            body: {},
+            error: { code: -32000, message: 'execution reverted' },
+            url: 'https://node.example/',
+          }),
+          message: 'execution reverted',
+        }),
         { account: parseAccount(SAFE), to: DIAMOND, data }
       )
     })
@@ -982,8 +1035,28 @@ describe('a node error is a revert only when the chain says so', () => {
 
   // Each says something about the endpoint rather than the payload: a throttle
   // or cache message that happens to contain the word, revert-shaped data on a
-  // code no node uses for a revert, and a gas allowance that is the node's own
-  // cap. Read as reverts they are definite reds no chain produced.
+  // code no node uses for a revert or beside a node missing the state, and a
+  // gas allowance that is the node's own cap. Read as reverts they are definite reds no chain produced.
+  // viem names an HTTP failure `ExecutionRevertedError` when its body says so,
+  // though no node answered.
+  it('reads a gateway body that says reverted as errored', async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: 'execution reverted' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      })) as unknown as typeof fetch
+    try {
+      const gateway = createPublicClient({
+        transport: http('https://gateway.example/', { retryCount: 0 }),
+      })
+      expect((await simulate([gateway])).outcome).toBe('errored')
+      expect((await simulate([gateway, succeeding])).outcome).toBe('succeeded')
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   it('reads endpoint-side failures that look like reverts as errored', async () => {
     for (const body of [
       { code: -32005, message: 'request reverted to cache, try later' },
@@ -991,8 +1064,15 @@ describe('a node error is a revert only when the chain says so', () => {
       { code: -32000, message: 'execution reverted: too many requests' },
       { code: -32000, message: 'execution reverted: cached response expired' },
       { code: -32603, message: 'backend reverted to an archive node' },
+      { code: -32601, message: 'the method eth_revert does not exist' },
       { code: -32603, message: 'Internal error', data: '0xdeadbeef' },
       { code: -32000, message: 'execution failed', data: '0x' },
+      { code: -32000, message: 'header not found', data: '0xdeadbeef' },
+      {
+        code: -32000,
+        message: 'missing trie node 4a2b (path ) state 0x9c is not available',
+        data: '0x08c379a0',
+      },
       { code: -32000, message: 'gas required exceeds allowance (0)' },
     ]) {
       expect((await simulate([answering(body)])).outcome).toBe('errored')

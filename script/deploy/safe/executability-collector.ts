@@ -484,12 +484,13 @@ const REVERT_WORDING =
 
 /**
  * Throttling and caching, which some gateways report inside a revert-shaped
- * string, and the gas allowance viem files under `ExecutionRevertedError`.
- * The allowance is the node's own gas cap, so like out of gas it says as much
- * about the endpoint as about the payload.
+ * string; a node without the state at the pinned block, which ran nothing; and
+ * the gas allowance viem files under `ExecutionRevertedError`. The allowance
+ * is the node's own gas cap, so like out of gas it says as much about the
+ * endpoint as about the payload.
  */
 const ENDPOINT_WORDING =
-  /\brate[- ]?limit|\btoo many requests\b|\bcache[ds]?\b|\bgas required exceeds allowance\b/iu
+  /\brate[- ]?limit|\btoo many requests\b|\bcache[ds]?\b|\bheader not found\b|\bmissing trie node\b|\bgas required exceeds allowance\b/iu
 
 /**
  * Whether an error is the chain answering that the payload does not execute,
@@ -502,9 +503,11 @@ const ENDPOINT_WORDING =
  * not recognised here is the endpoint's failure and the next one is asked, so a
  * revert behind an unusable endpoint is still found.
  *
- * Code 3 is decisive on its own. Every other signal yields to endpoint wording
- * anywhere in the chain, because viem names an error `ExecutionRevertedError`
- * from a substring of the node's message, not from the chain.
+ * Code 3 is decisive on its own. Every other signal counts only beside a link
+ * carrying a JSON-RPC code, the one shape a node's answer has: viem names an
+ * error `ExecutionRevertedError` from a substring of whatever text it holds,
+ * an HTTP body included, and a proxy may word its own failure as a revert.
+ * Those signals also yield to endpoint wording anywhere in the chain.
  *
  * Out of gas is deliberately not here: `eth_call` runs under the node's own
  * gas cap, which differs between providers, so it says as much about the
@@ -524,30 +527,34 @@ const isExecutionRevert = (error: unknown): boolean => {
 
   // viem's `details` is the node's own string; its `message` is a composed
   // report that also carries the endpoint URL, which is no evidence either way.
-  const nodeTexts = (link: Record<string, unknown>): unknown[] => [
+  const texts = (link: Record<string, unknown>): unknown[] => [
     typeof link.details === 'string' ? link.details : link.message,
     link.data,
   ]
+  const answers = links.filter((link) => typeof link.code === 'number')
 
-  if (links.some((link) => link.code === 3)) return true
+  if (answers.some((link) => link.code === 3)) return true
   if (
+    answers.length === 0 ||
     links.some((link) =>
-      nodeTexts(link).some(
+      texts(link).some(
         (text) => typeof text === 'string' && ENDPOINT_WORDING.test(text)
       )
     )
   )
     return false
 
-  return links.some(
-    (link) =>
-      link.name === 'ExecutionRevertedError' ||
-      (REVERT_DATA_CODES.has(link.code) &&
-        typeof link.data === 'string' &&
-        REVERT_DATA.test(link.data)) ||
-      nodeTexts(link).some(
-        (text) => typeof text === 'string' && REVERT_WORDING.test(text.trim())
-      )
+  return (
+    links.some((link) => link.name === 'ExecutionRevertedError') ||
+    answers.some(
+      (link) =>
+        (REVERT_DATA_CODES.has(link.code) &&
+          typeof link.data === 'string' &&
+          REVERT_DATA.test(link.data)) ||
+        texts(link).some(
+          (text) => typeof text === 'string' && REVERT_WORDING.test(text.trim())
+        )
+    )
   )
 }
 
