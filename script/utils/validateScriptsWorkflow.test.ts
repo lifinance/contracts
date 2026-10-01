@@ -41,6 +41,7 @@ const scriptsFilter = (): string[] => {
   const start = lines.findIndex((line) => line.trim() === 'scripts:')
   const entries: string[] = []
   for (const line of lines.slice(start + 1)) {
+    if (line.trim().startsWith('#')) continue
     const match = /^\s+- '(.+)'$/.exec(line)
     if (!match?.[1]) break
     entries.push(match[1])
@@ -79,6 +80,8 @@ describe('validate-scripts job', () => {
     expect(scriptsFilter()).toEqual(
       expect.arrayContaining([
         '.eslintrc.cjs',
+        // Extended by .eslintrc.cjs, so its rules are part of `bun lint:js`
+        '.eslintrc.funnel-fence.cjs',
         '.eslintignore',
         'tsconfig.eslint.json',
       ])

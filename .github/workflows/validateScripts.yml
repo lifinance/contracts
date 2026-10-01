@@ -81,6 +81,8 @@ jobs:
               - 'tsconfig.node.json'
               - '.eslintrc.node-runtime.cjs'
               - '.eslintrc.cjs'
+              # Extended by .eslintrc.cjs, so its rules are part of `bun lint:js`
+              - '.eslintrc.funnel-fence.cjs'
               - '.eslintignore'
               - 'tsconfig.eslint.json'
               - '.github/workflows/validateScripts.yml'
