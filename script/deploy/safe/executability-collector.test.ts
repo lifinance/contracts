@@ -1102,3 +1102,182 @@ describe('a node error is a revert only when the chain says so', () => {
     ).toBe('succeeded')
   })
 })
+
+/**
+ * Bodies recorded verbatim from public endpoints on 2026-10-01, served back
+ * through viem's HTTP transport so the whole client path is the live one. Each
+ * source names the chain, the host and the client `web3_clientVersion`
+ * reported. No Besu or Erigon endpoint was reachable without a key.
+ *
+ * Every node family answered a revert with code 3, which is what decides it;
+ * the bodies are kept so a change to that rule is measured against what nodes
+ * really send rather than against shapes written for the test.
+ */
+describe('revert bodies captured from live nodes', () => {
+  const TRANSFER_REASON =
+    '0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002645524332303a207472616e7366657220616d6f756e7420657863656564732062616c616e63650000000000000000000000000000000000000000000000000000'
+  const BURN_REASON =
+    '0x08c379a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002245524332303a206275726e20616d6f756e7420657863656564732062616c616e6365000000000000000000000000000000000000000000000000000000000000'
+
+  const REVERTS: ReadonlyArray<[string, Record<string, unknown>]> = [
+    [
+      'ethereum · ethereum-rpc.publicnode.com · Geth/v1.17.1 · custom error',
+      { code: 3, message: 'execution reverted', data: '0x277d76f8' },
+    ],
+    [
+      'ethereum · ethereum-rpc.publicnode.com · Geth/v1.17.1 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+        data: TRANSFER_REASON,
+      },
+    ],
+    [
+      'ethereum · ethereum-rpc.publicnode.com · Geth/v1.17.1 · bare require',
+      { code: 3, message: 'execution reverted', data: '0x' },
+    ],
+    [
+      'ethereum · eth-mainnet.public.blastapi.io · reth/v2.5.2 · bare require, no data',
+      { code: 3, message: 'execution reverted' },
+    ],
+    [
+      'ethereum · mainnet.gateway.tenderly.co · Tenderly/1.0 · unknown selector',
+      { code: 3, message: 'execution reverted', data: '0xa9ad62f8' },
+    ],
+    [
+      'arbitrum · arb1.arbitrum.io · nitro/v3.12.0 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: burn amount exceeds balance',
+        data: BURN_REASON,
+      },
+    ],
+    [
+      'base · mainnet.base.org · reth/v2.5.2 base/v1.4.2 · custom error',
+      { code: 3, message: 'execution reverted', data: '0x277d76f8' },
+    ],
+    [
+      'gnosis · gnosis-rpc.publicnode.com · Nethermind/v1.39.3 · Error(string) with data 0x',
+      { code: 3, message: 'execution reverted', data: '0x' },
+    ],
+    [
+      'gnosis · rpc.gnosischain.com · Tenderly/1.0 · Error(string), no data',
+      { code: 3, message: 'execution reverted' },
+    ],
+    [
+      'linea · rpc.linea.build · Geth/v1.16.9 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+        data: TRANSFER_REASON,
+      },
+    ],
+    [
+      'zksync · mainnet.era.zksync.io · zkSync/v2.0 · Error(string)',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: transfer amount exceeds balance',
+        data: TRANSFER_REASON,
+      },
+    ],
+    [
+      'zksync · mainnet.era.zksync.io · zkSync/v2.0 · bare burn require',
+      {
+        code: 3,
+        message: 'execution reverted: ERC20: burn amount exceeds balance',
+        data: BURN_REASON,
+      },
+    ],
+  ]
+
+  // The same reverting calls, refused by the endpoint instead of answered.
+  // cloudflare-eth.com answers every eth_call this way, reverting or not, so a
+  // revert behind it is found only by the next endpoint.
+  const REFUSALS: ReadonlyArray<[string, number, string]> = [
+    [
+      'ethereum · cloudflare-eth.com · Internal error on every call',
+      200,
+      '{"jsonrpc":"2.0","error":{"code":-32603,"message":"Internal error"},"id":1}',
+    ],
+    [
+      'ethereum · rpc.flashbots.net · reth/v1.11.2 · eth_call not whitelisted',
+      403,
+      '{"jsonrpc":"2.0","error":{"code":-32601,"message":"rpc method is not whitelisted"},"id":1}',
+    ],
+    [
+      'ethereum · 1rpc.io · throttled',
+      429,
+      '{"jsonrpc":"2.0","error":{"code":-32029,"message":"Too Many Requests, Please apply an OnFinality API key or contact us to receive a higher rate limit"},"id":1}',
+    ],
+    [
+      'ethereum · eth.merkle.io · throttled',
+      429,
+      '{"id":null,"error":{"code":-32005,"message":"Rate limit exceeded"},"jsonrpc":"2.0"}',
+    ],
+    [
+      'ethereum · eth.llamarpc.com · Cloudflare 525 page',
+      525,
+      '<!DOCTYPE html><html><head><title>llamarpc.com | 525: SSL handshake failed</title></head></html>',
+    ],
+  ]
+
+  const succeeding = createPublicClient({
+    transport: custom({ request: async () => '0x' }, { retryCount: 0 }),
+  })
+
+  const serving = async (
+    status: number,
+    body: string,
+    run: (endpoint: PublicClient) => Promise<void>
+  ): Promise<void> => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(body, {
+        status,
+        headers: {
+          'Content-Type': body.startsWith('{')
+            ? 'application/json'
+            : 'text/html',
+        },
+      })) as unknown as typeof fetch
+    try {
+      await run(
+        createPublicClient({
+          transport: http('https://node.example/', { retryCount: 0 }),
+        })
+      )
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  const simulate = (simulators: PublicClient[]) =>
+    createExecutabilityChainReader(succeeding, simulators).staticCall({
+      from: SAFE,
+      to: DIAMOND,
+      data: '0x8da5cb5b' as Hex,
+    })
+
+  for (const [source, error] of REVERTS)
+    it(`reads ${source} as reverted, ahead of a later success`, async () => {
+      await serving(
+        200,
+        JSON.stringify({ jsonrpc: '2.0', id: 1, error }),
+        async (endpoint) => {
+          expect((await simulate([endpoint, succeeding])).outcome).toBe(
+            'reverted'
+          )
+        }
+      )
+    })
+
+  for (const [source, status, body] of REFUSALS)
+    it(`reads ${source} as errored, and asks the next endpoint`, async () => {
+      await serving(status, body, async (endpoint) => {
+        expect((await simulate([endpoint])).outcome).toBe('errored')
+        expect((await simulate([endpoint, succeeding])).outcome).toBe(
+          'succeeded'
+        )
+      })
+    })
+})

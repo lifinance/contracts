@@ -1,7 +1,11 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
-import type { ICheckResult } from './check-ledger'
+import {
+  createCheckLedger,
+  recordCheck,
+  type ICheckResult,
+} from './check-ledger'
 import {
   ALL_GATE_DEFINITIONS,
   CODEHASH_CHECK_ID,
@@ -14,6 +18,7 @@ import {
 } from './confirm-check-registry'
 import { CHECK_FIXED_FIELDS } from './confirm-integrity-asserts'
 import type { TDefiniteRedGate } from './definite-red-gate'
+import { renderCheckLedger } from './render-check-ledger'
 import { buildSignerActionOptions } from './signer-action-menu'
 import { bucketOf, renderProposalOutcome } from './signer-view'
 import { signerChecks, viewDefinitions } from './signer-zones'
@@ -266,7 +271,7 @@ describe('the closing verdict agrees with the action menu', () => {
     })
     const outcome = say(withRows(unread), NOTHING_REFUSED)
     expect(outcome).not.toContain('cannot be signed')
-    expect(outcome).toContain('Nothing here blocks the signature')
+    expect(outcome).toContain('Sign is offered')
     expect(outcome).toContain('Gate G')
   })
 
@@ -411,5 +416,90 @@ describe('the closing verdict says cannot be signed exactly when Sign is withhel
     )
     expect(banner).not.toContain('cannot be signed')
     expect(banner).toContain('Gate I')
+  })
+})
+
+/**
+ * The banner prints before the choice and the run-level ledger prints after
+ * the run, about the same rows. A grade the ledger calls `BLOCKED` while the
+ * banner says nothing blocks leaves the signer unsure whether Sign was ever
+ * really on offer.
+ */
+describe('the closing verdict agrees with the run-level ledger', () => {
+  const definitionOf = (checkId: string) => {
+    const definition = CONFIRM_CHECK_DEFINITIONS.find(
+      (one) => one.checkId === checkId
+    )
+    if (!definition) throw new Error(`no definition for ${checkId}`)
+    return definition
+  }
+
+  const both = (subject: ICheckResult) => {
+    const ledger = createCheckLedger({
+      expectedNetworks: [NETWORK],
+      checks: [definitionOf(subject.checkId)],
+    })
+    recordCheck(ledger, subject)
+    const rows = signerChecks({
+      results: CONFIRM_CHECK_DEFINITIONS.map((definition) =>
+        definition.checkId === subject.checkId
+          ? subject
+          : row(definition.checkId, 'pass')
+      ),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+    return {
+      ledger: stripAnsi(renderCheckLedger(ledger).join('\n')),
+      banner: stripAnsi(
+        renderProposalOutcome(rows, NOTHING_REFUSED).join('\n')
+      ).replace(/\s+/g, ' '),
+      options: buildSignerActionOptions({
+        refused: false,
+        safeSigner: false,
+        hasSignedAlready: false,
+        wouldMeetThreshold: true,
+        showSignAndExecuteWithDeployer: true,
+        executable: false,
+      }),
+    }
+  }
+
+  it('an unmade simulation is graded BLOCKED by both, and Sign is still offered', () => {
+    const { ledger, banner, options } = both(
+      row(EXECUTABILITY_CHECK_ID, 'error', {
+        actual: 'no endpoint was available to simulate this payload',
+        anchor: 'A-UNRESOLVED',
+      })
+    )
+    expect(ledger).toContain('VERDICT: BLOCKED')
+    expect(banner).not.toContain('Nothing here blocks')
+    expect(banner).toContain('Sign is offered')
+    expect(banner).toContain('grades this BLOCKED')
+    expect(banner).toContain('not a refusal')
+    expect(options).toContain('Sign')
+  })
+
+  it('a gate G mismatch short of a definite red is graded BLOCKED by both', () => {
+    const { ledger, banner } = both(
+      row(STORAGE_AUTHORITY_CHECK_ID, 'fail', {
+        actual: 'the owner slot could not be compared',
+        anchor: 'A-CHAIN',
+      })
+    )
+    expect(ledger).toContain('VERDICT: BLOCKED')
+    expect(banner).toContain('grades this BLOCKED')
+  })
+
+  it('names no BLOCKED grade the ledger does not give', () => {
+    const { ledger, banner, options } = both(
+      row(EXECUTABILITY_CHECK_ID, 'fail', {
+        actual: 'NonceAlreadyUsed: nonce 3 is below the Safe nonce 7',
+        anchor: 'A-CHAIN',
+      })
+    )
+    expect(ledger).toContain('VERDICT: ACKNOWLEDGEMENT REQUIRED')
+    expect(ledger).not.toContain('BLOCKED')
+    expect(banner).not.toContain('BLOCKED')
+    expect(options).toContain('Sign')
   })
 })

@@ -1111,6 +1111,10 @@ export const renderProposalOutcome = (
   const flagged = inBucket('wrong', isAdvisory)
   const unchecked = inBucket('unchecked', (entry) => !isAdvisory(entry))
   const unestablished = inBucket('unchecked', isAdvisory)
+  const flaggedIntegrity = inBucket(
+    'wrong',
+    (entry) => isAdvisory(entry) && entry.definition?.checkClass === 'integrity'
+  )
   const ack = inBucket('ack')
 
   const say = (colour: string, text: string): string[] => [
@@ -1191,9 +1195,13 @@ export const renderProposalOutcome = (
     ]
     return say(
       YELLOW,
-      `Nothing here blocks the signature, but ${clauses.join(
+      `Sign is offered: nothing here refuses the signature, but ${clauses.join(
         ', and '
-      )}. None of them refuses: signing means you accept what each of them reports.`
+      )}.${
+        unestablished.length || flaggedIntegrity.length
+          ? ' The run-level ledger printed at the end of the run grades this BLOCKED; that is a grade on the record, not a refusal.'
+          : ''
+      } Signing means you accept what each of them reports.`
     )
   }
 
