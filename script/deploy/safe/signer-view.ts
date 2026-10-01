@@ -1087,10 +1087,10 @@ export interface IProposalRefusal {
  * appears — so the conclusion is restated where the decision is actually made,
  * naming the gates it rests on.
  *
- * It reads the refusal the menu was built from rather than re-deriving one, so
- * it never says "cannot be signed" over a signature the run would produce, and
- * never calls a proposal signable while Sign is withheld. A G, I, J or L that
- * could not establish its answer is worded as advisory for the same reason.
+ * It reads the refusal the menu was built from rather than re-deriving one, so a
+ * proposal whose Sign is withheld always reads as refused. A G, I, J or L that
+ * could not establish its answer is worded as advisory, because it does not
+ * refuse the signature.
  *
  * @param results - The proposal's bucketed rows.
  * @param refusal - What the action menu refused on.
