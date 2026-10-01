@@ -27,6 +27,7 @@ import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { redactUrls } from '../../utils/redactUrls'
 import { getRPCEnvVarName } from '../../utils/utils'
 import {
@@ -134,6 +135,16 @@ import {
   renderLedgerFlexFlow,
   renderLedgerFlexHashFlow,
 } from './ledger-flex-preview'
+import {
+  blockedPeripheryAllowlist,
+  evaluatePeripheryAllowlist,
+  peripheryFunctionsFromConfig,
+  peripheryNetworksFromConfig,
+  readAllowlistThrough,
+  renderPeripheryAllowlistLines,
+  renderPeripheryAllowlistRefusal,
+  type IPeripheryAllowlistVerdict,
+} from './periphery-allowlist-gate'
 import {
   blockedByEvaluationError,
   createPinnedAnchor,
@@ -1644,6 +1655,53 @@ const processTxs = async (
       )
     }
 
+    // The signed struct, not the stored row, for the reason `operationVerdict`
+    // gives: this is what the timelock will execute.
+    let peripheryAllowlist: IPeripheryAllowlistVerdict
+    try {
+      const readAllowlist = readAllowlistThrough(() =>
+        buildReadOnlyClient(networkKey, rpcUrl)
+      )
+      const peripheryFunctions = peripheryFunctionsFromConfig(
+        globalConfig.whitelistPeripheryFunctions
+      )
+      peripheryAllowlist = await evaluatePeripheryAllowlist(
+        {
+          network: networkKey,
+          calldatas: tx.safeTransaction.data.data
+            ? [tx.safeTransaction.data.data as Hex]
+            : [],
+          targets: [
+            normalizeAddressForNetwork(networkKey, tx.safeTransaction.data.to),
+          ],
+          caller: safeAddress,
+        },
+        {
+          peripheryFunctions,
+          peripheryNetworks: peripheryNetworksFromConfig(
+            globalConfig.whitelistPeripheryNetworks,
+            peripheryFunctions
+          ),
+          readWhitelistedSelectors: async (diamond, contract) => {
+            try {
+              return await readAllowlist(diamond, contract)
+            } catch (error) {
+              throw new Error(
+                redactUrls(
+                  error instanceof Error ? error.message : String(error)
+                )
+              )
+            }
+          },
+        }
+      )
+    } catch (error) {
+      peripheryAllowlist = blockedPeripheryAllowlist(
+        networkKey,
+        redactUrls(error instanceof Error ? error.message : String(error))
+      )
+    }
+
     // A display error must never block signing.
     const verificationDisplay = resolveSignerVerificationDisplay(
       resolveSafeSigningMode(process.env),
@@ -1773,6 +1831,7 @@ const processTxs = async (
       // it: the row must report the same verdict the refusal below acts on.
       codehash: codehashGate,
       targetState,
+      peripheryAllowlist,
       executability,
       // Only a chain the simulator was never written for is out of scope. An
       // EVM network it does cover but could not reach is a read that should
@@ -1858,6 +1917,7 @@ const processTxs = async (
     // per element to show.
     renderGateDetail([
       formatTargetStateLines(targetState),
+      renderPeripheryAllowlistLines(peripheryAllowlist),
       codehashLines,
     ]).forEach((line) => consola.log(line))
     // Carries no ledger row, so it has no grouped row to print under.
@@ -2095,6 +2155,13 @@ const processTxs = async (
     // the run intact.
     if (!targetState.cleared) {
       for (const line of renderTargetStateRefusal(targetState))
+        consola.error(line)
+      recordProposalOutcome({ blocked: true })
+      continue
+    }
+
+    if (!peripheryAllowlist.cleared) {
+      for (const line of renderPeripheryAllowlistRefusal(peripheryAllowlist))
         consola.error(line)
       recordProposalOutcome({ blocked: true })
       continue

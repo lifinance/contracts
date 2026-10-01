@@ -159,7 +159,7 @@
     "wrappedNativeAddress": "0x0000000000000000000000000000000000000001",
     "status": "active",
     "type": "mainnet",
-    "rpcUrl": "https://lb.drpc.live/arc",
+    "rpcUrl": "https://arc.drpc.org",
     "verificationType": "blockscout",
     "explorerUrl": "https://explorer.arc.io",
     "explorerApiUrl": "https://explorer.arc.io/api",

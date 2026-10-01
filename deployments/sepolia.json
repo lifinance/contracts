@@ -5,7 +5,7 @@
   "DiamondLoupeFacet": "0xEF3013cE6d21B3AD9c9aDB07C89265Ab29d2c656",
   "EmergencyPauseFacet": "0x126d71A4E17b725e89EF4DE39deA7aa2123C02a5",
   "GenericSwapFacetV3": "0xa612a6d05A4F028157050cd2745853a3401305F6",
-  "LiFiIntentEscrowFacetV2": "0x8c0D29040A236C8f4b3d3d4f37EaFC2708BE2690",
+  "LiFiIntentEscrowFacetV2": "0xe99dB2d1D4942C4e1146519314F3d9eBdbc51c8E",
   "OwnershipFacet": "0x66ceb8416d34e922b3DD31c40628f63Eb56dA481",
   "PeripheryRegistryFacet": "0xadc9Fec1002bc6DdD02221b8A6c334a852E75015",
   "WhitelistManagerFacet": "0xCaB5D6155d646e822db137c62bAcB2BcfbC546c1",

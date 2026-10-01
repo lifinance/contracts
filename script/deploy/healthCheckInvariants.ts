@@ -46,6 +46,10 @@ import {
 } from './safe/diamondRemovalDiff'
 import type { IParkedTask } from './safe/parked-tasks'
 import { type IPendingRegistration } from './safe/pending-registrations'
+import {
+  baseSemanticVersion,
+  TARGET_STATE_VERSION_LATEST,
+} from './safe/pinned-target-state'
 import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -54,14 +58,18 @@ import {
   loadCompiledFacetSelectors,
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
+import { getContractVersion } from './shared/getContractVersion'
 import { sanitizeProvenanceText } from './shared/git-provenance'
 import { getCorePeriphery } from './shared/globalContractLists'
 import {
+  addressesMatch,
   collectImmutableBindingChecks,
+  compareContractVersions,
   isFacetContract,
   isZeroAddressValue,
   liveVersionPredatingGetter,
   loadDiamondLog,
+  resolveRegisteredFacetVersion,
   TRON_ZERO_ADDRESS_BASE58,
   type DiamondFacetLog,
   type IImmutableBindingCheck,
@@ -182,6 +190,12 @@ export interface IHealthCheckContext {
    * test to whatever version the fleet happens to be running.
    */
   diamondFacetLog?: DiamondFacetLog
+  /**
+   * Reads a contract's `@custom:version` from this checkout, which is what a `latest` target
+   * state entry expects. Undefined = read `src/` (the default); injectable so the target-version
+   * comparison is testable without pinning a test to the version the repo happens to be at.
+   */
+  contractSourceVersion?: (contractName: string) => Promise<string>
   /**
    * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
    * name. Undefined = read from the build output (the default); injectable so both invariants
@@ -1764,6 +1778,115 @@ async function resolveBindingTargetAddress(
 }
 
 /**
+ * The registered addresses at which the diamond serves a facet: each one the diamond log names it
+ * at, plus its deploy-log address when the diamond registers that one.
+ *
+ * @remarks The deploy-log address is what surfaces a facet the diamond log does not record at
+ *   all: it is live, but its version is unknown, and that has to be reported rather than read as
+ *   "not registered". Only registered addresses count, so a log entry the diamond no longer
+ *   serves never answers for the facet.
+ * @param contractName - facet name as the target state spells it
+ * @param ctx - the network being evaluated, with `onChainFacets` populated
+ * @param log - the network's diamond facet log
+ * @returns the registered addresses, empty when the diamond does not serve the facet
+ */
+function registeredFacetAddresses(
+  contractName: string,
+  ctx: IHealthCheckContext,
+  log: DiamondFacetLog
+): string[] {
+  const deployedAddress = ctx.deployedContracts[contractName]
+  const loggedAddresses = Object.entries(log)
+    .filter(([, entry]) => entry?.Name === contractName)
+    .map(([address]) => address)
+  if (deployedAddress) loggedAddresses.push(String(deployedAddress))
+
+  return ctx.onChainFacets
+    .map((facet) => facet.address)
+    .filter((registered) =>
+      loggedAddresses.some((address) => addressesMatch(address, registered))
+    )
+}
+
+/** The version a target-state entry expects, and how to name it in a warning. */
+type TargetFacetVersion =
+  | { version: string; label: string }
+  | { unresolvedReason: string }
+
+/**
+ * Resolve the version a target-state entry expects: a pin as written, `latest` as the contract's
+ * `@custom:version` in this checkout.
+ *
+ * @param contractName - facet name as the target state spells it
+ * @param declared - the target-state value, `latest` or a pin
+ * @param ctx - the network being evaluated
+ * @returns the expected version, or why `latest` could not be resolved
+ */
+async function resolveTargetFacetVersion(
+  contractName: string,
+  declared: string,
+  ctx: IHealthCheckContext
+): Promise<TargetFacetVersion> {
+  if (declared !== TARGET_STATE_VERSION_LATEST)
+    return { version: declared, label: `${declared} (pinned)` }
+
+  try {
+    const version = await (ctx.contractSourceVersion ?? getContractVersion)(
+      contractName
+    )
+    return { version, label: `${version} (latest)` }
+  } catch (error: unknown) {
+    return {
+      unresolvedReason: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/**
+ * Report how one registered facet's live version stands against its target.
+ *
+ * @remarks The text names the contract and both versions but never the network or the address,
+ *   so the same drift reads identically on every chain. The fleet digest masks version digits,
+ *   so it merges per contract and direction; only the run log keeps the versions apart.
+ * @param ctx - the network being evaluated
+ * @param contractName - facet name as the target state spells it
+ * @param liveVersion - the version the diamond log records at the registered address, if any
+ * @param target - the resolved target version
+ * @returns true when the live version equals the target
+ */
+function reportFacetVersionDrift(
+  ctx: IHealthCheckContext,
+  contractName: string,
+  liveVersion: string | null,
+  target: { version: string; label: string }
+): boolean {
+  if (liveVersion === null) {
+    ctx.logWarn(
+      `${contractName} is registered but the diamond log records no version for it — cannot compare against target ${target.label}`
+    )
+    return false
+  }
+
+  const versions = `live ${liveVersion}, target ${target.label}`
+  // A build suffix (2.1.3-tron) marks a variant of its base release, so bases are compared, as
+  // the deploy guard and the sign-time gate do. Null is "no ordering", never equality: a version
+  // nobody can order is unverified drift.
+  const order = compareContractVersions(
+    baseSemanticVersion(liveVersion),
+    baseSemanticVersion(target.version)
+  )
+  if (order === null)
+    ctx.logWarn(
+      `${contractName} version cannot be compared against the target state: ${versions}`
+    )
+  else if (order < 0)
+    ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
+  else if (order > 0)
+    ctx.logWarn(`${contractName} is ahead of the target state: ${versions}`)
+  return order === 0
+}
+
+/**
  * Scheduled-but-unexecuted registrations fleet-wide, fetched once per process and
  * grouped by network. Same shape, sharing and failure handling as
  * {@link fetchOpenParkedAddressesByNetwork}: one read serves every network in the
@@ -2429,6 +2552,79 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
         }
       }
+    },
+  },
+  {
+    name: 'facet-versions-match-target-state',
+    description:
+      'Every target-state facet the diamond registers runs the version the target state expects',
+    // Warning, not error: most of the fleet runs facets behind target today, and an error gate
+    // would turn nearly every network red on day one over a rollout backlog nobody can close in
+    // the same change. Revisit once the backlog is small, with a reviewed exemption list.
+    severity: 'warning',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Behind: roll the target version out to this network. Ahead: the live build is newer than the target — correct the pin in _targetState.json, or land the source bump that build came from. Unverifiable: re-sync deployments/<network>.diamond.json from the loupe, or fix the version it cannot order.',
+    run: async (ctx) => {
+      // The two sides of the comparison come from different places on purpose: the live version is
+      // the diamond log's entry at the address the diamond registers, and the target is what the
+      // target state allows. Without this check a network can run a build several versions behind
+      // while every other invariant stays green.
+      const targets = Object.entries(
+        ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond ?? {}
+      ).filter(([contractName]) => isFacetContract(contractName))
+      if (targets.length === 0) return
+
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable — facet versions not compared against the target state'
+        )
+        return
+      }
+      const log =
+        ctx.diamondFacetLog ?? loadDiamondLog(ctx.networkLower)?.Facets ?? null
+      if (log === null) {
+        ctx.logWarn(
+          'Diamond log unavailable — facet versions not compared against the target state'
+        )
+        return
+      }
+
+      let matching = 0
+      for (const [contractName, declared] of targets) {
+        // An unregistered target-state facet is facets-registered's finding, not this one's.
+        const addresses = registeredFacetAddresses(contractName, ctx, log)
+        if (addresses.length === 0) continue
+
+        const target = await resolveTargetFacetVersion(
+          contractName,
+          declared,
+          ctx
+        )
+        if ('unresolvedReason' in target) {
+          ctx.logWarn(
+            `${contractName} version cannot be compared against the target state: target is ${declared} but ${target.unresolvedReason}`
+          )
+          continue
+        }
+
+        for (const address of addresses) {
+          const liveVersion = resolveRegisteredFacetVersion(
+            contractName,
+            ctx.networkLower,
+            address,
+            log
+          )
+          if (reportFacetVersionDrift(ctx, contractName, liveVersion, target))
+            matching++
+        }
+      }
+
+      if (matching > 0)
+        consola.success(
+          `${matching} registered facet(s) match their target-state version`
+        )
     },
   },
   {

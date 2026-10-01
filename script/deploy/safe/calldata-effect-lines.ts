@@ -57,7 +57,9 @@ import {
   normalizeDiamondCutSelector,
 } from './safe-utils'
 import {
+  getArtifactSelectorInfo,
   getLocalSelectorInfo,
+  type ISelectorInfo,
   resolveSelectorsViaFourByte,
 } from './selector-registry'
 
@@ -557,17 +559,26 @@ async function diamondCutLines(
 
   const target = await renderAddress(context.network, context.target)
   const selectorMap = await createSelectorMap()
+  const facets = modifications.map((modification) =>
+    cutFacet(context.network, modification)
+  )
+  const localInfo = (
+    index: number,
+    normalised: string
+  ): { name: string } | undefined =>
+    selectorMap?.get(normalised) ??
+    getLocalSelectorInfo(normalised) ??
+    facets[index]?.artifactSelectors.get(normalised)
 
-  // One batched, disk-cached lookup for every selector neither diamond.json nor
-  // the local registry knows, so rendering below stays synchronous per row.
+  // One batched, disk-cached lookup for every selector no local source knows,
+  // so rendering below stays synchronous per row.
   const unknown: string[] = []
-  for (const modification of modifications) {
+  for (const [index, modification] of modifications.entries()) {
     const selectors = Array.isArray(modification) ? modification[2] : undefined
     if (!Array.isArray(selectors)) continue
     for (const selector of selectors) {
       const normalised = normalizeDiamondCutSelector(selector)
-      if (!selectorMap?.get(normalised) && !getLocalSelectorInfo(normalised))
-        unknown.push(normalised)
+      if (!localInfo(index, normalised)) unknown.push(normalised)
     }
   }
   const fourByte =
@@ -582,7 +593,7 @@ async function diamondCutLines(
     NO_LINK
   )
   const cutPre = `${pre}  `
-  for (const modification of modifications) {
+  for (const [index, modification] of modifications.entries()) {
     if (!Array.isArray(modification)) {
       lines.push(
         cannotRead(cutPre, 'a cut entry could not be read — it is not a triple')
@@ -590,10 +601,7 @@ async function diamondCutLines(
       continue
     }
     const [facetAddress, actionValue, selectors] = modification
-    const action =
-      typeof actionValue === 'bigint' ? Number(actionValue) : actionValue
-    const verb =
-      typeof action === 'number' ? DIAMOND_CUT_VERBS[action] : undefined
+    const verb = cutVerb(actionValue)
     const count = Array.isArray(selectors) ? selectors.length : 0
     const functions = Array.isArray(selectors)
       ? plural(count, 'function')
@@ -608,12 +616,8 @@ async function diamondCutLines(
       )
     } else {
       const facet = await renderAddress(context.network, facetAddress)
-      const name = facetContractName(
-        context.network,
-        facetAddress,
-        selectors,
-        action
-      )
+      const facetName = facets[index]?.name
+      const name = facetName ? asPrintable(facetName).text : undefined
       const opening =
         verb === undefined
           ? // The action is proposer-controlled, so it is quoted into a sentence
@@ -650,8 +654,7 @@ async function diamondCutLines(
     const shown = selectors.slice(0, MAX_SELECTORS_SHOWN)
     for (const selector of shown) {
       const normalised = normalizeDiamondCutSelector(selector)
-      const info =
-        selectorMap?.get(normalised) ?? getLocalSelectorInfo(normalised)
+      const info = localInfo(index, normalised)
       // The name, not the canonical signature: an argument list of nested
       // tuples runs past the view's width and is clipped into a notice, which
       // buries the two-word answer to what this selector is. 4byte supplies
@@ -704,31 +707,52 @@ const isEmptyCalldata = (value: unknown): boolean => {
   return text === '' || text === '0x' || text.length < 10
 }
 
+const cutVerb = (actionValue: unknown): string | undefined => {
+  const action =
+    typeof actionValue === 'bigint' ? Number(actionValue) : actionValue
+  return typeof action === 'number' ? DIAMOND_CUT_VERBS[action] : undefined
+}
+
+interface ICutFacet {
+  name: string | undefined
+  artifactSelectors: Map<string, ISelectorInfo>
+}
+
 /**
- * The repository's name for a facet address, or undefined.
+ * The repository's name for the facet a cut points at, and the selector names
+ * its compiled artifact carries.
  *
- * A `Remove` never reaches here: its facet address is the zero address, and its
+ * A `Remove` gets neither: its facet address is the zero address, and its
  * selector list may be a partial subset, so matching an artifact by selectors
  * would name a contract the cut is not pointing at.
  */
+function cutFacet(
+  network: string,
+  modification: unknown
+): ICutFacet | undefined {
+  if (!Array.isArray(modification)) return undefined
+  const [facetAddress, actionValue, selectors] = modification
+  if (cutVerb(actionValue) === 'Remove') return undefined
+  const name = facetContractName(network, facetAddress, selectors)
+  return {
+    name,
+    artifactSelectors: name ? getArtifactSelectorInfo(name) : new Map(),
+  }
+}
+
 function facetContractName(
   network: string,
   facetAddress: unknown,
-  selectors: unknown,
-  action: unknown
-): Printable | undefined {
+  selectors: unknown
+): string | undefined {
   let name = getContractNameFromNetworkDeployments(
     network,
     String(facetAddress ?? '')
   )
-  if (
-    name.toLowerCase() === 'unknown' &&
-    action !== 2 &&
-    Array.isArray(selectors)
-  )
+  if (name.toLowerCase() === 'unknown' && Array.isArray(selectors))
     name = getContractNameFromSelectorsInOut(selectors)
   if (!name || name.toLowerCase() === 'unknown') return undefined
-  return asPrintable(name).text
+  return name
 }
 
 async function whitelistLines(

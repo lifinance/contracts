@@ -7,9 +7,9 @@
  * value never becomes syntax, and that nothing it stops printing goes unnamed.
  */
 
-import { mkdtempSync, rmSync } from 'fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { dirname, join } from 'path'
 
 import {
   afterAll,
@@ -26,6 +26,7 @@ import {
   keccak256,
   parseAbi,
   stringToHex,
+  toFunctionSelector,
   zeroAddress,
 } from 'viem'
 
@@ -38,6 +39,8 @@ const FOUR_BYTE: Record<string, string> = {
   '0xdeadbeef': 'CodeIsLawZ95677371()',
   '0x13af4035': 'setOwner(address)',
 }
+// A lookup batch holding this selector fails the way an unreachable 4byte does.
+const FOUR_BYTE_UNREACHABLE = '0x0badf00d'
 
 let cacheDir = ''
 let originalCachePath: string | undefined
@@ -52,6 +55,8 @@ beforeAll(() => {
   ) => {
     const selectors =
       new URL(url).searchParams.get('function')?.split(',') ?? []
+    if (selectors.includes(FOUR_BYTE_UNREACHABLE))
+      throw new Error('getaddrinfo ENOTFOUND')
     const functions = Object.fromEntries(
       selectors.map((selector) => {
         const name = FOUR_BYTE[selector]
@@ -268,6 +273,129 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
     )
     expect(lines).toContain('further selectors not shown (30 in the calldata)')
     expect(lines).toContain('no name for this selector')
+  })
+})
+
+describe('buildCalldataEffectLines — selector names from the facet artifact', () => {
+  // A checkout with no diamond.json: only the compiled artifact under out/, and
+  // for some cases a deployment log naming the facet, can supply a name.
+  const GETTER = 'LIFI_INTENT_ESCROW_SETTLER_V2()'
+  const GETTER_SELECTOR = toFunctionSelector(GETTER)
+  const ENTRY = 'openFixtureEscrow(uint256)'
+  const ENTRY_SELECTOR = toFunctionSelector(ENTRY)
+  const FACET_NAME = 'EscrowFixtureFacet'
+
+  const fourByteUrls = (): string[] =>
+    fetchSpy.mock.calls.map((call) => String(call[0]))
+
+  async function renderIn(
+    files: Record<string, string>,
+    data: `0x${string}`
+  ): Promise<string> {
+    const root = mkdtempSync(join(tmpdir(), 'calldata-effect-artifact-'))
+    for (const [relativePath, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, relativePath)), { recursive: true })
+      writeFileSync(join(root, relativePath), content)
+    }
+    const previousCwd = process.cwd()
+    process.chdir(root)
+    try {
+      return plain(await render(data)).join('\n')
+    } finally {
+      process.chdir(previousCwd)
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  const artifact = (
+    name: string,
+    methodIdentifiers: Record<string, string>
+  ): Record<string, string> => ({
+    [`out/${name}.sol/${name}.json`]: JSON.stringify({ methodIdentifiers }),
+  })
+
+  beforeAll(async () => {
+    // Build the repo-rooted selector registries before any case leaves the
+    // repo root, so none of them is cached from a fixture directory.
+    await render(diamondCut(1))
+  })
+
+  it('names a public getter from the artifact, with no 4byte request for it', async () => {
+    fetchSpy.mockClear()
+    const lines = await renderIn(
+      artifact(FACET_NAME, {
+        [GETTER]: GETTER_SELECTOR.slice(2),
+        [ENTRY]: ENTRY_SELECTOR.slice(2),
+      }),
+      diamondCut(1, FACET, [GETTER_SELECTOR, ENTRY_SELECTOR])
+    )
+    expect(lines).toContain(`Replace 2 functions → ${FACET_NAME}`)
+    expect(lines).toContain(`${GETTER_SELECTOR}  LIFI_INTENT_ESCROW_SETTLER_V2`)
+    expect(lines).toContain(`${ENTRY_SELECTOR}  openFixtureEscrow`)
+    expect(lines).not.toContain('no name for this selector')
+    for (const url of fourByteUrls()) {
+      expect(url).not.toContain(GETTER_SELECTOR)
+      expect(url).not.toContain(ENTRY_SELECTOR)
+    }
+  })
+
+  it('never shows an artifact name that does not hash to its selector', async () => {
+    const lines = await renderIn(
+      artifact(FACET_NAME, { 'drainEverything()': ENTRY_SELECTOR.slice(2) }),
+      diamondCut(0, FACET, [ENTRY_SELECTOR])
+    )
+    expect(lines).toContain(`Add 1 function → ${FACET_NAME}`)
+    expect(lines).not.toContain('drainEverything')
+    expect(lines).toContain(`${ENTRY_SELECTOR}  no name for this selector`)
+  })
+
+  it('falls through to 4byte when the named facet has no artifact', async () => {
+    const lines = await renderIn(
+      { 'deployments/arbitrum.json': JSON.stringify({ GhostFacet: FACET }) },
+      diamondCut(1, FACET, ['0x13af4035'])
+    )
+    expect(lines).toContain('Replace 1 function → GhostFacet')
+    expect(lines).toContain('0x13af4035  setOwner(address)')
+  })
+
+  it('falls through to 4byte when the artifact is not JSON', async () => {
+    const lines = await renderIn(
+      {
+        'deployments/arbitrum.json': JSON.stringify({ BrokenFacet: FACET }),
+        'out/BrokenFacet.sol/BrokenFacet.json': '{ not json',
+      },
+      diamondCut(1, FACET, ['0x13af4035'])
+    )
+    expect(lines).toContain('Replace 1 function → BrokenFacet')
+    expect(lines).toContain('0x13af4035  setOwner(address)')
+  })
+
+  it('reads no artifact for a removal, which points at no facet', async () => {
+    const lines = await renderIn(
+      artifact(FACET_NAME, { [GETTER]: GETTER_SELECTOR.slice(2) }),
+      diamondCut(2, zeroAddress, [GETTER_SELECTOR])
+    )
+    expect(lines).toContain('Remove 1 function')
+    expect(lines).not.toContain(FACET_NAME)
+    expect(lines).not.toContain('LIFI_INTENT_ESCROW_SETTLER_V2')
+    expect(lines).toContain(`${GETTER_SELECTOR}  no name for this selector`)
+  })
+
+  it('warns when 4byte cannot be reached and still renders the row', async () => {
+    const warn = spyOn(consola, 'warn').mockImplementation((() => {}) as never)
+    try {
+      const lines = plain(
+        await render(diamondCut(1, FACET, [FOUR_BYTE_UNREACHABLE]))
+      ).join('\n')
+      expect(lines).toContain(
+        `${FOUR_BYTE_UNREACHABLE}  no name for this selector`
+      )
+      const warned = warn.mock.calls.map((call) => String(call[0])).join('\n')
+      expect(warned).toContain(FOUR_BYTE_UNREACHABLE)
+      expect(warned).toContain('getaddrinfo ENOTFOUND')
+    } finally {
+      warn.mockRestore()
+    }
   })
 })
 

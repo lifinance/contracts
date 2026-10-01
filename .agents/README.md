@@ -92,7 +92,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 ## Factory Intake Rules
 
-`.agents/factory/` holds everything the Dark Factory pilot reads here: `factory.yml`, and any intake rules under `intake/*.md` (none yet). Nothing else reads them. Its intake gate checks a Linear ticket before an agent picks it up: the factory file names the repo's areas, and each intake rule lists the ticket sections a ticked area requires. Its drift check and push guard read the same files. They are not symlinked into `.cursor/` or `.claude/`, because editor sessions have no use for ticket requirements. The factory reads both from `main` only, and may never edit them itself. Its base rule, which every ticket must meet, ships with the factory: a copy here would reuse its rule name, which the gate rejects as invalid, bouncing every ticket.
+`.agents/factory/` holds what the Dark Factory pilot reads here: `factory.yml` and, once the team writes one, `intake.md` (none yet). Nothing else reads them. Every ticket must pass the factory's own floor before an agent picks it up; `intake.md` adds this repo's rules on top, and `protected` in `factory.yml` lists paths a factory push may never touch (none yet). Nothing else is blocked, except that a factory PR can never change `.agents/factory/` itself, so only a human edits these rules. The files are not symlinked into `.cursor/` or `.claude/`, because editor sessions have no use for ticket requirements. The factory reads them from `main` only, and may never edit them itself. Rule syntax and options: [Customizing a repo's intake](https://github.com/lifinance/ai-factory/blob/main/docs/intake-customization.md).
 
 ## Transaction Analysis
 

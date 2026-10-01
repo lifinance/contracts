@@ -3,11 +3,11 @@
 # - a ticked area that covers a protected path bounces the ticket
 # - an invalid factory or rule file blocks every ticket and DMs the engineer
 # - a protected path in the diff blocks the push
-# The factory's own protected paths always apply; `protected` below can only add to them.
+# Nothing is protected unless `protected` below or the engineer's local factory config lists it.
+# One exception: factory PRs can never change .agents/factory/**, so only a human edits these rules.
 
 areas:
   contracts: ['src/**']
-  # script/emergency/ and script/deploy/immutables/ are left out: an area over a protected path bounces every ticket
   general:
     - script/*
     - script/{claude,common,demoScripts,mongoDb,output,resources,safe,tasks,troncast,utils}/**
@@ -19,8 +19,7 @@ areas:
     - templates/**
     - '*.md'
 
-# the paths protectSecurityRelevantCode.yml sends to the Information Security review that the factory floor does not already cover
-protected: ['.husky/**', 'script/emergency/**', 'script/deploy/immutables/**']
+protected: []
 
 # How the factory answers each finding. The first choice after each value is the default.
 responses:

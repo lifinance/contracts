@@ -472,8 +472,11 @@ function readDiamondLog(logPath: string): IDiamondLog | null {
  * @remarks Hex compares case-insensitively because a log and a chain read disagree on checksum
  *   casing. Tron's base58 does not: case carries information there, and lowercasing it would let
  *   two distinct addresses compare equal.
+ * @param left - an address as a log or a chain read spells it, hex or Tron base58
+ * @param right - the address to compare it with
+ * @returns true when both denote the same contract
  */
-function addressesMatch(left: string, right: string): boolean {
+export function addressesMatch(left: string, right: string): boolean {
   const leftTrimmed = left.trim()
   const rightTrimmed = right.trim()
   if (leftTrimmed.startsWith('0x') && rightTrimmed.startsWith('0x'))

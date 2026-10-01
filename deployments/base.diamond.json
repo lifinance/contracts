@@ -121,9 +121,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+      "0x0FC3045A569f55233BA26d92dB2e7DbB47C30D76": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x3556edeCDd99D567641F796cB2ac648006f4E257": {
         "Name": "SupersetFacet",

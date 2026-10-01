@@ -68,6 +68,8 @@ jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/globa
 
 If it matches, in production each registration proposal also de-whitelists the replaced address's `global.json.whitelistPeripheryFunctions` selectors and whitelists the new address's, so there is still one proposal per network and no separate sync; the deploy then regenerates `config/whitelist.json` locally for the PR from every `deployments/*.json` on disk (an uncommitted edit to any of them lands in the file; a failed regeneration fails the run). In staging, Phase 3b syncs the allowlist afterwards. No manual `whitelist.json` editing either way. Facets and non-diamond-called periphery skip Phase 3b.
 
+In production, signing gate W refuses a registration whose selectors will not be allowlisted once the proposal runs, so a registration proposed without its whitelist writes cannot be signed.
+
 A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
 
 **Facets with a required companion periphery.** A bridge facet usually covers only the source side; destination calls are completed by a partner contract on the same chain (`LiFiIntentEscrowFacetV2` → `ReceiverOIF`, `StargateFacetV2` → `ReceiverStargateV2`). Deploying the facet alone silently disables inbound transfers there. Detect deterministically:

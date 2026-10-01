@@ -69,9 +69,9 @@
         "Name": "NEARIntentsFacet",
         "Version": "3.0.0"
       },
-      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+      "0x0FC3045A569f55233BA26d92dB2e7DbB47C30D76": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",

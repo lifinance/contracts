@@ -8,6 +8,7 @@ import {
 } from 'bun:test'
 
 import {
+  addressesMatch,
   collectImmutableBindingChecks,
   isFacetContract,
   isValidConfigFileName,
@@ -842,5 +843,32 @@ describe('liveVersionPredatingGetter', () => {
     expect(
       liveVersionPredatingGetter(check('1.1'), OLD, 'mainnet', LOG)
     ).toBeNull()
+  })
+})
+
+describe('addressesMatch', () => {
+  it('ignores checksum casing on hex addresses', () => {
+    expect(
+      addressesMatch(
+        '0x31a9b1835864706af10103b31ea2b79bdb995f5f',
+        '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
+      )
+    ).toBe(true)
+  })
+
+  it('tells distinct hex addresses apart', () => {
+    expect(addressesMatch(SPOKE, SPOKE.replace(/1$/, '2'))).toBe(false)
+  })
+
+  it('keeps case significant on Tron base58, where it carries information', () => {
+    expect(
+      addressesMatch(TRON_ZERO_ADDRESS_BASE58, TRON_ZERO_ADDRESS_BASE58)
+    ).toBe(true)
+    expect(
+      addressesMatch(
+        TRON_ZERO_ADDRESS_BASE58,
+        TRON_ZERO_ADDRESS_BASE58.toLowerCase()
+      )
+    ).toBe(false)
   })
 })
