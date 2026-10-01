@@ -14,6 +14,7 @@ import {
 } from 'bun:test'
 import {
   encodeFunctionData,
+  encodePacked,
   getAddress,
   parseAbi,
   toFunctionSelector,
@@ -63,6 +64,10 @@ const SAFE = '0x00000000000000000000000000000000000005a1' as Address
 const ZERO = '0x0000000000000000000000000000000000000000' as Address
 const DEPOSIT = '0xd0e30db0' as Hex
 const WITHDRAW = '0x3ccfd60b' as Hex
+// Safe v1.4.1 MultiSendCallOnly
+const MULTISEND_CALL_ONLY =
+  '0x9641d764fc13c8B624c04430C7356C1C7C8102e2' as Address
+const MULTISEND_ABI = parseAbi(['function multiSend(bytes)'])
 
 const ABI = parseAbi([
   'function registerPeripheryContract(string,address)',
@@ -493,6 +498,54 @@ describe('evaluatePeripheryAllowlist — envelopes', () => {
     expect(verdict.cleared).toBe(true)
     expect(verdict.unreadable).toEqual([])
     expect(rowOf(verdict).status).toBe('not-applicable')
+  })
+
+  it('refuses an unopened call whose arguments carry the registration selector by coincidence', async () => {
+    const coincidence = encodeFunctionData({
+      abi: ABI,
+      functionName: 'mysteryEnvelope',
+      args: [`${REGISTER_SELECTOR}${'00'.repeat(28)}`],
+    })
+    const verdict = await evaluatePeripheryAllowlist(
+      viaTimelock(scheduleBatch([coincidence])),
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.findings).toEqual([])
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.unreadable).toHaveLength(1)
+    expect(verdict.unreadable[0]).toContain('by coincidence in its arguments')
+    expect(rowOf(verdict).status).toBe('error')
+  })
+
+  it('refuses a registration packed inside a top-level MultiSend', async () => {
+    const packed = encodePacked(
+      ['uint8', 'address', 'uint256', 'uint256', 'bytes'],
+      [
+        0,
+        DIAMOND,
+        0n,
+        BigInt((register('TokenWrapper').length - 2) / 2),
+        register('TokenWrapper'),
+      ]
+    )
+    const verdict = await evaluatePeripheryAllowlist(
+      {
+        calldatas: [
+          encodeFunctionData({
+            abi: MULTISEND_ABI,
+            functionName: 'multiSend',
+            args: [packed],
+          }),
+        ],
+        targets: [MULTISEND_CALL_ONLY],
+        caller: SAFE,
+        network: 'gnosis',
+      },
+      chain([DEPOSIT, WITHDRAW])
+    )
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.unreadable).toHaveLength(1)
+    expect(rowOf(verdict).status).toBe('error')
   })
 
   it('refuses a truncated schedule envelope that carries a registration', async () => {
