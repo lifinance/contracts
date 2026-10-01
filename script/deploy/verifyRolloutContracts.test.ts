@@ -157,8 +157,10 @@ function run(options: IRunOptions): IRunResult {
 ${HELPERS}
     )
     source "${SCRIPT}"
+    # clobbers like the real verify helpers, which assign these without \`local\`
     verifyContract() {
       echo "$*" >>"$STUB_DIR/verify.log"
+      CONTRACT=Clobbered VERSION=0.0.0 ENVIRONMENT=clobbered
       [[ ",$FAIL_VERIFY," != *",$1,"* ]]
     }
     verifyRolloutContracts "$@"

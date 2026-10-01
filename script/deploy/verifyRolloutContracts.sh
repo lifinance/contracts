@@ -164,7 +164,9 @@ function verifyRolloutContracts() {
   for ENTRY in "${SELECTION[@]}"; do
     IFS=$'\t' read -r NETWORK DEPLOYED_ADDRESS RECORD_ADDRESS CONSTRUCTOR_ARGS <<<"$ENTRY"
     echo "[info] verifying $CONTRACT $VERSION on $NETWORK at $DEPLOYED_ADDRESS"
-    if ! verifyContract "$NETWORK" "$CONTRACT" "$DEPLOYED_ADDRESS" "$CONSTRUCTOR_ARGS"; then
+    # subshell: the verify helpers assign CONTRACT/VERSION/... without `local`, which
+    # under bash's dynamic scoping would overwrite this function's locals mid-loop
+    if ! (verifyContract "$NETWORK" "$CONTRACT" "$DEPLOYED_ADDRESS" "$CONSTRUCTOR_ARGS"); then
       error "$NETWORK: explorer verification failed for $DEPLOYED_ADDRESS"
       FAILED+=("$NETWORK $DEPLOYED_ADDRESS (explorer verification)")
       continue
