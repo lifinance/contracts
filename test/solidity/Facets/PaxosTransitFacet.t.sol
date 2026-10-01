@@ -27,34 +27,34 @@ interface ITransitStation {
 
     function owner() external view returns (address);
 
-    function setQuoteSigner(address signer) external;
+    function setQuoteSigner(address _signer) external;
 
     function quoteSigner() external view returns (address);
 
     function quoteSend(
-        uint32 destEID,
-        OrderTerms calldata terms
+        uint32 _destEID,
+        OrderTerms calldata _terms
     ) external view returns (uint256);
 
-    function usedDigests(bytes32 digest) external view returns (bool);
+    function usedDigests(bytes32 _digest) external view returns (bool);
 
     function approvedRoutes(
-        uint32 destEID,
-        address offerAsset,
-        address wantAsset
+        uint32 _destEID,
+        address _offerAsset,
+        address _wantAsset
     ) external view returns (bool);
 
-    function messageGasLimit(uint32 eid) external view returns (uint64);
+    function messageGasLimit(uint32 _eid) external view returns (uint64);
 
     function thisChainEID() external view returns (uint32);
 
     function setRouteApprovals(
-        IPaxosTransit.Route[] calldata routes,
-        bool[] calldata approved
+        IPaxosTransit.Route[] calldata _routes,
+        bool[] calldata _approved
     ) external;
 
     function pendingOrderIdsContains(
-        bytes32 uuid
+        bytes32 _uuid
     ) external view returns (bool);
 
     function offerReceiver() external view returns (address);
