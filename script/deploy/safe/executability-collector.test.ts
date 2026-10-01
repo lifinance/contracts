@@ -520,7 +520,7 @@ describe('simulating across several endpoints', () => {
       throw new Error(message)
     })
   const succeeding = () => clientThat(async () => ({}))
-  /** A transport-level failure, which is the only thing that may fail over. */
+  /** A transport-level failure, which fails over to the next endpoint. */
   const unreachable = () =>
     clientThat(async () => {
       const error = new Error('HTTP request failed: 503 Service Unavailable')
@@ -552,21 +552,38 @@ describe('simulating across several endpoints', () => {
     }
   })
 
-  // An execution failure the node words without "revert" — an invalid opcode,
-  // an out-of-gas — must stop the walk too. Treating it as an unreachable
-  // endpoint lets the next endpoint's success stand in for a failure the first
-  // one really saw.
-  it('an execution failure stops the walk even without the word revert', async () => {
+  // An invalid opcode is the EVM's own answer, so it stops the walk like a
+  // revert. An out-of-gas runs under the node's own gas cap and an unworded
+  // failure says nothing about the payload, so both ask the next endpoint.
+  it('an invalid opcode stops the walk even without the word revert', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      reverting('invalid opcode: INVALID'),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  it('an out-of-gas or an unworded failure asks the next endpoint', async () => {
     for (const wording of [
-      'invalid opcode: INVALID',
       'out of gas',
       'CallExecutionError: An unknown error occurred while executing the call',
     ]) {
+      const alone = createExecutabilityChainReader(succeeding(), [
+        reverting(wording),
+      ])
+      expect(
+        (await alone.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+          .outcome
+      ).toBe('errored')
+
       const reader = createExecutabilityChainReader(succeeding(), [
         reverting(wording),
         succeeding(),
       ])
-
       expect(
         (
           await reader.staticCall({
@@ -575,7 +592,7 @@ describe('simulating across several endpoints', () => {
             data: '0x' as Hex,
           })
         ).outcome
-      ).not.toBe('succeeded')
+      ).toBe('succeeded')
     }
   })
 
@@ -824,5 +841,90 @@ describe('the sender a payload is simulated from', () => {
 
     expect(seen.find((call) => call.data === inner)?.from).toBe(TIMELOCK)
     expect(seen.find((call) => call.to === TIMELOCK)?.from).toBe(SAFE)
+  })
+})
+
+/**
+ * Real endpoint failures, as viem raises them.
+ *
+ * Built through viem's own client so the error chain is the one a live endpoint
+ * produces: every failure arrives as a `CallExecutionError`, so a test that
+ * throws a bare `Error` with a chosen name never reaches the case that matters.
+ * The two rejections are the bodies a keyless `rpc.ankr.com/eth` and
+ * `cloudflare-eth.com` return to `eth_call`; the revert is a node's code-3
+ * answer with the custom error's selector as data.
+ */
+describe('a node error is a revert only when the chain says so', () => {
+  const answering = (body: Record<string, unknown>): PublicClient =>
+    createPublicClient({
+      transport: custom(
+        {
+          request: async () => {
+            throw body
+          },
+        },
+        { retryCount: 0 }
+      ),
+    })
+  const succeeding = createPublicClient({
+    transport: custom({ request: async () => '0x' }, { retryCount: 0 }),
+  })
+
+  const KEYLESS = {
+    code: -32000,
+    message:
+      'Unauthorized: You must authenticate your request with an API key. Create an account and generate your personal API key for free.',
+  }
+  const INTERNAL = { code: -32603, message: 'Internal error' }
+  const REVERT = { code: 3, message: 'execution reverted', data: '0x277d76f8' }
+
+  const simulate = (simulators: PublicClient[]) =>
+    createExecutabilityChainReader(succeeding, simulators).staticCall({
+      from: SAFE,
+      to: DIAMOND,
+      data: '0x8da5cb5b' as Hex,
+    })
+
+  it('reads a keyless rejection and an internal error as errored, not reverted', async () => {
+    for (const body of [KEYLESS, INTERNAL]) {
+      const outcome = await simulate([answering(body)])
+      expect(outcome.outcome).toBe('errored')
+      expect(outcome.revertReason).toBeUndefined()
+    }
+  })
+
+  it('asks the next endpoint after a rejection, and takes its answer', async () => {
+    for (const body of [KEYLESS, INTERNAL])
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'succeeded'
+      )
+  })
+
+  it('reads a code-3 answer carrying revert data as reverted', async () => {
+    const outcome = await simulate([answering(REVERT)])
+    expect(outcome.outcome).toBe('reverted')
+  })
+
+  it('still finds a revert behind a flaky first endpoint', async () => {
+    for (const body of [KEYLESS, INTERNAL])
+      expect(
+        (await simulate([answering(body), answering(REVERT)])).outcome
+      ).toBe('reverted')
+  })
+
+  it('lets a revert stop the walk, so a later success cannot overwrite it', async () => {
+    for (const body of [
+      REVERT,
+      { code: -32000, message: 'Reverted 0xdeadbeef' },
+      {
+        code: -32015,
+        message: 'VM execution error.',
+        data: 'Reverted 0x08c379a0',
+      },
+      { code: -32000, message: 'execution failed', data: '0x08c379a0' },
+    ])
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'reverted'
+      )
   })
 })

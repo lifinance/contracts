@@ -15,10 +15,16 @@ import {
   storageAuthorityDefiniteReds,
   type IDefiniteRedVerdict,
 } from './definite-red-gate'
-import type {
-  IExecutabilityCall,
-  IExecutabilityVerdict,
-  TCallOutcome,
+import {
+  evaluateExecutability,
+  ExecutabilityFindingEnum,
+  FacetCutActionEnum,
+  RevertCertaintyEnum,
+  type IExecutabilityCall,
+  type IExecutabilityInput,
+  type IExecutabilityVerdict,
+  type IStaticCallObservation,
+  type TCallOutcome,
 } from './executability-simulation'
 import {
   evaluateRpcQuorum,
@@ -223,6 +229,155 @@ describe('gate I: the simulation ran and a call reverts', () => {
   })
 })
 
+/**
+ * Gate I against the simulation's own verdict, not a hand-built one: a call
+ * whose `eth_call` could not be made is graded `unknown` whatever its
+ * calldata proved, so a red read off the outcome alone never sees the proof.
+ */
+describe('gate I: a proof from the calldata stands without an eth_call', () => {
+  const DIAMOND = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+  const LOUPE = '0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2'
+  const SERVED = '0xcdffacc6'
+  const PATH = 'call[0].diamondCut'
+
+  const removeNamingAFacet = (
+    results: IStaticCallObservation[],
+    overrides: Partial<IExecutabilityInput> = {}
+  ): IExecutabilityVerdict =>
+    evaluateExecutability({
+      network: 'mainnet',
+      payloads: [
+        {
+          kind: 'diamond-cut',
+          path: PATH,
+          diamond: DIAMOND,
+          caller: OWNER,
+          cuts: [
+            {
+              action: FacetCutActionEnum.Remove,
+              facetAddress: LOUPE,
+              selectors: [SERVED],
+              path: `${PATH}.cuts[0]`,
+            },
+          ],
+          init: '0x0000000000000000000000000000000000000000',
+          initCalldata: '0x',
+        },
+      ],
+      observations: {
+        available: true,
+        selectorFacets: new Map([[SERVED, LOUPE.toLowerCase()]]),
+        hasCode: new Map([
+          [LOUPE.toLowerCase(), true],
+          [DIAMOND.toLowerCase(), true],
+        ]),
+        owners: new Map([[DIAMOND.toLowerCase(), OWNER.toLowerCase()]]),
+      },
+      staticCalls: { attempted: true, results },
+      ...overrides,
+    })
+
+  it('blocks on a proven finding when the eth_call errored', () => {
+    const verdict = removeNamingAFacet([
+      { path: PATH, outcome: 'errored', from: OWNER, errorReason: 'HTTP 429' },
+    ])
+    expect(verdict.calls[0]?.outcome).toBe('unknown')
+
+    const reds = executabilityDefiniteReds(verdict)
+    expect(reds).toHaveLength(1)
+    expect(reds[0]?.gate).toBe('I')
+    expect(reds[0]?.reason).toContain(PATH)
+    expect(reds[0]?.reason).toContain(
+      ExecutabilityFindingEnum.FacetAddressIsNotZero
+    )
+  })
+
+  it('blocks on a proven finding when no eth_call result reached the call', () => {
+    const verdict = removeNamingAFacet([])
+    expect(verdict.calls[0]?.outcome).toBe('unknown')
+    expect(executabilityDefiniteReds(verdict)).toHaveLength(1)
+  })
+
+  it('reports one red per call, not one per finding beside a revert', () => {
+    const verdict = removeNamingAFacet([
+      { path: PATH, outcome: 'reverted', from: OWNER },
+    ])
+    expect(verdict.calls[0]?.outcome).toBe('would-revert')
+    expect(executabilityDefiniteReds(verdict)).toEqual([
+      { gate: 'I', reason: `${PATH} would revert` },
+    ])
+  })
+
+  it('leaves a predicted finding without an eth_call advisory', () => {
+    const predicted = call('unknown')
+    const verdict = simulation([
+      {
+        ...predicted,
+        findings: [
+          {
+            code: ExecutabilityFindingEnum.FunctionAlreadyExists,
+            certainty: RevertCertaintyEnum.Predicted,
+            path: 'call[0]',
+            detail: 'already served',
+            blocking: true,
+          },
+        ],
+      },
+    ])
+    expect(executabilityDefiniteReds(verdict)).toEqual([])
+  })
+
+  it('leaves a composed proof, a warn-only proof and a nonce proof advisory', () => {
+    const proven = {
+      certainty: RevertCertaintyEnum.Proven,
+      path: 'call[0]',
+      detail: 'proven',
+    }
+    const verdict = simulation([
+      {
+        ...call('unknown'),
+        findings: [
+          {
+            ...proven,
+            code: ExecutabilityFindingEnum.FunctionDoesNotExist,
+            composed: true,
+            blocking: true,
+          },
+          {
+            ...proven,
+            code: ExecutabilityFindingEnum.FacetAddressIsZero,
+            blocking: false,
+          },
+          {
+            ...proven,
+            code: ExecutabilityFindingEnum.NonceAlreadyUsed,
+            blocking: true,
+          },
+        ],
+      },
+    ])
+    expect(executabilityDefiniteReds(verdict)).toEqual([])
+  })
+
+  it('leaves a stale nonce advisory on a payload that executes', () => {
+    const verdict = removeNamingAFacet(
+      [{ path: PATH, outcome: 'reverted', from: OWNER }],
+      {
+        payloads: [],
+        nonce: { proposalNonce: 3, safeNonce: 7, pendingNonces: [] },
+      }
+    )
+    expect(
+      verdict.findings.some(
+        (finding) =>
+          finding.code === ExecutabilityFindingEnum.NonceAlreadyUsed &&
+          finding.blocking
+      )
+    ).toBe(true)
+    expect(executabilityDefiniteReds(verdict)).toEqual([])
+  })
+})
+
 describe('gate J: two or more providers answered and disagree', () => {
   it('blocks when two independent providers return different values', () => {
     const verdict = evaluateRpcQuorum([
@@ -241,6 +396,30 @@ describe('gate J: two or more providers answered and disagree', () => {
     ])
     expect(verdict.status).toBe('fork-divergence')
     expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+  })
+
+  it('blocks on two disagreeing providers beside an endpoint nobody can identify', () => {
+    for (const disagreeing of [
+      answered(PROVIDER_B, { value: OTHER_CODE }),
+      answered(PROVIDER_B, { blockHash: OTHER_HASH }),
+    ]) {
+      const verdict = evaluateRpcQuorum([
+        answered(PROVIDER_A),
+        disagreeing,
+        answered('http://203.0.113.7:8545/'),
+      ])
+      expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+    }
+  })
+
+  it('leaves an endpoint nobody can identify advisory when only it disagrees', () => {
+    const verdict = evaluateRpcQuorum([
+      answered(PROVIDER_A),
+      answered(PROVIDER_B),
+      answered('http://203.0.113.7:8545/', { value: OTHER_CODE }),
+    ])
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+    expect(rpcQuorumDefiniteReds(verdict)).toEqual([])
   })
 
   it('passes when the providers agree', () => {

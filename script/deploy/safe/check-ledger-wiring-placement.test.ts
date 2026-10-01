@@ -604,7 +604,7 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
     {
       gate: 'rpc quorum',
       reader: 'collectProviderObservations(',
-      evaluator: 'evaluateRpcQuorum(',
+      evaluator: 'readQuorumPastTipReorgs(',
       field: 'rpcQuorum',
     },
   ]
@@ -634,7 +634,10 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
       const fromEvaluator =
         body.match(
           new RegExp(
-            `\\b${field}\\s*=\\s*${evaluator.replace('(', '\\(')}`,
+            `\\b${field}\\s*=\\s*(?:await\\s+)?${evaluator.replace(
+              '(',
+              '\\('
+            )}`,
             'gu'
           )
         ) ?? []

@@ -464,34 +464,49 @@ export const collectExecutabilityInput = async (
   }
 }
 
+/** A selector at least: the shape of a custom error, `Error(string)` or `Panic`. */
+const REVERT_DATA = /^0x(?:[0-9a-f]{2}){4,}$/iu
+
+const REVERT_WORDING = /\brevert(?:ed)?\b|\binvalid opcode\b/iu
+
 /**
- * Whether an error is the endpoint failing to answer, rather than the chain
- * answering that the payload does not execute.
+ * Whether an error is the chain answering that the payload does not execute,
+ * rather than the endpoint failing to answer.
  *
- * Deliberately a closed list. Everything else — an EVM revert however the node
- * words it, an invalid opcode, an out-of-gas, a decode failure — is the
- * payload's own answer and must stop the endpoint walk: a later endpoint
- * returning `succeeded` would otherwise overwrite an execution failure that
- * really happened, which is the false green this gate exists to prevent.
+ * Read from evidence only the EVM produces, anywhere in the cause chain: viem
+ * wraps every call failure as `CallExecutionError`, so the outer error's name
+ * says nothing — a keyless endpoint's "Missing or invalid parameters" and an
+ * endpoint's "Internal error" arrive in the same wrapper as a revert. Anything
+ * not recognised here is the endpoint's failure and the next one is asked, so a
+ * revert behind an unusable endpoint is still found.
+ *
+ * Out of gas is deliberately not here: `eth_call` runs under the node's own
+ * gas cap, which differs between providers, so it says as much about the
+ * endpoint as about the payload.
  *
  * @param error - What `PublicClient.call` threw.
- * @returns True only for a transport-level failure the next endpoint may answer.
+ * @returns True only when some link of the chain carries a revert.
  */
-const isEndpointUnavailable = (error: unknown): boolean => {
-  const name = error instanceof Error ? error.name : ''
-  const message = error instanceof Error ? error.message : String(error)
+const isExecutionRevert = (error: unknown): boolean => {
+  const seen = new Set<unknown>()
+  for (
+    let link: unknown = error;
+    typeof link === 'object' && link !== null && !seen.has(link);
+    link = (link as { cause?: unknown }).cause
+  ) {
+    seen.add(link)
+    const { name, code, data, message, details } = link as Record<
+      string,
+      unknown
+    >
 
-  // viem's own transport-level errors, by type rather than by wording.
-  if (
-    /^(HttpRequestError|TimeoutError|RpcRequestError|SocketClosedError|WebSocketRequestError|InternalRpcError|LimitExceededRpcError)$/u.test(
-      name
-    )
-  )
-    return true
+    if (name === 'ExecutionRevertedError' || code === 3) return true
+    if (typeof data === 'string' && REVERT_DATA.test(data)) return true
 
-  return /HTTP request failed|fetch failed|socket hang up|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network (?:error|request failed)|timed out|timeout|too many requests|rate ?limit|service unavailable|bad gateway|gateway timeout|\b(?:429|500|502|503|504)\b/iu.test(
-    message
-  )
+    for (const text of [details, message, data])
+      if (typeof text === 'string' && REVERT_WORDING.test(text)) return true
+  }
+  return false
 }
 
 const ECHOED_BLOCK =
@@ -624,13 +639,7 @@ export const createExecutabilityChainReader = (
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
-        // Failing over is the narrow case, not the default. An error this does
-        // not recognise stops the walk and is reported as the payload's own
-        // answer, because the alternative — treating anything unfamiliar as an
-        // unreachable endpoint — lets the next endpoint's success stand in for
-        // an execution failure the first one really saw. An invalid opcode and
-        // an out-of-gas both arrive wrapped without the word "revert".
-        if (!isEndpointUnavailable(error))
+        if (isExecutionRevert(error))
           return {
             outcome: 'reverted',
             revertReason: redactUrls(summariseRpcError(message)),

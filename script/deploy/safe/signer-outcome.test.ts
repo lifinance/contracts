@@ -7,9 +7,13 @@ import {
   CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
   EXECUTABILITY_CHECK_ID,
+  IMMUTABLES_CHECK_ID,
+  RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK_ID,
 } from './confirm-check-registry'
+import type { TDefiniteRedGate } from './definite-red-gate'
+import { buildSignerActionOptions } from './signer-action-menu'
 import { bucketOf, renderProposalOutcome } from './signer-view'
 import { signerChecks, viewDefinitions } from './signer-zones'
 
@@ -270,5 +274,82 @@ describe('the closing verdict agrees with the action menu', () => {
     })
     expect(outcome).toContain('This proposal cannot be signed')
     expect(say(withRows(), NOTHING_REFUSED)).toContain('Every gate passed')
+  })
+})
+
+/**
+ * Every banner × menu combination for G, I, J and L.
+ *
+ * A row can be `fail` without a definite red — a stale Safe nonce, an
+ * expectation the gate could compare but not decide — and a definite red can
+ * stand over a row that is not `fail`. The sentence has to follow the refusal
+ * in all four cells, because the menu does.
+ */
+describe('the closing verdict says cannot be signed exactly when Sign is withheld', () => {
+  const GATES: ReadonlyArray<[TDefiniteRedGate, string]> = [
+    ['G', STORAGE_AUTHORITY_CHECK_ID],
+    ['I', EXECUTABILITY_CHECK_ID],
+    ['J', RPC_QUORUM_CHECK_ID],
+    ['L', IMMUTABLES_CHECK_ID],
+  ]
+
+  const rowsWith = (checkId: string, status: ICheckResult['status']) =>
+    signerChecks({
+      results: CONFIRM_CHECK_DEFINITIONS.map((definition) =>
+        row(
+          definition.checkId,
+          definition.checkId === checkId ? status : 'pass',
+          definition.checkId === checkId && status === 'fail'
+            ? { actual: 'the reading disagreed', anchor: 'A-CHAIN' }
+            : {}
+        )
+      ),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+
+  for (const [gate, checkId] of GATES)
+    for (const status of ['fail', 'pass'] as const)
+      for (const red of [true, false])
+        it(`gate ${gate}, row ${status}, ${
+          red ? 'a' : 'no'
+        } definite red`, () => {
+          const refusal = {
+            definiteReds: red ? [{ gate, reason: 'it disagreed' }] : [],
+            delegatecallRefused: false,
+          }
+          const banner = stripAnsi(
+            renderProposalOutcome(rowsWith(checkId, status), refusal).join('\n')
+          )
+          const options = buildSignerActionOptions({
+            refused: refusal.definiteReds.length > 0,
+            safeSigner: false,
+            hasSignedAlready: false,
+            wouldMeetThreshold: true,
+            showSignAndExecuteWithDeployer: true,
+            executable: false,
+          })
+
+          expect(banner.includes('cannot be signed')).toBe(red)
+          expect(options.includes('Sign')).toBe(!red)
+          if (status === 'fail') expect(banner).toContain(`Gate ${gate}`)
+        })
+
+  it('words a stale-nonce gate I as advisory, which the nonce gate refuses at execution', () => {
+    const stale = signerChecks({
+      results: CONFIRM_CHECK_DEFINITIONS.map((definition) =>
+        definition.checkId === EXECUTABILITY_CHECK_ID
+          ? row(definition.checkId, 'fail', {
+              actual: 'NonceAlreadyUsed: nonce 3 is below the Safe nonce 7',
+              anchor: 'A-CHAIN',
+            })
+          : row(definition.checkId, 'pass')
+      ),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+    const banner = stripAnsi(
+      renderProposalOutcome(stale, NOTHING_REFUSED).join('\n')
+    )
+    expect(banner).not.toContain('cannot be signed')
+    expect(banner).toContain('Gate I')
   })
 })

@@ -13,13 +13,16 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { evaluateRpcQuorum } from './rpc-quorum'
+import { rpcQuorumDefiniteReds } from './definite-red-gate'
+import { evaluateRpcQuorum, type IProviderObservation } from './rpc-quorum'
 import {
   ENDPOINT_READ_BUDGET_MS,
+  REORG_RECHECK_DEPTH,
   codeReadLabel,
   collectProviderObservations,
   createCodeReader,
   createPinnedBlock,
+  readQuorumPastTipReorgs,
 } from './rpc-quorum-collector'
 
 /** A real 32-byte block hash: the shape a provider actually returns. */
@@ -471,6 +474,82 @@ describe('createPinnedBlock', () => {
     expect(await pinnedBlock()).toBe(100n)
     expect(await pinnedBlock()).toBe(100n)
     expect(probes()).toBe(1)
+  })
+
+  it('pins the given depth behind the lowest head', async () => {
+    chainThatRecovers(0)
+    expect(await createPinnedBlock(['https://one.example/rpc'], 1, 5n)()).toBe(
+      95n
+    )
+    expect(
+      await createPinnedBlock(['https://one.example/rpc'], 1, 500n)()
+    ).toBe(0n)
+  })
+})
+
+/**
+ * A fork read at the tip is as often a one-block reorg one provider has not
+ * caught up with as two providers on different chains, so only one that is
+ * still there a few blocks back counts.
+ */
+describe('readQuorumPastTipReorgs', () => {
+  const A = 'https://eth-mainnet.g.alchemy.com/v2/key-one'
+  const B = 'https://mainnet.infura.io/v3/key-two'
+  const at = (
+    endpointUrl: string,
+    blockHash: string,
+    value = '0x6080'
+  ): IProviderObservation => ({
+    endpointUrl,
+    outcome: 'ok',
+    value,
+    blockNumber: 100n,
+    blockHash,
+  })
+  const agreeing = [at(A, BLOCK_HASH), at(B, BLOCK_HASH)]
+  const forked = [at(A, BLOCK_HASH), at(B, `0x${'cd'.repeat(32)}`)]
+
+  const reading = (...rounds: IProviderObservation[][]) => {
+    const asked: bigint[] = []
+    const collectAt = async (behindHead: bigint) => {
+      asked.push(behindHead)
+      return rounds[asked.length - 1] ?? []
+    }
+    return { asked, collectAt }
+  }
+
+  it('re-reads behind the head once, and takes that answer', async () => {
+    const { asked, collectAt } = reading(forked, agreeing)
+    const verdict = await readQuorumPastTipReorgs(collectAt)
+
+    expect(asked).toEqual([0n, REORG_RECHECK_DEPTH])
+    expect(verdict.status).toBe('agreed')
+    expect(rpcQuorumDefiniteReds(verdict)).toEqual([])
+  })
+
+  it('stays a fork, and a definite red, when the fork persists', async () => {
+    const { asked, collectAt } = reading(forked, forked)
+    const verdict = await readQuorumPastTipReorgs(collectAt)
+
+    expect(asked).toEqual([0n, REORG_RECHECK_DEPTH])
+    expect(verdict.status).toBe('fork-divergence')
+    expect(verdict.detail).toContain('behind the head')
+    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+  })
+
+  it('does not re-read anything but a fork', async () => {
+    for (const first of [
+      agreeing,
+      [at(A, BLOCK_HASH), at(B, BLOCK_HASH, '0xdead')],
+    ]) {
+      const { asked, collectAt } = reading(first, agreeing)
+      await readQuorumPastTipReorgs(collectAt)
+      expect(asked).toEqual([0n])
+    }
+  })
+
+  it('re-reads a few blocks back, not at the tip again', () => {
+    expect(REORG_RECHECK_DEPTH).toBe(5n)
   })
 })
 describe('codeReadLabel', () => {

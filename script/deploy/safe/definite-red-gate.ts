@@ -13,9 +13,12 @@
 import type { ImmutableVerdictStatus } from '../codehash/immutable-verdict'
 
 import type { ICodehashSignGate } from './codehash-sign-gate'
-import type {
-  IExecutabilityVerdict,
-  TCallOutcome,
+import {
+  ExecutabilityFindingEnum,
+  RevertCertaintyEnum,
+  type IExecutabilityCall,
+  type IExecutabilityVerdict,
+  type TCallOutcome,
 } from './executability-simulation'
 import { printableField } from './printable-field'
 import {
@@ -122,6 +125,35 @@ const IMMUTABLE_PROCEEDS = proceeds(IMMUTABLE_VERDICTS_THAT_PROCEED)
 const normalise = (value: string): string => value.trim().toLowerCase()
 
 /**
+ * Findings about the Safe's queue rather than a payload. A proposal built ahead
+ * of the queue must stay signable so its signatures can accumulate, and a stale
+ * one is refused at execution by the nonce gate.
+ */
+const QUEUE_FINDINGS: ReadonlySet<string> = new Set([
+  ExecutabilityFindingEnum.NonceAlreadyUsed,
+  ExecutabilityFindingEnum.NonceCollision,
+  ExecutabilityFindingEnum.NonceGap,
+])
+
+/**
+ * The blocking findings a payload's own bytes prove, whatever the chain state.
+ *
+ * Read beside the outcome because the simulation grades a call `unknown` when
+ * its `eth_call` could not be made, and that discards the proof. A composed
+ * proof rests on an earlier payload and is not this payload's own.
+ */
+const provenFindings = (call: IExecutabilityCall): string[] =>
+  call.findings
+    .filter(
+      (finding) =>
+        finding.blocking &&
+        finding.certainty === RevertCertaintyEnum.Proven &&
+        finding.composed !== true &&
+        !QUEUE_FINDINGS.has(finding.code)
+    )
+    .map((finding) => finding.code)
+
+/**
  * Gate G: a declared authority that was read and holds something other than
  * what is declared for it.
  *
@@ -158,35 +190,49 @@ export const storageAuthorityDefiniteReds = (
   })
 
 /**
- * Gate I: a payload the simulation decided would revert.
+ * Gate I: a payload the simulation decided would revert, or whose own bytes
+ * prove it cannot execute.
  *
  * Read per call rather than from `refuses`, which also carries the Safe-nonce
  * findings: a proposal built ahead of the queue must stay signable so its
  * signatures can accumulate.
  *
  * @param verdict - The simulation, or undefined when none was made.
- * @returns One red per reverting call.
+ * @returns One red per call that cannot execute.
  */
 export const executabilityDefiniteReds = (
   verdict: IExecutabilityVerdict | undefined
 ): IDefiniteRed[] =>
-  (verdict?.calls ?? []).flatMap((call): IDefiniteRed[] =>
-    CALL_PROCEEDS.has(call.outcome)
-      ? []
-      : [
-          {
-            gate: 'I',
-            reason:
-              call.outcome === 'would-revert'
-                ? `${printableField(call.path)} would revert`
-                : `${printableField(
-                    call.path
-                  )} has an outcome this gate does not recognise (${printableField(
-                    call.outcome
-                  )})`,
-          },
-        ]
-  )
+  (verdict?.calls ?? []).flatMap((call): IDefiniteRed[] => {
+    if (CALL_PROCEEDS.has(call.outcome)) {
+      const proven = provenFindings(call)
+      return proven.length === 0
+        ? []
+        : [
+            {
+              gate: 'I',
+              reason: `${printableField(
+                call.path
+              )} cannot execute: its calldata proves ${proven
+                .map((code) => printableField(code))
+                .join(', ')}`,
+            },
+          ]
+    }
+    return [
+      {
+        gate: 'I',
+        reason:
+          call.outcome === 'would-revert'
+            ? `${printableField(call.path)} would revert`
+            : `${printableField(
+                call.path
+              )} has an outcome this gate does not recognise (${printableField(
+                call.outcome
+              )})`,
+      },
+    ]
+  })
 
 /**
  * Gate J: two or more independent providers answered and disagree.

@@ -1061,16 +1061,6 @@ export const renderTodos = (todos: readonly ITodo[]): string[] => {
   return out
 }
 
-/**
- * The one-line summary pinned beside zone 2's heading.
- *
- * Counts what is wrong and what went unchecked separately, because collapsing
- * them into one "failed" number is the same conflation the buckets exist to
- * undo.
- *
- * @param results - The same results zone 2 renders.
- * @returns A summary such as "3 wrong · 2 unchecked · 3 passed".
- */
 /** What the action menu was built from, so the banner can say the same thing. */
 export interface IProposalRefusal {
   /** Gate G, I, J and L's definite reds; any one leaves `Do Nothing` alone. */
@@ -1089,8 +1079,8 @@ export interface IProposalRefusal {
  *
  * It reads the refusal the menu was built from rather than re-deriving one, so a
  * proposal whose Sign is withheld always reads as refused. A G, I, J or L that
- * could not establish its answer is worded as advisory, because it does not
- * refuse the signature.
+ * disagreed short of a definite red, or could not establish its answer, is
+ * worded as advisory, because it does not refuse the signature.
  *
  * @param results - The proposal's bucketed rows.
  * @param refusal - What the action menu refused on.
@@ -1116,7 +1106,9 @@ export const renderProposalOutcome = (
       )
 
   const name = (gates: readonly string[]): string => gates.join(', ')
-  const wrong = inBucket('wrong')
+  const anyWrong = inBucket('wrong')
+  const wrong = inBucket('wrong', (entry) => !isAdvisory(entry))
+  const flagged = inBucket('wrong', isAdvisory)
   const unchecked = inBucket('unchecked', (entry) => !isAdvisory(entry))
   const unestablished = inBucket('unchecked', isAdvisory)
   const ack = inBucket('ack')
@@ -1130,7 +1122,7 @@ export const renderProposalOutcome = (
     const gates = [
       ...new Set(refusal.definiteReds.map((red) => `Gate ${red.gate}`)),
     ]
-    const alsoWrong = wrong.filter((gate) => !gates.includes(gate))
+    const alsoWrong = anyWrong.filter((gate) => !gates.includes(gate))
     return say(
       RED,
       `This proposal cannot be signed or executed: ${name(
@@ -1163,19 +1155,35 @@ export const renderProposalOutcome = (
       )}. That is your environment rather than the proposal; fix it and run again.`
     )
 
-  if (unestablished.length)
+  if (flagged.length || unestablished.length) {
+    const clauses = [
+      ...(flagged.length
+        ? [
+            `${
+              flagged.length
+            } gate(s) disagreed short of a definite red — ${name(flagged)}`,
+          ]
+        : []),
+      ...(unestablished.length
+        ? [
+            `${
+              unestablished.length
+            } gate(s) could not establish their answer — ${name(
+              unestablished
+            )}`,
+          ]
+        : []),
+      ...(ack.length
+        ? [`${ack.length} reached a weaker answer than a pass — ${name(ack)}`]
+        : []),
+    ]
     return say(
       YELLOW,
-      `Nothing here blocks the signature, but ${
-        unestablished.length
-      } gate(s) could not establish their answer — ${name(unestablished)}${
-        ack.length
-          ? `, and ${ack.length} reached a weaker answer than a pass — ${name(
-              ack
-            )}`
-          : ''
-      }. Neither refuses: signing means you accept what each of them says it could not establish.`
+      `Nothing here blocks the signature, but ${clauses.join(
+        ', and '
+      )}. None of them refuses: signing means you accept what each of them reports.`
     )
+  }
 
   if (ack.length)
     return say(
@@ -1190,6 +1198,16 @@ export const renderProposalOutcome = (
   return say(GREEN, 'Every gate passed. Nothing here blocks the signature.')
 }
 
+/**
+ * The one-line summary pinned beside zone 2's heading.
+ *
+ * Counts what is wrong and what went unchecked separately, because collapsing
+ * them into one "failed" number is the same conflation the buckets exist to
+ * undo.
+ *
+ * @param results - The same results zone 2 renders.
+ * @returns A summary such as "3 wrong · 2 unchecked · 3 passed".
+ */
 export const checkSummary = (results: readonly IBucketedResult[]): string => {
   const counts = new Map<CheckBucket, number>()
   for (const entry of results) {
