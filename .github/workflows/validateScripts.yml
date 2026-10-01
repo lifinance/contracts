@@ -7,6 +7,9 @@
 # - Node runtime fence: `bun lint:node-runtime` over all of script/ and tasks/
 #   refuses Bun-only APIs in shipped modules, including `import.meta.main`,
 #   which type-checks but is dropped by tsx (see .eslintrc.node-runtime.cjs)
+# - Repo-wide lint: `bun lint:js` over the whole TS/JS tree, after TypeChain
+#   types and diamond.json are generated so imports of generated files resolve.
+#   Lint errors fail the job; warnings do not
 # - Import resolution: when package.json / bun.lock / tsconfig.json change,
 #   every bare import in script TS files must resolve to a package declared
 #   in package.json (catches "dependency removed while still imported"
@@ -77,6 +80,9 @@ jobs:
               - 'tsconfig.json'
               - 'tsconfig.node.json'
               - '.eslintrc.node-runtime.cjs'
+              - '.eslintrc.cjs'
+              - '.eslintignore'
+              - 'tsconfig.eslint.json'
               - '.github/workflows/validateScripts.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'
@@ -147,6 +153,16 @@ jobs:
         # import generated typechain/ types; without them the type check would
         # fail with false TS2307 errors
         run: bun typechain:incremental
+
+      - name: Generate diamond ABI
+        # Writes ./diamond.json from the forge build above; demo scripts import
+        # it, so without it the lint below fails with import/no-unresolved
+        run: bun abi:generate:incremental
+
+      - name: Lint all TS/JS files
+        # Whole tree, not only the files the PR changed. Errors fail the job;
+        # warnings (e.g. no-explicit-any) are reported but do not
+        run: bun lint:js
 
       - name: Validate scripts
         shell: bash
