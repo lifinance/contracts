@@ -25,10 +25,6 @@
         "Name": "GenericSwapFacetV3",
         "Version": "2.0.0"
       },
-      "0x8c0D29040A236C8f4b3d3d4f37EaFC2708BE2690": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
-      },
       "0x66ceb8416d34e922b3DD31c40628f63Eb56dA481": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
