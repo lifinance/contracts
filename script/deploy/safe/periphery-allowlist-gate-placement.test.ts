@@ -215,4 +215,16 @@ describe('gate W placement in confirm-safe-tx', () => {
     )
     expect(injected.parent.parent).toBe(factory)
   })
+
+  it('grades against config/global.json at origin/main, not the static import', () => {
+    const at = source.indexOf(EVALUATION)
+    const end = source.indexOf('\n    } catch', at)
+    expect(end).toBeGreaterThan(at)
+    const call = source.slice(at, end)
+    expect(call).toContain('...peripheryConfigAtPinnedRef(')
+    expect(call).toContain('readPinnedBlob(PERIPHERY_CONFIG_REPO_PATH)')
+    expect(source).not.toContain('peripheryFunctionsFromConfig(')
+    expect(source).not.toContain('peripheryNetworksFromConfig(')
+    expect(call).not.toMatch(/peripheryFunctions\s*[:,]/u)
+  })
 })

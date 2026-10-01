@@ -138,8 +138,8 @@ import {
 import {
   blockedPeripheryAllowlist,
   evaluatePeripheryAllowlist,
-  peripheryFunctionsFromConfig,
-  peripheryNetworksFromConfig,
+  PERIPHERY_CONFIG_REPO_PATH,
+  peripheryConfigAtPinnedRef,
   readAllowlistThrough,
   renderPeripheryAllowlistLines,
   renderPeripheryAllowlistRefusal,
@@ -1662,9 +1662,6 @@ const processTxs = async (
       const readAllowlist = readAllowlistThrough(() =>
         buildReadOnlyClient(networkKey, rpcUrl)
       )
-      const peripheryFunctions = peripheryFunctionsFromConfig(
-        globalConfig.whitelistPeripheryFunctions
-      )
       peripheryAllowlist = await evaluatePeripheryAllowlist(
         {
           network: networkKey,
@@ -1677,10 +1674,9 @@ const processTxs = async (
           caller: safeAddress,
         },
         {
-          peripheryFunctions,
-          peripheryNetworks: peripheryNetworksFromConfig(
-            globalConfig.whitelistPeripheryNetworks,
-            peripheryFunctions
+          ...peripheryConfigAtPinnedRef(
+            readPinnedBlob(PERIPHERY_CONFIG_REPO_PATH),
+            globalConfig
           ),
           readWhitelistedSelectors: async (diamond, contract) => {
             try {
