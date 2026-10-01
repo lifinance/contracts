@@ -549,18 +549,25 @@ describe('readQuorumPastTipReorgs', () => {
     }
   })
 
-  it('keeps the fork seen at the tip when the re-read cannot be made', async () => {
-    let round = 0
-    const verdict = await readQuorumPastTipReorgs(async () => {
-      round += 1
-      if (round === 1) return forked
-      throw new Error('no endpoint reported a block height to pin the read to')
-    })
+  it('leaves the fork seen at the tip advisory when every endpoint fails the re-read', async () => {
+    const failed = [A, B].map(
+      (endpointUrl): IProviderObservation => ({
+        endpointUrl,
+        outcome: 'error',
+        error: 'no endpoint reported a block height to pin the read to',
+      })
+    )
+    const { asked, collectAt } = reading(forked, failed)
+    const verdict = await readQuorumPastTipReorgs(collectAt)
 
-    expect(round).toBe(2)
-    expect(verdict.status).toBe('fork-divergence')
-    expect(verdict.detail).toContain('could not be re-read')
-    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+    expect(asked).toEqual([0n, REORG_RECHECK_DEPTH])
+    expect(verdict.status).toBe('no-responses')
+    expect(rpcQuorumDefiniteReds(verdict)).toEqual([])
+    expect(
+      rpcQuorumDefiniteReds(
+        await readQuorumPastTipReorgs(reading(forked, forked).collectAt)
+      )
+    ).toHaveLength(1)
   })
 
   it('re-reads a few blocks back, not at the tip again', () => {

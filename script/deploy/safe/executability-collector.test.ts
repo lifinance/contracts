@@ -1060,10 +1060,8 @@ describe('a node error is a revert only when the chain says so', () => {
   it('reads endpoint-side failures that look like reverts as errored', async () => {
     for (const body of [
       { code: -32005, message: 'request reverted to cache, try later' },
-      { code: -32000, message: 'execution reverted: rate limited' },
-      { code: -32000, message: 'execution reverted: too many requests' },
-      { code: -32000, message: 'execution reverted: cached response expired' },
       { code: -32603, message: 'backend reverted to an archive node' },
+      { code: -32000, message: 'upstream timeout: revert' },
       { code: -32601, message: 'the method eth_revert does not exist' },
       { code: -32603, message: 'Internal error', data: '0xdeadbeef' },
       { code: -32000, message: 'execution failed', data: '0x' },
@@ -1080,5 +1078,27 @@ describe('a node error is a revert only when the chain says so', () => {
         'succeeded'
       )
     }
+  })
+
+  // The reason after `execution reverted:` is the reverting contract's own
+  // string, which a proposer can word as a throttle or a cache miss.
+  it('reads endpoint wording inside a revert reason as reverted', async () => {
+    for (const body of [
+      { code: -32000, message: 'execution reverted: rate limited' },
+      { code: -32000, message: 'execution reverted: too many requests' },
+      { code: -32000, message: 'execution reverted: cached response expired' },
+      { code: -32000, message: 'execution reverted: header not found' },
+    ])
+      expect((await simulate([answering(body), succeeding])).outcome).toBe(
+        'reverted'
+      )
+    expect(
+      (
+        await simulate([
+          answering({ code: -32005, message: 'rate limited' }),
+          succeeding,
+        ])
+      ).outcome
+    ).toBe('succeeded')
   })
 })

@@ -1130,6 +1130,10 @@ export const renderProposalOutcome = (
       )} found a definite red — ${refusal.definiteReds
         .map((red) => red.reason)
         .join('; ')}.${
+        refusal.delegatecallRefused
+          ? ' The delegatecall gate also refuses any operation other than Call.'
+          : ''
+      }${
         alsoWrong.length ? ` Also disagreed: ${name(alsoWrong)}.` : ''
       } Only Do Nothing is offered; fix the proposal and propose it again.`
     )

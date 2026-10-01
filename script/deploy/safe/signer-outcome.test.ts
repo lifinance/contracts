@@ -315,6 +315,26 @@ describe('the closing verdict agrees with the action menu', () => {
     expect(outcome).toContain('Also disagreed: Gate D.')
     expect(outcome).toContain('Only Do Nothing is offered')
   })
+
+  it('names both the definite red and the delegatecall refusal when both refuse', () => {
+    const refusal: Parameters<typeof renderProposalOutcome>[1] = {
+      definiteReds: [{ gate: 'I', reason: 'a payload reverts' }],
+      delegatecallRefused: true,
+    }
+    const both = say(withRows(reverting), refusal).replace(/\s+/g, ' ')
+    const redOnly = say(withRows(reverting), {
+      ...refusal,
+      delegatecallRefused: false,
+    }).replace(/\s+/g, ' ')
+
+    expect(both).toContain('Gate I found a definite red — a payload reverts')
+    expect(both).toContain(
+      'delegatecall gate also refuses any operation other than Call'
+    )
+    expect(both).toContain('Only Do Nothing is offered')
+    expect(redOnly).toContain('Gate I found a definite red')
+    expect(redOnly).not.toContain('delegatecall')
+  })
 })
 
 /**

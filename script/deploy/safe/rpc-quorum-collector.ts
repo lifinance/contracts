@@ -131,6 +131,8 @@ export const collectProviderObservations = async (
  *
  * Only a fork is re-read: a value disagreement at one block hash is two
  * providers describing the same block differently, which no reorg explains.
+ * The re-read's own verdict is returned, so a re-read whose endpoints fail or
+ * go unanswered leaves the fork at the tip advisory rather than a definite red.
  *
  * @param collectAt - Collects every endpoint's observation, pinned this many
  *   blocks behind the lowest head.
@@ -142,17 +144,7 @@ export const readQuorumPastTipReorgs = async (
   const atTip = evaluateRpcQuorum(await collectAt(0n))
   if (atTip.status !== 'fork-divergence') return atTip
 
-  let settled: IRpcQuorumVerdict
-  try {
-    settled = evaluateRpcQuorum(await collectAt(REORG_RECHECK_DEPTH))
-  } catch {
-    // The fork at the tip was read; only the excuse for it failed. Dropping
-    // both would leave the gate with no verdict at all.
-    return {
-      ...atTip,
-      detail: `${atTip.detail}; the fork could not be re-read ${REORG_RECHECK_DEPTH} blocks behind the head`,
-    }
-  }
+  const settled = evaluateRpcQuorum(await collectAt(REORG_RECHECK_DEPTH))
   return settled.status === 'fork-divergence'
     ? {
         ...settled,

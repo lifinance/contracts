@@ -483,11 +483,11 @@ const REVERT_WORDING =
   /^(?:execution reverted(?::.*)?|revert(?:ed)?(?: 0x[0-9a-f]*)?|vm exception while processing transaction: revert.*|invalid opcode\b.*)$/isu
 
 /**
- * Throttling and caching, which some gateways report inside a revert-shaped
- * string; a node without the state at the pinned block, which ran nothing; and
- * the gas allowance viem files under `ExecutionRevertedError`. The allowance
- * is the node's own gas cap, so like out of gas it says as much about the
- * endpoint as about the payload.
+ * Throttling and caching; a node without the state at the pinned block, which
+ * ran nothing; and the gas allowance viem files under `ExecutionRevertedError`.
+ * The allowance is the node's own gas cap, so like out of gas it says as much
+ * about the endpoint as about the payload. Never read inside a string that is
+ * itself revert wording, whose reason the reverting contract chose.
  */
 const ENDPOINT_WORDING =
   /\brate[- ]?limit|\btoo many requests\b|\bcache[ds]?\b|\bheader not found\b|\bmissing trie node\b|\bgas required exceeds allowance\b/iu
@@ -507,7 +507,8 @@ const ENDPOINT_WORDING =
  * carrying a JSON-RPC code, the one shape a node's answer has: viem names an
  * error `ExecutionRevertedError` from a substring of whatever text it holds,
  * an HTTP body included, and a proxy may word its own failure as a revert.
- * Those signals also yield to endpoint wording anywhere in the chain.
+ * Those signals also yield to endpoint wording anywhere in the chain, except
+ * inside a string that is itself revert wording.
  *
  * Out of gas is deliberately not here: `eth_call` runs under the node's own
  * gas cap, which differs between providers, so it says as much about the
@@ -538,7 +539,10 @@ const isExecutionRevert = (error: unknown): boolean => {
     answers.length === 0 ||
     links.some((link) =>
       texts(link).some(
-        (text) => typeof text === 'string' && ENDPOINT_WORDING.test(text)
+        (text) =>
+          typeof text === 'string' &&
+          ENDPOINT_WORDING.test(text) &&
+          !REVERT_WORDING.test(text.trim())
       )
     )
   )
