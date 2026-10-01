@@ -322,10 +322,8 @@ export const NOTHING_INSTALLED_TO_COMPARE =
  * pass, so those ask a human instead, which a `semantic` check may legitimately
  * do.
  *
- * No status here is `A-MAIN`, and that is not an oversight: every comparison
- * this check makes has the proposed version on one side, so none of them rests
- * on `origin/main` alone. The anchor remains in the ledger vocabulary, which no
- * check produces today, alongside `A-AUDIT`.
+ * No status here is `A-MAIN`: every comparison this check makes has the
+ * proposed version on one side, so none of them rests on `origin/main` alone.
  *
  * The four unresolvable statuses reach `A-UNRESOLVED` because nothing answered
  * at all: an action that is not Add, Replace or Remove, calldata that could not
@@ -706,10 +704,9 @@ const peripheryRowStatus = (
 /**
  * Reduces gate W's verdict to the one row the ledger holds.
  *
- * The expectation is `config/global.json` at `origin/main`. A pass decided from
- * the batch's own whitelist calls is `A-LOCAL` while the checkout agrees with
- * `main` on every registered name, and `A-MAIN`, with the names in `detail`,
- * when it does not. One that needed the chain's answer is `A-CHAIN`. A failed
+ * The expectation is `config/global.json` at `origin/main`, so a verdict decided
+ * from it is `A-MAIN`; when the checkout's copy differs for a registered name,
+ * `detail` names it. One that needed the chain's answer is `A-CHAIN`. A failed
  * read and an unreadable call are `A-UNRESOLVED`: nothing was compared, and the
  * row must not read as a check that ran.
  *
@@ -738,9 +735,6 @@ export const peripheryAllowlistCheckResult = (
     (finding) => peripheryRowStatus(finding) !== 'not-applicable'
   )
   const drift = describeConfigDrift(verdict, ledgerPrintable)
-  const configAnchor: ICheckResult['anchor'] =
-    drift === undefined ? 'A-LOCAL' : 'A-MAIN'
-
   if (status === 'not-applicable')
     return {
       checkId: PERIPHERY_ALLOWLIST_CHECK_ID,
@@ -756,7 +750,7 @@ export const peripheryAllowlistCheckResult = (
                   `${ledgerPrintable(finding.name)} is ${finding.status}`
               )
               .join('; ')}`,
-      anchor: configAnchor,
+      anchor: 'A-MAIN',
       ...(drift === undefined ? {} : { detail: drift }),
     }
 
@@ -765,7 +759,7 @@ export const peripheryAllowlistCheckResult = (
       ? 'A-UNRESOLVED'
       : graded.some((finding) => finding.observed !== undefined)
       ? 'A-CHAIN'
-      : configAnchor
+      : 'A-MAIN'
   const details = [
     ...(status === 'fail' ? [peripheryAllowlistRemedy(network)] : []),
     ...(drift === undefined ? [] : [drift]),

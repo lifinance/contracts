@@ -292,7 +292,7 @@ describe('evaluatePeripheryAllowlist — paired in the same batch', () => {
     expect(deps.reads).toEqual([])
     const row = rowOf(verdict)
     expect(row.status).toBe('pass')
-    expect(row.anchor).toBe('A-LOCAL')
+    expect(row.anchor).toBe('A-MAIN')
   })
 
   it('pairs through the single-pair setter too, and in either order', async () => {
@@ -1365,7 +1365,7 @@ describe('gate W — configuration pinned at origin/main', () => {
       )
     )
     expect(honest.status).toBe('pass')
-    expect(honest.anchor).toBe('A-LOCAL')
+    expect(honest.anchor).toBe('A-MAIN')
     expect(honest.detail).toBeUndefined()
   })
 
@@ -1442,7 +1442,7 @@ describe('gate W — configuration pinned at origin/main', () => {
     expect(row.detail).toContain('differs from origin/main for TokenWrapper')
   })
 
-  it('moves a config-decided row from A-LOCAL to A-MAIN when the checkout differs', async () => {
+  it('labels a config-decided row A-MAIN whether or not the checkout differs, and notes drift only in detail', async () => {
     const paired = viaTimelock(
       scheduleBatch([
         register('TokenWrapper'),
@@ -1461,8 +1461,9 @@ describe('gate W — configuration pinned at origin/main', () => {
         deps(pinnedAs(asConfig()), withoutTokenWrapper())
       )
     )
-    expect(agreeing.anchor).toBe('A-LOCAL')
+    expect(agreeing.anchor).toBe('A-MAIN')
     expect(drifted.anchor).toBe('A-MAIN')
+    expect(agreeing.detail).toBeUndefined()
     expect(drifted.status).toBe('pass')
     expect(drifted.detail).toContain('graded against origin/main')
   })
@@ -1488,7 +1489,7 @@ describe('gate W — configuration pinned at origin/main', () => {
       deps(pinnedAs(asConfig()), local)
     )
     expect(agreeing.status).toBe('not-applicable')
-    expect(agreeing.anchor).toBe('A-LOCAL')
+    expect(agreeing.anchor).toBe('A-MAIN')
     expect(agreeing.detail).toBeUndefined()
     expect(drifted.findings[0]?.status).toBe('not-diamond-called')
     expect(rowOf(drifted).status).toBe('not-applicable')
