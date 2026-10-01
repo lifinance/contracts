@@ -658,7 +658,8 @@ concatenates signatures sorted by signer (`safe-utils.ts`), and broadcasts
 `GAS_ESTIMATE_MULTIPLIER`, with a fixed fallback that still broadcasts on
 estimation failure (`executors/gas-with-fallback.ts`). `safeTxGas` is 0, so an
 inner-call failure reverts top-level without consuming the Safe nonce.
-**Nothing simulates the transaction before signatures exist.**
+Gate I simulates each payload at sign time, on its own, against current state;
+the broadcast `execTransaction` itself is not re-simulated.
 
 **Timelock leg:** if the executed calldata is a `scheduleBatch`,
 `enqueueTimelockOpIfApplicable` (`timelock-queue.ts`) upserts a row into
