@@ -1853,8 +1853,8 @@
       "key": {
         "contractName": "PaxosTransitFacet",
         "sourceId": "src/Facets/PaxosTransitFacet.sol",
-        "version": "1.1.0",
-        "closureHash": "0x136c8a5260ff5a19c23922b350db09cd67cdb9f1b3a7f622ea077ee106a2bb52",
+        "version": "2.0.0",
+        "closureHash": "0x2b276f5135aab8b3e4dd6b3f8256d3318b32e8144be258299b9af1b8f5e82e96",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -1875,7 +1875,7 @@
         }
       },
       "maskedHash": "0x03c6871efd96463900411435f07ab24f45b5aab977a7464c099735df553e858a",
-      "lineage": "PaxosTransitFacet@1.1.0 (default: solc 0.8.29, cancun)",
+      "lineage": "PaxosTransitFacet@2.0.0 (default: solc 0.8.29, cancun)",
       "rawByteLength": 8886,
       "immutableOffsets": [
         {

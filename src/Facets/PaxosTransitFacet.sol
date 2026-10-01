@@ -15,7 +15,7 @@ import { InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, Inv
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Paxos Transit. Also supports
 ///         same-chain swaps when `bridgeData.destinationChainId == block.chainid`.
-/// @custom:version 1.1.0
+/// @custom:version 2.0.0
 contract PaxosTransitFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Storage ///
 
