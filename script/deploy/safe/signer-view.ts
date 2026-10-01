@@ -1135,10 +1135,12 @@ export const renderProposalOutcome = (
     )
   }
 
-  if (!wrong.length && refusal.delegatecallRefused)
+  if (refusal.delegatecallRefused)
     return say(
       RED,
-      'This proposal cannot be signed or executed: the delegatecall gate refuses any operation other than Call. Only Do Nothing is offered; fix the proposal and propose it again.'
+      `This proposal cannot be signed or executed: the delegatecall gate refuses any operation other than Call.${
+        anyWrong.length ? ` Also disagreed: ${name(anyWrong)}.` : ''
+      } Only Do Nothing is offered; fix the proposal and propose it again.`
     )
 
   if (wrong.length)

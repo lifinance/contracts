@@ -12,6 +12,7 @@ import {
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK_ID,
 } from './confirm-check-registry'
+import { CHECK_FIXED_FIELDS } from './confirm-integrity-asserts'
 import type { TDefiniteRedGate } from './definite-red-gate'
 import { buildSignerActionOptions } from './signer-action-menu'
 import { bucketOf, renderProposalOutcome } from './signer-view'
@@ -296,6 +297,23 @@ describe('the closing verdict agrees with the action menu', () => {
     expect(outcome).not.toContain('mandatory gate(s) disagreed')
     expect(options).not.toContain('Sign')
     expect(say(withRows(), NOTHING_REFUSED)).toContain('Every gate passed')
+  })
+
+  // Gate D grades the same field, so on a real delegatecall both refuse.
+  it('names the delegatecall gate and the gates that disagreed beside it', () => {
+    const operation = row(CHECK_FIXED_FIELDS, 'fail', {
+      actual: 'operation 1',
+      anchor: 'A-LOCAL',
+    })
+    const outcome = say(withRows(operation), {
+      definiteReds: [],
+      delegatecallRefused: true,
+    }).replace(/\s+/g, ' ')
+
+    expect(outcome).toContain('cannot be signed or executed')
+    expect(outcome).toContain('delegatecall gate')
+    expect(outcome).toContain('Also disagreed: Gate D.')
+    expect(outcome).toContain('Only Do Nothing is offered')
   })
 })
 
