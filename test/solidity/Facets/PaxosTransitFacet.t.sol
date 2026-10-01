@@ -393,7 +393,7 @@ contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
         vm.startPrank(USER_SENDER);
         bridgeData.hasSourceSwaps = true;
         setDefaultSwapDataSingleDAItoUSDC();
-        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+        // no DAI approval: the order is rejected before any deposit or swap is attempted
 
         vm.expectRevert(InvalidCallData.selector);
 
@@ -404,6 +404,36 @@ contract PaxosTransitFacetTest is TestBaseFacet, TestPaxosTransitBackendSig {
     function testRevert_WhenSameChainQuoteButCrossChainBridgeData() public {
         _useSameChainOrder();
         bridgeData.destinationChainId = DEST_CHAIN_ID;
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeSameChainQuoteButCrossChainBridgeData()
+        public
+    {
+        _useSameChainOrder();
+        bridgeData.destinationChainId = DEST_CHAIN_ID;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSameChainQuoteButThirdChainBridgeData() public {
+        _useSameChainOrder();
+        bridgeData.destinationChainId = 137;
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);

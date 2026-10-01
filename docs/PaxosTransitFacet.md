@@ -16,8 +16,9 @@ Key properties of Paxos Transit:
   parameter. The output is `offerAmount − protocolFee − integratorFee`.
 - **Same-chain orders** (`route.destEID == TransitStation.thisChainEID()`, e.g. USDC → USDG on
   Ethereum) send no LayerZero message: the station queues the order locally for its executor to
-  fill, and reverts (`SameChainOrdersRequireNoValue`) if any native value is attached. The facet
-  selects this mode when `bridgeData.destinationChainId == block.chainid`.
+  fill, and reverts (`SameChainOrdersRequireNoValue`) if any native value is attached. The signed
+  quote's `destEID` decides the mode; the facet requires `bridgeData.destinationChainId ==
+  block.chainid` for exactly these orders.
 - Orders are **market orders**: there is no user-initiated refund or cancellation, and no failure
   path returns funds to the submitter (the Diamond).
 
@@ -116,14 +117,16 @@ so it remains available for `submitOrder`.
 Same-chain vs cross-chain must agree between the two: `bridgeData.destinationChainId ==
 block.chainid` if and only if `route.destEID == TransitStation.thisChainEID()`, else the facet
 reverts `InformationMismatch`. A same-chain order must carry `nativeFee == 0` (reverts
-`InvalidCallData`); any native sent with it is refunded to `refundRecipient`.
+`InvalidCallData`); any native sent with it is refunded to `refundRecipient`. Both checks run at the
+start of each entrypoint, before any deposit or swap.
 
 **Not enforced on-chain:** beyond same-chain vs cross-chain, the destination routing
 (`route.destEID`) and the destination asset (`route.wantAsset`) are *not* cross-checked against
 `_bridgeData.destinationChainId`. Funds always
 follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated, Paxos-signed
-calldata (the same trust model as `AcrossFacetV4`'s `outputAmount`). `_bridgeData.destinationChainId`
-is used only for analytics/events — only ever submit backend-generated calldata.
+calldata (the same trust model as `AcrossFacetV4`'s `outputAmount`). Apart from the same-chain
+check above, `_bridgeData.destinationChainId` is used only for analytics/events — only ever submit
+backend-generated calldata.
 
 ## Swap Data
 
