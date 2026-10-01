@@ -17,42 +17,55 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-const REPO_ROOT = join(import.meta.dir, '..', '..')
-const WORKFLOW = readFileSync(
-  join(REPO_ROOT, '.github/workflows/validateScripts.yml'),
-  'utf8'
-)
-
-/**
- * Returns the body of the top-level job `name`: every line from its key up to
- * the next job key at the same indentation.
- */
-const jobBlock = (name: string): string => {
-  const lines = WORKFLOW.split('\n')
-  const start = lines.indexOf(`  ${name}:`)
-  if (start === -1) throw new Error(`validateScripts.yml has no job ${name}`)
-  const end = lines.findIndex((line, i) => i > start && /^ {2}\S/.test(line))
-  return lines.slice(start, end === -1 ? undefined : end).join('\n')
+interface IStep {
+  id?: string
+  name?: string
+  run?: string
+  if?: string
+  uses?: string
+  with?: Record<string, unknown>
+  'continue-on-error'?: unknown
 }
 
-/** Returns the `filters.scripts` list of the detect-changes job. */
+interface IJob {
+  needs?: string | string[]
+  steps?: IStep[]
+}
+
+// The pinned @types/bun predates Bun.YAML, which the runtime (packageManager) ships
+const { YAML } = Bun as unknown as {
+  YAML: { parse: (text: string) => unknown }
+}
+
+const REPO_ROOT = join(import.meta.dir, '..', '..')
+const WORKFLOW = YAML.parse(
+  readFileSync(join(REPO_ROOT, '.github/workflows/validateScripts.yml'), 'utf8')
+) as { jobs: Record<string, IJob> }
+
+const job = (name: string): IJob => {
+  const found = WORKFLOW.jobs[name]
+  if (!found) throw new Error(`validateScripts.yml has no job ${name}`)
+  return found
+}
+
+/**
+ * Returns the path-filter entries of `filters.scripts` in the detect-changes
+ * job. A change-type entry (`deleted|renamed: 'src/**'`) becomes its glob.
+ */
 const scriptsFilter = (): string[] => {
-  const lines = jobBlock('detect-changes').split('\n')
-  const start = lines.findIndex((line) => line.trim() === 'scripts:')
-  const entries: string[] = []
-  for (const line of lines.slice(start + 1)) {
-    if (line.trim().startsWith('#')) continue
-    const match = /^\s+- '(.+)'$/.exec(line)
-    if (!match?.[1]) break
-    entries.push(match[1])
+  const step = job('detect-changes').steps?.find((s) => s.id === 'filter')
+  const filters = YAML.parse(String(step?.with?.filters)) as {
+    scripts: (string | Record<string, string>)[]
   }
-  return entries
+  return filters.scripts.flatMap((entry) =>
+    typeof entry === 'string' ? [entry] : Object.values(entry)
+  )
 }
 
 describe('validate-scripts job', () => {
-  const job = jobBlock('validate-scripts')
+  const steps = job('validate-scripts').steps ?? []
   const stepIndex = (run: string): number => {
-    const index = job.indexOf(`run: ${run}\n`)
+    const index = steps.findIndex((step) => step.run === run)
     if (index === -1) throw new Error(`validate-scripts has no step: ${run}`)
     return index
   }
@@ -65,8 +78,19 @@ describe('validate-scripts job', () => {
     expect(abi).toBeLessThan(lint)
   })
 
+  it('runs the lint unconditionally', () => {
+    expect(steps[stepIndex('bun lint:js')]?.if).toBeUndefined()
+  })
+
+  it('still validates scripts after a lint failure', () => {
+    const validate = steps.find((step) => step.name === 'Validate scripts')
+    expect(validate?.if).toContain('!cancelled()')
+  })
+
   it('fails the job on a lint error but not on a warning', () => {
-    expect(job).not.toContain('continue-on-error')
+    expect(steps.filter((step) => step['continue-on-error'] === true)).toEqual(
+      []
+    )
     const scripts = (
       JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
         scripts: Record<string, string>
@@ -88,9 +112,17 @@ describe('validate-scripts job', () => {
     )
   })
 
+  it('runs when a file the scripts import from may have gone away', () => {
+    expect(scriptsFilter()).toEqual(
+      expect.arrayContaining(['src/**/*.sol', 'config/**', 'deployments/**'])
+    )
+  })
+
   it('reports its result through the required aggregator', () => {
-    const aggregator = jobBlock('validate-scripts-required')
-    expect(aggregator).toMatch(/needs: \[[^\]]*\bvalidate-scripts\b/)
-    expect(aggregator).toContain('needs.validate-scripts.result')
+    const aggregator = job('validate-scripts-required')
+    expect(aggregator.needs).toContain('validate-scripts')
+    expect(JSON.stringify(aggregator.steps)).toContain(
+      'needs.validate-scripts.result'
+    )
   })
 })
