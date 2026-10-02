@@ -23,10 +23,13 @@ import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature
 ///      malicious prover could mark an intent fulfilled without paying out). Both
 ///      are therefore gated by a backend EIP-712 signature (see `_verifySignature`)
 ///      that commits to the bridge parameters, the prover, and a hash of the
-///      encoded route. The on-chain receiver cross-checks in `_validateEcoData`
-///      are retained as defense in depth; integrators must understand that the
-///      destination receiver is not purely enforced on-chain for these flows.
-/// @custom:version 2.0.0
+///      encoded route. The destination receiver of EVM and Tron routes is not
+///      decoded or enforced on-chain: routes may end in any call (e.g. a
+///      HyperCore `depositFor`), so the backend must check that the route pays
+///      `bridgeData.receiver` (EVM) or `nonEVMReceiver` (Tron) before signing.
+///      Solana routes keep an on-chain check of the route's ATA against
+///      `solanaATA`.
+/// @custom:version 2.1.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
 
@@ -57,32 +60,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     uint256 private constant SOLANA_ADDRESS_MAX_LENGTH = 44;
 
     /// Types ///
-
-    /// @notice Defines the routing and execution instructions for cross-chain messages
-    /// @dev Contains all necessary information to route and execute a message on the destination chain
-    /// @param salt Unique identifier provided by the intent creator, used to prevent duplicates
-    /// @param deadline Timestamp by which the route must be executed
-    /// @param portal Address of the portal contract on the destination chain that receives messages
-    /// @param nativeAmount Amount of native tokens to send with the route execution
-    /// @param tokens Array of tokens required for execution of calls on destination chain
-    /// @param calls Array of contract calls to execute on the destination chain in sequence
-    struct Route {
-        bytes32 salt;
-        uint64 deadline;
-        address portal;
-        uint256 nativeAmount;
-        IEcoPortal.TokenAmount[] tokens;
-        Call[] calls;
-    }
-
-    /// @notice Represents a single contract call to be executed
-    /// @dev Used within Route to define execution sequence
-    /// @param target Address of the contract to call
-    /// @param callData Encoded function call data
-    struct Call {
-        address target;
-        bytes callData;
-    }
 
     /// @dev Eco specific parameters
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
@@ -319,57 +296,17 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             if (isSolanaDestination || isTronDestination) {
                 revert InvalidReceiver();
             }
-
-            if (
-                _decodeRouteReceiver(_ecoData.encodedRoute) !=
-                _bridgeData.receiver
-            ) {
-                revert InvalidReceiver();
-            }
         }
     }
 
-    /// @dev Decodes the Route struct and returns the recipient of its final
-    ///      ERC20/TRC20 `transfer` call, the address the destination tokens are
-    ///      sent to. Used to cross-check the caller-supplied receiver.
-    function _decodeRouteReceiver(
-        bytes calldata encodedRoute
-    ) private pure returns (address routeReceiver) {
-        Route memory route = abi.decode(encodedRoute, (Route));
-        if (route.calls.length == 0) revert InvalidReceiver();
-
-        // The last call must be a well-formed transfer(address,uint256): a
-        // 4-byte selector + two 32-byte words. Enforcing the length and selector
-        // before reading the address prevents a shorter or unrelated final call
-        // from yielding a bogus receiver that still satisfies the cross-check.
-        bytes memory lastCallData = route
-            .calls[route.calls.length - 1]
-            .callData;
-        if (lastCallData.length < 68) revert InvalidReceiver();
-
-        bytes4 selector;
-        bytes32 receiverWord;
-        assembly {
-            selector := mload(add(lastCallData, 32))
-            // Load the address word from offset 36 (32-byte length + 4-byte selector)
-            receiverWord := mload(add(lastCallData, 36))
-        }
-        if (selector != IERC20.transfer.selector) revert InvalidReceiver();
-
-        routeReceiver = LibBytes.toAddressUnchecked(receiverWord);
-    }
-
-    /// @dev Tron uses the same Route struct encoding as EVM chains, so the real
-    ///      recipient lives in the route. nonEVMReceiver carries that recipient
-    ///      as a 32-byte left-padded address and is cross-checked against it.
+    /// @dev nonEVMReceiver carries the Tron recipient as a 32-byte left-padded
+    ///      address. It is emitted on-chain, so it must be a clean, non-zero
+    ///      address.
     function _validateTronReceiver(EcoData calldata _ecoData) private pure {
         address nonEVMReceiver = LibBytes.toAddress(
             bytes32(_ecoData.nonEVMReceiver[0:32])
         );
         if (nonEVMReceiver == address(0)) revert InvalidNonEVMReceiver();
-        if (nonEVMReceiver != _decodeRouteReceiver(_ecoData.encodedRoute)) {
-            revert InvalidReceiver();
-        }
     }
 
     function _validateSolanaReceiver(EcoData calldata _ecoData) private pure {
