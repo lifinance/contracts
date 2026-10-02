@@ -241,3 +241,112 @@ export const decideAlerts = (
 
   return { alerts, next }
 }
+
+/** A new unverified finding pages once it has held for this many consecutive runs. */
+export const UNVERIFIED_PAGE_AFTER_RUNS = 3
+
+/** Updates nobody has to act on are flushed in a digest at most this often. */
+export const DIGEST_INTERVAL_MS = 24 * 60 * 60 * 1000 // 24 hours
+
+/** What decides when the watcher posts, carried between runs. */
+export interface IDeliveryState {
+  /** Consecutive runs each new, not yet alerted unverified finding was seen. */
+  streaks: Record<string, number>
+  /** Updates nobody has to act on, waiting for the next post. */
+  held: IAlertItem[]
+  /** ISO time of the last post; a digest is due {@link DIGEST_INTERVAL_MS} after it. */
+  lastPostAt?: string
+}
+
+export interface IDeliveryPlan {
+  /** Updates a human has to act on. */
+  actionable: IAlertItem[]
+  /** Held updates that ride along with this run's post; empty when nothing posts. */
+  digest: IAlertItem[]
+  /** Alert records to persist once the post was delivered, or at once when nothing posts. */
+  next: Record<string, IAlertRecord>
+  /** Delivery state to persist once the post was delivered, or at once when nothing posts. */
+  delivered: IDeliveryState
+  /** Delivery state to persist when the post could not be delivered. */
+  undelivered: IDeliveryState
+}
+
+const isActionable = (alert: IAlertItem): boolean => {
+  if (alert.kind === 'resolved') return false
+  if (alert.finding.verdict === 'mismatch') return true
+  if (alert.kind === 'new') return true
+  // Under a standing unverified verdict, a change is a new coverage note: the
+  // log scan missed an operation the queue holds.
+  return alert.kind === 'changed' && alert.previous === 'unverified'
+}
+
+/**
+ * Narrows {@link decideAlerts} to what a human has to act on. A new mismatch
+ * pages at once; a new unverified finding only once it has held for
+ * {@link UNVERIFIED_PAGE_AFTER_RUNS} runs, so an RPC blip pages nobody.
+ * Resolutions and standing unverified repeats are held and ride along with the
+ * next post, or go out as a digest once {@link DIGEST_INTERVAL_MS} has passed
+ * since the last post.
+ *
+ * @param previous - Records the last run persisted.
+ * @param decision - This run's {@link decideAlerts} result.
+ * @param delivery - Delivery state the last run persisted.
+ * @param settledNetworks - Networks read completely this run.
+ * @param now - The time of this run.
+ * @returns What to post and what to persist.
+ */
+export const planDelivery = (
+  previous: Readonly<Record<string, IAlertRecord>>,
+  decision: IAlertDecision,
+  delivery: IDeliveryState,
+  settledNetworks: ReadonlySet<string>,
+  now: Date
+): IDeliveryPlan => {
+  const next = { ...decision.next }
+  const streaks: Record<string, number> = {}
+  const actionable: IAlertItem[] = []
+  const heldByKey = new Map<string, IAlertItem>(
+    delivery.held.map((item) => [item.finding.key, item])
+  )
+
+  for (const alert of decision.alerts) {
+    const { key } = alert.finding
+    if (alert.kind === 'new' && alert.finding.verdict === 'unverified') {
+      // Kept past the threshold too, so an undelivered page re-sends next run.
+      const streak = (delivery.streaks[key] ?? 0) + 1
+      streaks[key] = streak
+      if (streak < UNVERIFIED_PAGE_AFTER_RUNS) {
+        const kept = previous[key]
+        if (kept) next[key] = kept
+        else delete next[key]
+        continue
+      }
+    }
+    heldByKey.delete(key)
+    if (isActionable(alert)) actionable.push(alert)
+    else heldByKey.set(key, alert)
+  }
+  // A network that could not be read reports none of its operations; that run
+  // neither extends nor breaks their streaks.
+  for (const [key, streak] of Object.entries(delivery.streaks))
+    if (!(key in streaks) && !settledNetworks.has(networkOfKey(key)))
+      streaks[key] = streak
+
+  const held = [...heldByKey.values()]
+  const lastPost =
+    delivery.lastPostAt === undefined ? NaN : Date.parse(delivery.lastPostAt)
+  const digestDue =
+    held.length > 0 && !(now.getTime() - lastPost < DIGEST_INTERVAL_MS)
+  const posts = actionable.length > 0 || digestDue
+  const lastPostAt = delivery.lastPostAt ?? now.toISOString()
+
+  return {
+    actionable,
+    digest: posts ? held : [],
+    next,
+    delivered: posts
+      ? { streaks, held: [], lastPostAt: now.toISOString() }
+      : { streaks, held, lastPostAt },
+    undelivered: { streaks, held, lastPostAt },
+  }
+}

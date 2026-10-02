@@ -10,12 +10,17 @@ import {
 } from 'bun:test'
 
 import {
+  DIGEST_INTERVAL_MS,
   MISMATCH_REALERT_MS,
+  UNVERIFIED_PAGE_AFTER_RUNS,
   UNVERIFIED_REALERT_MS,
   decideAlerts,
   findingKey,
+  planDelivery,
   reasonsSignature,
+  type IAlertItem,
   type IAlertRecord,
+  type IDeliveryState,
   type IWatchFinding,
 } from './timelock-watcher-alerts'
 import type { TWatcherVerdict } from './timelock-watcher-verdict'
@@ -392,5 +397,205 @@ describe('decideAlerts: subjects that disappear', () => {
       NOW
     )
     expect(back.alerts).toEqual([])
+  })
+})
+
+describe('planDelivery', () => {
+  const fresh = (): IDeliveryState => ({ streaks: {}, held: [] })
+  const plan = (
+    previous: Record<string, IAlertRecord>,
+    findings: IWatchFinding[],
+    delivery = fresh(),
+    now = NOW,
+    settled = ALL
+  ) =>
+    planDelivery(
+      previous,
+      decideAlerts(previous, findings, settled, now),
+      delivery,
+      settled,
+      now
+    )
+  const resolvedItem = (key = KEY): IAlertItem => ({
+    kind: 'resolved',
+    previous: 'unverified',
+    finding: { key, network: 'base', verdict: 'ok', reasons: [] },
+  })
+
+  it('pages a new mismatch at once', () => {
+    const result = plan({}, [finding('mismatch')])
+    expect(result.actionable.map((a) => a.kind)).toEqual(['new'])
+    expect(result.next[KEY]?.verdict).toBe('mismatch')
+    expect(result.delivered.lastPostAt).toBe(NOW.toISOString())
+  })
+
+  it('holds a new unverified finding back until it has lasted the threshold, recording nothing', () => {
+    let delivery = fresh()
+    for (let run = 1; run < UNVERIFIED_PAGE_AFTER_RUNS; run++) {
+      const result = plan({}, [finding('unverified')], delivery)
+      expect(result.actionable).toEqual([])
+      expect(result.next).toEqual({})
+      expect(result.delivered.streaks[KEY]).toBe(run)
+      delivery = result.delivered
+    }
+    const paged = plan({}, [finding('unverified')], delivery)
+    expect(paged.actionable.map((a) => a.kind)).toEqual(['new'])
+    expect(paged.next[KEY]?.verdict).toBe('unverified')
+  })
+
+  it('restarts the count when the finding clears between runs', () => {
+    const first = plan({}, [finding('unverified')])
+    const cleared = plan({}, [finding('ok')], first.delivered)
+    expect(cleared.delivered.streaks).toEqual({})
+    const again = plan({}, [finding('unverified')], cleared.delivered)
+    expect(again.actionable).toEqual([])
+    expect(again.delivered.streaks[KEY]).toBe(1)
+  })
+
+  it('keeps the count across a run that could not read the network', () => {
+    const first = plan({}, [finding('unverified')])
+    const unread = plan({}, [], first.delivered, NOW, new Set())
+    expect(unread.delivered.streaks[KEY]).toBe(1)
+    const second = plan({}, [finding('unverified')], unread.delivered)
+    expect(second.delivered.streaks[KEY]).toBe(2)
+  })
+
+  it('keeps the count when the page could not be delivered, so the next run re-sends it', () => {
+    const delivery = {
+      streaks: { [KEY]: UNVERIFIED_PAGE_AFTER_RUNS - 1 },
+      held: [],
+    }
+    const failed = plan({}, [finding('unverified')], delivery)
+    expect(failed.actionable).toHaveLength(1)
+    const retry = plan({}, [finding('unverified')], failed.undelivered)
+    expect(retry.actionable).toHaveLength(1)
+  })
+
+  it('keeps the old resolved record of a held-back finding', () => {
+    const old = {
+      ...recordAt('unverified', UNVERIFIED_REALERT_MS + 1),
+      resolvedAt: NOW.toISOString(),
+    }
+    const result = plan({ [KEY]: old }, [finding('unverified')])
+    expect(result.actionable).toEqual([])
+    expect(result.next[KEY]).toEqual(old)
+  })
+
+  it('holds a resolution instead of posting it', () => {
+    const result = plan(
+      { [KEY]: recordAt('unverified', 60_000) },
+      [finding('ok')],
+      { streaks: {}, held: [], lastPostAt: NOW.toISOString() }
+    )
+    expect(result.actionable).toEqual([])
+    expect(result.digest).toEqual([])
+    expect(result.delivered.held.map((a) => a.kind)).toEqual(['resolved'])
+    expect(result.next[KEY]?.resolvedAt).toBe(NOW.toISOString())
+  })
+
+  it('holds a standing unverified repeat', () => {
+    const result = plan(
+      { [KEY]: recordAt('unverified', UNVERIFIED_REALERT_MS) },
+      [finding('unverified')],
+      { streaks: {}, held: [], lastPostAt: NOW.toISOString() }
+    )
+    expect(result.actionable).toEqual([])
+    expect(result.delivered.held.map((a) => a.kind)).toEqual(['repeat'])
+  })
+
+  it('holds a mismatch stepping down to unverified', () => {
+    const result = plan(
+      { [KEY]: recordAt('mismatch', 60_000) },
+      [finding('unverified')],
+      { streaks: {}, held: [], lastPostAt: NOW.toISOString() }
+    )
+    expect(result.actionable).toEqual([])
+    expect(result.delivered.held[0]?.previous).toBe('mismatch')
+  })
+
+  it('pages a new note under a standing unverified verdict', () => {
+    const scanMiss =
+      'queue: 0x1 is pending on chain but the log scan did not find it'
+    const result = plan({ [KEY]: recordAt('unverified', 60_000) }, [
+      { ...finding('unverified'), reasons: [scanMiss] },
+    ])
+    expect(result.actionable.map((a) => a.kind)).toEqual(['changed'])
+  })
+
+  it('pages a standing mismatch repeat', () => {
+    const result = plan({ [KEY]: recordAt('mismatch', MISMATCH_REALERT_MS) }, [
+      finding('mismatch'),
+    ])
+    expect(result.actionable.map((a) => a.kind)).toEqual(['repeat'])
+  })
+
+  it('sends held updates with the next page and clears them', () => {
+    const other = findingKey('base', '0xdef')
+    const result = plan({}, [finding('mismatch', other)], {
+      streaks: {},
+      held: [resolvedItem()],
+      lastPostAt: NOW.toISOString(),
+    })
+    expect(result.digest.map((a) => a.finding.key)).toEqual([KEY])
+    expect(result.delivered.held).toEqual([])
+    expect(result.undelivered.held.map((a) => a.finding.key)).toEqual([KEY])
+  })
+
+  it('posts a digest once the interval since the last post has passed', () => {
+    const lastPostAt = (msAgo: number): string =>
+      new Date(NOW.getTime() - msAgo).toISOString()
+    const early = plan({}, [], {
+      streaks: {},
+      held: [resolvedItem()],
+      lastPostAt: lastPostAt(DIGEST_INTERVAL_MS - 1),
+    })
+    expect(early.digest).toEqual([])
+    expect(early.delivered.held).toHaveLength(1)
+    const due = plan({}, [], {
+      streaks: {},
+      held: [resolvedItem()],
+      lastPostAt: lastPostAt(DIGEST_INTERVAL_MS),
+    })
+    expect(due.actionable).toEqual([])
+    expect(due.digest).toHaveLength(1)
+    expect(due.delivered).toEqual({
+      streaks: {},
+      held: [],
+      lastPostAt: NOW.toISOString(),
+    })
+  })
+
+  it('posts nothing and starts the digest clock when nothing is held', () => {
+    const result = plan({}, [])
+    expect(result.actionable).toEqual([])
+    expect(result.digest).toEqual([])
+    expect(result.delivered).toEqual({
+      streaks: {},
+      held: [],
+      lastPostAt: NOW.toISOString(),
+    })
+  })
+
+  it('drops a held update once its subject pages again', () => {
+    const result = plan({}, [finding('mismatch')], {
+      streaks: {},
+      held: [resolvedItem()],
+      lastPostAt: NOW.toISOString(),
+    })
+    expect(result.actionable.map((a) => a.finding.key)).toEqual([KEY])
+    expect(result.digest).toEqual([])
+  })
+
+  it('keeps one held update per subject, the newest', () => {
+    const result = plan(
+      { [KEY]: recordAt('unverified', UNVERIFIED_REALERT_MS) },
+      [finding('unverified')],
+      {
+        streaks: {},
+        held: [resolvedItem()],
+        lastPostAt: NOW.toISOString(),
+      }
+    )
+    expect(result.delivered.held.map((a) => a.kind)).toEqual(['repeat'])
   })
 })

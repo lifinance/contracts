@@ -13,11 +13,13 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import type { PublicClient } from 'viem'
 
 import {
   findingsOf,
   loadWatcherState,
   openWatcherStore,
+  readTimelockLogs,
 } from './timelock-watcher'
 import type { INetworkReport } from './timelock-watcher-report'
 
@@ -37,6 +39,7 @@ describe('loadWatcherState', () => {
       version: 1,
       networks: {},
       alerts: {},
+      delivery: { streaks: {}, held: [] },
       codehash: {},
     })
   })
@@ -50,6 +53,11 @@ describe('loadWatcherState', () => {
           verdict: 'unverified',
           alertedAt: '2026-09-29T00:00:00.000Z',
         },
+      },
+      delivery: {
+        streaks: { 'sei:network': 2 },
+        held: [],
+        lastPostAt: '2026-09-29T00:00:00.000Z',
       },
       codehash: {},
     }
@@ -65,7 +73,39 @@ describe('loadWatcherState', () => {
     )
     expect(state.networks).toEqual({})
     expect(state.alerts).toEqual({})
+    expect(state.delivery).toEqual({ streaks: {}, held: [] })
     expect(state.codehash).toEqual({})
+  })
+
+  it('drops malformed delivery entries instead of failing every later run', async () => {
+    const state = await loadWatcherState(
+      write(
+        'bad-delivery.json',
+        JSON.stringify({
+          version: 1,
+          delivery: {
+            streaks: { 'a:network': 2, 'b:network': 'x', 'c:network': null },
+            held: [
+              null,
+              { kind: 'resolved' },
+              { finding: { key: 'a:0x1', reasons: [] } },
+            ],
+            lastPostAt: 5,
+          },
+        })
+      )
+    )
+    expect(state.delivery).toEqual({
+      streaks: { 'a:network': 2 },
+      held: [{ finding: { key: 'a:0x1', reasons: [] } }] as never,
+    })
+  })
+
+  it('reads a delivery section that is not an object as empty', async () => {
+    const state = await loadWatcherState(
+      write('scalar-delivery.json', JSON.stringify({ version: 1, delivery: 7 }))
+    )
+    expect(state.delivery).toEqual({ streaks: {}, held: [] })
   })
 
   it('starts afresh on another schema version, losing alert records rather than trusting them', async () => {
@@ -177,5 +217,30 @@ describe('openWatcherStore', () => {
     expect(store.queue).toEqual(new Map([['base', new Set(['0xabc'])]]))
     expect(touched.length).toBeGreaterThan(0)
     expect(touched.filter((name) => !READ_METHODS.has(name))).toEqual([])
+  })
+})
+
+describe('readTimelockLogs', () => {
+  const TIMELOCK = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29'
+  const OTHER = '0x70114d2a0ec788bafee869acf7fd1f8c76491799'
+
+  it('drops logs another contract emitted, which an endpoint ignoring the address filter returns', async () => {
+    let asked: unknown
+    const reader = {
+      getLogs: async (params: unknown) => {
+        asked = params
+        return [
+          { address: OTHER, eventName: 'CallScheduled' },
+          { address: TIMELOCK.toLowerCase(), eventName: 'CallSalt' },
+        ]
+      },
+    } as unknown as PublicClient
+    const logs = await readTimelockLogs(reader, TIMELOCK, 1n, 2n)
+    expect(logs.map((log) => log.eventName)).toEqual(['CallSalt'])
+    expect(asked).toMatchObject({
+      address: TIMELOCK,
+      fromBlock: 1n,
+      toBlock: 2n,
+    })
   })
 })

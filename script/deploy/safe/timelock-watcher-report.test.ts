@@ -188,35 +188,88 @@ describe('renderSlackPosts', () => {
   })
 
   it('sends nothing when there is nothing to alert', () => {
-    expect(renderSlackAlert([], undefined)).toBeUndefined()
+    expect(renderSlackAlert([], [], undefined)).toBeUndefined()
   })
 
   it('leads with the mismatch count and names each subject', () => {
     const text = renderSlackAlert(
-      [item('new', 'mismatch'), item('resolved', 'ok', 'unverified')],
+      [item('new', 'mismatch')],
+      [],
       'https://example.test/run'
     )
-    expect(text).toContain('🚨 Timelock watcher: 1 mismatch, 1 other')
+    expect(text).toContain('🚨 Timelock watcher: 1 mismatch to look at.')
     expect(text).toContain('• [new] base:0xaaa: mismatch — targets: unknown')
-    expect(text).toContain('now ok (was unverified)')
     expect(text).toContain('<https://example.test/run|Full report>')
   })
 
   it('does not raise the siren for unverified alone', () => {
-    const text = renderSlackAlert([item('new', 'unverified')], undefined)
-    expect(text?.startsWith('⚠️')).toBe(true)
+    const text = renderSlackAlert([item('new', 'unverified')], [], undefined)
+    expect(
+      text?.startsWith('⚠️ Timelock watcher: 1 unverified to look at.')
+    ).toBe(true)
+  })
+
+  it('counts both severities when both page', () => {
+    expect(
+      renderSlackAlert(
+        [item('new', 'unverified'), item('new', 'mismatch')],
+        [],
+        undefined
+      )
+    ).toContain('🚨 Timelock watcher: 1 mismatch, 1 unverified to look at.')
+  })
+
+  it('appends held updates under their own heading, marking resolutions', () => {
+    const text =
+      renderSlackAlert(
+        [item('new', 'mismatch')],
+        [item('resolved', 'ok', 'unverified')],
+        undefined
+      ) ?? ''
+    const lines = text.split('\n')
+    expect(lines[2]).toBe('Since the last post, for information:')
+    expect(lines[3]).toBe(
+      '✅ [resolved] base:0xaaa: now ok (was unverified) — targets: unknown'
+    )
+  })
+
+  it('posts held updates alone as a digest that asks for nothing', () => {
+    const text = renderSlackAlert(
+      [],
+      [item('resolved', 'ok', 'unverified'), item('repeat', 'unverified')],
+      undefined
+    )
+    expect(text).toContain(
+      'ℹ️ Timelock watcher digest: 2 update(s) since the last post, nothing needs action.'
+    )
+    expect(text).not.toContain('Since the last post, for information:')
+    expect(text).toContain('• [still] base:0xaaa: unverified')
   })
 
   it('shows the previous verdict on a change', () => {
     expect(
-      renderSlackAlert([item('changed', 'mismatch', 'unverified')], undefined)
+      renderSlackAlert(
+        [item('changed', 'mismatch', 'unverified')],
+        [],
+        undefined
+      )
     ).toContain('mismatch (was unverified)')
   })
 
   it('says the reasons changed when the verdict did not', () => {
     expect(
-      renderSlackAlert([item('changed', 'unverified', 'unverified')], undefined)
+      renderSlackAlert(
+        [item('changed', 'unverified', 'unverified')],
+        [],
+        undefined
+      )
     ).toContain('unverified (reasons changed)')
+  })
+
+  it('says unknown when a resolution has no previous verdict', () => {
+    expect(renderSlackAlert([], [item('resolved', 'ok')], undefined)).toContain(
+      'now ok (was unknown)'
+    )
   })
 
   it('lists mismatches first, so truncation cannot hide one', () => {
@@ -227,6 +280,7 @@ describe('renderSlackPosts', () => {
     const text =
       renderSlackAlert(
         [...Array.from({ length: 5 }, () => item('new', 'unverified')), late],
+        [],
         undefined
       ) ?? ''
     const [, first] = text.split('\n')
@@ -238,11 +292,24 @@ describe('renderSlackPosts', () => {
       ...item('new', 'mismatch'),
       finding: { ...item('new', 'mismatch').finding, key: `base:0x${i}` },
     }))
-    const posts = renderSlackPosts(many, 'https://example.test/run')
+    const posts = renderSlackPosts(many, [], 'https://example.test/run')
     expect(posts.length).toBeGreaterThan(1)
     for (const post of posts)
       expect(post.length).toBeLessThanOrEqual(SLACK_TEXT_BUDGET)
     const all = posts.join('\n')
     for (let i = 0; i < 200; i++) expect(all).toContain(`base:0x${i}:`)
+  })
+
+  it('truncates a line longer than a whole post', () => {
+    const long = {
+      ...item('new', 'mismatch'),
+      finding: {
+        ...item('new', 'mismatch').finding,
+        reasons: ['x'.repeat(SLACK_TEXT_BUDGET * 2)],
+      },
+    }
+    const [post] = renderSlackPosts([long], [], undefined)
+    expect(post?.length).toBeLessThanOrEqual(SLACK_TEXT_BUDGET)
+    expect(post?.endsWith('…')).toBe(true)
   })
 })
