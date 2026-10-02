@@ -78,6 +78,7 @@ import {
   decideAlerts,
   findingKey,
   planDelivery,
+  type IAlertItem,
   type IAlertRecord,
   type IDeliveryState,
   type IWatchFinding,
@@ -211,6 +212,35 @@ const emptyState = (): IWatcherState => ({
   codehash: {},
 })
 
+// A malformed entry would otherwise throw in planDelivery before the state is
+// rewritten, failing every later run; a non-numeric streak would skip the threshold.
+const readDeliveryState = (raw: unknown): IDeliveryState => {
+  const delivery = (raw ?? {}) as Partial<Record<keyof IDeliveryState, unknown>>
+  const streaks =
+    delivery.streaks && typeof delivery.streaks === 'object'
+      ? Object.fromEntries(
+          Object.entries(delivery.streaks).filter(
+            (entry): entry is [string, number] =>
+              typeof entry[1] === 'number' && Number.isFinite(entry[1])
+          )
+        )
+      : {}
+  const held = Array.isArray(delivery.held)
+    ? (delivery.held as unknown[]).filter(
+        (item): item is IAlertItem =>
+          typeof (item as IAlertItem | null)?.finding?.key === 'string' &&
+          Array.isArray((item as IAlertItem).finding.reasons)
+      )
+    : []
+  return {
+    streaks,
+    held,
+    ...(typeof delivery.lastPostAt === 'string'
+      ? { lastPostAt: delivery.lastPostAt }
+      : {}),
+  }
+}
+
 /**
  * Loads the state an earlier run saved. A missing or unreadable file starts
  * afresh, which re-scans history and re-sends standing alerts: both fail loud.
@@ -229,13 +259,7 @@ export const loadWatcherState = async (
       version: STATE_VERSION,
       networks: parsed.networks ?? {},
       alerts: parsed.alerts ?? {},
-      delivery: {
-        streaks: parsed.delivery?.streaks ?? {},
-        held: parsed.delivery?.held ?? [],
-        ...(parsed.delivery?.lastPostAt
-          ? { lastPostAt: parsed.delivery.lastPostAt }
-          : {}),
-      },
+      delivery: readDeliveryState(parsed.delivery),
       codehash: parsed.codehash ?? {},
     }
   } catch (error) {

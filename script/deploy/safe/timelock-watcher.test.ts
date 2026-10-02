@@ -77,6 +77,37 @@ describe('loadWatcherState', () => {
     expect(state.codehash).toEqual({})
   })
 
+  it('drops malformed delivery entries instead of failing every later run', async () => {
+    const state = await loadWatcherState(
+      write(
+        'bad-delivery.json',
+        JSON.stringify({
+          version: 1,
+          delivery: {
+            streaks: { 'a:network': 2, 'b:network': 'x', 'c:network': null },
+            held: [
+              null,
+              { kind: 'resolved' },
+              { finding: { key: 'a:0x1', reasons: [] } },
+            ],
+            lastPostAt: 5,
+          },
+        })
+      )
+    )
+    expect(state.delivery).toEqual({
+      streaks: { 'a:network': 2 },
+      held: [{ finding: { key: 'a:0x1', reasons: [] } }] as never,
+    })
+  })
+
+  it('reads a delivery section that is not an object as empty', async () => {
+    const state = await loadWatcherState(
+      write('scalar-delivery.json', JSON.stringify({ version: 1, delivery: 7 }))
+    )
+    expect(state.delivery).toEqual({ streaks: {}, held: [] })
+  })
+
   it('starts afresh on another schema version, losing alert records rather than trusting them', async () => {
     const state = await loadWatcherState(
       write(
