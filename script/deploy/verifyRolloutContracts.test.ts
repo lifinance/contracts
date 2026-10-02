@@ -312,6 +312,18 @@ describe('verifyRolloutContracts selection', () => {
     )
   })
 
+  it('verifies and flags a repeated network once', () => {
+    const { status, verifies, updates } = run({
+      networks: ['base', 'base'],
+      records: [record('base', ADDRESS_A)],
+      deployments: { base: { [CONTRACT]: ADDRESS_A } },
+    })
+
+    expect(status).toBe(0)
+    expect(verifies).toEqual([verifyCall('base', ADDRESS_A)])
+    expect(updates).toEqual([markCall('base', ADDRESS_A)])
+  })
+
   it('reads the staging deployment file and passes the staging env through', () => {
     const { status, verifies, updates, queries } = run({
       environment: 'staging',

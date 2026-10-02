@@ -118,7 +118,7 @@ This re-derives `whitelist.json` from `global.json.whitelistPeripheryFunctions` 
 
 ## Phase 3c — Verify deployed contracts
 
-The deploy framework attempts explorer verification inline and, when it passes, already writes `verified:true` to MongoDB. Re-verify only what it left unverified, once for the whole rollout — `<env>` is `production` or `staging`, `<version>` is the repo version from Phase 1, and the networks are this rollout's targets:
+The deploy framework attempts explorer verification inline and, when it passes, already writes `verified:true` to MongoDB. Re-verify only what it left unverified, once per contract across all of the rollout's networks — `<env>` is `production` or `staging`, `<version>` is the repo version from Phase 1, and the networks are this rollout's targets:
 
 ```bash
 bash script/deploy/verifyRolloutContracts.sh <env> <Contract> <version> <network...>

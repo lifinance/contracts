@@ -252,7 +252,8 @@ function verifyRolloutContracts() {
   fi
   local ENVIRONMENT="$1" CONTRACT="$2" VERSION="$3"
   shift 3
-  local NETWORKS=("$@")
+  local NETWORKS
+  mapfile -t NETWORKS < <(printf '%s\n' "$@" | awk '!seen[$0]++')
 
   if [[ "$ENVIRONMENT" != "production" && "$ENVIRONMENT" != "staging" ]]; then
     error "ENVIRONMENT must be production or staging, got '$ENVIRONMENT'"
