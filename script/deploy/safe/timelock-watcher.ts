@@ -1234,7 +1234,13 @@ const command = defineCommand({
       settled,
       now
     )
-    const plan = planDelivery(state.alerts, decision, state.delivery, now)
+    const plan = planDelivery(
+      state.alerts,
+      decision,
+      state.delivery,
+      settled,
+      now
+    )
     const runUrl = process.env.TIMELOCK_WATCHER_RUN_URL
     const posts = renderSlackPosts(plan.actionable, plan.digest, runUrl)
     state.delivery = plan.undelivered

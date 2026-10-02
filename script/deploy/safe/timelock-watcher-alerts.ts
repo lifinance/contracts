@@ -291,6 +291,7 @@ const isActionable = (alert: IAlertItem): boolean => {
  * @param previous - Records the last run persisted.
  * @param decision - This run's {@link decideAlerts} result.
  * @param delivery - Delivery state the last run persisted.
+ * @param settledNetworks - Networks read completely this run.
  * @param now - The time of this run.
  * @returns What to post and what to persist.
  */
@@ -298,6 +299,7 @@ export const planDelivery = (
   previous: Readonly<Record<string, IAlertRecord>>,
   decision: IAlertDecision,
   delivery: IDeliveryState,
+  settledNetworks: ReadonlySet<string>,
   now: Date
 ): IDeliveryPlan => {
   const next = { ...decision.next }
@@ -320,12 +322,15 @@ export const planDelivery = (
         continue
       }
     }
+    heldByKey.delete(key)
     if (isActionable(alert)) actionable.push(alert)
-    else {
-      heldByKey.delete(key)
-      heldByKey.set(key, alert)
-    }
+    else heldByKey.set(key, alert)
   }
+  // A network that could not be read reports none of its operations; that run
+  // neither extends nor breaks their streaks.
+  for (const [key, streak] of Object.entries(delivery.streaks))
+    if (!(key in streaks) && !settledNetworks.has(networkOfKey(key)))
+      streaks[key] = streak
 
   const held = [...heldByKey.values()]
   const lastPost =

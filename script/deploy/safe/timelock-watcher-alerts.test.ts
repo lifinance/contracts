@@ -413,6 +413,7 @@ describe('planDelivery', () => {
       previous,
       decideAlerts(previous, findings, settled, now),
       delivery,
+      settled,
       now
     )
   const resolvedItem = (key = KEY): IAlertItem => ({
@@ -449,6 +450,14 @@ describe('planDelivery', () => {
     const again = plan({}, [finding('unverified')], cleared.delivered)
     expect(again.actionable).toEqual([])
     expect(again.delivered.streaks[KEY]).toBe(1)
+  })
+
+  it('keeps the count across a run that could not read the network', () => {
+    const first = plan({}, [finding('unverified')])
+    const unread = plan({}, [], first.delivered, NOW, new Set())
+    expect(unread.delivered.streaks[KEY]).toBe(1)
+    const second = plan({}, [finding('unverified')], unread.delivered)
+    expect(second.delivered.streaks[KEY]).toBe(2)
   })
 
   it('keeps the count when the page could not be delivered, so the next run re-sends it', () => {
@@ -565,6 +574,16 @@ describe('planDelivery', () => {
       held: [],
       lastPostAt: NOW.toISOString(),
     })
+  })
+
+  it('drops a held update once its subject pages again', () => {
+    const result = plan({}, [finding('mismatch')], {
+      streaks: {},
+      held: [resolvedItem()],
+      lastPostAt: NOW.toISOString(),
+    })
+    expect(result.actionable.map((a) => a.finding.key)).toEqual([KEY])
+    expect(result.digest).toEqual([])
   })
 
   it('keeps one held update per subject, the newest', () => {

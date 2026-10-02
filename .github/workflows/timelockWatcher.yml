@@ -19,11 +19,12 @@
 #     * Scan cursors, gate K results and alert records carry between runs in the Actions cache
 #       (timelock-watcher-state-*). Losing it re-scans history and re-sends standing alerts.
 #       The cache is trusted: any workflow that runs on main can write it, and a forged
-#       cursor, gate K result or alert record can hide an operation. That is repo write access,
+#       cursor, gate K result or alert record can hide an operation, and forged delivery state can delay a page. That is repo write access,
 #       which can also disable this workflow
 #     * Slack: SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS, only when a human needs to act: a
-#       mismatch (a standing one repeats every 6 hours), a missed queued operation, or an
-#       unverified finding that lasts three consecutive runs. Resolutions and standing unverified
+#       mismatch (a standing one repeats every 6 hours), an unverified finding that lasts three
+#       consecutive runs, or a missed queued operation (at once on a network already alerted
+#       unverified, otherwise as a new unverified finding). Resolutions and standing unverified
 #       repeats ride along with the next post, or go out as a digest 24 hours after the last post
 #     * The job fails when a network could not be read, an operation or network mismatches, or an
 #       alert could not be delivered; a crashed, cancelled or undelivered run posts its own notice

@@ -1,6 +1,7 @@
 /**
  * Renders the timelock watcher's run: the job summary covering every network
- * and operation, and the Slack text for the alerts the dedupe let through.
+ * and operation, and the Slack text: what a human has to act on, plus held
+ * updates riding along or sent alone as a digest.
  *
  * Import it from `timelock-watcher.ts`. Pure; values taken from calldata are
  * limited to ids, addresses and numbers, which carry no markup.
