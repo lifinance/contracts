@@ -4878,7 +4878,7 @@
     {
       "name": "M0 Swap Facility",
       "key": "m0SwapFacility",
-      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/protocols/m0SwapFacility.svg",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/protocols/m0.svg",
       "webUrl": "https://www.m0.org/",
       "contracts": {
         "mainnet": [
