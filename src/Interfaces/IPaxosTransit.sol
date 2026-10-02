@@ -3,11 +3,13 @@ pragma solidity ^0.8.17;
 
 /// @title IPaxosTransit
 /// @author LI.FI (https://li.fi)
-/// @notice Interface for the Paxos Transit station used to submit cross-chain transit orders
-/// @custom:version 1.0.0
+/// @notice Interface for the Paxos Transit station used to submit same-chain and cross-chain
+///         transit orders
+/// @custom:version 1.1.0
 interface IPaxosTransit {
     /// @notice Routing information for a transit order
-    /// @param destEID The LayerZero endpoint id of the destination chain
+    /// @param destEID The LayerZero endpoint id of the destination chain (the station's own
+    ///        `thisChainEID` for a same-chain order)
     /// @param offerAsset The asset provided on the source chain (ERC20 only)
     /// @param wantAsset The asset to be received on the destination chain
     struct Route {
@@ -38,8 +40,14 @@ interface IPaxosTransit {
         bytes32 salt;
     }
 
+    /// @notice This chain's LayerZero endpoint id; a quote whose `route.destEID` equals it is a
+    ///         same-chain order
+    /// @return The station's local LayerZero endpoint id
+    function thisChainEID() external view returns (uint32);
+
     /// @notice Submits a signed transit order, pulling offerAmount of offerAsset from msg.sender.
     ///         The wantAsset is delivered to quote.receiver regardless of who submits the order.
+    ///         `msg.value` pays the LayerZero fee and must be zero for a same-chain order.
     /// @param quote The Paxos-signed quote describing the order
     /// @param signature The Paxos signature over the EIP-712 quote digest
     /// @return uuid The order id (the EIP-712 digest of the signed quote)
