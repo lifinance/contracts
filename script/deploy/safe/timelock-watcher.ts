@@ -3,7 +3,7 @@
 /**
  * Report-only timelock watcher: finds every pending operation on every
  * production `LiFiTimelockController` from its logs, re-checks it, and alerts
- * Slack on a mismatch or a new unverified finding.
+ * Slack on a mismatch or an unverified finding that lasts three runs.
  *
  * Run by `.github/workflows/timelockWatcher.yml`; runnable locally for a dry run
  * (Slack is only posted from CI). It never cancels, executes or signs anything.
@@ -77,7 +77,9 @@ import {
 import {
   decideAlerts,
   findingKey,
+  planDelivery,
   type IAlertRecord,
+  type IDeliveryState,
   type IWatchFinding,
 } from './timelock-watcher-alerts'
 import {
@@ -197,6 +199,7 @@ export interface IWatcherState {
   version: number
   networks: Record<string, INetworkScanState>
   alerts: Record<string, IAlertRecord>
+  delivery: IDeliveryState
   codehash: Record<string, ICodehashCacheEntry>
 }
 
@@ -204,6 +207,7 @@ const emptyState = (): IWatcherState => ({
   version: STATE_VERSION,
   networks: {},
   alerts: {},
+  delivery: { streaks: {}, held: [] },
   codehash: {},
 })
 
@@ -225,6 +229,13 @@ export const loadWatcherState = async (
       version: STATE_VERSION,
       networks: parsed.networks ?? {},
       alerts: parsed.alerts ?? {},
+      delivery: {
+        streaks: parsed.delivery?.streaks ?? {},
+        held: parsed.delivery?.held ?? [],
+        ...(parsed.delivery?.lastPostAt
+          ? { lastPostAt: parsed.delivery.lastPostAt }
+          : {}),
+      },
       codehash: parsed.codehash ?? {},
     }
   } catch (error) {
@@ -285,19 +296,34 @@ const createLogReaders = (chain: Chain): PublicClient[] =>
     }
   })
 
-const readTimelockLogs = (
+/**
+ * Reads one range of a timelock's schedule, salt and cancel logs.
+ *
+ * @param reader - Client for one endpoint.
+ * @param timelock - The timelock whose logs to read.
+ * @param fromBlock - First block of the range.
+ * @param toBlock - Last block of the range.
+ * @returns The decoded logs the timelock itself emitted.
+ */
+export const readTimelockLogs = async (
   reader: PublicClient,
   timelock: Address,
   fromBlock: bigint,
   toBlock: bigint
-) =>
-  reader.getLogs({
+) => {
+  const logs = await reader.getLogs({
     address: timelock,
     events: [CALL_SCHEDULED_EVENT, CALL_SALT_EVENT, CANCELLED_EVENT],
     fromBlock,
     toBlock,
     strict: true,
   })
+  // Some endpoints ignore the address filter and return every contract's logs
+  // with these topics; trusting them attributes another timelock's operations to ours.
+  return logs.filter(
+    (log) => log.address.toLowerCase() === timelock.toLowerCase()
+  )
+}
 
 /** Queue rows per network, as a cross-check on the log scan. */
 type TQueueIndex = Map<string, Set<string>> | { error: string }
@@ -1208,8 +1234,10 @@ const command = defineCommand({
       settled,
       now
     )
+    const plan = planDelivery(state.alerts, decision, state.delivery, now)
     const runUrl = process.env.TIMELOCK_WATCHER_RUN_URL
-    const posts = renderSlackPosts(decision.alerts, runUrl)
+    const posts = renderSlackPosts(plan.actionable, plan.digest, runUrl)
+    state.delivery = plan.undelivered
     let deliveryFailed = false
     if (posts.length > 0) {
       const webhook = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
@@ -1227,12 +1255,16 @@ const command = defineCommand({
           const notifier = new SlackNotifier(webhook, runUrl)
           for (const text of posts)
             await notifier.sendNotificationWithRetry({ text }, 3, true)
-          state.alerts = decision.next
+          state.alerts = plan.next
+          state.delivery = plan.delivered
         } catch (error) {
           consola.error(`Alert delivery failed: ${describe(error)}`)
           deliveryFailed = true
         }
-    } else state.alerts = decision.next
+    } else {
+      state.alerts = plan.next
+      state.delivery = plan.delivered
+    }
 
     await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`)
 

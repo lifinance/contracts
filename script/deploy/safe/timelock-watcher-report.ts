@@ -176,59 +176,74 @@ const KIND_LABEL: Record<IAlertItem['kind'], string> = {
 }
 
 /**
- * The Slack posts for this run's alerts.
+ * The Slack posts for this run: what a human has to act on, then any held
+ * updates riding along. Held updates alone make a digest that asks nothing.
  *
- * @param alerts - What the dedupe let through.
+ * @param actionable - Updates a human has to act on.
+ * @param digest - Held updates delivered with this post.
  * @param runUrl - Link to the run, when known.
  * @returns The posts, each under {@link SLACK_TEXT_BUDGET}, that together carry
- *   every alert; none when there is nothing to send.
+ *   every update; none when there is nothing to send.
  */
 export const renderSlackPosts = (
-  alerts: readonly IAlertItem[],
+  actionable: readonly IAlertItem[],
+  digest: readonly IAlertItem[],
   runUrl: string | undefined
 ): string[] => {
-  if (alerts.length === 0) return []
-  const mismatches = alerts.filter(
-    (a) => a.kind !== 'resolved' && a.finding.verdict === 'mismatch'
-  ).length
-  const header = `${
-    mismatches > 0 ? '🚨' : '⚠️'
-  } Timelock watcher: ${mismatches} mismatch, ${
-    alerts.length - mismatches
-  } other update(s). Report-only, nothing was cancelled.`
+  if (actionable.length === 0 && digest.length === 0) return []
+  const isMismatch = (a: IAlertItem): boolean =>
+    a.kind !== 'resolved' && a.finding.verdict === 'mismatch'
+  const mismatches = actionable.filter(isMismatch).length
+  const unverified = actionable.length - mismatches
+  const header =
+    actionable.length === 0
+      ? `ℹ️ Timelock watcher digest: ${digest.length} update(s) since the last post, nothing needs action.`
+      : `${mismatches > 0 ? '🚨' : '⚠️'} Timelock watcher: ${[
+          mismatches > 0 ? `${mismatches} mismatch` : '',
+          unverified > 0 ? `${unverified} unverified` : '',
+        ]
+          .filter(Boolean)
+          .join(', ')} to look at. Report-only, nothing was cancelled.`
+  const line = (a: IAlertItem): string => {
+    const verdict =
+      a.kind === 'resolved'
+        ? `now ok (was ${a.previous ?? 'unknown'})`
+        : `${a.finding.verdict}${
+            a.kind !== 'changed'
+              ? ''
+              : a.previous === a.finding.verdict
+              ? ' (reasons changed)'
+              : ` (was ${a.previous ?? 'unknown'})`
+          }`
+    const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
+    const marker = a.kind === 'resolved' ? '✅' : '•'
+    return `${marker} [${KIND_LABEL[a.kind]}] ${
+      a.finding.key
+    }: ${verdict}${reason}`
+  }
   // Mismatches lead, so the first post shows every one it counts.
-  const rank = (a: IAlertItem): number =>
-    a.kind !== 'resolved' && a.finding.verdict === 'mismatch' ? 0 : 1
-  const body = [...alerts]
-    .sort((a, b) => rank(a) - rank(b))
-    .map((a) => {
-      const verdict =
-        a.kind === 'resolved'
-          ? `now ok (was ${a.previous ?? 'unknown'})`
-          : `${a.finding.verdict}${
-              a.kind !== 'changed'
-                ? ''
-                : a.previous === a.finding.verdict
-                ? ' (reasons changed)'
-                : ` (was ${a.previous ?? 'unknown'})`
-            }`
-      const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
-      return `• [${KIND_LABEL[a.kind]}] ${a.finding.key}: ${verdict}${reason}`
-    })
+  const body = [
+    ...actionable.filter(isMismatch),
+    ...actionable.filter((a) => !isMismatch(a)),
+  ].map(line)
+  if (digest.length > 0) {
+    if (body.length > 0) body.push('Since the last post, for information:')
+    body.push(...digest.map(line))
+  }
   const footer = runUrl ? `<${runUrl}|Full report>` : ''
   // Room for the header or a continuation line, and the footer.
   const room = SLACK_TEXT_BUDGET - header.length - footer.length - 2
   const chunks: string[][] = [[]]
   let used = 0
   for (const full of body) {
-    const line = full.length > room ? `${full.slice(0, room - 1)}…` : full
+    const text = full.length > room ? `${full.slice(0, room - 1)}…` : full
     const current = chunks[chunks.length - 1] as string[]
-    if (current.length > 0 && used + line.length + 1 > room) {
-      chunks.push([line])
-      used = line.length + 1
+    if (current.length > 0 && used + text.length + 1 > room) {
+      chunks.push([text])
+      used = text.length + 1
     } else {
-      current.push(line)
-      used += line.length + 1
+      current.push(text)
+      used += text.length + 1
     }
   }
   return chunks.map((lines, i) =>
