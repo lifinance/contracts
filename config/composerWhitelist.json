@@ -26,6 +26,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "arbitrum": [
@@ -55,11 +64,29 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "arc": [
     {
       "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0xc6b1e8C63ecbE8DaB7994411902C65315b7Af0Cd",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -95,6 +122,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "base": [
@@ -118,6 +154,15 @@
     },
     {
       "address": "0x847E5fF14E18cdE8fc289839bC7C747B922159BF",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -153,6 +198,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x1d8E7Ca0e0D989D5867905D142c8195c41647Ef0",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "bsc": [
@@ -176,6 +230,15 @@
     },
     {
       "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -211,6 +274,26 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "fraxtal": [
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "gnosis": [
@@ -234,6 +317,15 @@
     },
     {
       "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -269,6 +361,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x39D540f708909367b003cDd3e829b5C2FB22670e",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "katana": [
@@ -292,6 +393,15 @@
     },
     {
       "address": "0x20809B474cD7DDf7c1e127b95D2Ef699034992a1",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x9704df62E22AFCd25f76A594b9Eb04AAAC094CCE",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -327,6 +437,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x4E8C92e5d89d9E0928C7Fe7d02C4D95Fc6946046",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "lisk": [
@@ -350,6 +469,15 @@
     },
     {
       "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -385,6 +513,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "megaeth": [
@@ -408,6 +545,15 @@
     },
     {
       "address": "0xBff32fED35bD573D7bFeE160DFb2e1c022068458",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x0B2b381654Ad888DA00fc12a1a5A610E6E9D4724",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -443,6 +589,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x0B2b381654Ad888DA00fc12a1a5A610E6E9D4724",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "optimism": [
@@ -472,6 +627,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "pharos": [
@@ -483,11 +647,29 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x57056AD584719BB9bf3ed81aB87D60B8d00F6E92",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "plasma": [
     {
       "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x0B2b381654Ad888DA00fc12a1a5A610E6E9D4724",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -523,6 +705,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0xD2dd6329C7eA3aCBd1d16A7a0432349Ca122D3a8",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "polygon": [
@@ -546,6 +737,26 @@
     },
     {
       "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "robinhood": [
+    {
+      "address": "0x5c1423b410c5e20aC3B74cED29E3E903A8Fd89b8",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -581,6 +792,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "soneium": [
@@ -604,6 +824,15 @@
     },
     {
       "address": "0xEb2873B297Bbc26231Ac262835201C08F1d46568",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x8D2bD2776338afeb68830F3253aF17CD82141Bb0",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -639,6 +868,26 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "tempo": [
+    {
+      "address": "0x55AE7BEbE2f4E0dB752C9770347854E12BD3225a",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "unichain": [
@@ -668,6 +917,15 @@
           "signature": "runVM((uint8,bytes32)[],(bytes[]))"
         }
       ]
+    },
+    {
+      "address": "0x8D2bD2776338afeb68830F3253aF17CD82141Bb0",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
     }
   ],
   "worldchain": [
@@ -691,6 +949,26 @@
     },
     {
       "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    },
+    {
+      "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "zksync": [
+    {
+      "address": "0x38287fC30b70A0f434eBDFC13a2eEC53e6E7859f",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
