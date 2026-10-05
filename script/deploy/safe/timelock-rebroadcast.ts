@@ -28,10 +28,6 @@ import {
   type TimelockExecutionConfirmation,
 } from './confirm-timelock-execution'
 
-/** Run-summary wording for a tx no endpoint ever mined. */
-export const NOT_ON_CHAIN_REASON =
-  'submitted, not on-chain: RPC likely dropped it'
-
 export type TimelockExecutionOutcome =
   | TimelockExecutionConfirmation
   | 'not-on-chain'
