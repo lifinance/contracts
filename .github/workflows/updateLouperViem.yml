@@ -21,8 +21,9 @@ jobs:
   update-louper-viem:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Only run when PR is merged to main branch
-    if: github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
+    # Only run when PR is merged to main branch. Upstream-only: it opens PRs in mark3labs/louper-v3,
+    # so a fork (e.g. contracts-tron) merging its upstream sync would open duplicates.
+    if: github.repository == 'lifinance/contracts' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main'
 
     steps:
       - name: Checkout repository

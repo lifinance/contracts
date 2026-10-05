@@ -105,7 +105,7 @@ paths:
 ### Upstream-only jobs on forks ([CONV:FORK-GUARD])
 
 - Forks of this repo (e.g. `lifinance/contracts-tron`) sync every workflow and, inside the org, read the same secrets. A fork's checks on its own PRs and pushes (tests, lint, label gates) should keep running there.
-- **A job that posts to Slack, holds a signing key, touches chain or MongoDB state, or writes to another repo MUST carry `if: ${{ github.repository == 'lifinance/contracts' }}`** (AND-ed with any existing condition), plus a one-line comment saying what it would do on a fork. This applies to every automatic trigger (`schedule`, `push`, `pull_request`), not only `schedule`. Jobs a human starts on purpose for that repo (a label-triggered QA review, the team-gated emergency-pause dispatch) stay unguarded.
+- **A job that posts to Slack, holds a stored signing key, touches chain or MongoDB state, or writes to another repo MUST carry the guard `github.repository == 'lifinance/contracts'` in its `if:`** (AND-ed with any existing condition), plus a short comment saying what it would do on a fork. This applies to every automatic trigger (`schedule`, `push`, `pull_request`), not only `schedule`. Jobs a human starts on purpose for that repo (a label-triggered QA review, the team-gated emergency-pause dispatch) stay unguarded.
 - The guard is a job-level `if:` on purpose. A composite action runs as a step, so it cannot skip the job, and a skipped job shows as neutral rather than failed.
 
 ## GitHub Actions Workflow Structure
