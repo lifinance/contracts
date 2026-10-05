@@ -4,6 +4,9 @@
  * `fetch` is, for the endpoint builders), so nothing leaves the process.
  */
 
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
 import {
   afterEach,
   beforeEach,
@@ -453,5 +456,47 @@ describe('createExecutorRpc', () => {
     )
 
     expect(publicClient.transport.type).toBe('http')
+  })
+})
+
+// `execute-pending-timelock-tx.ts` calls `runMain` at module scope, so its use
+// of this module is asserted on the source.
+describe('executor wiring', () => {
+  const executor = readFileSync(
+    join(import.meta.dir, 'execute-pending-timelock-tx.ts'),
+    'utf8'
+  )
+
+  it('reads through createExecutorRpc, not the primary-only setupEnvironment client', () => {
+    expect(executor).toContain('createExecutorRpc(')
+    expect(executor).not.toMatch(
+      /const \{[^}]*publicClient[^}]*\} = await setupEnvironment\(/
+    )
+  })
+
+  it('confirms executions through confirmWithRebroadcast, passing the signed bytes', () => {
+    expect(executor).toContain('confirmWithRebroadcast({')
+    expect(executor).toContain('rawTransaction: result.rawTransaction')
+    expect(executor).not.toContain('confirmTimelockExecution(')
+  })
+
+  it('leaves a not-on-chain op queued: the branch returns before the executed write', () => {
+    const branch = executor.indexOf("if (confirmation === 'not-on-chain')")
+    expect(branch).toBeGreaterThan(-1)
+    const body = executor.slice(
+      branch,
+      executor.indexOf("status: 'executed'", branch)
+    )
+    const ret = body.indexOf("return 'not-on-chain'")
+    expect(ret).toBeGreaterThan(-1)
+    expect(ret).toBeLessThan(
+      body.indexOf("if (confirmation === 'unconfirmed')")
+    )
+    expect(body.slice(0, ret)).not.toContain('updateOne')
+  })
+
+  it('reports not-on-chain to the run summary as its own count', () => {
+    expect(executor).toContain('operationsNotOnChain++')
+    expect(executor).toMatch(/return \{[^}]*operationsNotOnChain,[^}]*\}/)
   })
 })
