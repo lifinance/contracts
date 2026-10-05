@@ -32,3 +32,75 @@ responses:
 # The first word of every Check must be one of these, or a repo script
 checks:
   runners: [bun, bunx, forge, git, bash, test, grep]
+
+# How the factory prepares a worktree and verifies a change in this repo
+repo:
+  prepare:
+    install_cmd: [bun, install, --frozen-lockfile]
+    symlinks: []
+    submodules: true
+    fetch_rpcs: true
+    install: true
+  verify:
+    # No separate lint command: the lint-staged suite below runs the branch's own pre-commit lint (the main
+    # linter and both ESLint fences) over the whole branch, so it follows a change of linter.
+    lint: null
+    format: [bunx, prettier, --check]
+    test: [bun, test]
+    code_pattern: '\.(ts|js|tsx)$'
+    test_pattern: '\.test\.ts$'
+    pass_files: true
+    # The whole of CI's run-ts-tests, not the touched directories: the script/ suites import each other's helpers
+    # and assert against committed config, so a change in one directory breaks tests in another.
+    # --no-env-file keeps the worktree's .env out of the tests, as CI has none.
+    suites:
+      general:
+        paths: ['script/**', 'tasks/**', 'package.json', 'tsconfig*.json']
+        cmd: [bun, --no-env-file, test, script/, tasks/]
+        scope: full
+      # A ticket can change a contract with no Checks; forge build catches a src/ change that breaks compilation
+      solidity-build:
+        paths: ['src/**', 'test/solidity/**']
+        cmd: [forge, build]
+        scope: full
+      # Only the changed test files, since the whole forge suite forks many chains; the fork tests need the RPC URLs
+      solidity-tests:
+        paths: ['test/solidity/**/*.t.sol']
+        cmd: [forge, test, --match-path]
+        scope: changed-files
+        rpc: true
+      # The factory commits with hooks off, so the pre-commit hook's lint-staged runs here over the whole branch.
+      # Its fixers rewrite files in place; the trailing git diff fails the suite on that, so the agent commits them.
+      lint-staged:
+        paths: ['**']
+        cmd: [bash, -c, 'bunx lint-staged --quiet --diff=origin/main...HEAD && git diff --exit-code --stat HEAD']
+        scope: full
+    # Every verify command runs sandboxed, without network. The script/ tests start local HTTP servers, which needs
+    # localhost; that also reaches any other service listening on the engineer's machine.
+    loopback: true
+    # A ticket's Checks may fork a chain (forge test on test/**), so they get the RPC URLs and those hosts only
+    checks_rpc: true
+  # run-ts-tests, verify-signed-commits and Aikido run only once a PR leaves draft
+  ci:
+    skips_drafts: true
+  # Checked in the verify sandbox with the daemons' PATH at every prepare, and by doctor; a gap stops the job.
+  # The verify sandbox has no network, so forge cannot download the compiler foundry.toml pins: it must already be in svm.
+  requires:
+    - tool: forge
+      cmd: [forge, --version]
+      version_from: { file: .foundry-version, pattern: '(\S+)' }
+      fix: foundryup --install {version}
+    - tool: solc
+      cmd: [bash, -c, 'ls "$HOME/Library/Application Support/svm" "$HOME/.svm" "$HOME/.local/share/svm" 2>/dev/null; true']
+      version_from: { file: foundry.toml, pattern: "solc_version = '([^']+)'" }
+      match: exact
+      fix: run forge build once in the primary clone, which downloads solc {version}
+    - tool: node
+      cmd: [node, --version]
+      version_from: { file: .nvmrc, pattern: '(\S+)' }
+      fix: install Node.js {version} or newer (nvm install, or brew install node)
+    - tool: bun
+      cmd: [bun, --version]
+      version: 1.3.8
+      fix: bun upgrade
+  protected: []
