@@ -277,9 +277,11 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
 })
 
 describe('buildCalldataEffectLines — selector names from the facet artifact', () => {
-  // A checkout with no diamond.json: only the compiled artifact under out/, and
-  // for some cases a deployment log naming the facet, can supply a name.
-  const GETTER = 'LIFI_INTENT_ESCROW_SETTLER_V2()'
+  // Only the compiled artifact under out/, and for some cases a deployment log
+  // naming the facet, can supply a name. The getter is fixture-only: a real one
+  // would be named by a generated diamond.json in the repo root, which the
+  // registry reads before any case leaves it.
+  const GETTER = 'FIXTURE_ESCROW_SETTLER()'
   const GETTER_SELECTOR = toFunctionSelector(GETTER)
   const ENTRY = 'openFixtureEscrow(uint256)'
   const ENTRY_SELECTOR = toFunctionSelector(ENTRY)
@@ -330,7 +332,7 @@ describe('buildCalldataEffectLines — selector names from the facet artifact', 
       diamondCut(1, FACET, [GETTER_SELECTOR, ENTRY_SELECTOR])
     )
     expect(lines).toContain(`Replace 2 functions → ${FACET_NAME}`)
-    expect(lines).toContain(`${GETTER_SELECTOR}  LIFI_INTENT_ESCROW_SETTLER_V2`)
+    expect(lines).toContain(`${GETTER_SELECTOR}  FIXTURE_ESCROW_SETTLER`)
     expect(lines).toContain(`${ENTRY_SELECTOR}  openFixtureEscrow`)
     expect(lines).not.toContain('no name for this selector')
     for (const url of fourByteUrls()) {
@@ -377,7 +379,7 @@ describe('buildCalldataEffectLines — selector names from the facet artifact', 
     )
     expect(lines).toContain('Remove 1 function')
     expect(lines).not.toContain(FACET_NAME)
-    expect(lines).not.toContain('LIFI_INTENT_ESCROW_SETTLER_V2')
+    expect(lines).not.toContain('FIXTURE_ESCROW_SETTLER')
     expect(lines).toContain(`${GETTER_SELECTOR}  no name for this selector`)
   })
 
