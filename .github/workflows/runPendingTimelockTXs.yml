@@ -68,8 +68,9 @@ concurrency:
 jobs:
   execute-timelock:
     # For scheduled runs, only proceed if the repo variable is "true".
-    # Manual dispatch (workflow_dispatch) always runs regardless.
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true'
+    # Manual dispatch (workflow_dispatch) always runs regardless, upstream only: the job holds the
+    # executor key, so on forks (e.g. contracts-tron) it is skipped (neutral, not failed).
+    if: github.repository == 'lifinance/contracts' && (github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_AUTO_EXECUTION == 'true')
     runs-on: ubuntu-latest
     # Cap runtime; a hung RPC loop would otherwise idle up to GitHub's 6h default.
     timeout-minutes: 20

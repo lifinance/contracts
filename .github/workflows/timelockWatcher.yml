@@ -64,7 +64,9 @@ concurrency:
 
 jobs:
   watch-timelocks:
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_WATCHER != 'false'
+    # Upstream-only: forks that sync this file (e.g. contracts-tron) have no deployments/*.json, so
+    # every operation reads as unverified and pages Slack. On forks the job is skipped (neutral).
+    if: github.repository == 'lifinance/contracts' && (github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_WATCHER != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
