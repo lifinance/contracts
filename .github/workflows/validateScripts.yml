@@ -81,11 +81,10 @@ jobs:
               - 'tsconfig.json'
               - 'tsconfig.node.json'
               - '.eslintrc.node-runtime.cjs'
-              - '.eslintrc.cjs'
-              # Extended by .eslintrc.cjs, so its rules are part of `bun lint:js`
-              - '.eslintrc.funnel-fence.cjs'
+              # The `bun lint:js` (oxlint) config; its local plugin is under script/
+              - '.oxlintrc.json'
+              # Ignore list the node-runtime fence reads
               - '.eslintignore'
-              - 'tsconfig.eslint.json'
               - '.github/workflows/validateScripts.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'

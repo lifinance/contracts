@@ -90,8 +90,8 @@
     "format:fix": "prettier --write \"**/*.{ts,js,sol}\"",
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
     "healthcheck": "bunx tsx ./script/deploy/healthCheck.ts",
-    "lint:js": "eslint \"**/*.{js,ts,tsx}\"",
-    "lint:js:fix": "eslint \"**/*.{js,ts,tsx}\" --fix",
+    "lint:js": "oxlint --type-aware .",
+    "lint:js:fix": "oxlint --type-aware --fix .",
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:sol:fix": "solhint \"src/**/*.sol\" --fix",
     "lint:funnel": "eslint --no-eslintrc -c ./.eslintrc.funnel-fence.cjs --no-inline-config --ext .ts,.tsx,.mts,.cts,.js,.mjs,.cjs .",
@@ -154,7 +154,8 @@
   "lint-staged": {
     "*.{ts,js}": [
       "prettier --write",
-      "eslint --fix",
+      "oxlint --type-aware --fix --no-error-on-unmatched-pattern",
+      "eslint --no-eslintrc -c ./.eslintrc.funnel-fence.cjs --no-inline-config",
       "eslint --no-eslintrc -c ./.eslintrc.node-runtime.cjs --no-inline-config",
       "bash script/utils/typecheck-files.sh"
     ],

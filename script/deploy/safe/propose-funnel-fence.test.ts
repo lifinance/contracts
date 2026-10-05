@@ -33,37 +33,48 @@ const REFUSAL = 'Safe proposals are created through proposeSafeTx()'
 /** 90 seconds: an ESLint run plus a cold bun start, well short of a hang. */
 const TIMEOUT_MS = 90_000
 
+const PACKAGE_JSON = JSON.parse(
+  readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')
+) as {
+  scripts: Record<string, string>
+  'lint-staged': Record<string, string[]>
+}
+
+/** The `*.{ts,js}` lint-staged commands, in the order a commit runs them. */
+const LINT_STAGED_TS = PACKAGE_JSON['lint-staged']['*.{ts,js}'] ?? []
+
+/** The lint-staged entry that runs this fence on the staged files. */
+const STAGED_FENCE = LINT_STAGED_TS.find((command) =>
+  command.includes(FENCE_CONFIG)
+)
+
 /**
  * Lints `source` as if it were the file at `virtualPath`.
  *
  * @param source - the candidate call site
  * @param virtualPath - repo-relative path it is judged as, which is what the
  *   allowlist matches on
- * @param useRepoConfig - lint with the repo-wide config instead of the fence's
- *   own, to show the fence is reachable from the config a commit is linted with
+ * @param command - the ESLint invocation to judge it with; defaults to the
+ *   fence's own config and the flag CI runs with
  */
 const lint = async (
   source: string,
   virtualPath: string,
-  useRepoConfig = false
+  command = [
+    'eslint',
+    '--no-eslintrc',
+    '-c',
+    FENCE_CONFIG,
+    // The flag CI runs with. Without it the cases below that carry an
+    // `eslint-disable` would pass while the fence had judged nothing.
+    '--no-inline-config',
+  ]
 ): Promise<{ exitCode: number; output: string }> => {
-  const args = useRepoConfig
-    ? ['--stdin', '--stdin-filename', virtualPath]
-    : [
-        '--no-eslintrc',
-        '-c',
-        FENCE_CONFIG,
-        // The flag CI runs with. Without it the cases below that carry an
-        // `eslint-disable` would pass while the fence had judged nothing.
-        '--no-inline-config',
-        '--stdin',
-        '--stdin-filename',
-        virtualPath,
-      ]
+  const args = [...command, '--stdin', '--stdin-filename', virtualPath]
 
   // Async rather than `Bun.spawnSync`, whose options type pins stdin to
   // 'ignore': feeding the candidate on stdin is the point of this helper.
-  const proc = Bun.spawn(['bunx', 'eslint', ...args], {
+  const proc = Bun.spawn(['bunx', ...args], {
     cwd: REPO_ROOT,
     env: process.env as Record<string, string>,
     stdin: Buffer.from(source),
@@ -315,17 +326,36 @@ describe('the funnel fence lets compliant code through', () => {
 })
 
 describe('the fence runs where it has to run', () => {
+  it('runs on staged files with the command CI runs on the tree', () => {
+    // `bun lint:funnel` is this entry plus the extensions and the tree to sweep.
+    expect(STAGED_FENCE).toBeDefined()
+    expect(PACKAGE_JSON.scripts['lint:funnel']).toStartWith(
+      `${STAGED_FENCE} --ext `
+    )
+  })
+
+  it('runs after the fixers and before the type check in lint-staged', () => {
+    // A fixer after the fence would commit code the fence never judged.
+    const position = (fragment: string): number =>
+      LINT_STAGED_TS.findIndex((command) => command.includes(fragment))
+
+    expect(position('prettier --write')).toBe(0)
+    expect(position('oxlint')).toBe(1)
+    expect(position(FENCE_CONFIG)).toBe(2)
+    expect(position('.eslintrc.node-runtime.cjs')).toBe(3)
+    expect(position('typecheck-files.sh')).toBe(4)
+  })
+
   it(
-    'fires through the repo-wide config, so a commit cannot land one',
+    'fires through the lint-staged entry, so a commit cannot land one',
     async () => {
-      // A path that exists: the repo-wide config resolves types from
-      // `tsconfig.eslint.json`, whose include is a filesystem glob, so a virtual
-      // filename with no file behind it fails to parse before any rule runs.
+      // With a file-level disable, which the entry must ignore as CI does
       const result = await lint(
-        `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
+        `/* eslint-disable no-restricted-syntax */\n` +
+          `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
           `export const propose = storeTransactionInMongoDB\n`,
-        'script/tasks/proposeFraxChainIdMappings.ts',
-        true
+        BYPASS_PATH,
+        (STAGED_FENCE ?? '').split(' ')
       )
 
       expect(result.exitCode).not.toBe(0)
