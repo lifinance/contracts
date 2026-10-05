@@ -900,7 +900,9 @@ The manifest is minted and attested in `lifinance/contracts` only. The
 `contracts-tron` fork keeps upstream's file byte-identical and the workflow
 skips there: the Tron `LibAsset` bypass compiles into nearly every facet, so a
 fork manifest would differ from upstream's on every version change and
-conflict on every sync. The fork therefore has no manifest of its own. A Tron
+conflict on every sync. The fork therefore mints and attests nothing: its copy
+is upstream's file byte for byte, which upstream's attestation covers when
+verified with `--repo lifinance/contracts` as above. A Tron
 build whose source closure matches upstream's has a valid entry in upstream's
 file; any build that compiles the bypass has none, and the sign-time codehash
 gate (gate K) grades it by rebuilding at the deployment record's commit from
