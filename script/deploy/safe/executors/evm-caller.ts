@@ -7,6 +7,8 @@ import type {
   Account,
   Address,
   Chain,
+  Hash,
+  Hex,
   PublicClient,
   TransactionReceipt,
   WalletClient,
@@ -21,6 +23,7 @@ import type {
 import { buildExplorerTxUrl } from '../../../utils/viemScriptHelpers'
 
 import { getGasWithFallback, resolveGas } from './gas-with-fallback'
+import { rebroadcastRawTransaction } from './rebroadcast-raw-tx'
 
 export class EvmChainCaller implements IChainCaller {
   public readonly senderAddress: Address
@@ -79,14 +82,28 @@ export class EvmChainCaller implements IChainCaller {
       }
     )
 
-    const txHash = await this.walletClient.sendTransaction({
+    const request = {
       account: this.account,
       chain: this.walletClient.chain as Chain | null,
       to: params.to,
       data: params.data,
       value: params.value ?? 0n,
       gas,
-    })
+    }
+
+    // Signed here rather than inside `sendTransaction` so the exact bytes can be re-sent to
+    // other endpoints if the one that accepted them drops the transaction.
+    let serializedTransaction: Hex | undefined
+    let txHash: Hash
+    if (this.account.type === 'local') {
+      const prepared = await this.walletClient.prepareTransactionRequest(
+        request
+      )
+      serializedTransaction = await this.walletClient.signTransaction(prepared)
+      txHash = await this.walletClient.sendRawTransaction({
+        serializedTransaction,
+      })
+    } else txHash = await this.walletClient.sendTransaction(request)
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
 
@@ -107,13 +124,7 @@ export class EvmChainCaller implements IChainCaller {
         timeoutPromise,
       ])) as TransactionReceipt
 
-      const explorerUrl = this.networkName
-        ? buildExplorerTxUrl(this.networkName, txHash)
-        : undefined
-
-      if (receipt.status === 'success')
-        return { hash: txHash, receipt, gasUsed: receipt.gasUsed, explorerUrl }
-      else throw new Error(`Transaction failed with status: ${receipt.status}`)
+      return this.resultFromReceipt(txHash, receipt)
     } catch (timeoutError: unknown) {
       const errorMsg =
         timeoutError instanceof Error
@@ -123,6 +134,18 @@ export class EvmChainCaller implements IChainCaller {
         consola.warn(
           `⚠️  Transaction submitted but confirmation timed out after 30 seconds`
         )
+        const rpcUrls = this.walletClient.chain?.rpcUrls.default.http ?? []
+        if (serializedTransaction && rpcUrls.length) {
+          const { receipt: rebroadcastReceipt } =
+            await rebroadcastRawTransaction({
+              serializedTransaction,
+              hash: txHash,
+              rpcUrls,
+              networkName: this.networkName,
+            })
+          if (rebroadcastReceipt)
+            return this.resultFromReceipt(txHash, rebroadcastReceipt)
+        }
         consola.warn(`   Transaction hash: ${txHash}`)
         consola.warn(`   Please manually verify transaction status later`)
         const explorerUrl = this.networkName
@@ -132,5 +155,17 @@ export class EvmChainCaller implements IChainCaller {
       }
       throw timeoutError
     }
+  }
+
+  private resultFromReceipt(
+    hash: Hash,
+    receipt: TransactionReceipt
+  ): IChainCallResult {
+    if (receipt.status !== 'success')
+      throw new Error(`Transaction failed with status: ${receipt.status}`)
+    const explorerUrl = this.networkName
+      ? buildExplorerTxUrl(this.networkName, hash)
+      : undefined
+    return { hash, receipt, gasUsed: receipt.gasUsed, explorerUrl }
   }
 }
