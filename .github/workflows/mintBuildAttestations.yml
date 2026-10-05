@@ -18,12 +18,14 @@
 #   skips, and a skipped job reports success — which is exactly how a gate goes
 #   quiet without anyone noticing. The build is the cost of never having to ask
 #   whether the check ran.
-# - upstream-only: both jobs are guarded to lifinance/contracts. contracts-tron
-#   syncs this file, and its Tron LibAsset bypass compiles into nearly every
-#   facet, so a fork-side manifest differs from upstream's on every version
-#   change and conflicts on every sync. The fork keeps upstream's manifest
-#   byte-identical and has none of its own; gate K grades Tron by rebuilding at
-#   the deployment record's commit instead. In the fork both jobs skip by design.
+# - upstream-only: both jobs are guarded to lifinance/contracts, the one skip
+#   this file allows on purpose. contracts-tron syncs this file, and its Tron
+#   LibAsset bypass compiles into nearly every facet, so a fork-side manifest
+#   differs from upstream's on every version change and conflicts on every
+#   sync. The fork keeps upstream's manifest byte-identical and has none of its
+#   own; the sign-time codehash gate rebuilds any build the manifest lacks.
+#   The guard has the cost the bullet above names: renaming this repository
+#   would stop both jobs while they still report success.
 # - Known limitation: only the `default` profile is minted today. The manifest
 #   records its own `coveredProfiles`; script/deploy/codehash/build-manifest.ts
 #   states what a reader has to do with that.
@@ -91,7 +93,9 @@ jobs:
   mint:
     ##### Only on main: an attestation names the workflow identity and the ref
     ##### it ran on, and one minted from a branch would vouch for code that
-    ##### never passed review.
+    ##### never passed review. The repo guard repeats the one on
+    ##### verify-build-manifest on purpose: the job holding the signing
+    ##### permissions states its own condition rather than relying on `needs`.
     if: github.repository == 'lifinance/contracts' && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: verify-build-manifest
     runs-on: ubuntu-latest
