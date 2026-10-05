@@ -546,8 +546,11 @@ describe('findAttestationConflicts', () => {
     )
     expect(conflict?.key.zk).not.toBe(attestation.key.zk)
     expect(conflict?.key.zk).toEqual(ZK_TOOLCHAIN)
-    ;(conflict?.build.hashedSettings as Record<string, unknown>)['evmVersion'] =
-      'annotated'
+    const conflictSettings = conflict?.build.hashedSettings as Record<
+      string,
+      unknown
+    >
+    conflictSettings['evmVersion'] = 'annotated'
     expect(attestation.build.hashedSettings['evmVersion']).toBe('cancun')
   })
 
