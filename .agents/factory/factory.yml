@@ -58,9 +58,10 @@ repo:
         paths: ['script/**', 'tasks/**', 'package.json', 'tsconfig*.json']
         cmd: [bun, --no-env-file, test, script/, tasks/]
         scope: full
-      # A ticket can change a contract with no Checks; forge build catches a src/ change that breaks compilation
+      # A ticket can change a contract with no Checks; forge build catches a change that breaks compilation,
+      # including the build-affecting paths docs/Deploy.md lists
       solidity-build:
-        paths: ['src/**', 'test/solidity/**']
+        paths: ['src/**', 'test/solidity/**', 'lib/**', 'foundry.toml', 'foundry.lock', 'remappings.txt']
         cmd: [forge, build]
         scope: full
       # Only the changed test files, since the whole forge suite forks many chains; the fork tests need the RPC URLs
