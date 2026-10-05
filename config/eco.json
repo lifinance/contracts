@@ -1,44 +1,44 @@
 {
   "optimism": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "base": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "arbitrum": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "celo": {
     "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "mainnet": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "ink": {
     "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "polygon": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "unichain": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "sonic": {
     "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "worldchain": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "bsc": {
     "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
   },
   "hyperevm": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "arc": {
-    "portal": "0xEC002CA16cE20c2a9F3C6200EF04E7d92a3dfBD8"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
   },
   "tron": {
-    "portal": "TT6jKgnBXoj7vZ7m2Yioq5mxTfrDpgir44"
+    "portal": "TDYD42VmbScmqYkqG97aLgRN74Dqq9Fuva"
   }
 }
