@@ -255,6 +255,8 @@ export interface IChainCallResult {
   gasUsed?: bigint
   /** Human-readable explorer URL for CLI display. */
   explorerUrl?: string
+  /** Signed transaction bytes, when the caller signed locally (EVM local account); lets the same tx be re-broadcast elsewhere. */
+  rawTransaction?: Hex
 }
 
 /** Result of simulating a contract call (dry-run). */
