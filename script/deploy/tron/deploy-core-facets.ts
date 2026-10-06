@@ -1,4 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
+
+import { readFile } from 'node:fs/promises'
 
 import {
   MIN_BALANCE_WARNING,
@@ -55,7 +57,9 @@ async function deployCoreFacetsImpl(options: {
   const environment = getEnvironment()
 
   // Load networks configuration once
-  const networksConfig = await Bun.file('config/networks.json').json()
+  const networksConfig = JSON.parse(
+    await readFile('config/networks.json', 'utf8')
+  )
 
   // Get network configuration from networks.json
   // Use tronshasta for staging/testnet, tron for production

@@ -46,6 +46,10 @@ import {
 } from './safe/diamondRemovalDiff'
 import type { IParkedTask } from './safe/parked-tasks'
 import { type IPendingRegistration } from './safe/pending-registrations'
+import {
+  baseSemanticVersion,
+  TARGET_STATE_VERSION_LATEST,
+} from './safe/pinned-target-state'
 import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -54,18 +58,29 @@ import {
   loadCompiledFacetSelectors,
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
+import { getContractVersion } from './shared/getContractVersion'
 import { sanitizeProvenanceText } from './shared/git-provenance'
 import { getCorePeriphery } from './shared/globalContractLists'
 import {
+  addressesMatch,
   collectImmutableBindingChecks,
+  compareContractVersions,
   isFacetContract,
   isZeroAddressValue,
   liveVersionPredatingGetter,
   loadDiamondLog,
+  resolveRegisteredFacetVersion,
   TRON_ZERO_ADDRESS_BASE58,
   type DiamondFacetLog,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
+import {
+  evaluatePeripheryAllowlist,
+  parsePeripheryAllowlistRequirements,
+  peripheryAllowlistRequirementOn,
+  type IPeripheryAllowlistRequirements,
+  type SelectorAllowlistRead,
+} from './shared/peripheryAllowlist'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -118,6 +133,8 @@ export interface IHealthCheckGlobalConfig {
   approvedSelectorsForRefundWallet: Array<{ selector: string; name: string }>
   safeOwners: string[]
   whitelistPeripheryFunctions: Record<string, unknown>
+  /** Contract name → networks it is allowlisted on; a contract absent from it is allowlisted everywhere. */
+  whitelistPeripheryNetworks?: Record<string, unknown>
 }
 
 /** A single registered facet with its selector list, as read from `LiFiDiamond.facets()`. */
@@ -173,6 +190,12 @@ export interface IHealthCheckContext {
    * test to whatever version the fleet happens to be running.
    */
   diamondFacetLog?: DiamondFacetLog
+  /**
+   * Reads a contract's `@custom:version` from this checkout, which is what a `latest` target
+   * state entry expects. Undefined = read `src/` (the default); injectable so the target-version
+   * comparison is testable without pinning a test to the version the repo happens to be at.
+   */
+  contractSourceVersion?: (contractName: string) => Promise<string>
   /**
    * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
    * name. Undefined = read from the build output (the default); injectable so both invariants
@@ -1286,12 +1309,12 @@ function report(
 /**
  * Read one PeripheryRegistry entry through the run-wide cache on `ctx`.
  *
- * Registry state does not change during a run, but four invariants now probe overlapping name
+ * Registry state does not change during a run, but several invariants probe overlapping name
  * sets; uncached that multiplies the RPC reads per network and feeds the rate limits that degrade
  * other checks. The promise is cached before it settles so concurrent invariants share one
  * in-flight read, and a failed read is evicted so a retry reaches the RPC again.
  */
-async function readPeripheryRegistry(
+export async function readPeripheryRegistry(
   name: string,
   ctx: IHealthCheckContext
 ): Promise<string | null> {
@@ -1340,6 +1363,86 @@ async function resolvePeripheryAddress(
   }
   const logged = ctx.deployedContracts[name]
   return logged ? String(logged) : undefined
+}
+
+/**
+ * Read `isContractSelectorWhitelisted(address, selector)` from the diamond for each selector.
+ *
+ * @param ctx - the health-check context (diamond address and client)
+ * @param address - the contract address to ask about (hex on EVM, base58 on Tron)
+ * @param selectors - the selectors to ask about
+ * @returns each selector's answer or failure, plus the first thrown error so the caller can
+ *   classify it as deterministic or transient
+ */
+async function readSelectorAllowlist(
+  ctx: IHealthCheckContext,
+  address: string,
+  selectors: readonly Hex[]
+): Promise<{
+  answers: Map<Hex, SelectorAllowlistRead>
+  firstError: unknown
+}> {
+  const answers = new Map<Hex, SelectorAllowlistRead>()
+  let firstError: unknown
+  const record = (selector: Hex, error: unknown): void => {
+    firstError ??= error
+    answers.set(selector, {
+      failed: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  if (ctx.isTron) {
+    const { tronWeb } = ctx
+    if (!tronWeb) {
+      for (const selector of selectors)
+        record(selector, new Error('no Tron client configured'))
+      return { answers, firstError }
+    }
+    for (const selector of selectors)
+      try {
+        answers.set(
+          selector,
+          await callTronContractBoolean(
+            tronWeb,
+            ctx.diamondAddress,
+            'isContractSelectorWhitelisted(address,bytes4)',
+            [
+              { type: 'address', value: address },
+              { type: 'bytes4', value: selector },
+            ],
+            'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
+          )
+        )
+      } catch (error: unknown) {
+        record(selector, error)
+      }
+    return { answers, firstError }
+  }
+
+  const { publicClient } = ctx
+  if (!publicClient) {
+    for (const selector of selectors)
+      record(selector, new Error('no EVM client configured'))
+    return { answers, firstError }
+  }
+  const manager = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)',
+    ]),
+    client: publicClient,
+  })
+  const results = await Promise.allSettled(
+    selectors.map((selector) =>
+      manager.read.isContractSelectorWhitelisted([address as Address, selector])
+    )
+  )
+  selectors.forEach((selector, index) => {
+    const result = results[index]
+    if (result?.status === 'fulfilled') answers.set(selector, result.value)
+    else record(selector, result?.reason ?? 'no result')
+  })
+  return { answers, firstError }
 }
 
 /**
@@ -1672,6 +1775,115 @@ async function resolveBindingTargetAddress(
   }
   const logged = ctx.deployedContracts[contractName]
   return logged ? String(logged) : undefined
+}
+
+/**
+ * The registered addresses at which the diamond serves a facet: each one the diamond log names it
+ * at, plus its deploy-log address when the diamond registers that one.
+ *
+ * @remarks The deploy-log address is what surfaces a facet the diamond log does not record at
+ *   all: it is live, but its version is unknown, and that has to be reported rather than read as
+ *   "not registered". Only registered addresses count, so a log entry the diamond no longer
+ *   serves never answers for the facet.
+ * @param contractName - facet name as the target state spells it
+ * @param ctx - the network being evaluated, with `onChainFacets` populated
+ * @param log - the network's diamond facet log
+ * @returns the registered addresses, empty when the diamond does not serve the facet
+ */
+function registeredFacetAddresses(
+  contractName: string,
+  ctx: IHealthCheckContext,
+  log: DiamondFacetLog
+): string[] {
+  const deployedAddress = ctx.deployedContracts[contractName]
+  const loggedAddresses = Object.entries(log)
+    .filter(([, entry]) => entry?.Name === contractName)
+    .map(([address]) => address)
+  if (deployedAddress) loggedAddresses.push(String(deployedAddress))
+
+  return ctx.onChainFacets
+    .map((facet) => facet.address)
+    .filter((registered) =>
+      loggedAddresses.some((address) => addressesMatch(address, registered))
+    )
+}
+
+/** The version a target-state entry expects, and how to name it in a warning. */
+type TargetFacetVersion =
+  | { version: string; label: string }
+  | { unresolvedReason: string }
+
+/**
+ * Resolve the version a target-state entry expects: a pin as written, `latest` as the contract's
+ * `@custom:version` in this checkout.
+ *
+ * @param contractName - facet name as the target state spells it
+ * @param declared - the target-state value, `latest` or a pin
+ * @param ctx - the network being evaluated
+ * @returns the expected version, or why `latest` could not be resolved
+ */
+async function resolveTargetFacetVersion(
+  contractName: string,
+  declared: string,
+  ctx: IHealthCheckContext
+): Promise<TargetFacetVersion> {
+  if (declared !== TARGET_STATE_VERSION_LATEST)
+    return { version: declared, label: `${declared} (pinned)` }
+
+  try {
+    const version = await (ctx.contractSourceVersion ?? getContractVersion)(
+      contractName
+    )
+    return { version, label: `${version} (latest)` }
+  } catch (error: unknown) {
+    return {
+      unresolvedReason: error instanceof Error ? error.message : String(error),
+    }
+  }
+}
+
+/**
+ * Report how one registered facet's live version stands against its target.
+ *
+ * @remarks The text names the contract and both versions but never the network or the address,
+ *   so the same drift reads identically on every chain. The fleet digest masks version digits,
+ *   so it merges per contract and direction; only the run log keeps the versions apart.
+ * @param ctx - the network being evaluated
+ * @param contractName - facet name as the target state spells it
+ * @param liveVersion - the version the diamond log records at the registered address, if any
+ * @param target - the resolved target version
+ * @returns true when the live version equals the target
+ */
+function reportFacetVersionDrift(
+  ctx: IHealthCheckContext,
+  contractName: string,
+  liveVersion: string | null,
+  target: { version: string; label: string }
+): boolean {
+  if (liveVersion === null) {
+    ctx.logWarn(
+      `${contractName} is registered but the diamond log records no version for it — cannot compare against target ${target.label}`
+    )
+    return false
+  }
+
+  const versions = `live ${liveVersion}, target ${target.label}`
+  // A build suffix (2.1.3-tron) marks a variant of its base release, so bases are compared, as
+  // the deploy guard and the sign-time gate do. Null is "no ordering", never equality: a version
+  // nobody can order is unverified drift.
+  const order = compareContractVersions(
+    baseSemanticVersion(liveVersion),
+    baseSemanticVersion(target.version)
+  )
+  if (order === null)
+    ctx.logWarn(
+      `${contractName} version cannot be compared against the target state: ${versions}`
+    )
+  else if (order < 0)
+    ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
+  else if (order > 0)
+    ctx.logWarn(`${contractName} is ahead of the target state: ${versions}`)
+  return order === 0
 }
 
 /**
@@ -2343,6 +2555,79 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'facet-versions-match-target-state',
+    description:
+      'Every target-state facet the diamond registers runs the version the target state expects',
+    // Warning, not error: most of the fleet runs facets behind target today, and an error gate
+    // would turn nearly every network red on day one over a rollout backlog nobody can close in
+    // the same change. Revisit once the backlog is small, with a reviewed exemption list.
+    severity: 'warning',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Behind: roll the target version out to this network. Ahead: the live build is newer than the target — correct the pin in _targetState.json, or land the source bump that build came from. Unverifiable: re-sync deployments/<network>.diamond.json from the loupe, or fix the version it cannot order.',
+    run: async (ctx) => {
+      // The two sides of the comparison come from different places on purpose: the live version is
+      // the diamond log's entry at the address the diamond registers, and the target is what the
+      // target state allows. Without this check a network can run a build several versions behind
+      // while every other invariant stays green.
+      const targets = Object.entries(
+        ctx.targetState[ctx.networkLower]?.production?.LiFiDiamond ?? {}
+      ).filter(([contractName]) => isFacetContract(contractName))
+      if (targets.length === 0) return
+
+      if (ctx.onChainFacets.length === 0) {
+        ctx.logWarn(
+          'On-chain facet list unavailable — facet versions not compared against the target state'
+        )
+        return
+      }
+      const log =
+        ctx.diamondFacetLog ?? loadDiamondLog(ctx.networkLower)?.Facets ?? null
+      if (log === null) {
+        ctx.logWarn(
+          'Diamond log unavailable — facet versions not compared against the target state'
+        )
+        return
+      }
+
+      let matching = 0
+      for (const [contractName, declared] of targets) {
+        // An unregistered target-state facet is facets-registered's finding, not this one's.
+        const addresses = registeredFacetAddresses(contractName, ctx, log)
+        if (addresses.length === 0) continue
+
+        const target = await resolveTargetFacetVersion(
+          contractName,
+          declared,
+          ctx
+        )
+        if ('unresolvedReason' in target) {
+          ctx.logWarn(
+            `${contractName} version cannot be compared against the target state: target is ${declared} but ${target.unresolvedReason}`
+          )
+          continue
+        }
+
+        for (const address of addresses) {
+          const liveVersion = resolveRegisteredFacetVersion(
+            contractName,
+            ctx.networkLower,
+            address,
+            log
+          )
+          if (reportFacetVersionDrift(ctx, contractName, liveVersion, target))
+            matching++
+        }
+      }
+
+      if (matching > 0)
+        consola.success(
+          `${matching} registered facet(s) match their target-state version`
+        )
+    },
+  },
+  {
     name: 'periphery-registered',
     description: 'Periphery contracts are registered in the PeripheryRegistry',
     severity: 'error',
@@ -2845,6 +3130,147 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           error instanceof Error ? error.stack ?? error.message : String(error)
         ctx.logError(`Whitelist configuration not available: ${errorMessage}`)
       }
+    },
+  },
+  {
+    name: 'registered-periphery-allowlisted',
+    description:
+      'The address the PeripheryRegistry resolves for each diamond-called periphery contract has its configured selectors allowlisted',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    remediation:
+      'Allowlist the registered address for the selectors in config/global.json -> whitelistPeripheryFunctions (update config/whitelist.json and sync), or re-register the previously allowlisted address.',
+    run: async (ctx) => {
+      // whitelist-integrity compares the chain to config/whitelist.json, so a registry entry
+      // re-pointed at an address that file does not list is invisible to it. This reads the
+      // address from the registry itself: the one the diamond actually calls.
+      let requirements: IPeripheryAllowlistRequirements
+      try {
+        requirements = parsePeripheryAllowlistRequirements(
+          ctx.globalConfig.whitelistPeripheryFunctions,
+          ctx.globalConfig.whitelistPeripheryNetworks
+        )
+      } catch (error: unknown) {
+        ctx.logError(
+          `config/global.json periphery allowlist config is unusable: ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
+        return
+      }
+
+      const required = new Map<string, readonly Hex[]>()
+      for (const name of [...requirements.selectors.keys()].sort()) {
+        const requirement = peripheryAllowlistRequirementOn(
+          requirements,
+          name,
+          ctx.networkLower
+        )
+        if (requirement.kind === 'required')
+          required.set(name, requirement.selectors)
+        else if (requirement.kind === 'out-of-scope')
+          consola.info(
+            `⏭  ${name}: not allowlisted on ${ctx.networkLower} by design (config/global.json whitelistPeripheryNetworks)`
+          )
+      }
+      const names = [...required.keys()]
+      const registered: Array<PromiseSettledResult<string | null>> = []
+      if (ctx.isTron)
+        for (const name of names)
+          registered.push(
+            await readPeripheryRegistry(name, ctx).then(
+              (value): PromiseSettledResult<string | null> => ({
+                status: 'fulfilled',
+                value,
+              }),
+              (reason: unknown): PromiseSettledResult<string | null> => ({
+                status: 'rejected',
+                reason,
+              })
+            )
+          )
+      else
+        registered.push(
+          ...(await Promise.allSettled(
+            names.map((name) => readPeripheryRegistry(name, ctx))
+          ))
+        )
+
+      const missingPairs: Array<IWhitelistPair & { name: string }> = []
+      let verified = 0
+      for (const [index, name] of names.entries()) {
+        const result = registered[index]
+        if (result?.status !== 'fulfilled') {
+          report(
+            ctx,
+            result?.reason,
+            `${name}: could not read the PeripheryRegistry, so its allowlist was not checked: ${String(
+              result?.reason ?? 'no result'
+            )}`
+          )
+          continue
+        }
+        const address = result.value
+        if (address === null) continue
+
+        const selectors = required.get(name) ?? []
+        const reads = await readSelectorAllowlist(ctx, address, selectors)
+        const verdict = evaluatePeripheryAllowlist(selectors, reads.answers)
+        if (verdict.allowlisted) {
+          verified++
+          continue
+        }
+        if (verdict.undetermined.length > 0)
+          report(
+            ctx,
+            reads.firstError,
+            `${name} (${address}): allowlist state for ${verdict.undetermined
+              .map((entry) => `${entry.selector} (${entry.reason})`)
+              .join(', ')} could not be read`
+          )
+        for (const selector of verdict.missing)
+          missingPairs.push({ name, contract: address, selector })
+      }
+
+      if (missingPairs.length > 0) {
+        const coverage = await resolvePendingRegistrations(ctx)
+        const split =
+          coverage instanceof Map
+            ? splitByPendingWhitelist(missingPairs, coverage)
+            : { pending: [], uncovered: missingPairs }
+        if (!(coverage instanceof Map))
+          ctx.logWarn(
+            `Timelock queue unreachable — expected-pending downgrade skipped, unallowlisted periphery reported as errors: ${coverage.unreachable}`
+          )
+        for (const pending of split.pending)
+          consola.info(
+            `${pending.contract} / ${pending.selector} is registered but not yet allowlisted — expected-pending: a queued timelock operation allowlists it`
+          )
+
+        const uncoveredByName = new Map<
+          string,
+          { address: string; selectors: Hex[] }
+        >()
+        for (const uncovered of split.uncovered as typeof missingPairs) {
+          const entry = uncoveredByName.get(uncovered.name) ?? {
+            address: uncovered.contract,
+            selectors: [],
+          }
+          entry.selectors.push(uncovered.selector)
+          uncoveredByName.set(uncovered.name, entry)
+        }
+        for (const [name, { address, selectors }] of uncoveredByName)
+          ctx.logError(
+            `${name} is registered at ${address} but the diamond does not allowlist ${selectors.join(
+              ', '
+            )} for it - calls routed to ${name} through the diamond revert`
+          )
+      }
+
+      if (verified > 0)
+        consola.success(
+          `${verified} registered periphery contract(s) have their selectors allowlisted`
+        )
     },
   },
   {

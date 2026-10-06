@@ -12,13 +12,11 @@
  * funnel runs here, which is why the call has to be made from the shell.
  */
 
-import { realpathSync } from 'node:fs'
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { Hex } from 'viem'
+
+import { isEntrypoint } from '../../utils/is-entrypoint'
 
 import {
   assertFunnelDeployGate,
@@ -68,22 +66,4 @@ const main = defineCommand({
   },
 })
 
-// Not `import.meta.main`: it is undefined below Node 22.23, which `engines`
-// still permits, and there the CLI would exit 0 without gating. Node resolves
-// symlinks as it loads, so `import.meta.url` is already the real path while
-// argv[1] stays as typed - realpath both sides or the compare fails whenever a
-// path component is a link, which is why [CONV:NODE-RUNTIME-APIS]'s plain
-// compare is not enough here.
-const isEntrypoint = (): boolean => {
-  if (process.argv[1] === undefined) return false
-  try {
-    return (
-      realpathSync(path.resolve(process.argv[1])) ===
-      realpathSync(fileURLToPath(import.meta.url))
-    )
-  } catch {
-    return false
-  }
-}
-
-if (isEntrypoint()) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

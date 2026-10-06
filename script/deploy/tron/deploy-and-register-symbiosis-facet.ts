@@ -1,4 +1,6 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
+
+import { readFile } from 'node:fs/promises'
 
 import {
   MIN_BALANCE_WARNING,
@@ -111,7 +113,9 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
     // Load Symbiosis configuration
-    const symbiosisConfig = await Bun.file('config/symbiosis.json').json()
+    const symbiosisConfig = JSON.parse(
+      await readFile('config/symbiosis.json', 'utf8')
+    )
     const tronSymbiosisConfig = symbiosisConfig.tron
 
     if (!tronSymbiosisConfig)
@@ -133,7 +137,9 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     const onchainSwapV3Gateway =
       tronSymbiosisConfig.onchainSwapV3Gateway ?? ZERO_ADDRESS
 
-    const globalConfig = await Bun.file('config/global.json').json()
+    const globalConfig = JSON.parse(
+      await readFile('config/global.json', 'utf8')
+    )
     const backendSigner =
       environment === EnvironmentEnum.production
         ? globalConfig.backendSigner?.production

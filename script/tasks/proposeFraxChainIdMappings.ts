@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Propose Frax chainId-to-LayerZero-EID mapping updates (batch)
  *

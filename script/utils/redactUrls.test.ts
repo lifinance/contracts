@@ -60,7 +60,7 @@ describe('redactUrls — adversarial inputs', () => {
   it('redacts an endpoint a tool echoed back inside its own invocation', () => {
     // troncast failures echo their own invocation, and the RPC URL in it can embed an API key.
     const redacted = redactUrls(
-      '$ bun run script/troncast/index.ts call "TXYZ" "PORTAL() returns (address)" --rpc-url https://rpc.example.invalid/jsonrpc?apikey=DUMMY-TEST-VALUE'
+      '$ bunx tsx script/troncast/index.ts call "TXYZ" "PORTAL() returns (address)" --rpc-url https://rpc.example.invalid/jsonrpc?apikey=DUMMY-TEST-VALUE'
     )
     expect(redacted).not.toContain('DUMMY-TEST-VALUE')
     expect(redacted).not.toContain('example.invalid')

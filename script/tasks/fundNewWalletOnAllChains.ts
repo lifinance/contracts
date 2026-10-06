@@ -20,7 +20,7 @@ type HexString = `0x${string}`
 // amount worth of native tokens to each of these target networks using Gas.zip protocol
 
 // call this script
-// bun ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
+// bunx tsx ./script/tasks/fundNewWalletOnAllChains.ts --privKeyFundingWallet "$PRIVATE_KEY" --receivingWallet "$PAUSER_WALLET" --doNotFundChains "[97,80001]" --fundAmountUSD "5"
 
 const main = defineCommand({
   meta: {

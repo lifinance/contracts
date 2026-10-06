@@ -21,9 +21,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x5D529744d6a4F02c0cECbD32bD9C23d6c3B17107": {
+      "0x821ABffbB6C0924B80454D8C73d98B9FB0471877": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x0E60f12E2CE6b4EA51bde7A2aD61A22B12605c9C": {
         "Name": "GenericSwapFacetV3",

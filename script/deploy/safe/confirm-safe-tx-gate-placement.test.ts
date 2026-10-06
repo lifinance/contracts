@@ -30,14 +30,7 @@ const ACKNOWLEDGEMENT_RECORDED =
 const NONCE_GATE = "nonceDecision?.reason === 'stale-nonce'"
 
 /** Every point past which the proposal is no longer only being reviewed. */
-const IRREVERSIBLE_CALLS = [
-  'await signTransaction(safeTransaction)',
-  // Deployer re-sign goes through the same gated funnel; the old
-  // `deployerSafe.signTransaction(...)` spelling is gone after the codehash
-  // gate landed on main.
-  'await signTransaction(signedTx, deployerSafe)',
-  'await executeTransaction(',
-]
+const IRREVERSIBLE_CALLS = ['await runAction(action, tx)']
 
 describe('target-state gate placement in confirm-safe-tx', () => {
   let source: string
@@ -52,6 +45,7 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     const block = source.slice(at, source.indexOf('\n    }', at))
     expect(block).toContain('continue')
     expect(block).not.toContain('signTransaction')
+    expect(block).not.toContain('runAction')
   })
 
   // The findings already sit under their gate's row in section 2; a refusal
@@ -90,6 +84,7 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     for (const call of IRREVERSIBLE_CALLS) {
       const at = source.indexOf(call)
       expect(at).toBeGreaterThan(-1)
+      expect(source.split(call)).toHaveLength(2)
       expect(source.indexOf(GATE)).toBeLessThan(at)
     }
   })

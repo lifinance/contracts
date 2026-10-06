@@ -34,10 +34,10 @@ import {
 } from './timelock-abi'
 
 /** Database name for timelock execution queue inside the `MONGODB_URI` cluster. */
-const TIMELOCK_QUEUE_DB_NAME = 'timelock-operations'
+export const TIMELOCK_QUEUE_DB_NAME = 'timelock-operations'
 
 /** Collection name for timelock execution queue. */
-const TIMELOCK_QUEUE_COLLECTION_NAME = 'queue'
+export const TIMELOCK_QUEUE_COLLECTION_NAME = 'queue'
 
 /**
  * Possible lifecycle states for a queue row.

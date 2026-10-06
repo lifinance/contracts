@@ -90,6 +90,11 @@ export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
     source: 'confirm-check-registry.ts (merged)',
   },
   {
+    checkId: 'periphery-allowlist',
+    title: 'Registered periphery allowlist',
+    source: 'periphery-allowlist-gate.ts (EXSC-1131)',
+  },
+  {
     checkId: 'executability',
     title: 'The proposal would execute rather than revert',
     source: 'EXSC-994',

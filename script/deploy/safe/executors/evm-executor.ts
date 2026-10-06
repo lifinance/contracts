@@ -83,7 +83,7 @@ export class EvmChainExecutor implements IChainExecutor {
     // After broadcast we must never throw — the tx may have landed on-chain
     // even when receipt polling fails (timeout, RPC drop, parse error). The
     // caller persists the hash and the reconciliation step resolves the final
-    // status on the next run. A reverted receipt yields status: 'reverted' so
+    // status. A reverted receipt yields status: 'reverted' so
     // the caller records that rather than treating it as unknown.
     let receipt: TransactionReceipt | undefined
     try {
@@ -102,7 +102,6 @@ export class EvmChainExecutor implements IChainExecutor {
         pollError instanceof Error ? pollError.message : String(pollError)
       consola.warn(`⚠️  Could not confirm transaction within 30s: ${errorMsg}`)
       consola.warn(`   Transaction hash: ${txHash}`)
-      consola.warn(`   Reconciliation will resolve the final status next run.`)
     }
 
     return { hash: txHash, status: receipt?.status, explorerUrl }

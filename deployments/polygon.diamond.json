@@ -97,9 +97,9 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+      "0x0FC3045A569f55233BA26d92dB2e7DbB47C30D76": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -109,9 +109,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xf8fA34D58A277060D07bCa7EC24D6B386d86a793": {
+      "0x8f00E690a45e75D7A1A765163829Ad33244a1C33": {
         "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
+        "Version": "3.0.0"
       },
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",

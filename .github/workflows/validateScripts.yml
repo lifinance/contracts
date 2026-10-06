@@ -1,14 +1,22 @@
 # Validate Scripts (EXSC-331)
 # - Static validation (no script execution) of TS scripts under script/
-# - Type check: `tsc-files --noEmit` over changed TS files under script/ —
-#   removing a used import (TS2304) or a dependency a script imports (TS2307)
-#   fails fast instead of breaking at runtime
+# - Type check: `script/utils/typecheck-files.sh` over changed TS files under
+#   script/ and tasks/ — removing a used import (TS2304), a dependency a script
+#   imports (TS2307), or calling a Bun-only API from a module that runs on Node
+#   (TS2868) fails fast instead of breaking at runtime
+# - Node runtime fence: `bun lint:node-runtime` over all of script/ and tasks/
+#   refuses Bun-only APIs in shipped modules, including `import.meta.main`,
+#   which type-checks but is dropped by tsx (see .eslintrc.node-runtime.cjs)
+# - Repo-wide lint: `bun lint:js` over the whole TS/JS tree, after TypeChain
+#   types and diamond.json are generated so imports of generated files resolve.
+#   Lint errors fail the job; warnings do not
 # - Import resolution: when package.json / bun.lock / tsconfig.json change,
 #   every bare import in script TS files must resolve to a package declared
 #   in package.json (catches "dependency removed while still imported"
 #   even when no .ts file was touched)
 # - Path-gated: the heavy job runs only when scripts or dependency manifests
-#   change. A `validate-scripts-required` aggregator job always reports a
+#   change, or when a src/, config/ or deployments/ file they may import is
+#   removed or renamed. A `validate-scripts-required` aggregator job always reports a
 #   final status so this workflow can be registered as a required check on
 #   `main` branch protection (see .agents/rules/500-github-actions.md)
 # - TypeChain types are generated before the type check because several
@@ -65,13 +73,28 @@ jobs:
         with:
           filters: |
             scripts:
-              - 'script/**/*.ts'
+              - 'script/**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
+              - 'tasks/**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
+              - 'script/utils/typecheck-files.sh'
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - '.eslintrc.node-runtime.cjs'
+              - '.eslintrc.cjs'
+              # Extended by .eslintrc.cjs, so its rules are part of `bun lint:js`
+              - '.eslintrc.funnel-fence.cjs'
+              - '.eslintignore'
+              - 'tsconfig.eslint.json'
               - '.github/workflows/validateScripts.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'
+              # Scripts import JSON from these trees and artifacts built from
+              # src/, so removing or renaming one can leave an import that
+              # `bun lint:js` no longer resolves
+              - deleted|renamed: 'src/**/*.sol'
+              - deleted|renamed: 'config/**'
+              - deleted|renamed: 'deployments/**'
             # The registry accounts for immutables declared in src/, so a PR
             # adding a facet has to be able to run the gate without also
             # touching script tooling. Every file under script/deploy/immutables/
@@ -123,6 +146,11 @@ jobs:
       - name: Install dev dependencies
         run: bun install
 
+      # Whole tree rather than the diff, and ahead of the forge build so a
+      # Bun-only API fails the job in seconds.
+      - name: Check shipped modules use only Node runtime APIs
+        run: bun lint:node-runtime
+
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
 
@@ -135,7 +163,22 @@ jobs:
         # fail with false TS2307 errors
         run: bun typechain:incremental
 
+      - name: Generate diamond ABI
+        id: abi
+        # Writes ./diamond.json from the forge build above; demo scripts import
+        # it, so without it the lint below fails with import/no-unresolved
+        run: bun abi:generate:incremental
+
+      - name: Lint all TS/JS files
+        # Whole tree, not only the files the PR changed. Errors fail the job;
+        # warnings (e.g. no-explicit-any) are reported but do not
+        run: bun lint:js
+
       - name: Validate scripts
+        # Still runs after a lint failure so both results land in one CI round;
+        # skipped when artifact generation failed, which would only add false
+        # TS2307 errors
+        if: ${{ !cancelled() && steps.abi.outcome == 'success' }}
         shell: bash
         run: |
           ##### Diff against the PR base branch (merge-base is computed inside

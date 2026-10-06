@@ -45,7 +45,7 @@
  *   ETH_NODE_URI_<NETWORK>    RPC URL(s) for each network, loaded via `.env`
  *
  * Example:
- *   bun deploy-and-setup-safe.ts --network arbitrum \
+ *   bunx tsx script/deploy/safe/deploy-safe.ts --network arbitrum \
  *     --owners 0xAb…123,0xCd…456 --paymentToken 0xErc…789 --payment 1000000000000000
  */
 

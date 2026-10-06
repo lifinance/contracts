@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 import chalk from 'chalk'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'

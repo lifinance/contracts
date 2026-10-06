@@ -1,0 +1,34 @@
+# Fixed by the factory, whatever this file says:
+# - a safety-scan hit bounces the ticket unless the engineer approves that exact description
+# - a ticked area that covers a protected path bounces the ticket
+# - an invalid factory or rule file blocks every ticket and DMs the engineer
+# - a protected path in the diff blocks the push
+# Nothing is protected unless `protected` below or the engineer's local factory config lists it.
+# One exception: factory PRs can never change .agents/factory/**, so only a human edits these rules.
+
+areas:
+  contracts: ['src/**']
+  general:
+    - script/*
+    - script/{claude,common,demoScripts,mongoDb,output,resources,safe,tasks,troncast,utils}/**
+    - script/deploy/*
+    - script/deploy/{audit,codehash,facets,github,resources,safe,shared,tron,zksync}/**
+    - tasks/**
+    - test/**
+    - docs/**
+    - templates/**
+    - '*.md'
+
+protected: []
+
+# How the factory answers each finding. The first choice after each value is the default.
+responses:
+  rule-unmet: bounce    # bounce | warn. A rule can override it with on_fail; the factory base rule always bounces
+  unknown-area: bounce  # bounce | warn
+  drift-unmet: warn     # warn | ask. The change entered an unticked area whose rules the ticket misses
+  drift-met: warn       # warn | silent. The same, but the ticket already meets that area's rules
+  unmapped-files: warn  # warn | silent. The change touched files in no area
+
+# The first word of every Check must be one of these, or a repo script
+checks:
+  runners: [bun, bunx, forge, git, bash, test, grep]

@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Propose DeBridge DLN chainId mapping updates (batch)
  *
@@ -10,10 +8,10 @@
  * 4) Proposes the transaction to the network Safe and stores it in MongoDB
  *
  * Example:
- * bun script/tasks/proposeDeBridgeDlnChainIdMappings.ts --environment production
+ * bunx tsx script/tasks/proposeDeBridgeDlnChainIdMappings.ts --environment production
  *
  * Single network:
- * bun script/tasks/proposeDeBridgeDlnChainIdMappings.ts --network arbitrum --environment production
+ * bunx tsx script/tasks/proposeDeBridgeDlnChainIdMappings.ts --network arbitrum --environment production
  */
 
 import fs from 'fs'

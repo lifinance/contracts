@@ -1,8 +1,11 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
+
+import { readFile } from 'node:fs/promises'
 
 import {
   MIN_BALANCE_WARNING,
   TronContractDeployer,
+  ZERO_ADDRESS,
   createTronWeb,
   tronAddressToHex,
   type ITronDeploymentConfig,
@@ -95,24 +98,24 @@ async function deployAndRegisterNEARIntentsFacet(options: {
 
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    const nearIntentsConfig = await Bun.file('config/nearintents.json').json()
+    const globalConfig = JSON.parse(
+      await readFile('config/global.json', 'utf8')
+    )
     const envKey =
       environment === EnvironmentEnum.production ? 'production' : 'staging'
-    const networkConfig = nearIntentsConfig[envKey]
-
-    if (!networkConfig)
-      throw new Error(
-        `Configuration for '${envKey}' not found in config/nearintents.json`
-      )
-
-    const backendSignerRaw = networkConfig.backendSigner
+    const backendSignerRaw = globalConfig.backendSigner?.[envKey]
 
     if (!backendSignerRaw)
-      throw new Error(
-        `backendSigner not found for '${envKey}' in config/nearintents.json`
-      )
+      throw new Error(`backendSigner.${envKey} not found in config/global.json`)
 
     const backendSigner = tronAddressToHex(tronWeb, backendSignerRaw)
+
+    // Mirrors the constructor's InvalidConfig check so a misconfiguration fails
+    // before paying for the deployment.
+    if (backendSigner === ZERO_ADDRESS)
+      throw new Error(
+        `backendSigner.${envKey} in config/global.json is the zero address`
+      )
 
     consola.info('\nNEARIntents Configuration:')
     consola.info(`Backend Signer: ${backendSignerRaw} (hex: ${backendSigner})`)

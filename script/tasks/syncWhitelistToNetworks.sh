@@ -30,6 +30,13 @@ interactive prompts. In production the changes are proposed to each chain's
 Safe; in staging they are sent directly. A production run also syncs staging
 on the same networks afterwards (built-in diamondSyncWhitelist behavior).
 
+A diamond-called periphery name (config/global.json whitelistPeripheryFunctions)
+whose on-chain registry entry differs from the address config/whitelist.json
+lists is left out of the sync, with a warning naming both addresses: its
+registration is still pending as a paired proposal, or the deploy log is stale,
+and syncing its pairs separately could de-whitelist the address the diamond
+still calls. A network whose registry cannot be read is refused.
+
 Arguments:
   NETWORK              one or more network names from config/networks.json
 

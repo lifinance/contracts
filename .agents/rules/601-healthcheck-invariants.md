@@ -35,6 +35,12 @@ checklist:
   new proxy, etc.) → add a binding invariant mirroring `executor-erc20proxy-binding` /
   `receiver-executor-binding`: register the contract and its getter (for Receivers, extend
   the `RECEIVER_EXECUTOR_GETTERS` list) and assert it points at the deployed counterpart.
+- **Periphery the diamond calls** (listed in `config/global.json` → `whitelistPeripheryFunctions`)
+  → no new invariant is needed. `registered-periphery-allowlisted` reads the address the
+  PeripheryRegistry resolves for every listed name and requires its listed selectors on the
+  diamond allowlist, except on networks `whitelistPeripheryNetworks` scopes the contract away
+  from. It reads the registry, not `config/whitelist.json`, so it also catches a registration
+  re-pointed at an address the allowlist never covered.
 - **Contract removed / deprecated** → remove its registry entry and any hardcoded name
   lists that reference it (e.g. drop the contract from `RECEIVER_EXECUTOR_GETTERS`).
 - **Contract added that binds an EXTERNAL protocol address immutably at construction** (a
@@ -85,7 +91,7 @@ checklist:
 
 If none of the above applies, no registry change is needed — but the review itself is not
 optional. Edits to `healthCheckInvariants.ts` follow `200-typescript.md` (module header,
-JSDoc on exports, `bunx eslint` + `bunx tsc-files --noEmit`).
+JSDoc on exports, `bunx eslint` + `bash script/utils/typecheck-files.sh`).
 
 ## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
 
@@ -95,9 +101,10 @@ already records — the **contract names** in `_targetState.json` for `facets-re
 source file for `no-stale-registered-facets`. Between that merge and the multisig operation
 acting on it the two legitimately disagree, and the remediation is "wait", not "fix".
 
-Only the keys are read. A target-state value is `latest` (follow the repo) or a deliberate
-version pin, and no health-check invariant consults it — membership is what the file states
-to them ([docs/TargetState.md](../../docs/TargetState.md)).
+These invariants read only the keys. A target-state value is `latest` (follow the repo) or a
+deliberate version pin; the one invariant that consults it is
+`facet-versions-match-target-state`, which warns when a registered facet is behind or ahead of
+that version and never fails the run ([docs/TargetState.md](../../docs/TargetState.md)).
 
 Invariants may consult operator intent to resolve that window and report the finding as
 **expected-pending** instead of a failure:
@@ -145,10 +152,10 @@ Two boundaries are not negotiable:
   compensating write. Deploy logs stay a pure function of the loupe
   ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
 - **An unreachable queue must never suppress a finding.** What decides the degradation is
-  what the check is *for*, not its severity — all four are error-severity.
+  what the check is *for*, not its severity — all five are error-severity.
   `no-stale-registered-facets` exists _only_ to police queue coverage, so without the queue
   every finding it could make is noise: it skips and reports the reduced coverage.
-  `facets-registered`, `periphery-registered` and `whitelist-integrity` stand on an
-  independent on-chain signal, so they keep every error and add a warning naming the
-  degraded coverage — a MongoDB blip turning genuinely missing registrations green is far
-  worse than a false alert during a rollout.
+  `facets-registered`, `periphery-registered`, `whitelist-integrity` and
+  `registered-periphery-allowlisted` stand on an independent on-chain signal, so they keep
+  every error and add a warning naming the degraded coverage — a MongoDB blip turning
+  genuinely missing registrations green is far worse than a false alert during a rollout.

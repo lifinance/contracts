@@ -68,6 +68,12 @@ jobs:
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig*.json'
+              # node-runtime-fence.test.ts asserts against this config, and the
+              # whole-tree lint in validateScripts.yml passes on a fence that
+              # no longer matches anything
+              - '.eslintrc.node-runtime.cjs'
+              # validateScriptsWorkflow.test.ts guards this workflow's lint step
+              - '.github/workflows/validateScripts.yml'
               - '.github/workflows/ts-unit-tests.yml'
 
   run-ts-tests:

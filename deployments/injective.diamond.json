@@ -53,9 +53,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x8c0D29040A236C8f4b3d3d4f37EaFC2708BE2690": {
+      "0xe99dB2d1D4942C4e1146519314F3d9eBdbc51c8E": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

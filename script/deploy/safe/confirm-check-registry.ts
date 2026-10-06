@@ -25,6 +25,16 @@ import {
 } from './confirm-integrity-asserts'
 import type { IExecutabilityVerdict } from './executability-simulation'
 import {
+  describeConfigDrift,
+  describeExpected,
+  describeObserved,
+  ledgerPrintable,
+  peripheryAllowlistRemedy,
+  STATUSES_CLEARED as PERIPHERY_STATUSES_CLEARED,
+  type IPeripheryAllowlistFinding,
+  type IPeripheryAllowlistVerdict,
+} from './periphery-allowlist-gate'
+import {
   type ITargetStateFinding,
   type ITargetStateVerdict,
   TARGET_STATE_STATUS_LABEL,
@@ -46,6 +56,22 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   checkClass: 'semantic',
   gate: 'H',
   title: 'Contract version matches target state',
+}
+
+/** Gate W's ledger check id. */
+export const PERIPHERY_ALLOWLIST_CHECK_ID = 'periphery-allowlist'
+
+/**
+ * Gate W. `integrity`: a registration the diamond cannot call breaks every
+ * route through that contract the moment the backend reads the registry, and
+ * nothing a signer could acknowledge makes those calls succeed.
+ */
+export const PERIPHERY_ALLOWLIST_CHECK: ICheckDefinition = {
+  checkId: PERIPHERY_ALLOWLIST_CHECK_ID,
+  section: 'Intent',
+  checkClass: 'integrity',
+  gate: 'W',
+  title: 'Registered periphery allowlist',
 }
 
 /** Persisted in signed-set records, so it does not follow the title. */
@@ -296,10 +322,8 @@ export const NOTHING_INSTALLED_TO_COMPARE =
  * pass, so those ask a human instead, which a `semantic` check may legitimately
  * do.
  *
- * No status here is `A-MAIN`, and that is not an oversight: every comparison
- * this check makes has the proposed version on one side, so none of them rests
- * on `origin/main` alone. The anchor remains in the ledger vocabulary, which no
- * check produces today, alongside `A-AUDIT`.
+ * No status here is `A-MAIN`: every comparison this check makes has the
+ * proposed version on one side, so none of them rests on `origin/main` alone.
  *
  * The four unresolvable statuses reach `A-UNRESOLVED` because nothing answered
  * at all: an action that is not Add, Replace or Remove, calldata that could not
@@ -655,6 +679,118 @@ export const worstResultPerCheck = (
   }
 
   return [...worst.values()]
+}
+
+/** Gate W's row expectation when no registration is graded. */
+export const EVERY_REGISTERED_PERIPHERY_ALLOWLISTED =
+  'every diamond-called periphery a registration binds has its selectors allowlisted'
+
+const NO_DIAMOND_CALLED_REGISTRATION =
+  'this proposal registers no periphery contract the diamond calls'
+
+const peripheryRowStatus = (
+  finding: IPeripheryAllowlistFinding
+): ICheckResult['status'] =>
+  finding.status === 'missing'
+    ? 'fail'
+    : finding.status === 'read-failed'
+    ? 'error'
+    : finding.expected.length === 0 || finding.status === 'deregistration'
+    ? 'not-applicable'
+    : PERIPHERY_STATUSES_CLEARED.has(finding.status)
+    ? 'pass'
+    : 'error'
+
+/**
+ * Reduces gate W's verdict to the one row the ledger holds.
+ *
+ * The expectation is `config/global.json` at `origin/main`, so a verdict decided
+ * from it is `A-MAIN`; when the checkout's copy differs for a registered name,
+ * `detail` names it. One that needed the chain's answer is `A-CHAIN`. A failed
+ * read and an unreadable call are `A-UNRESOLVED`: nothing was compared, and the
+ * row must not read as a check that ran.
+ *
+ * @param verdict - Gate W's verdict, or undefined when it was never evaluated.
+ * @param network - The network the verdict is about.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const peripheryAllowlistCheckResult = (
+  verdict: IPeripheryAllowlistVerdict | undefined,
+  network: string
+): ICheckResult => {
+  if (!verdict)
+    return unresolved(
+      PERIPHERY_ALLOWLIST_CHECK_ID,
+      network,
+      EVERY_REGISTERED_PERIPHERY_ALLOWLISTED,
+      'gate W produced no verdict for this proposal'
+    )
+
+  let status: ICheckResult['status'] = 'not-applicable'
+  for (const finding of verdict.findings)
+    status = worstOf(status, peripheryRowStatus(finding))
+  if (verdict.unreadable.length > 0) status = worstOf(status, 'error')
+
+  const graded = verdict.findings.filter(
+    (finding) => peripheryRowStatus(finding) !== 'not-applicable'
+  )
+  const drift = describeConfigDrift(verdict, ledgerPrintable)
+  if (status === 'not-applicable')
+    return {
+      checkId: PERIPHERY_ALLOWLIST_CHECK_ID,
+      network,
+      status,
+      expected: EVERY_REGISTERED_PERIPHERY_ALLOWLISTED,
+      actual:
+        verdict.findings.length === 0
+          ? NO_DIAMOND_CALLED_REGISTRATION
+          : `${NO_DIAMOND_CALLED_REGISTRATION}: ${verdict.findings
+              .map(
+                (finding) =>
+                  `${ledgerPrintable(finding.name)} is ${finding.status}`
+              )
+              .join('; ')}`,
+      anchor: 'A-MAIN',
+      ...(drift === undefined ? {} : { detail: drift }),
+    }
+
+  const anchor: ICheckResult['anchor'] =
+    status === 'error'
+      ? 'A-UNRESOLVED'
+      : graded.some((finding) => finding.observed !== undefined)
+      ? 'A-CHAIN'
+      : 'A-MAIN'
+  const details = [
+    ...(status === 'fail' ? [peripheryAllowlistRemedy(network)] : []),
+    ...(drift === undefined ? [] : [drift]),
+  ]
+
+  return {
+    checkId: PERIPHERY_ALLOWLIST_CHECK_ID,
+    network,
+    status,
+    expected: graded.length
+      ? graded
+          .map(
+            (finding) =>
+              `${ledgerPrintable(finding.name)}: ${describeExpected(
+                finding
+              )} allowlisted for ${finding.address}`
+          )
+          .join('; ')
+      : EVERY_REGISTERED_PERIPHERY_ALLOWLISTED,
+    actual: [
+      ...graded.map(
+        (finding) =>
+          `${ledgerPrintable(finding.name)}: ${
+            finding.status
+          }, observed ${describeObserved(finding, ledgerPrintable)}`
+      ),
+      ...verdict.unreadable.map((entry) => `unreadable: ${entry}`),
+    ].join('; '),
+    anchor,
+    ...(details.length === 0 ? {} : { detail: details.join('; ') }),
+  }
 }
 
 export const EVERY_TARGET_ATTESTED =
@@ -1092,6 +1228,7 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
   IMMUTABLES_CHECK,
   STORAGE_AUTHORITY_CHECK,
   TARGET_STATE_CHECK,
+  PERIPHERY_ALLOWLIST_CHECK,
   EXECUTABILITY_CHECK,
   RPC_QUORUM_CHECK,
 ]
@@ -1253,6 +1390,8 @@ export interface IProposalCheckVerdicts {
   /** Absent when the assertions never ran, which is itself a blocking state. */
   integrity: IIntegrityAssertRun | undefined
   targetState: ITargetStateVerdict
+  /** Absent when gate W was never evaluated, which is itself a blocking state. */
+  peripheryAllowlist: IPeripheryAllowlistVerdict | undefined
   /** Absent when the simulation was never attempted. */
   executability: IExecutabilityVerdict | undefined
   /**
@@ -1558,6 +1697,7 @@ export const proposalCheckResults = (
           network
         ),
     targetStateCheckResult(verdicts.targetState, network),
+    peripheryAllowlistCheckResult(verdicts.peripheryAllowlist, network),
     verdicts.executability
       ? executabilityCheckResult(verdicts.executability, network)
       : verdicts.executabilityOutOfScope

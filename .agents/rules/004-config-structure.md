@@ -71,3 +71,8 @@ Rationale: `_getConfigContractAddress` reverts on a **missing** key (an absent `
 ### Consistency
 
 - When adding or restructuring a config file, update the corresponding deploy script(s) (including `script/deploy/zksync/` when present) and the relevant contract entry in `deployRequirements.json` so `keyInConfigFile` matches the chosen structure (`.<key>.<NETWORK>` vs `.<NETWORK>.<key>`).
+
+### Generated files
+
+- `config/clearSigningProposal.json` is generated from the compiled artifacts in `out/`: regenerate it with `forge build && bunx tsx tasks/buildClearSigningProposal.ts` (a stale `out/` silently yields a stale proposal); never hand-edit it or run prettier over it. `verify-clear-signing` compares it byte-for-byte against the generator's `JSON.stringify(…, null, 2)` output, so a whitespace-only reformat fails CI and buries the real change. (lint-staged deliberately does not format `*.json`.)
+- Before editing any other `config/*.json`, grep its path under `tasks/`, `script/` and `.github/workflows/` to check whether something generates it.

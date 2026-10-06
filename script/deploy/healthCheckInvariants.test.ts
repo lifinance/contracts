@@ -16,6 +16,7 @@ import networksConfig from '../../config/networks.json'
 import { EnvironmentEnum, type TargetState } from '../common/types'
 
 import targetState from './_targetState.json'
+import { groupWarningsByCause } from './healthCheckAllNetworks'
 import {
   CORE_FACET_EXEMPTIONS,
   CORE_PERIPHERY_EXEMPTIONS,
@@ -3621,5 +3622,387 @@ describe('immutable-bindings-match-config classifies a pre-getter revert', () =>
 
     expect(calls).toEqual(['NATIVE_ADDRESS'])
     expect(ctx.warnings.some((w) => w.includes('left unverified'))).toBe(true)
+  })
+})
+
+describe('facet-versions-match-target-state', () => {
+  const SWAP = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
+  const MAYAN = '0x4682d79DD4D0e7555415841b5151933AF50594A8'
+  const UNLOGGED = '0x1111111111111111111111111111111111111111'
+  const UNREGISTERED = '0x2222222222222222222222222222222222222222'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'facet-versions-match-target-state'
+  ) as IHealthCheckInvariant
+
+  /**
+   * One network whose diamond registers `registered`, logging each address as `diamondFacetLog`
+   * says and targeting the facets `targets` lists. Nothing is read from `deployments/` or `src/`:
+   * a `latest` target resolves through `sourceVersions`.
+   */
+  function makeDriftCtx({
+    network = 'mainnet',
+    targets,
+    diamondFacetLog,
+    registered = Object.keys(diamondFacetLog),
+    deployedContracts = {},
+    sourceVersions = {},
+  }: {
+    network?: string
+    targets: Record<string, string>
+    diamondFacetLog: Record<string, { Name?: string; Version?: string }>
+    registered?: string[]
+    deployedContracts?: Record<string, string>
+    sourceVersions?: Record<string, string>
+  }): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      network,
+      networkLower: network,
+      deployedContracts,
+      targetState: {
+        [network]: { production: { LiFiDiamond: targets } },
+      } as TargetState,
+      onChainFacets: registered.map((address) => ({
+        address,
+        selectors: ['0xffffffff'],
+      })),
+      diamondFacetLog,
+      contractSourceVersion: async (contractName: string) => {
+        const version = sourceVersions[contractName]
+        if (version === undefined)
+          throw new Error(`Could not find version for ${contractName}`)
+        return version
+      },
+    } as Partial<IHealthCheckContext>)
+  }
+
+  it('is a production warning that reads the on-chain facet list', () => {
+    expect(invariant).toBeDefined()
+    expect(invariant.severity).toBe('warning')
+    expect(invariant.scope.environments).toEqual(['production'])
+    expect(invariant.readsOnChainFacets).toBe(true)
+    expect(invariant.remediation?.length).toBeGreaterThan(0)
+  })
+
+  it('reports a facet behind a pinned target, naming both versions', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+      },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('GenericSwapFacetV3 is behind')
+    expect(ctx.warnings[0]).toContain('live 1.0.0')
+    expect(ctx.warnings[0]).toContain('target 2.0.0 (pinned)')
+  })
+
+  it('reports a facet ahead of the target separately from one behind it', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0', MayanFacet: '1.2.2' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+        [MAYAN]: { Name: 'MayanFacet', Version: '2.0.0' },
+      },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toHaveLength(2)
+    const behind = ctx.warnings.filter((w) => w.includes('is behind'))
+    const ahead = ctx.warnings.filter((w) => w.includes('is ahead'))
+    expect(behind).toHaveLength(1)
+    expect(behind[0]).toContain('GenericSwapFacetV3')
+    expect(ahead).toHaveLength(1)
+    expect(ahead[0]).toContain('MayanFacet')
+    expect(ahead[0]).toContain('live 2.0.0')
+    expect(ahead[0]).toContain('target 1.2.2')
+  })
+
+  it('stays silent when the live version equals the target', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+      },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('resolves a `latest` target to the contract source version', async () => {
+    const behind = makeDriftCtx({
+      targets: { GenericSwapFacetV3: 'latest' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+      },
+      sourceVersions: { GenericSwapFacetV3: '2.0.0' },
+    })
+    const equal = makeDriftCtx({
+      targets: { GenericSwapFacetV3: 'latest' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+      },
+      sourceVersions: { GenericSwapFacetV3: '2.0.0' },
+    })
+
+    await invariant.run(behind)
+    await invariant.run(equal)
+
+    expect(behind.warnings).toHaveLength(1)
+    expect(behind.warnings[0]).toContain('is behind')
+    expect(behind.warnings[0]).toContain('target 2.0.0 (latest)')
+    expect(equal.warnings).toEqual([])
+  })
+
+  it('compares a suffixed build by its base version', async () => {
+    const equal = makeDriftCtx({
+      targets: { GenericSwapFacetV3: 'latest' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0-tron' },
+      },
+      sourceVersions: { GenericSwapFacetV3: '2.0.0-tron' },
+    })
+    const behind = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0-tron-r2' },
+      },
+    })
+
+    await invariant.run(equal)
+    await invariant.run(behind)
+
+    expect(equal.warnings).toEqual([])
+    expect(behind.warnings).toHaveLength(1)
+    expect(behind.warnings[0]).toContain('is behind')
+    expect(behind.warnings[0]).toContain('live 1.0.0-tron-r2')
+  })
+
+  it('reports an unparseable live version as unverifiable, never as equal', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: 'v2' },
+      },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('GenericSwapFacetV3')
+    expect(ctx.warnings[0]).toContain('cannot be compared')
+    expect(ctx.warnings[0]).toContain('live v2')
+  })
+
+  it('reports an unparseable target version as unverifiable, never as equal', async () => {
+    const pinned = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+      },
+    })
+    const unreadableSource = makeDriftCtx({
+      targets: { GenericSwapFacetV3: 'latest' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+      },
+    })
+
+    await invariant.run(pinned)
+    await invariant.run(unreadableSource)
+
+    expect(pinned.warnings).toHaveLength(1)
+    expect(pinned.warnings[0]).toContain('cannot be compared')
+    expect(pinned.warnings[0]).toContain('target 2.0 (pinned)')
+    expect(unreadableSource.warnings).toHaveLength(1)
+    expect(unreadableSource.warnings[0]).toContain('GenericSwapFacetV3')
+    expect(unreadableSource.warnings[0]).toContain('cannot be compared')
+  })
+
+  it('reports a registered facet the diamond log does not record as unverifiable', async () => {
+    // Registered at its deploy-log address, but the diamond log has no entry there.
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {},
+      registered: [UNLOGGED],
+      deployedContracts: { GenericSwapFacetV3: UNLOGGED },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('GenericSwapFacetV3')
+    expect(ctx.warnings[0]).toContain('records no version')
+  })
+
+  it('reports a facet logged without a version as unverifiable', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '' } },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('records no version')
+  })
+
+  it('reads the version at the registered address, not a stale entry of the same name', async () => {
+    // The log still names the facet at an address the diamond no longer serves; that entry must
+    // not answer for the address that does.
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [UNREGISTERED]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+      },
+      registered: [SWAP],
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('is behind')
+    expect(ctx.warnings[0]).toContain('live 1.0.0')
+  })
+
+  it('leaves a target-state facet that is not registered to facets-registered', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [UNREGISTERED]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+      },
+      registered: [MAYAN],
+      deployedContracts: { GenericSwapFacetV3: UNREGISTERED },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('ignores target-state periphery, which the diamond log does not version', async () => {
+    const ctx = makeDriftCtx({
+      targets: { Executor: '1.0.0' },
+      diamondFacetLog: { [SWAP]: { Name: 'Executor' } },
+      deployedContracts: { Executor: SWAP },
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('warns once, rather than per facet, when the facet list is unavailable', async () => {
+    const ctx = makeDriftCtx({
+      targets: { GenericSwapFacetV3: '2.0.0', MayanFacet: '1.2.2' },
+      diamondFacetLog: {},
+      registered: [],
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('On-chain facet list unavailable')
+  })
+
+  it('words the same drift identically on every network, so the digest merges it', async () => {
+    const onArbitrum = makeDriftCtx({
+      network: 'arbitrum',
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+      },
+    })
+    const onBase = makeDriftCtx({
+      network: 'base',
+      targets: { GenericSwapFacetV3: '2.0.0' },
+      diamondFacetLog: {
+        [MAYAN]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+      },
+    })
+
+    await invariant.run(onArbitrum)
+    await invariant.run(onBase)
+
+    expect(onArbitrum.warnings).toHaveLength(1)
+    expect(onBase.warnings).toEqual(onArbitrum.warnings)
+    expect(onArbitrum.warnings[0]).not.toContain('arbitrum')
+    expect(
+      groupWarningsByCause([
+        {
+          network: 'arbitrum',
+          status: 'passed',
+          warnings: onArbitrum.warnings,
+          detail: '',
+        },
+        {
+          network: 'base',
+          status: 'passed',
+          warnings: onBase.warnings,
+          detail: '',
+        },
+      ])
+    ).toHaveLength(1)
+  })
+
+  it('groups in the digest by contract and direction only, since the digest masks version digits', async () => {
+    // normalizeFailureCause masks every standalone integer, so two networks behind by different
+    // versions share one digest line; the run log keeps the versions. Contract and direction
+    // still separate lines.
+    const drift = async (
+      network: string,
+      targets: Record<string, string>,
+      diamondFacetLog: Record<string, { Name: string; Version: string }>
+    ): Promise<{
+      network: string
+      status: 'passed'
+      warnings: string[]
+      detail: string
+    }> => {
+      const ctx = makeDriftCtx({ network, targets, diamondFacetLog })
+      await invariant.run(ctx)
+      return { network, status: 'passed', warnings: ctx.warnings, detail: '' }
+    }
+
+    const results = [
+      await drift(
+        'arbitrum',
+        { GenericSwapFacetV3: '2.0.0' },
+        { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' } }
+      ),
+      await drift(
+        'base',
+        { GenericSwapFacetV3: '4.5.6' },
+        { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.3.1' } }
+      ),
+      await drift(
+        'optimism',
+        { GenericSwapFacetV3: '1.0.0' },
+        { [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' } }
+      ),
+      await drift(
+        'polygon',
+        { MayanFacet: '2.0.0' },
+        { [MAYAN]: { Name: 'MayanFacet', Version: '1.0.0' } }
+      ),
+    ]
+
+    expect(results[0]?.warnings).not.toEqual(results[1]?.warnings)
+    const groups = groupWarningsByCause(results)
+    expect(groups.map((group) => group.networks)).toEqual([
+      ['arbitrum', 'base'],
+      ['optimism'],
+      ['polygon'],
+    ])
   })
 })

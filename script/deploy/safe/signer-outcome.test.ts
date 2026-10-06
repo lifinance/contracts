@@ -1,18 +1,34 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
-import type { ICheckResult } from './check-ledger'
+import {
+  createCheckLedger,
+  recordCheck,
+  type ICheckResult,
+} from './check-ledger'
 import {
   ALL_GATE_DEFINITIONS,
   CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
+  EXECUTABILITY_CHECK_ID,
+  IMMUTABLES_CHECK_ID,
+  RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK_ID,
 } from './confirm-check-registry'
+import { CHECK_FIXED_FIELDS } from './confirm-integrity-asserts'
+import type { TDefiniteRedGate } from './definite-red-gate'
+import { renderCheckLedger } from './render-check-ledger'
+import { buildSignerActionOptions } from './signer-action-menu'
 import { bucketOf, renderProposalOutcome } from './signer-view'
 import { signerChecks, viewDefinitions } from './signer-zones'
 
 const NETWORK = 'arbitrum'
+
+const NOTHING_REFUSED = {
+  definiteReds: [],
+  delegatecallRefused: false,
+} as const
 
 const ESC = String.fromCharCode(27)
 const stripAnsi = (s: string): string =>
@@ -52,7 +68,9 @@ const bucketed = (codehash: ICheckResult) =>
   })
 
 const outcomeFor = (codehash: ICheckResult): string =>
-  stripAnsi(renderProposalOutcome(bucketed(codehash)).join('\n'))
+  stripAnsi(
+    renderProposalOutcome(bucketed(codehash), NOTHING_REFUSED).join('\n')
+  )
 
 const codehashBucket = (codehash: ICheckResult): string | undefined => {
   const entry = bucketed(codehash).find(
@@ -151,7 +169,8 @@ describe('the closing verdict on a proposal that installs nothing', () => {
         signerChecks({
           results: standingDown(),
           definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
-        })
+        }),
+        NOTHING_REFUSED
       ).join('\n')
     )
 
@@ -159,5 +178,328 @@ describe('the closing verdict on a proposal that installs nothing', () => {
     expect(outcome).not.toContain('could not be checked')
     expect(outcome).not.toContain('Gate G')
     expect(outcome).not.toContain('Gate H')
+  })
+})
+
+/**
+ * The closing verdict against the action menu.
+ *
+ * The menu withholds every signing option on a definite red from G, I, J or L
+ * and offers Sign otherwise, so the sentence printed above it must say the
+ * same: never "cannot be signed" over a Sign that would produce a signature,
+ * and never a signable proposal while Sign is withheld.
+ */
+describe('the closing verdict agrees with the action menu', () => {
+  const withRows = (...overrides: ICheckResult[]) =>
+    signerChecks({
+      results: [
+        ...CONFIRM_CHECK_DEFINITIONS.filter(
+          (definition) =>
+            !overrides.some((one) => one.checkId === definition.checkId)
+        ).map((definition) => row(definition.checkId, 'pass')),
+        ...overrides,
+      ],
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+
+  const say = (
+    rows: ReturnType<typeof withRows>,
+    refusal: Parameters<typeof renderProposalOutcome>[1]
+  ): string => stripAnsi(renderProposalOutcome(rows, refusal).join('\n'))
+
+  const reverting = row(EXECUTABILITY_CHECK_ID, 'fail', {
+    actual: '1 of 2 call(s) would revert',
+    anchor: 'A-CHAIN',
+  })
+
+  it('refuses in words on a definite red, naming the gate', () => {
+    const outcome = say(withRows(reverting), {
+      definiteReds: [
+        { gate: 'I', reason: 'call[0].diamondCut[0] would revert' },
+      ],
+      delegatecallRefused: false,
+    })
+    expect(outcome).toContain('This proposal cannot be signed or executed')
+    expect(outcome).toContain('Gate I')
+    expect(outcome).toContain('call[0].diamondCut[0] would revert')
+    expect(outcome).toContain('Only Do Nothing is offered')
+    expect(outcome).not.toContain('Also disagreed')
+  })
+
+  it('names the other gates that disagreed beside a definite red', () => {
+    const tampered = row(CODEHASH_CHECK_ID, 'fail', {
+      actual: '1 address does not match its attested build',
+      anchor: 'A-CHAIN',
+    })
+    const outcome = say(withRows(tampered), {
+      definiteReds: [
+        {
+          gate: 'L',
+          reason: '0x5AfE… holds an immutable value config does not declare',
+        },
+      ],
+      delegatecallRefused: false,
+    })
+    expect(outcome).toContain('Gate L found a definite red')
+    expect(outcome.replace(/\s+/g, ' ')).toContain('Also disagreed: Gate K.')
+  })
+
+  it('names an advisory gate that disagreed short of its own definite red', () => {
+    const uncompared = row(STORAGE_AUTHORITY_CHECK_ID, 'fail', {
+      actual: 'the owner slot could not be compared',
+      anchor: 'A-CHAIN',
+    })
+    const outcome = say(withRows(uncompared), {
+      definiteReds: [{ gate: 'L', reason: 'an immutable differs' }],
+      delegatecallRefused: false,
+    })
+    expect(outcome.replace(/\s+/g, ' ')).toContain('Also disagreed: Gate G.')
+  })
+
+  it('does not refuse in words on the same rows when the menu refused nothing', () => {
+    // The present half: what decides the sentence is the refusal the menu was
+    // built from, not the row alone.
+    const outcome = say(withRows(reverting), NOTHING_REFUSED)
+    expect(outcome).not.toContain('cannot be signed')
+    expect(outcome).toContain('Every mandatory gate passed')
+  })
+
+  it('words a gate G that could not read its authorities as advisory', () => {
+    const unread = row(STORAGE_AUTHORITY_CHECK_ID, 'error', {
+      actual: 'TokenWrapper.owner: NOT READ — rpc timeout',
+      anchor: 'A-UNRESOLVED',
+    })
+    const outcome = say(withRows(unread), NOTHING_REFUSED)
+    expect(outcome).not.toContain('cannot be signed')
+    expect(outcome).toContain('Sign is offered')
+    expect(outcome).toContain('Gate G')
+  })
+
+  it('still says cannot be signed yet when a gate that refuses inside the signer is unchecked', () => {
+    const unchecked = row(CODEHASH_CHECK_ID, 'error', {
+      actual: 'the codehash gate could not be evaluated',
+      anchor: 'A-UNRESOLVED',
+    })
+    const outcome = say(withRows(unchecked), NOTHING_REFUSED)
+    expect(outcome).toContain('This proposal cannot be signed yet')
+    expect(outcome).toContain('Gate K')
+  })
+
+  it('names the delegatecall gate when it is the only refusal', () => {
+    const refusal = { definiteReds: [], delegatecallRefused: true }
+    const outcome = say(withRows(), refusal)
+    const options = buildSignerActionOptions({
+      refused: refusal.delegatecallRefused,
+      safeSigner: false,
+      hasSignedAlready: false,
+      wouldMeetThreshold: true,
+      showSignAndExecuteWithDeployer: true,
+      executable: false,
+    })
+
+    expect(outcome).toContain('This proposal cannot be signed or executed')
+    expect(outcome).toContain('delegatecall gate')
+    expect(outcome).not.toContain('mandatory gate(s) disagreed')
+    expect(options).not.toContain('Sign')
+    expect(say(withRows(), NOTHING_REFUSED)).toContain('Every gate passed')
+  })
+
+  // Gate D grades the same field, so on a real delegatecall both refuse.
+  it('names the delegatecall gate and the gates that disagreed beside it', () => {
+    const operation = row(CHECK_FIXED_FIELDS, 'fail', {
+      actual: 'operation 1',
+      anchor: 'A-LOCAL',
+    })
+    const outcome = say(withRows(operation), {
+      definiteReds: [],
+      delegatecallRefused: true,
+    }).replace(/\s+/g, ' ')
+
+    expect(outcome).toContain('cannot be signed or executed')
+    expect(outcome).toContain('delegatecall gate')
+    expect(outcome).toContain('Also disagreed: Gate D.')
+    expect(outcome).toContain('Only Do Nothing is offered')
+  })
+
+  it('names both the definite red and the delegatecall refusal when both refuse', () => {
+    const refusal: Parameters<typeof renderProposalOutcome>[1] = {
+      definiteReds: [{ gate: 'I', reason: 'a payload reverts' }],
+      delegatecallRefused: true,
+    }
+    const both = say(withRows(reverting), refusal).replace(/\s+/g, ' ')
+    const redOnly = say(withRows(reverting), {
+      ...refusal,
+      delegatecallRefused: false,
+    }).replace(/\s+/g, ' ')
+
+    expect(both).toContain('Gate I found a definite red — a payload reverts')
+    expect(both).toContain(
+      'delegatecall gate also refuses any operation other than Call'
+    )
+    expect(both).toContain('Only Do Nothing is offered')
+    expect(redOnly).toContain('Gate I found a definite red')
+    expect(redOnly).not.toContain('delegatecall')
+  })
+})
+
+/**
+ * Every banner × menu combination for G, I, J and L.
+ *
+ * A row can be `fail` without a definite red — a stale Safe nonce, an
+ * expectation the gate could compare but not decide — and a definite red can
+ * stand over a row that is not `fail`. The sentence has to follow the refusal
+ * in all four cells, because the menu does.
+ */
+describe('the closing verdict says cannot be signed exactly when Sign is withheld', () => {
+  const GATES: ReadonlyArray<[TDefiniteRedGate, string]> = [
+    ['G', STORAGE_AUTHORITY_CHECK_ID],
+    ['I', EXECUTABILITY_CHECK_ID],
+    ['J', RPC_QUORUM_CHECK_ID],
+    ['L', IMMUTABLES_CHECK_ID],
+  ]
+
+  const rowsWith = (checkId: string, status: ICheckResult['status']) =>
+    signerChecks({
+      results: CONFIRM_CHECK_DEFINITIONS.map((definition) =>
+        row(
+          definition.checkId,
+          definition.checkId === checkId ? status : 'pass',
+          definition.checkId === checkId && status === 'fail'
+            ? { actual: 'the reading disagreed', anchor: 'A-CHAIN' }
+            : {}
+        )
+      ),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+
+  for (const [gate, checkId] of GATES)
+    for (const status of ['fail', 'pass'] as const)
+      for (const red of [true, false])
+        it(`gate ${gate}, row ${status}, ${
+          red ? 'a' : 'no'
+        } definite red`, () => {
+          const refusal = {
+            definiteReds: red ? [{ gate, reason: 'it disagreed' }] : [],
+            delegatecallRefused: false,
+          }
+          const banner = stripAnsi(
+            renderProposalOutcome(rowsWith(checkId, status), refusal).join('\n')
+          )
+          const options = buildSignerActionOptions({
+            refused: refusal.definiteReds.length > 0,
+            safeSigner: false,
+            hasSignedAlready: false,
+            wouldMeetThreshold: true,
+            showSignAndExecuteWithDeployer: true,
+            executable: false,
+          })
+
+          expect(banner.includes('cannot be signed')).toBe(red)
+          expect(options.includes('Sign')).toBe(!red)
+          if (status === 'fail') expect(banner).toContain(`Gate ${gate}`)
+        })
+
+  it('words a stale-nonce gate I as advisory, which the nonce gate refuses at execution', () => {
+    const stale = signerChecks({
+      results: CONFIRM_CHECK_DEFINITIONS.map((definition) =>
+        definition.checkId === EXECUTABILITY_CHECK_ID
+          ? row(definition.checkId, 'fail', {
+              actual: 'NonceAlreadyUsed: nonce 3 is below the Safe nonce 7',
+              anchor: 'A-CHAIN',
+            })
+          : row(definition.checkId, 'pass')
+      ),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+    const banner = stripAnsi(
+      renderProposalOutcome(stale, NOTHING_REFUSED).join('\n')
+    )
+    expect(banner).not.toContain('cannot be signed')
+    expect(banner).toContain('Gate I')
+  })
+})
+
+/**
+ * The banner prints before the choice and the run-level ledger prints after
+ * the run, about the same rows. A grade the ledger calls `BLOCKED` while the
+ * banner says nothing blocks leaves the signer unsure whether Sign was ever
+ * really on offer.
+ */
+describe('the closing verdict agrees with the run-level ledger', () => {
+  const definitionOf = (checkId: string) => {
+    const definition = CONFIRM_CHECK_DEFINITIONS.find(
+      (one) => one.checkId === checkId
+    )
+    if (!definition) throw new Error(`no definition for ${checkId}`)
+    return definition
+  }
+
+  const both = (subject: ICheckResult) => {
+    const ledger = createCheckLedger({
+      expectedNetworks: [NETWORK],
+      checks: [definitionOf(subject.checkId)],
+    })
+    recordCheck(ledger, subject)
+    const rows = signerChecks({
+      results: CONFIRM_CHECK_DEFINITIONS.map((definition) =>
+        definition.checkId === subject.checkId
+          ? subject
+          : row(definition.checkId, 'pass')
+      ),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+    return {
+      ledger: stripAnsi(renderCheckLedger(ledger).join('\n')),
+      banner: stripAnsi(
+        renderProposalOutcome(rows, NOTHING_REFUSED).join('\n')
+      ).replace(/\s+/g, ' '),
+      options: buildSignerActionOptions({
+        refused: false,
+        safeSigner: false,
+        hasSignedAlready: false,
+        wouldMeetThreshold: true,
+        showSignAndExecuteWithDeployer: true,
+        executable: false,
+      }),
+    }
+  }
+
+  it('an unmade simulation is graded BLOCKED by both, and Sign is still offered', () => {
+    const { ledger, banner, options } = both(
+      row(EXECUTABILITY_CHECK_ID, 'error', {
+        actual: 'no endpoint was available to simulate this payload',
+        anchor: 'A-UNRESOLVED',
+      })
+    )
+    expect(ledger).toContain('VERDICT: BLOCKED')
+    expect(banner).not.toContain('Nothing here blocks')
+    expect(banner).toContain('Sign is offered')
+    expect(banner).toContain('grades this BLOCKED')
+    expect(banner).toContain('not a refusal')
+    expect(options).toContain('Sign')
+  })
+
+  it('a gate G mismatch short of a definite red is graded BLOCKED by both', () => {
+    const { ledger, banner } = both(
+      row(STORAGE_AUTHORITY_CHECK_ID, 'fail', {
+        actual: 'the owner slot could not be compared',
+        anchor: 'A-CHAIN',
+      })
+    )
+    expect(ledger).toContain('VERDICT: BLOCKED')
+    expect(banner).toContain('grades this BLOCKED')
+  })
+
+  it('names no BLOCKED grade the ledger does not give', () => {
+    const { ledger, banner, options } = both(
+      row(EXECUTABILITY_CHECK_ID, 'fail', {
+        actual: 'NonceAlreadyUsed: nonce 3 is below the Safe nonce 7',
+        anchor: 'A-CHAIN',
+      })
+    )
+    expect(ledger).toContain('VERDICT: ACKNOWLEDGEMENT REQUIRED')
+    expect(ledger).not.toContain('BLOCKED')
+    expect(banner).not.toContain('BLOCKED')
+    expect(options).toContain('Sign')
   })
 })

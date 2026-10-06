@@ -47,7 +47,7 @@ seed = '0x1'
 #   the command line instead.
 # - Do not declare a second non-zk profile pinning this same solc/evm pair. The sign-time
 #   rebuild resolves a deployment commit's profile by its compiler pair
-#   (`resolveCheckoutProfile`), so a rename here is safe but a duplicate pair is ambiguous
+#   (`resolveCheckoutBuildEnv`), so a rename here is safe but a duplicate pair is ambiguous
 #   and refuses the rebuild.
 [profile.solc_floor]
 solc_version = '0.8.17'

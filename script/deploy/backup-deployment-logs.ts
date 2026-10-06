@@ -1,5 +1,3 @@
-#!/usr/bin/env bun
-
 /**
  * Backup Deployment Logs
  *

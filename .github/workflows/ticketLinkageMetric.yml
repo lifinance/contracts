@@ -16,6 +16,9 @@ permissions:
 
 jobs:
   report:
+    # Upstream-only: a fork would post its own PR metric to the upstream Slack channel. On forks
+    # (e.g. contracts-tron) the guard is false, so the job is skipped (neutral, not failed).
+    if: ${{ github.repository == 'lifinance/contracts' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

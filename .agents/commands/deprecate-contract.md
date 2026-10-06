@@ -63,7 +63,7 @@ The command performs these steps in order:
 
 3. **Test Coverage Preservation** (for bridge facets only)
 
-   - **Measure baseline coverage**: Run `forge coverage --report lcov --force --ir-minimum`, filter with `bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'`, and record line coverage percentage
+   - **Measure baseline coverage**: Run `forge coverage --report lcov --force --ir-minimum`, filter with `bunx tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'`, and record line coverage percentage
    - **Find similar bridge**: Identify a similar active bridge facet (see "Test Replacement Strategy" below for criteria)
    - **Adapt and add tests**:
      - Copy relevant test patterns from the deprecated bridge test file
@@ -331,5 +331,5 @@ Before executing, validate:
 ### Bridge Facet Test Replacement
 
 - **Always replace tests**: Never delete bridge facet tests without replacement
-- **Coverage measurement**: Use `forge coverage --report lcov --force --ir-minimum`, then filter with `bun script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'`
+- **Coverage measurement**: Use `forge coverage --report lcov --force --ir-minimum`, then filter with `bunx tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'`
 - **Test adaptation**: Preserve test logic while updating contract-specific details (names, imports, selectors, addresses, chain IDs)

@@ -1,0 +1,1128 @@
+/**
+ * Per-operation checks and the `ok` / `mismatch` / `unverified` verdict of the
+ * report-only timelock watcher.
+ *
+ * Import it from `timelock-watcher.ts`. Every function here is pure: the caller
+ * reads the chain and the existing gates, and this module grades what they
+ * returned. A check that could not run grades `unknown`, which can never
+ * produce `ok`.
+ */
+
+import {
+  decodeFunctionData,
+  keccak256,
+  parseAbi,
+  toFunctionSelector,
+  toHex,
+  type Address,
+  type Hex,
+} from 'viem'
+
+import type { IGateReport } from '../codehash/verify-cut-targets'
+import { ZERO_ADDRESS } from '../shared/constants'
+
+import type { IPreBroadcastGateResult } from './prebroadcast-rederive'
+import type { ICollectedDiamondCuts } from './safe-decode-utils'
+import type {
+  ICancelDecisionInput,
+  TProvingLegOutcome,
+} from './timelock-cancel-decision'
+import type { IRecomputedIds, IScannedOperation } from './timelock-watcher-scan'
+
+export type TWatcherVerdict = 'ok' | 'mismatch' | 'unverified'
+
+export type TCheckStatus = 'pass' | 'fail' | 'unknown' | 'skip'
+
+export type TCheckName =
+  | 'op-id'
+  | 'state'
+  | 'delay'
+  | 'targets'
+  | 'delegatecall'
+  | 'authority'
+  | 'authorities'
+  | 'codehash'
+
+export interface ICheckOutcome {
+  check: TCheckName
+  status: TCheckStatus
+  detail: string
+}
+
+/** Every check a complete report carries, in display order. */
+export const REQUIRED_CHECKS: readonly TCheckName[] = [
+  'op-id',
+  'state',
+  'delay',
+  'targets',
+  'delegatecall',
+  'authority',
+  'authorities',
+  'codehash',
+]
+
+const SAFE_EXEC_ABI = parseAbi([
+  'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+])
+const MULTISEND_ABI = parseAbi(['function multiSend(bytes transactions)'])
+const UPDATE_DELAY_ABI = parseAbi(['function updateDelay(uint256 newDelay)'])
+const DIAMOND_CUT_INIT_ABI = parseAbi([
+  'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
+])
+
+const SAFE_EXEC_SELECTOR = '0x6a761202'
+const MULTISEND_SELECTOR = '0x8d80ff0a'
+const UPDATE_DELAY_SELECTOR = '0x64d62353'
+
+const AUTHORITY_ABI = parseAbi([
+  'function transferOwnership(address newOwner)',
+  'function grantRole(bytes32 role, address account)',
+  'function setCanExecute(bytes4 selector, address executor, bool canExecute)',
+  'function withdraw(address assetAddress, address to, uint256 amount)',
+  'function executeCallAndWithdraw(address callTo, bytes callData, address assetAddress, address to, uint256 amount)',
+  'function revokeRole(bytes32 role, address account)',
+  'function renounceRole(bytes32 role, address account)',
+  'function setContractSelectorWhitelist(address _contract, bytes4 _selector, bool _whitelisted)',
+  'function batchSetContractSelectorWhitelist(address[] _contracts, bytes4[] _selectors, bool _whitelisted)',
+])
+
+const AUTHORITY_SELECTORS = new Set<string>(
+  AUTHORITY_ABI.map((item) => toFunctionSelector(item))
+)
+
+const REGISTER_PERIPHERY_ABI = parseAbi([
+  'function registerPeripheryContract(string _name, address _contractAddress)',
+])
+const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
+  REGISTER_PERIPHERY_ABI[0]
+)
+
+/**
+ * Calls that hand nothing to anyone: the steps of an ownership transfer, an
+ * `owner()` read, and what another check judges (a top-level
+ * `registerPeripheryContract` by gate K, `updateDelay` by the delay check).
+ */
+const BENIGN_SELECTORS = new Set<string>(
+  parseAbi([
+    'function acceptOwnershipTransfer()',
+    'function confirmOwnershipTransfer()',
+    'function cancelOwnershipTransfer()',
+    'function registerPeripheryContract(string _name, address _contractAddress)',
+    'function updateDelay(uint256 newDelay)',
+    'function owner() view returns (address)',
+  ]).map((item) => toFunctionSelector(item))
+)
+const DIAMOND_CUT_SELECTOR = '0x1f931c1c'
+
+const selectorOf = (data: Hex): string => data.slice(0, 10).toLowerCase()
+
+/**
+ * Classifies an operation from its check outcomes.
+ *
+ * A missing check counts as `unknown`: the verdict speaks for every required
+ * check or it does not say `ok`.
+ *
+ * @param checks - Outcomes the caller produced.
+ * @returns The verdict and the checks behind anything other than `ok`.
+ */
+export const classifyOperation = (
+  checks: readonly ICheckOutcome[]
+): { verdict: TWatcherVerdict; reasons: string[] } => {
+  const byName = new Map(checks.map((c) => [c.check, c]))
+  const graded: ICheckOutcome[] = REQUIRED_CHECKS.map(
+    (name) =>
+      byName.get(name) ?? {
+        check: name,
+        status: 'unknown',
+        detail: 'this check produced no outcome',
+      }
+  )
+  const failed = graded.filter((c) => c.status === 'fail')
+  if (failed.length > 0)
+    return {
+      verdict: 'mismatch',
+      reasons: failed.map((c) => `${c.check}: ${c.detail}`),
+    }
+  const unknown = graded.filter((c) => c.status === 'unknown')
+  if (unknown.length > 0)
+    return {
+      verdict: 'unverified',
+      reasons: unknown.map((c) => `${c.check}: ${c.detail}`),
+    }
+  return { verdict: 'ok', reasons: [] }
+}
+
+/**
+ * Grades the op-id: the logged parameters must hash to the id they were logged
+ * under.
+ *
+ * @param operationId - The id the timelock logged.
+ * @param recomputed - Ids recomputed from the logged parameters.
+ * @returns The check outcome and the proving-leg outcome the cancel matrix takes.
+ */
+export const gradeIdentity = (
+  operationId: Hex,
+  recomputed: IRecomputedIds | undefined
+): { outcome: ICheckOutcome; leg: TProvingLegOutcome } => {
+  if (!recomputed)
+    return {
+      leg: 'error',
+      outcome: {
+        check: 'op-id',
+        status: 'unknown',
+        detail:
+          'the logged calls are not indexed 0..n-1, so the parameters are incomplete',
+      },
+    }
+  const id = operationId.toLowerCase()
+  const matches =
+    recomputed.batch.toLowerCase() === id ||
+    recomputed.single?.toLowerCase() === id
+  return matches
+    ? {
+        leg: 'match',
+        outcome: {
+          check: 'op-id',
+          status: 'pass',
+          detail: 'the logged parameters hash to the scheduled id',
+        },
+      }
+    : {
+        leg: 'mismatch',
+        outcome: {
+          check: 'op-id',
+          status: 'fail',
+          detail: `the logged parameters hash to ${recomputed.batch}, not to the scheduled id`,
+        },
+      }
+}
+
+/** Where an operation stands, from `getTimestamp` and the block time. */
+export type TOperationStage = 'pending' | 'ready' | 'done' | 'unset'
+
+/**
+ * Maps a `getTimestamp` value onto the operation's stage.
+ *
+ * @param timestamp - `getTimestamp(id)`.
+ * @param now - Latest block timestamp, in seconds.
+ * @returns The stage.
+ */
+export const stageOf = (timestamp: bigint, now: bigint): TOperationStage =>
+  timestamp === 0n
+    ? 'unset'
+    : timestamp === 1n
+    ? 'done'
+    : timestamp <= now
+    ? 'ready'
+    : 'pending'
+
+/**
+ * The `getTimestamp` value gate G may grade: only a read the state check
+ * confirmed live. Gate G fails a zero read outright, so handing it an unset or
+ * unconfirmed read would turn what the state check grades unknown into a mismatch.
+ *
+ * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
+ * @param readyAt - `getTimestamp(id)`.
+ * @returns The value, or `undefined` when gate G must treat it as unread.
+ */
+export const confirmedScheduledAt = (
+  stage: TOperationStage | undefined,
+  readyAt: bigint | undefined
+): bigint | undefined =>
+  stage === 'pending' || stage === 'ready' ? readyAt : undefined
+
+/**
+ * Gate G's `readScheduledAt` for the watcher: the pinned read, and only when
+ * the state check confirmed it live. Otherwise it throws, which gate G holds
+ * on, so the operation is unverified rather than a mismatch.
+ *
+ * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
+ * @param readyAt - `getTimestamp(id)`.
+ * @returns The reader.
+ */
+export const scheduledAtReaderFor =
+  (stage: TOperationStage | undefined, readyAt: bigint | undefined) =>
+  async (): Promise<bigint> => {
+    const scheduledAt = confirmedScheduledAt(stage, readyAt)
+    if (scheduledAt === undefined)
+      throw new Error('schedule state not confirmed live')
+    return scheduledAt
+  }
+
+/**
+ * Grades the schedule state of an operation the caller already knows is live.
+ *
+ * @param stage - The stage, or `undefined` when `getTimestamp` could not be read.
+ * @param readyAt - `getTimestamp(id)`, for the detail line.
+ * @returns The check outcome.
+ */
+export const gradeState = (
+  stage: TOperationStage | undefined,
+  readyAt: bigint | undefined
+): ICheckOutcome => {
+  if (stage === undefined)
+    return {
+      check: 'state',
+      status: 'unknown',
+      detail: 'getTimestamp could not be read, so the operation is unconfirmed',
+    }
+  if (stage === 'pending' || stage === 'ready')
+    return {
+      check: 'state',
+      status: 'pass',
+      detail: `${stage}, executable from ${
+        readyAt !== undefined
+          ? new Date(Number(readyAt) * 1000).toISOString()
+          : 'an unknown time'
+      }`,
+    }
+  if (stage === 'unset')
+    return {
+      check: 'state',
+      status: 'unknown',
+      detail:
+        'the timelock holds no schedule under this id, but no Cancelled log follows its schedule: a node behind the scheduling block, or a reorg',
+    }
+  return {
+    check: 'state',
+    status: 'fail',
+    detail: `the timelock reports this operation as ${stage}`,
+  }
+}
+
+/**
+ * Grades the delay: the scheduled delay, the timelock's live minimum, and any
+ * `updateDelay` the operation carries must all be at least the agreed minimum.
+ *
+ * @param op - The operation.
+ * @param agreedMinimum - `config/timelockController.json` `minDelay`, in seconds.
+ * @param liveMinimum - `getMinDelay()`, or `undefined` when it could not be read.
+ * @param timelock - The timelock's address, to spot `updateDelay` on itself.
+ * @returns The check outcome.
+ */
+export const gradeDelay = (
+  op: IScannedOperation,
+  agreedMinimum: bigint,
+  liveMinimum: bigint | undefined,
+  timelock: string
+): ICheckOutcome => {
+  const failures: string[] = []
+  if (BigInt(op.delay) < agreedMinimum)
+    failures.push(
+      `scheduled with a ${op.delay}s delay, below the agreed ${agreedMinimum}s`
+    )
+  if (liveMinimum !== undefined && liveMinimum < agreedMinimum)
+    failures.push(
+      `the timelock's minimum delay is ${liveMinimum}s, below the agreed ${agreedMinimum}s`
+    )
+  for (const call of op.calls)
+    if (
+      call.target.toLowerCase() === timelock.toLowerCase() &&
+      selectorOf(call.data) === UPDATE_DELAY_SELECTOR
+    ) {
+      try {
+        const { args } = decodeFunctionData({
+          abi: UPDATE_DELAY_ABI,
+          data: call.data,
+        })
+        if (args[0] < agreedMinimum)
+          failures.push(
+            `call ${call.index} lowers the timelock's minimum delay to ${args[0]}s`
+          )
+      } catch {
+        failures.push(`call ${call.index} carries an undecodable updateDelay`)
+      }
+    }
+  if (failures.length > 0)
+    return { check: 'delay', status: 'fail', detail: failures.join('; ') }
+  if (liveMinimum === undefined)
+    return {
+      check: 'delay',
+      status: 'unknown',
+      detail: `scheduled delay ${op.delay}s is at least the agreed ${agreedMinimum}s, but getMinDelay could not be read`,
+    }
+  return {
+    check: 'delay',
+    status: 'pass',
+    detail: `${op.delay}s, at least the agreed ${agreedMinimum}s`,
+  }
+}
+
+/**
+ * Grades the targets (gate E): every call must go to an address main knows.
+ *
+ * @param op - The operation.
+ * @param known - Lowercased address → name, from the deployments file at main,
+ *   the network's Safe and the timelock itself.
+ * @returns The check outcome.
+ */
+export const gradeTargets = (
+  op: IScannedOperation,
+  known: ReadonlyMap<string, string>
+): ICheckOutcome => {
+  const unknown = op.calls.filter((c) => !known.has(c.target.toLowerCase()))
+  if (unknown.length > 0)
+    return {
+      check: 'targets',
+      status: 'fail',
+      detail: `call(s) to address(es) main does not know: ${unknown
+        .map((c) => `${c.index}→${c.target}`)
+        .join(', ')}`,
+    }
+  return {
+    check: 'targets',
+    status: 'pass',
+    detail: op.calls
+      .map((c) => known.get(c.target.toLowerCase()) ?? c.target)
+      .join(', '),
+  }
+}
+
+/**
+ * Reads the inner transactions of a packed `multiSend` payload.
+ *
+ * @param packed - The `transactions` argument.
+ * @returns Each inner transaction's operation byte, target and calldata, or `undefined`
+ *   when the packing is malformed.
+ */
+const multiSendEntries = (
+  packed: Hex
+): { operation: number; to: Address; data: Hex }[] | undefined => {
+  const bytes = packed.slice(2)
+  const entries: { operation: number; to: Address; data: Hex }[] = []
+  let at = 0
+  // operation (1 byte) | to (20) | value (32) | dataLength (32) | data
+  while (at < bytes.length) {
+    if (at + 170 > bytes.length) return undefined
+    const length = Number(BigInt(`0x${bytes.slice(at + 106, at + 170)}`))
+    if (at + 170 + length * 2 > bytes.length) return undefined
+    entries.push({
+      operation: parseInt(bytes.slice(at, at + 2), 16),
+      to: `0x${bytes.slice(at + 2, at + 42)}`,
+      data: `0x${bytes.slice(at + 170, at + 170 + length * 2)}`,
+    })
+    at += 170 + length * 2
+  }
+  return entries
+}
+
+/**
+ * Grades delegatecall-shaped payloads: a Safe `execTransaction` or `multiSend`
+ * with operation 1 is refused, an undecodable one is unknown, and a
+ * `diamondCut` with a non-zero `_init` is named so the reader can see that the
+ * diamond will delegatecall it; the code there is judged by the codehash check.
+ *
+ * @param op - The operation.
+ * @returns The check outcome.
+ */
+export const gradeDelegatecall = (op: IScannedOperation): ICheckOutcome => {
+  const failures: string[] = []
+  const unknown: string[] = []
+  const notes: string[] = []
+  const envelope = (label: string, data: Hex, depth: number): void => {
+    const selector = selectorOf(data)
+    if (selector !== SAFE_EXEC_SELECTOR && selector !== MULTISEND_SELECTOR)
+      return
+    if (depth > MAX_CALL_DEPTH) {
+      unknown.push(`${label} nests envelopes deeper than this check reads`)
+      return
+    }
+    try {
+      if (selector === SAFE_EXEC_SELECTOR) {
+        const { args } = decodeFunctionData({ abi: SAFE_EXEC_ABI, data })
+        if (args[3] !== 0) failures.push(`${label} is a Safe delegatecall`)
+        envelope(`${label} → Safe call`, args[2], depth + 1)
+      } else {
+        const { args } = decodeFunctionData({ abi: MULTISEND_ABI, data })
+        const operations = multiSendEntries(args[0])
+        if (!operations) {
+          unknown.push(`${label} carries a malformed multiSend`)
+          return
+        }
+        if (operations.some((o) => o.operation !== 0))
+          failures.push(`${label} multiSends a delegatecall`)
+        for (const [i, inner] of operations.entries())
+          envelope(`${label} → multiSend ${i}`, inner.data, depth + 1)
+      }
+    } catch {
+      unknown.push(
+        `${label} carries selector ${selector} that could not be decoded`
+      )
+    }
+  }
+  for (const call of op.calls) {
+    const selector = selectorOf(call.data)
+    envelope(`call ${call.index}`, call.data, 0)
+    try {
+      if (selector === DIAMOND_CUT_SELECTOR) {
+        const { args } = decodeFunctionData({
+          abi: DIAMOND_CUT_INIT_ABI,
+          data: call.data,
+        })
+        if (args[1].toLowerCase() !== ZERO_ADDRESS)
+          notes.push(
+            `call ${call.index} makes the diamond delegatecall ${args[1]}`
+          )
+      }
+    } catch {
+      unknown.push(
+        `call ${call.index} carries selector ${selector} that could not be decoded`
+      )
+    }
+  }
+  if (failures.length > 0)
+    return {
+      check: 'delegatecall',
+      status: 'fail',
+      detail: [...failures, ...unknown].join('; '),
+    }
+  if (unknown.length > 0)
+    return {
+      check: 'delegatecall',
+      status: 'unknown',
+      detail: unknown.join('; '),
+    }
+  return {
+    check: 'delegatecall',
+    status: 'pass',
+    detail:
+      notes.length > 0
+        ? `${notes.join('; ')} (code judged by codehash)`
+        : 'no delegatecall-shaped payload',
+  }
+}
+
+const roleHash = (name: string): string => keccak256(toHex(name)).toLowerCase()
+
+/** Timelock roles only the Safe or the timelock itself may hold. */
+const GOVERNING_ROLES = new Map([
+  [roleHash('TIMELOCK_ADMIN_ROLE'), 'TIMELOCK_ADMIN_ROLE'],
+  [roleHash('PROPOSER_ROLE'), 'PROPOSER_ROLE'],
+])
+
+/**
+ * Roles a wallet main names may hold. The executor role is held by the zero
+ * address, so anyone can execute already; a grant narrows nothing and widens
+ * nothing, and an unknown grantee is only unverified.
+ */
+const OPERATING_ROLES = new Map([
+  [roleHash('CANCELLER_ROLE'), 'CANCELLER_ROLE'],
+  [roleHash('EXECUTOR_ROLE'), 'EXECUTOR_ROLE'],
+])
+const GOVERNORS = new Set(['Safe', 'LiFiTimelockController'])
+const CANCELLER_ROLE = roleHash('CANCELLER_ROLE')
+
+/** Deepest envelope `reachedCalls` opens; anything deeper is unverified. */
+const MAX_CALL_DEPTH = 3
+
+/** A call an operation makes, directly or from inside another call. */
+interface IReachedCall {
+  label: string
+  /** Envelopes around the call; 0 for a call the operation makes itself. */
+  depth: number
+  /** The contract whose code or storage the call acts on. */
+  target: string
+  data: Hex
+}
+
+const ENVELOPE_SELECTORS = new Set([
+  DIAMOND_CUT_SELECTOR,
+  SAFE_EXEC_SELECTOR,
+  MULTISEND_SELECTOR,
+])
+
+/**
+ * Every call the operation makes, including the `_init` call of a
+ * `diamondCut` (which runs on the diamond), and the calls a Safe
+ * `execTransaction` or `multiSend` carries.
+ *
+ * @param op - The operation.
+ * @returns The calls, and the labels of envelopes too deep to open.
+ */
+const reachedCalls = (
+  op: IScannedOperation
+): { calls: IReachedCall[]; tooDeep: string[] } => {
+  const calls: IReachedCall[] = []
+  const tooDeep: string[] = []
+  const visit = (call: Omit<IReachedCall, 'depth'>, depth: number): void => {
+    calls.push({ ...call, depth })
+    const selector = selectorOf(call.data)
+    if (!ENVELOPE_SELECTORS.has(selector)) return
+    if (depth >= MAX_CALL_DEPTH) {
+      tooDeep.push(call.label)
+      return
+    }
+    try {
+      if (selector === DIAMOND_CUT_SELECTOR) {
+        const { args } = decodeFunctionData({
+          abi: DIAMOND_CUT_INIT_ABI,
+          data: call.data,
+        })
+        if (args[1].toLowerCase() !== ZERO_ADDRESS && args[2].length > 2)
+          visit(
+            {
+              label: `${call.label} → _init`,
+              target: call.target,
+              data: args[2],
+            },
+            depth + 1
+          )
+      } else if (selector === SAFE_EXEC_SELECTOR) {
+        const { args } = decodeFunctionData({
+          abi: SAFE_EXEC_ABI,
+          data: call.data,
+        })
+        if (args[2].length > 2)
+          visit(
+            {
+              label: `${call.label} → Safe call`,
+              target: args[0],
+              data: args[2],
+            },
+            depth + 1
+          )
+      } else {
+        const { args } = decodeFunctionData({
+          abi: MULTISEND_ABI,
+          data: call.data,
+        })
+        for (const [i, inner] of (multiSendEntries(args[0]) ?? []).entries())
+          if (inner.data.length > 2)
+            visit(
+              {
+                label: `${call.label} → multiSend ${i}`,
+                target: inner.to,
+                data: inner.data,
+              },
+              depth + 1
+            )
+      }
+    } catch {
+      // An undecodable envelope is the delegatecall check's finding.
+    }
+  }
+  for (const call of op.calls)
+    visit(
+      { label: `call ${call.index}`, target: call.target, data: call.data },
+      0
+    )
+  return { calls, tooDeep }
+}
+
+/** Who an operation may hand something to: every name is an allowlist entry. */
+export interface IAuthorityContext {
+  /** Lowercased address → name: the deployments file at main, the network's
+   *  Safe, the timelock, and the wallets `config/global.json` names. */
+  known: ReadonlyMap<string, string>
+  /** Lowercased Safe owners, which may be granted the canceller or executor role. */
+  safeOwners?: ReadonlySet<string>
+  /** Lowercased addresses this operation installs, whose code gate K judges. */
+  installed?: ReadonlySet<string>
+  /** Lowercased `<contract>:<selector>` pairs `config/whitelist.json` at main
+   *  lists for the network; unset when it could not be read. */
+  whitelist?: ReadonlySet<string>
+  /** Lowercased addresses a pending operation on the network registers at the
+   *  diamond and main does not name yet. */
+  pendingRegistrations?: ReadonlySet<string>
+}
+
+/**
+ * Addresses pending operations register at the diamond that main does not
+ * name yet, for {@link IAuthorityContext}.
+ *
+ * @param ops - The network's pending operations.
+ * @param diamond - The network's LiFiDiamond.
+ * @param known - Lowercased addresses main names.
+ * @returns Lowercased addresses.
+ */
+export const pendingRegistrationsOf = (
+  ops: readonly IScannedOperation[],
+  diamond: string,
+  known: ReadonlyMap<string, string>
+): Set<string> => {
+  const registered = new Set<string>()
+  for (const op of ops)
+    for (const call of op.calls) {
+      if (
+        call.target.toLowerCase() !== diamond.toLowerCase() ||
+        selectorOf(call.data) !== REGISTER_PERIPHERY_SELECTOR
+      )
+        continue
+      try {
+        const { args } = decodeFunctionData({
+          abi: REGISTER_PERIPHERY_ABI,
+          data: call.data,
+        })
+        const address = args[1].toLowerCase()
+        if (address !== ZERO_ADDRESS && !known.has(address))
+          registered.add(address)
+      } catch {
+        // An undecodable registration exempts nothing.
+      }
+    }
+  return registered
+}
+
+/**
+ * Grades what an operation will hand authority or funds to, in every call it
+ * reaches. Gate G reads the authorities as they stand, which a pending
+ * operation has not changed yet, so this reads the arguments instead, against
+ * the shapes the repo's own flows produce:
+ * - the diamond's ownership may only go to the timelock; another contract's
+ *   to the timelock, the Safe or the refund wallet, and a fee collector's or
+ *   fee forwarder's to the withdraw wallet or
+ *   the fee collector owner;
+ * - a timelock admin or proposer role only to the Safe or the timelock; the
+ *   canceller or executor role to an address main names or a Safe owner;
+ * - a selector executor only to the refund wallet or a contract the operation
+ *   installs; a withdrawal only to the withdraw wallet;
+ * - a contract selector whitelisted only when `config/whitelist.json` at main
+ *   lists it; an unlisted one on an address main names or a pending operation
+ *   registers is unverified, on any other address it fails;
+ * - no timelock admin or proposer role revoked or renounced, and no canceller
+ *   role taken from the Safe or the timelock.
+ *
+ * An ownership, selector executor or withdrawal handed to an address main
+ * does not know fails, and to another known address, or through an arbitrary
+ * call from the diamond, is unverified. A governing role to anyone but the Safe
+ * or the timelock fails; an unknown canceller or executor grantee is unverified.
+ * A call that is none of these and neither an envelope nor a benign call is
+ * unverified, and so is a cut or periphery registration made from inside
+ * another call.
+ *
+ * @param op - The operation.
+ * @param context - The names that make an address an allowed recipient.
+ * @returns The check outcome.
+ */
+export const gradeAuthority = (
+  op: IScannedOperation,
+  context: IAuthorityContext
+): ICheckOutcome => {
+  const failures: string[] = []
+  const unknown: string[] = []
+  const granted: string[] = []
+  const nameOf = (address: string): string | undefined =>
+    context.known.get(address.toLowerCase())
+  const judge = (
+    label: string,
+    what: string,
+    to: string,
+    allowed: (name: string) => boolean
+  ): void => {
+    const name = nameOf(to)
+    if (name && allowed(name)) granted.push(`${label} ${what} ${name}`)
+    else if (name)
+      unknown.push(
+        `${label} ${what} ${name}, which no honest flow hands this to`
+      )
+    else failures.push(`${label} ${what} ${to}, which main does not know`)
+  }
+
+  const { calls, tooDeep } = reachedCalls(op)
+  for (const label of tooDeep)
+    unknown.push(`${label} nests calls deeper than this check reads`)
+  for (const call of calls) {
+    const selector = selectorOf(call.data)
+    // Gate K reads only the operation's own calls, so code wired in from inside
+    // another call is judged by nothing.
+    if (
+      call.depth > 0 &&
+      (selector === DIAMOND_CUT_SELECTOR ||
+        selector === REGISTER_PERIPHERY_SELECTOR)
+    ) {
+      unknown.push(
+        `${call.label} wires code in from inside another call, which gate K does not judge`
+      )
+      continue
+    }
+    if (ENVELOPE_SELECTORS.has(selector) || BENIGN_SELECTORS.has(selector))
+      continue
+    if (!AUTHORITY_SELECTORS.has(selector)) {
+      unknown.push(
+        `${call.label} calls ${selector} on ${
+          nameOf(call.target) ?? call.target
+        }, which this check does not grade`
+      )
+      continue
+    }
+    let decoded: ReturnType<typeof decodeFunctionData<typeof AUTHORITY_ABI>>
+    try {
+      decoded = decodeFunctionData({ abi: AUTHORITY_ABI, data: call.data })
+    } catch {
+      unknown.push(
+        `${call.label} carries selector ${selectorOf(
+          call.data
+        )} that could not be decoded`
+      )
+      continue
+    }
+    const targetName = nameOf(call.target) ?? call.target
+    switch (decoded.functionName) {
+      case 'transferOwnership': {
+        const allowed =
+          targetName === 'LiFiDiamond'
+            ? (name: string) => name === 'LiFiTimelockController'
+            : /FeeCollector|FeeForwarder/.test(targetName)
+            ? (name: string) =>
+                name === 'withdrawWallet' || name === 'feeCollectorOwner'
+            : (name: string) =>
+                name === 'LiFiTimelockController' ||
+                name === 'Safe' ||
+                name === 'refundWallet'
+        judge(
+          call.label,
+          `transfers ${targetName} ownership to`,
+          decoded.args[0],
+          allowed
+        )
+        break
+      }
+      case 'grantRole': {
+        const [role, to] = decoded.args
+        const governing = GOVERNING_ROLES.get(role.toLowerCase())
+        if (governing) {
+          const name = nameOf(to)
+          if (name && GOVERNORS.has(name))
+            granted.push(`${call.label} grants ${governing} to ${name}`)
+          else
+            failures.push(
+              `${call.label} grants ${governing} to ${
+                name ?? to
+              }, which is neither the Safe nor the timelock`
+            )
+        } else if (OPERATING_ROLES.has(role.toLowerCase())) {
+          const operating = OPERATING_ROLES.get(role.toLowerCase())
+          const name =
+            nameOf(to) ??
+            (context.safeOwners?.has(to.toLowerCase())
+              ? 'a Safe owner'
+              : undefined)
+          if (name) granted.push(`${call.label} grants ${operating} to ${name}`)
+          else
+            unknown.push(
+              `${call.label} grants ${operating} to ${to}, which main does not know yet`
+            )
+        } else judge(call.label, `grants role ${role} to`, to, () => false)
+        break
+      }
+      case 'setCanExecute': {
+        const [selector, executor, canExecute] = decoded.args
+        if (!canExecute) break
+        if (context.installed?.has(executor.toLowerCase()))
+          granted.push(
+            `${call.label} lets ${selector} be called by a contract this operation installs`
+          )
+        else
+          judge(
+            call.label,
+            `lets ${selector} be called by`,
+            executor,
+            (name) => name === 'refundWallet'
+          )
+        break
+      }
+      case 'revokeRole':
+      case 'renounceRole': {
+        const [role, from] = decoded.args
+        const governing = GOVERNING_ROLES.get(role.toLowerCase())
+        const name = nameOf(from)
+        const verb =
+          decoded.functionName === 'revokeRole' ? 'revokes' : 'renounces'
+        if (governing)
+          failures.push(
+            `${call.label} ${verb} ${governing} from ${name ?? from}`
+          )
+        else if (role.toLowerCase() === CANCELLER_ROLE)
+          if (name && GOVERNORS.has(name))
+            failures.push(`${call.label} ${verb} CANCELLER_ROLE from ${name}`)
+          else
+            granted.push(
+              `${call.label} ${verb} CANCELLER_ROLE from ${name ?? from}`
+            )
+        else
+          unknown.push(
+            `${call.label} ${verb} role ${role} from ${name ?? from}`
+          )
+        break
+      }
+      case 'setContractSelectorWhitelist':
+      case 'batchSetContractSelectorWhitelist': {
+        const [contracts, selectors, whitelisted] =
+          decoded.functionName === 'setContractSelectorWhitelist'
+            ? [[decoded.args[0]], [decoded.args[1]], decoded.args[2]]
+            : decoded.args
+        if (!whitelisted) {
+          granted.push(`${call.label} removes whitelist entries`)
+          break
+        }
+        if (!context.whitelist) {
+          unknown.push(
+            `${call.label} whitelists contract selectors, and main's config/whitelist.json could not be read`
+          )
+          break
+        }
+        if (contracts.length !== selectors.length) {
+          failures.push(
+            `${call.label} whitelists ${contracts.length} contract(s) against ${selectors.length} selector(s)`
+          )
+          break
+        }
+        const unlisted = contracts
+          .map((c, i) => ({
+            contract: c.toLowerCase(),
+            pair: `${c.toLowerCase()}:${selectors[i]?.toLowerCase()}`,
+          }))
+          .filter(({ pair }) => !context.whitelist?.has(pair))
+        // A rollout whitelists the contract a pending operation registers before
+        // main lists it, so that is unverified rather than a stranger.
+        const strangers = unlisted.filter(
+          ({ contract }) =>
+            !context.known.has(contract) &&
+            !context.pendingRegistrations?.has(contract)
+        )
+        if (strangers.length > 0)
+          failures.push(
+            `${call.label} whitelists ${strangers
+              .map((u) => u.pair)
+              .join(
+                ', '
+              )} on an address main does not know, and main's config/whitelist.json does not list it`
+          )
+        if (unlisted.length > strangers.length)
+          unknown.push(
+            `${call.label} whitelists ${unlisted
+              .filter((u) => !strangers.includes(u))
+              .map(
+                (u) =>
+                  `${
+                    nameOf(u.contract) ??
+                    'a contract a pending operation registers'
+                  } ${u.pair}`
+              )
+              .join(', ')}, which main's config/whitelist.json does not list`
+          )
+        if (unlisted.length === 0)
+          granted.push(
+            `${call.label} whitelists ${contracts.length} pair(s) main's config/whitelist.json lists`
+          )
+        break
+      }
+      case 'withdraw':
+        judge(
+          call.label,
+          'withdraws to',
+          decoded.args[1],
+          (name) => name === 'withdrawWallet'
+        )
+        break
+      case 'executeCallAndWithdraw':
+        unknown.push(
+          `${call.label} makes the diamond call ${decoded.args[0]} with arbitrary calldata`
+        )
+        break
+      default:
+        unknown.push(
+          `${call.label} carries an authority call this check does not read`
+        )
+    }
+  }
+  if (failures.length > 0)
+    return {
+      check: 'authority',
+      status: 'fail',
+      detail: [...failures, ...unknown].join('; '),
+    }
+  if (unknown.length > 0)
+    return { check: 'authority', status: 'unknown', detail: unknown.join('; ') }
+  return {
+    check: 'authority',
+    status: 'pass',
+    detail:
+      granted.length > 0
+        ? granted.join('; ')
+        : 'hands no ownership, role, executor right or withdrawal to anyone',
+  }
+}
+
+/**
+ * Addresses a cut or registration installs, for {@link IAuthorityContext}.
+ *
+ * @param collected - `collectDiamondCutTargets` over the operation.
+ * @returns Lowercased addresses, the zero address (a removal) excluded.
+ */
+export const installedAddresses = (
+  collected: ICollectedDiamondCuts
+): Set<string> =>
+  new Set(
+    [
+      ...collected.calls.flatMap((c) => c.cuts.map((cut) => cut.facetAddress)),
+      ...collected.registrations.map((r) => r.address),
+    ]
+      .map((a) => a.toLowerCase())
+      .filter((a) => a !== ZERO_ADDRESS)
+  )
+
+/**
+ * Grades storage authorities (gate G) from the pre-broadcast gate's result.
+ *
+ * @param result - The gate's result, or the error that stopped it.
+ * @returns The check outcome.
+ */
+export const gradeAuthorities = (
+  result: IPreBroadcastGateResult | { error: string }
+): ICheckOutcome => {
+  if ('error' in result)
+    return {
+      check: 'authorities',
+      status: 'unknown',
+      detail: `the pre-broadcast gate could not run: ${result.error}`,
+    }
+  const status: TCheckStatus =
+    result.disposition === 'PROCEED'
+      ? 'pass'
+      : result.disposition === 'BLOCK'
+      ? 'fail'
+      : 'unknown'
+  return {
+    check: 'authorities',
+    status,
+    detail:
+      status === 'pass'
+        ? result.reason
+        : result.findings.join('; ') || result.reason,
+  }
+}
+
+/** Gate K's result over one operation, or why it did not produce one. */
+export type TCodehashResult =
+  | { kind: 'not-applicable'; collected: ICollectedDiamondCuts }
+  | { kind: 'deferred'; reason: string }
+  | { kind: 'error'; reason: string }
+  | { kind: 'cached'; status: 'pass' | 'fail' | 'unknown'; detail: string }
+  | {
+      kind: 'evaluated'
+      collected: ICollectedDiamondCuts
+      reports: IGateReport[]
+    }
+
+/**
+ * Whether an operation wires code in, so that gate K must judge it.
+ *
+ * @param collected - `collectDiamondCutTargets` over the operation.
+ * @returns True when a cut, a registration or an undecodable frame is present.
+ */
+export const installsCode = (collected: ICollectedDiamondCuts): boolean =>
+  collected.calls.length > 0 ||
+  collected.registrations.length > 0 ||
+  collected.refusals.length > 0
+
+/**
+ * Grades gate K: live code at every address the operation wires in must match
+ * a rebuild of its recorded commit.
+ *
+ * @param result - What gate K produced for the operation.
+ * @returns The check outcome.
+ */
+export const gradeCodehash = (result: TCodehashResult): ICheckOutcome => {
+  if (result.kind === 'not-applicable') {
+    // Graded by the authority check or benign, and none of these installs code.
+    const opaque = result.collected.unopened.filter((frame) => {
+      const selector = selectorOf(frame as Hex)
+      return (
+        selector === REGISTER_PERIPHERY_SELECTOR ||
+        (!AUTHORITY_SELECTORS.has(selector) && !BENIGN_SELECTORS.has(selector))
+      )
+    })
+    return opaque.length > 0
+      ? {
+          check: 'codehash',
+          status: 'unknown',
+          detail: `calldata the decoder could not open may install code (unopened: ${opaque.join(
+            ', '
+          )})`,
+        }
+      : { check: 'codehash', status: 'pass', detail: 'installs no code' }
+  }
+  if (result.kind === 'deferred' || result.kind === 'error')
+    return { check: 'codehash', status: 'unknown', detail: result.reason }
+  if (result.kind === 'cached')
+    return {
+      check: 'codehash',
+      status: result.status,
+      detail: `${result.detail} (from an earlier run; the code is unchanged)`,
+    }
+
+  const targets = result.reports.flatMap((r) => r.targets)
+  const mismatched = targets.filter((t) => t.verdict === 'MISMATCH')
+  if (mismatched.length > 0)
+    return {
+      check: 'codehash',
+      status: 'fail',
+      detail: mismatched.map((t) => `${t.address}: ${t.reason}`).join('; '),
+    }
+  const refusals = [
+    ...result.collected.refusals,
+    ...result.reports.flatMap((r) => r.refusals),
+  ]
+  const unverifiable = targets.filter((t) => t.verdict !== 'MATCH')
+  if (refusals.length > 0 || unverifiable.length > 0)
+    return {
+      check: 'codehash',
+      status: 'unknown',
+      detail: [
+        ...refusals,
+        ...unverifiable.map((t) => `${t.address}: ${t.reason}`),
+      ].join('; '),
+    }
+  return {
+    check: 'codehash',
+    status: 'pass',
+    detail: `${targets.length} address(es) match a rebuild of their recorded commit`,
+  }
+}
+
+const legOf = (status: TCheckStatus): TProvingLegOutcome =>
+  status === 'pass'
+    ? 'match'
+    : status === 'fail'
+    ? 'mismatch'
+    : status === 'skip'
+    ? 'unsupported'
+    : 'error'
+
+/**
+ * Builds the cancel matrix input the watcher can honestly state. Shown for
+ * information only: nothing acts on it.
+ *
+ * @param input - The graded checks and the facts the matrix needs.
+ * @returns The matrix input.
+ */
+export const buildWatcherCancelInput = (input: {
+  identity: TProvingLegOutcome
+  codehash: ICheckOutcome
+  authorities: ICheckOutcome
+  stage: TOperationStage | undefined
+  signTimeRecordPresent: boolean
+}): ICancelDecisionInput => {
+  const codehashLeg = legOf(input.codehash.status)
+  const authoritiesLeg = legOf(input.authorities.status)
+  const integrity: TProvingLegOutcome =
+    codehashLeg === 'mismatch' || authoritiesLeg === 'mismatch'
+      ? 'mismatch'
+      : codehashLeg === 'error' || authoritiesLeg === 'error'
+      ? 'error'
+      : 'match'
+  return {
+    integrity,
+    opIdentity: input.identity,
+    verdictProvenance: 'anchors',
+    agreeingProviders: 1,
+    executability: 'error',
+    deploymentRecord: input.codehash.status === 'unknown' ? 'error' : 'present',
+    signTimeVerdictRecord: input.signTimeRecordPresent ? 'present' : 'missing',
+    operationState: input.stage ?? 'unset',
+    cancellerAuthority: 'unknown',
+    revertAttempts: 0,
+    revertBlockThreshold: Number.MAX_SAFE_INTEGER,
+  }
+}

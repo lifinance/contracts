@@ -5,7 +5,8 @@
  * already live in the repo — diamond.json, config/clearSigningProposal.json,
  * config/whitelist.json and a short list of well-known signatures (Timelock,
  * Safe admin, ERC20) — so the signing UI does not pay an HTTP round trip for
- * selectors we ship ourselves. Selectors that are genuinely unknown locally
+ * selectors we ship ourselves. A caller that knows the contract can also read
+ * its Foundry artifact in out/. Selectors that are genuinely unknown locally
  * are resolved through the Sourcify 4byte API in a single batched request and
  * persisted to .cache/selector-signatures.json, so any given selector hits
  * the network at most once per machine.
@@ -279,6 +280,48 @@ export function getLocalSelectorInfo(
   return getLocalRegistry().get(normalizeSelector(selector))
 }
 
+const SOLIDITY_IDENTIFIER = /^[A-Za-z_$][A-Za-z0-9_$]*$/u
+
+/**
+ * Reads a contract's `methodIdentifiers` from its Foundry artifact at
+ * `out/<Name>.sol/<Name>.json` — the only local source that names every
+ * external function, public getters included. Never touches the network.
+ *
+ * @param contractName - Contract name; anything but a Solidity identifier yields nothing
+ * @param outDir - Foundry output directory (defaults to `out/` under the cwd)
+ * @returns Selector → info for every pair whose signature hashes back to its
+ *   selector; empty when the artifact is missing or unreadable
+ */
+export function getArtifactSelectorInfo(
+  contractName: string,
+  outDir: string = path.join(process.cwd(), 'out')
+): Map<string, ISelectorInfo> {
+  const map = new Map<string, ISelectorInfo>()
+  if (!SOLIDITY_IDENTIFIER.test(contractName)) return map
+  const relativePath = path.join(`${contractName}.sol`, `${contractName}.json`)
+  const source = path.join('out', relativePath)
+  try {
+    const artifactPath = path.join(outDir, relativePath)
+    if (!fs.existsSync(artifactPath)) return map
+    const artifact: unknown = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
+    if (!isRecord(artifact) || !isRecord(artifact.methodIdentifiers)) return map
+    for (const [signature, selector] of Object.entries(
+      artifact.methodIdentifiers
+    )) {
+      if (typeof selector !== 'string') continue
+      if (!isVerifiedSelectorSignature(selector, signature)) continue
+      setIfAbsent(map, selector, {
+        name: nameFromSignature(signature),
+        signature,
+        source,
+      })
+    }
+  } catch (error) {
+    consola.debug(`selector-registry: ${source} skipped: ${error}`)
+  }
+  return map
+}
+
 /** Base URL for the Sourcify 4byte lookup (openchain.xyz-compatible API). */
 const FOURBYTE_BATCH_LOOKUP_BASE =
   'https://api.4byte.sourcify.dev/signature-database/v1/lookup'
@@ -369,7 +412,8 @@ function getRunCache(cachePath: string): Map<string, string | null> {
  * Resolves selectors to signatures via the Sourcify 4byte API, batched into
  * as few requests as possible. Positive results are persisted to
  * .cache/selector-signatures.json (misses are only remembered in-process).
- * Network failures degrade to an empty/partial result — never a throw.
+ * Network failures degrade to an empty/partial result and a warning naming
+ * the selectors — never a throw.
  */
 export async function resolveSelectorsViaFourByte(
   selectors: string[],
@@ -417,7 +461,14 @@ export async function resolveSelectorsViaFourByte(
         ','
       )}&filter=true`
       const response = await fetcher(url)
-      if (!response.ok) continue
+      if (!response.ok) {
+        consola.warn(
+          `selector-registry: 4byte lookup for ${batch.join(
+            ', '
+          )} returned HTTP ${response.status} — these selectors stay unnamed`
+        )
+        continue
+      }
       const raw: unknown = await response.json()
       for (const [selector, signature] of parseFourByteBatchResponse(
         raw,
@@ -425,7 +476,11 @@ export async function resolveSelectorsViaFourByte(
       ))
         fetched.set(selector, signature)
     } catch (error) {
-      consola.debug(`selector-registry: 4byte lookup failed: ${error}`)
+      consola.warn(
+        `selector-registry: 4byte lookup for ${batch.join(', ')} failed: ${
+          error instanceof Error ? error.message : String(error)
+        } — these selectors stay unnamed`
+      )
     }
   }
 

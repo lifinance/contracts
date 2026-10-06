@@ -553,10 +553,10 @@ export NETWORK=tron  # or tron-shasta for testnet
 export PRIVATE_KEY=your_64_char_hex_key_without_0x
 
 # Deploy in order
-bun script/deploy/tron/deploy-core-facets.ts
-bun script/deploy/tron/register-facets-to-diamond.ts
-bun script/deploy/tron/deploy-and-register-periphery.ts
-bun script/deploy/tron/deploy-and-register-symbiosis-facet.ts
+bunx tsx script/deploy/tron/deploy-core-facets.ts
+bunx tsx script/deploy/tron/register-facets-to-diamond.ts
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
+bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
 
 

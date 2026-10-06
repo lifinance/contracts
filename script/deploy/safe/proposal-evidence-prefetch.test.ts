@@ -348,7 +348,7 @@ describe('the queue is wired to something that actually moves', () => {
       'evaluateCodehashSignGate',
       'runIntegrityAsserts',
       'collectExecutabilityInput',
-      'collectProviderObservations',
+      'readCodeQuorumPastTipReorgs',
       'observeSetForProposal',
     ])
       expect(body).toContain(read)

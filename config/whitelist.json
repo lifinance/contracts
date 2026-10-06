@@ -4858,6 +4858,22 @@
           }
         ]
       }
+    },
+    {
+      "name": "Peach",
+      "key": "peach",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/peach.svg",
+      "webUrl": "https://peach.ag",
+      "contracts": {
+        "arc": [
+          {
+            "address": "0x2528f3190603b85a155d48c31946703d71f921ed",
+            "functions": {
+              "0x02fcde22": "executePlan((uint64,uint64,uint256,address,address,address,address,address,address,uint8,uint8,uint256,uint256,uint256,bytes32,bytes32,bytes32,uint16,address,uint64,uint256),(address,address,uint256,uint256,(address,address,address,address,uint256,bytes)[],address[],uint256,bytes32,uint256,address,uint16),bytes32[],uint8[],bytes,bytes)"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
@@ -4963,6 +4979,16 @@
       {
         "name": "Composer",
         "address": "0x9f12686Cba2383150E869A8e5C2ededdcf7Ab4f9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -5231,6 +5257,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "arbitrumnova": [
@@ -5387,6 +5423,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xc6b1e8C63ecbE8DaB7994411902C65315b7Af0Cd",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "arctestnet": [
@@ -5527,6 +5573,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "base": [
@@ -5631,6 +5687,16 @@
       {
         "name": "Composer",
         "address": "0x847E5fF14E18cdE8fc289839bC7C747B922159BF",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -5763,6 +5829,16 @@
       {
         "name": "Composer",
         "address": "0x37D7676182b2baC5aFB258015308B302380c3486",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x1d8E7Ca0e0D989D5867905D142c8195c41647Ef0",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6041,6 +6117,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "celo": [
@@ -6123,6 +6209,16 @@
       {
         "name": "Composer",
         "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6419,6 +6515,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "fuse": [
@@ -6581,6 +6687,16 @@
       {
         "name": "Composer",
         "address": "0x272229c81A64a8C679631969a4cD0654Dbe14E03",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -6785,6 +6901,16 @@
       {
         "name": "Composer",
         "address": "0xdBEdD49105f4Db6ddC68922f37E364F14F600609",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x39D540f708909367b003cDd3e829b5C2FB22670e",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -7169,6 +7295,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x9704df62E22AFCd25f76A594b9Eb04AAAC094CCE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "lens": [
@@ -7325,6 +7461,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x4E8C92e5d89d9E0928C7Fe7d02C4D95Fc6946046",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "lisk": [
@@ -7423,6 +7569,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "mantle": [
@@ -7511,6 +7667,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "megaeth": [
@@ -7593,6 +7759,16 @@
       {
         "name": "Composer",
         "address": "0xBff32fED35bD573D7bFeE160DFb2e1c022068458",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0B2b381654Ad888DA00fc12a1a5A610E6E9D4724",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -7797,6 +7973,16 @@
       {
         "name": "Composer",
         "address": "0x0ae4Ff0E7944F3123a75cf4Fb137BAa67D667617",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0B2b381654Ad888DA00fc12a1a5A610E6E9D4724",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8089,6 +8275,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "optimismsepolia": [
@@ -8201,6 +8397,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x57056AD584719BB9bf3ed81aB87D60B8d00F6E92",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "plasma": [
@@ -8263,6 +8469,16 @@
       {
         "name": "Composer",
         "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x0B2b381654Ad888DA00fc12a1a5A610E6E9D4724",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8351,6 +8567,16 @@
       {
         "name": "Composer",
         "address": "0x0BF34f68455bf315d65C68191C289f4e8D981e1D",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xD2dd6329C7eA3aCBd1d16A7a0432349Ca122D3a8",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8467,6 +8693,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "robinhood": [
@@ -8523,6 +8759,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x5c1423b410c5e20aC3B74cED29E3E903A8Fd89b8",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -8723,6 +8969,16 @@
       {
         "name": "Composer",
         "address": "0xEb4fd1132d5a54C6d1A12660b3e8FAA9C0289fE9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -8991,6 +9247,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x8D2bD2776338afeb68830F3253aF17CD82141Bb0",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "sonic": [
@@ -9073,6 +9339,16 @@
       {
         "name": "Composer",
         "address": "0x67908C6c1190EbAbe81Ac17cDe93d4bCf6635B27",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -9225,6 +9501,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x55AE7BEbE2f4E0dB752C9770347854E12BD3225a",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "tron": [
@@ -9365,6 +9651,16 @@
       {
         "name": "Composer",
         "address": "0xEb2873B297Bbc26231Ac262835201C08F1d46568",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x8D2bD2776338afeb68830F3253aF17CD82141Bb0",
         "selectors": [
           {
             "selector": "0x00a32e6c",
@@ -9605,6 +9901,16 @@
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "xdc": [
@@ -9777,6 +10083,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x38287fC30b70A0f434eBDFC13a2eEC53e6E7859f",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }

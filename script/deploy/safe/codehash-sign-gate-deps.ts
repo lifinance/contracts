@@ -36,6 +36,7 @@ import { redactUrls } from '../../utils/redactUrls'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
+import { readCheckoutProfiles } from '../codehash/checkout-foundry-config'
 import {
   observeEvmImmutables,
   observeZkImmutables,
@@ -98,6 +99,18 @@ const UNKNOWN_COMMIT = 'UNKNOWN'
  * the profile's `out`, and exposes no flag of its own to redirect it.
  */
 const ZK_OUT_DIR = 'zkout'
+
+/** Prefix of the per-profile directory an EVM rebuild writes to via `--out`. */
+const EVM_OUT_PREFIX = 'out-codehash-'
+
+/**
+ * Where EVM rebuilds write, under the checkout root and beside the commit's
+ * checkout rather than inside it, so no path the commit tracks can alias it.
+ */
+const EVM_OUT_ROOT = 'evm-out'
+
+/** Compile caches the rebuild's forge reads by default, beside its output. */
+const BUILD_CACHE_DIRS = ['cache', 'zkcache']
 
 /**
  * Where a zk lineage's declarations build writes, under the checkout root and
@@ -553,8 +566,58 @@ const assertSubmodulesPinned = (
 }
 
 /**
+ * Whether a top-level name in a checkout is one the rebuild writes its output
+ * to or reads a compile cache from.
+ *
+ * Folded through upper case before comparing, because a case-insensitive
+ * filesystem resolves `ZKOUT`, and `ſ` (U+017F) for `s`, to the directory
+ * the artifact is read from; lower-casing alone leaves `ſ` as it is.
+ *
+ * @param name - first component of a tracked path
+ * @returns true when content at that name could stand in for a compile
+ */
+const isBuildOutputName = (name: string): boolean => {
+  const folded = name.toUpperCase().toLowerCase()
+  return (
+    folded === ZK_OUT_DIR ||
+    folded.startsWith(EVM_OUT_PREFIX) ||
+    BUILD_CACHE_DIRS.includes(folded)
+  )
+}
+
+/**
+ * Refuses a checkout whose commit tracks anything where the rebuild writes.
+ *
+ * The commit comes from the deployment record and need only be fetchable, and
+ * `worktree add` checks out every tracked file — force-added past
+ * `.gitignore`, symlinked, or a submodule gitlink alike. A tracked artifact
+ * would be read as the rebuild's result without anything having compiled, and a
+ * tracked cache could let forge skip the compile that should overwrite it.
+ *
+ * @param git - runs git with the same cwd/env the runner uses
+ * @param checkout - absolute path of the detached worktree
+ * @throws when any tracked path sits under a build output or cache directory
+ */
+const assertNoTrackedBuildOutput = (
+  git: (args: string[]) => string,
+  checkout: string
+): void => {
+  const tracked = git(['-C', checkout, 'ls-files', '-z'])
+    .split('\0')
+    .filter(
+      (path) => path.length > 0 && isBuildOutputName(path.split('/')[0] ?? '')
+    )
+  if (tracked.length === 0) return
+  const shown = tracked.slice(0, 5).join(', ')
+  const more = tracked.length > 5 ? ` and ${tracked.length - 5} more` : ''
+  throw new Error(
+    `refusing to rebuild at ${checkout}: the commit tracks build output (${shown}${more}), which would be read as this rebuild's result without the source having been compiled. No honest deployment commit tracks these paths; treat the deployment record as suspect.`
+  )
+}
+
+/**
  * Names the profile in a checkout's own `foundry.toml` that pins the requested
- * compiler pair.
+ * compiler pair, and pins the compiler forge runs for it.
  *
  * The request carries a profile from HEAD's `foundry.toml`, but the build runs
  * at the deployment commit, whose file may spell the same pair under another
@@ -563,20 +626,35 @@ const assertSubmodulesPinned = (
  * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
  *
  * A non-zk pair is matched by its versions, so either spelling of the london
- * profile resolves. The zk profile is matched by name: its zksolc pin attaches
- * by name in `parseBuildProfiles`, and older commits carry no pin at all.
+ * profile resolves. The zk profile is matched by name: older commits carry no
+ * zksolc pin at all, and the rebuild exports HEAD's through `FOUNDRY_ZKSYNC`.
  *
- * @param deps - the file primitive the runner reads the checkout with
+ * The solc binary is pinned through `FOUNDRY_SOLC` to the plain version the
+ * matched profile names, so the checkout chooses a version but never a binary.
+ * Measured on forge 1.7.1 and foundry-zksync v0.0.32: that variable outranks
+ * every `foundry.toml` spelling of a compiler and `--use` alike, and a version
+ * is looked up in svm's own directory. What outranks it is a `.env` in the
+ * checkout, which forge loads into its own environment and so into the
+ * compiler it spawns — hence the refusal of any such file.
+ *
+ * @param deps - the file primitives the runner reads the checkout with
  * @param checkout - absolute path of the detached worktree
  * @param requested - HEAD's profile for the lineage being rebuilt
- * @returns The profile name to export as `FOUNDRY_PROFILE` in that checkout
- * @throws when the checkout declares no such pair, or more than one profile for it
+ * @returns The `FOUNDRY_PROFILE` and `FOUNDRY_SOLC` to build that checkout under
+ * @throws when the checkout could choose what executes, declares no such pair,
+ * or declares more than one profile for it
  */
-const resolveCheckoutProfile = (
-  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+const resolveCheckoutBuildEnv = (
+  deps: Pick<IForgeRebuildDeps, 'readFile' | 'exists'>,
   checkout: string,
   requested: IBuildProfile
-): string => {
+): { FOUNDRY_PROFILE: string; FOUNDRY_SOLC: string } => {
+  // Runs after the submodule update, so a `.env` symlinked into `lib/`
+  // resolves here the same way it would for forge.
+  if (deps.exists(join(checkout, '.env')))
+    throw new Error(
+      `refusing to rebuild at ${checkout}: the commit carries a .env, which forge loads into the environment of the compiler it runs. No honest deployment commit tracks one; treat the deployment record as suspect.`
+    )
   const tomlPath = join(checkout, 'foundry.toml')
   let toml: string
   try {
@@ -590,10 +668,21 @@ const resolveCheckoutProfile = (
       } / evm ${requested.evmVersion} there.`
     )
   }
-  const profiles = parseBuildProfiles(toml)
+  let profiles: ReturnType<typeof readCheckoutProfiles>
+  try {
+    profiles = readCheckoutProfiles(toml)
+  } catch (error) {
+    throw new Error(
+      `refusing to rebuild at ${checkout}: ${
+        error instanceof Error ? error.message : String(error)
+      }. Treat the deployment record as suspect.`
+    )
+  }
 
   if (requested.zksolcVersion !== undefined) {
-    if (profiles[ZK_PROFILE] !== undefined) return ZK_PROFILE
+    const zk = profiles[ZK_PROFILE]
+    if (zk !== undefined)
+      return { FOUNDRY_PROFILE: zk.profile, FOUNDRY_SOLC: zk.solcVersion }
     throw new Error(
       `refusing to rebuild at ${checkout}: its foundry.toml declares no [profile.${ZK_PROFILE}], so forge would build the zk lineage under [profile.default] with a warning and exit 0.`
     )
@@ -602,11 +691,12 @@ const resolveCheckoutProfile = (
   const matching = Object.values(profiles).filter(
     (candidate) =>
       candidate.profile !== ZK_PROFILE &&
-      candidate.zksolcVersion === undefined &&
       candidate.solcVersion === requested.solcVersion &&
       candidate.evmVersion === requested.evmVersion
   )
-  if (matching.length === 1) return (matching[0] as IBuildProfile).profile
+  const [only] = matching
+  if (matching.length === 1 && only)
+    return { FOUNDRY_PROFILE: only.profile, FOUNDRY_SOLC: only.solcVersion }
   const pair = `solc ${requested.solcVersion} / evm ${requested.evmVersion}`
   if (matching.length === 0)
     throw new Error(
@@ -642,7 +732,8 @@ export interface IForgeRebuildRunner {
  * checked out rather than what was deployed.
  *
  * `FOUNDRY_PROFILE` is the name the checkout's own `foundry.toml` gives the
- * requested compiler pair (`resolveCheckoutProfile`), not HEAD's.
+ * requested compiler pair, not HEAD's, and `FOUNDRY_SOLC` pins the compiler
+ * (`resolveCheckoutBuildEnv`).
  *
  * Each profile gets its own output directory. Foundry puts `default` and
  * `solc_floor` in the same `out/`, and one run can need both — a fleet rollout
@@ -657,6 +748,10 @@ export const createForgeRebuildRunner = (
   deps: IForgeRebuildDeps
 ): IForgeRebuildRunner => {
   const created = new Set<string>()
+  const vettedCheckouts = new Set<string>()
+  // Output directories seen absent before this run's first restore or build
+  // into them, so everything they hold since was written by this run.
+  const vettedOutDirs = new Set<string>()
 
   const checkoutAt = (commit: string): string => {
     // The commit comes from a Mongo row and reaches both a path join and git's
@@ -686,16 +781,35 @@ export const createForgeRebuildRunner = (
     const checkout = checkoutAt(request.commit)
 
     // The zk toolchain writes to `zkout/` and ignores `--out`, so the path the
-    // artifact is read from has to follow the toolchain rather than the flag.
-    // It still sits inside this commit's checkout, so it stays per-commit.
+    // artifact is read from has to follow the toolchain rather than the flag,
+    // and sits inside the checkout where only the guards below protect it.
     const isZk = request.profile.zksolcVersion !== undefined
-    const outDir = isZk ? ZK_OUT_DIR : `out-codehash-${request.profile.profile}`
+    const outDir = isZk
+      ? ZK_OUT_DIR
+      : `${EVM_OUT_PREFIX}${request.profile.profile}`
+    const outPath = isZk
+      ? join(checkout, outDir)
+      : join(deps.checkoutRoot, EVM_OUT_ROOT, request.commit, outDir)
     const artifactPath = join(
-      checkout,
-      outDir,
+      outPath,
       `${request.contractName}.sol`,
       `${request.contractName}.json`
     )
+
+    if (!vettedCheckouts.has(checkout)) {
+      assertNoTrackedBuildOutput(deps.git, checkout)
+      vettedCheckouts.add(checkout)
+    }
+    // Catches what the tracked listing cannot: a checkout left behind under
+    // the same root by an earlier process, or a name the filesystem resolves
+    // to this directory that the case fold above does not.
+    if (!vettedOutDirs.has(outPath)) {
+      if (deps.exists(outPath))
+        throw new Error(
+          `refusing to rebuild at ${checkout}: ${outDir}/ already exists and this run did not write it, so what it holds cannot be told from a compile. If an earlier run left it, remove ${deps.checkoutRoot} and re-run; otherwise the commit put it there, and the deployment record is suspect.`
+        )
+      vettedOutDirs.add(outPath)
+    }
 
     // An artifact left by a build that predates `--ast` satisfies an
     // existence check while carrying no declarations, which would report every
@@ -715,7 +829,7 @@ export const createForgeRebuildRunner = (
     // toolchain sends every profile to `zkout`, so a key spelled from the
     // directory alone would serve one zksolc version's build as another's.
     const cacheKey = `${request.commit}-${request.profile.profile}-${outDir}`
-    if (!usable()) deps.artifactCache?.restore(cacheKey, join(checkout, outDir))
+    if (!usable()) deps.artifactCache?.restore(cacheKey, outPath)
 
     if (!usable()) {
       pinSubmodules(checkout)
@@ -726,7 +840,7 @@ export const createForgeRebuildRunner = (
       // The pin check first: a missing or off-pin zk toolchain names the drift
       // precisely, and a profile refusal in front of it would mask that.
       if (isZk) assertZkToolchainPinned(deps, command)
-      const checkoutProfile = resolveCheckoutProfile(
+      const checkoutEnv = resolveCheckoutBuildEnv(
         deps,
         checkout,
         request.profile
@@ -737,7 +851,7 @@ export const createForgeRebuildRunner = (
       // silently substituted mid-build.
       const args = [
         'build',
-        ...(isZk ? ['--zksync'] : ['--out', outDir]),
+        ...(isZk ? ['--zksync'] : ['--out', outPath]),
         '--skip',
         'test/**',
         '--skip',
@@ -750,7 +864,7 @@ export const createForgeRebuildRunner = (
         '--ast',
       ]
       const env: Record<string, string> = {
-        FOUNDRY_PROFILE: checkoutProfile,
+        ...checkoutEnv,
         ...(isZk
           ? {
               FOUNDRY_ZKSYNC: `{ zksolc = "${request.profile.zksolcVersion}" }`,
@@ -779,7 +893,7 @@ export const createForgeRebuildRunner = (
       // Only a build this run made and can vouch for. Keyed on the commit and
       // the profile, which is what determines the output — a key that named
       // neither would serve one commit's bytecode as another's.
-      if (usable()) deps.artifactCache?.save(cacheKey, join(checkout, outDir))
+      if (usable()) deps.artifactCache?.save(cacheKey, outPath)
     }
 
     let parsed: {
@@ -816,7 +930,7 @@ export const createForgeRebuildRunner = (
     // checkout, so both the ids and the line numbers describe the commit being
     // graded rather than whatever the operator has checked out.
     const declarations = deps
-      .readDeclarations(join(checkout, outDir), checkout)
+      .readDeclarations(outPath, checkout)
       .declarations.filter((one) => one.contract === request.contractName)
 
     return {
@@ -888,7 +1002,7 @@ export const createForgeRebuildRunner = (
       {
         cwd: checkout,
         env: {
-          FOUNDRY_PROFILE: resolveCheckoutProfile(deps, checkout, profile),
+          ...resolveCheckoutBuildEnv(deps, checkout, profile),
           // The zk profile's `cache_path` is the one the zksolc build uses,
           // and a solc build sharing it would invalidate that one's cache.
           FOUNDRY_CACHE_PATH: join(buildRoot, 'cache'),

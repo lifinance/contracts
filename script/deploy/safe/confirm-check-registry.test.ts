@@ -35,6 +35,7 @@ import {
   NOTHING_INSTALLED_TO_HASH,
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
+  PERIPHERY_ALLOWLIST_CHECK_ID,
   RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK,
@@ -1159,6 +1160,12 @@ const verdicts = (
   integrity: integrityRun({ includeTimelockDelay: true }),
   codehash: codehashGate(),
   targetState: cleanTargetState,
+  peripheryAllowlist: {
+    network: NETWORK,
+    findings: [],
+    unreadable: [],
+    cleared: true,
+  },
   executability: executabilityVerdict(),
   rpcQuorum: quorumVerdict(),
   storageAuthority: cleanAuthorities(),
@@ -1230,6 +1237,7 @@ describe('proposalCheckResults', () => {
       IMMUTABLES_CHECK_ID,
       STORAGE_AUTHORITY_CHECK_ID,
       TARGET_STATE_CHECK_ID,
+      PERIPHERY_ALLOWLIST_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
       RPC_QUORUM_CHECK_ID,
     ])
@@ -2291,11 +2299,11 @@ describe("the codehash block's heading", () => {
 })
 
 describe('the codehash gate on the run-level ledger', () => {
-  it('is on the roster, so the run accounts for twelve gates in one book', () => {
+  it('is on the roster, so the run accounts for thirteen gates in one book', () => {
     expect(
       CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
     ).toContain(CODEHASH_CHECK_ID)
-    expect(CONFIRM_CHECK_DEFINITIONS).toHaveLength(12)
+    expect(CONFIRM_CHECK_DEFINITIONS).toHaveLength(13)
   })
 
   it('costs the verified count when it stands down', () => {

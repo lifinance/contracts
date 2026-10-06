@@ -464,33 +464,101 @@ export const collectExecutabilityInput = async (
   }
 }
 
+/** A selector at least: the shape of a custom error, `Error(string)` or `Panic`. */
+const REVERT_DATA = /^0x(?:[0-9a-f]{2}){4,}$/iu
+
 /**
- * Whether an error is the endpoint failing to answer, rather than the chain
- * answering that the payload does not execute.
+ * The codes a node answers a reverting `eth_call` with when it does not use 3:
+ * geth-family `-32000` and Nethermind `-32015`. Revert-shaped data on any
+ * other code is an endpoint attaching bytes to its own failure.
+ */
+const REVERT_DATA_CODES: ReadonlySet<unknown> = new Set([-32000, -32015])
+
+/**
+ * The whole node string, not a word inside it: geth's `execution reverted`
+ * with an optional reason, Nethermind's `revert` / `Reverted 0x…`, Ganache and
+ * Hardhat's `VM Exception …: revert`, and an invalid opcode.
+ */
+const REVERT_WORDING =
+  /^(?:execution reverted(?::.*)?|revert(?:ed)?(?: 0x[0-9a-f]*)?|vm exception while processing transaction: revert.*|invalid opcode\b.*)$/isu
+
+/**
+ * Throttling and caching; a node without the state at the pinned block, which
+ * ran nothing; and the gas allowance viem files under `ExecutionRevertedError`.
+ * The allowance is the node's own gas cap, so like out of gas it says as much
+ * about the endpoint as about the payload. Never read inside a string that is
+ * itself revert wording, whose reason the reverting contract chose.
+ */
+const ENDPOINT_WORDING =
+  /\brate[- ]?limit|\btoo many requests\b|\bcache[ds]?\b|\bheader not found\b|\bmissing trie node\b|\bgas required exceeds allowance\b/iu
+
+/**
+ * Whether an error is the chain answering that the payload does not execute,
+ * rather than the endpoint failing to answer.
  *
- * Deliberately a closed list. Everything else — an EVM revert however the node
- * words it, an invalid opcode, an out-of-gas, a decode failure — is the
- * payload's own answer and must stop the endpoint walk: a later endpoint
- * returning `succeeded` would otherwise overwrite an execution failure that
- * really happened, which is the false green this gate exists to prevent.
+ * Read from evidence only the EVM produces, anywhere in the cause chain: viem
+ * wraps every call failure as `CallExecutionError`, so the outer error's name
+ * says nothing — a keyless endpoint's "Missing or invalid parameters" and an
+ * endpoint's "Internal error" arrive in the same wrapper as a revert. Anything
+ * not recognised here is the endpoint's failure and the next one is asked, so a
+ * revert behind an unusable endpoint is still found.
+ *
+ * Code 3 is decisive on its own. Every other signal counts only beside a link
+ * carrying a JSON-RPC code, the one shape a node's answer has: viem names an
+ * error `ExecutionRevertedError` from a substring of whatever text it holds,
+ * an HTTP body included, and a proxy may word its own failure as a revert.
+ * Those signals also yield to endpoint wording anywhere in the chain, except
+ * inside a string that is itself revert wording.
+ *
+ * Out of gas is deliberately not here: `eth_call` runs under the node's own
+ * gas cap, which differs between providers, so it says as much about the
+ * endpoint as about the payload.
  *
  * @param error - What `PublicClient.call` threw.
- * @returns True only for a transport-level failure the next endpoint may answer.
+ * @returns True only when some link of the chain carries a revert.
  */
-const isEndpointUnavailable = (error: unknown): boolean => {
-  const name = error instanceof Error ? error.name : ''
-  const message = error instanceof Error ? error.message : String(error)
+const isExecutionRevert = (error: unknown): boolean => {
+  const links: Record<string, unknown>[] = []
+  for (
+    let link: unknown = error;
+    typeof link === 'object' && link !== null && !links.includes(link as never);
+    link = (link as { cause?: unknown }).cause
+  )
+    links.push(link as Record<string, unknown>)
 
-  // viem's own transport-level errors, by type rather than by wording.
+  // viem's `details` is the node's own string; its `message` is a composed
+  // report that also carries the endpoint URL, which is no evidence either way.
+  const texts = (link: Record<string, unknown>): unknown[] => [
+    typeof link.details === 'string' ? link.details : link.message,
+    link.data,
+  ]
+  const answers = links.filter((link) => typeof link.code === 'number')
+
+  if (answers.some((link) => link.code === 3)) return true
   if (
-    /^(HttpRequestError|TimeoutError|RpcRequestError|SocketClosedError|WebSocketRequestError|InternalRpcError|LimitExceededRpcError)$/u.test(
-      name
+    answers.length === 0 ||
+    links.some((link) =>
+      texts(link).some(
+        (text) =>
+          typeof text === 'string' &&
+          ENDPOINT_WORDING.test(text) &&
+          !REVERT_WORDING.test(text.trim())
+      )
     )
   )
-    return true
+    return false
 
-  return /HTTP request failed|fetch failed|socket hang up|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network (?:error|request failed)|timed out|timeout|too many requests|rate ?limit|service unavailable|bad gateway|gateway timeout|\b(?:429|500|502|503|504)\b/iu.test(
-    message
+  return (
+    links.some((link) => link.name === 'ExecutionRevertedError') ||
+    answers.some(
+      (link) =>
+        (REVERT_DATA_CODES.has(link.code) &&
+          typeof link.data === 'string' &&
+          REVERT_DATA.test(link.data)) ||
+        texts(link).some(
+          (text) => typeof text === 'string' && REVERT_WORDING.test(text.trim())
+        )
+    )
   )
 }
 
@@ -624,13 +692,7 @@ export const createExecutabilityChainReader = (
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
 
-        // Failing over is the narrow case, not the default. An error this does
-        // not recognise stops the walk and is reported as the payload's own
-        // answer, because the alternative — treating anything unfamiliar as an
-        // unreachable endpoint — lets the next endpoint's success stand in for
-        // an execution failure the first one really saw. An invalid opcode and
-        // an out-of-gas both arrive wrapped without the word "revert".
-        if (!isEndpointUnavailable(error))
+        if (isExecutionRevert(error))
           return {
             outcome: 'reverted',
             revertReason: redactUrls(summariseRpcError(message)),

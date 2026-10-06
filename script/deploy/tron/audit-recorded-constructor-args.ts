@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env -S bunx tsx
 
 /**
  * Read-only audit of the constructor arguments recorded for Tron deployments.
@@ -20,6 +20,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import type { EnvironmentEnum } from '../../common/types'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { OUT_ROOT, getEnvVar } from '../../utils/utils'
 import { getContractVersion } from '../shared/getContractVersion'
 import {
@@ -604,4 +605,4 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

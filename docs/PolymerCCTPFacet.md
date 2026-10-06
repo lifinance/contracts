@@ -80,7 +80,7 @@ Emitting the **wallet** rather than the ATA is deliberate: the off-chain relayer
 After adding mappings to `config/polymercctp.json`, propagate them to all deployed networks:
 
 ```bash
-bun script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
+bunx tsx script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
 ```
 
 ## Polymer CCTP Specific Parameters

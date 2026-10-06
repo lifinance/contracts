@@ -45,9 +45,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x1B5c543CFe993ec1c89ad399E5433562A8CF4e05": {
+      "0x0FC3045A569f55233BA26d92dB2e7DbB47C30D76": {
         "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
@@ -105,9 +105,9 @@
         "Name": "CelerCircleBridgeFacet",
         "Version": "2.0.0"
       },
-      "0x8FF9A6Ed7844a808E11d046de48B0259e79F86b1": {
+      "0x8f00E690a45e75D7A1A765163829Ad33244a1C33": {
         "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
+        "Version": "3.0.0"
       },
       "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",

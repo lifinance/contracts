@@ -90,6 +90,10 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `update-wallet-config.md` | `/update-wallet-config --role <deployer\|dev\|pauser> --new-address 0xNEW [--production]` | Open the PR that rotates a wallet role in `config/global.json` (EVM field + matching `tronWallets.<role>` base58, Tron address derived + round-trip-checked); config-only, delegates to `/create-pr` |
 | `verify-contracts.md` | `/verify-contracts <network> \| PR #<N>` | Verify a network's deployed contracts on its block explorer and flip the MongoDB `verified` flag for each |
 
+## Factory Intake Rules
+
+`.agents/factory/` holds what the Dark Factory pilot reads here: `factory.yml` and, once the team writes one, `intake.md` (none yet). Nothing else reads them. Every ticket must pass the factory's own floor before an agent picks it up; `intake.md` adds this repo's rules on top, and `protected` in `factory.yml` lists paths a factory push may never touch (none yet). Nothing else is blocked, except that a factory PR can never change `.agents/factory/` itself, so only a human edits these rules. The files are not symlinked into `.cursor/` or `.claude/`, because editor sessions have no use for ticket requirements. The factory reads them from `main` only, and may never edit them itself. Rule syntax and options: [Customizing a repo's intake](https://github.com/lifinance/ai-factory/blob/main/docs/intake-customization.md).
+
 ## Transaction Analysis
 
 Special handling for transaction analysis:

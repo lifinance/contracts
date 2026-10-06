@@ -18,7 +18,11 @@ import { createPublicClient, http, type Address } from 'viem'
 
 import { getTransportConfigFromRpcUrl } from '../../utils/viemScriptHelpers'
 
-import type { IProviderObservation } from './rpc-quorum'
+import {
+  evaluateRpcQuorum,
+  type IProviderObservation,
+  type IRpcQuorumVerdict,
+} from './rpc-quorum'
 
 /**
  * 20 seconds for everything one endpoint is asked, not for one round trip.
@@ -59,6 +63,16 @@ const ENDPOINT_RETRY_COUNT = 1
  * inside the window that produced it — a retry that fast is decorative.
  */
 const ENDPOINT_RETRY_DELAY_MS = 2_000
+
+/**
+ * How far behind the lowest head a fork is read again before it counts.
+ *
+ * The pin is the lowest head any provider reports, so a one-block reorg that
+ * one provider has applied and another has not reads as two chains. A few
+ * blocks back, providers on one chain agree on the hash again; two that are
+ * really on different chains still do not.
+ */
+export const REORG_RECHECK_DEPTH = 5n
 
 /** One endpoint's answer, before it is graded. */
 export interface IEndpointRead {
@@ -112,6 +126,62 @@ export const collectProviderObservations = async (
   )
 
 /**
+ * Grades a quorum read, reading a fork once more behind the head before
+ * believing it.
+ *
+ * Only a fork is re-read: a value disagreement at one block hash is two
+ * providers describing the same block differently, which no reorg explains.
+ * The re-read's own verdict is returned, so a re-read whose endpoints fail or
+ * go unanswered leaves the fork at the tip advisory rather than a definite red.
+ *
+ * @param collectAt - Collects every endpoint's observation, pinned this many
+ *   blocks behind the lowest head.
+ * @returns The verdict, re-read behind the head when the tip shows a fork.
+ */
+export const readQuorumPastTipReorgs = async (
+  collectAt: (behindHead: bigint) => Promise<readonly IProviderObservation[]>
+): Promise<IRpcQuorumVerdict> => {
+  const atTip = evaluateRpcQuorum(await collectAt(0n))
+  if (atTip.status !== 'fork-divergence') return atTip
+
+  const settled = evaluateRpcQuorum(await collectAt(REORG_RECHECK_DEPTH))
+  return settled.status === 'fork-divergence'
+    ? {
+        ...settled,
+        detail: `${settled.detail}; the fork persisted when re-read ${REORG_RECHECK_DEPTH} blocks behind the head`,
+      }
+    : settled
+}
+
+/**
+ * Reads the code at one address from every endpoint, at a pinned height, and
+ * grades it with {@link readQuorumPastTipReorgs}.
+ *
+ * @param address - The address whose code is read.
+ * @param endpointUrls - Every endpoint configured for the network.
+ * @param chainId - The chain they must serve.
+ * @param budgetMs - The per-endpoint read budget.
+ * @returns The verdict, re-read behind the head when the tip shows a fork.
+ */
+export const readCodeQuorumPastTipReorgs = (
+  address: Address,
+  endpointUrls: readonly string[],
+  chainId: number,
+  budgetMs: number = ENDPOINT_READ_BUDGET_MS
+): Promise<IRpcQuorumVerdict> =>
+  readQuorumPastTipReorgs((behindHead) =>
+    collectProviderObservations(
+      endpointUrls,
+      createCodeReader(
+        address,
+        chainId,
+        budgetMs,
+        createPinnedBlock(endpointUrls, chainId, behindHead)
+      )
+    )
+  )
+
+/**
  * Names the read a quorum verdict is about, for the operator's line.
  *
  * @param address - The address whose code was read.
@@ -136,12 +206,14 @@ export const codeReadLabel = (address: Address, network: string): string =>
  *
  * @param endpointUrls - The endpoints the quorum will read from.
  * @param chainId - The chain they must serve.
+ * @param behindHead - Blocks below the lowest head to pin at, floored at genesis.
  * @returns A memoised resolver for the pinned height.
  * @throws When no endpoint reported a height.
  */
 export const createPinnedBlock = (
   endpointUrls: readonly string[],
-  chainId: number
+  chainId: number,
+  behindHead = 0n
 ): (() => Promise<bigint>) => {
   let pinned: Promise<bigint> | undefined
 
@@ -176,7 +248,7 @@ export const createPinnedBlock = (
     )
     if (lowest === undefined)
       throw new Error('no endpoint reported a block height to pin the read to')
-    return lowest
+    return lowest > behindHead ? lowest - behindHead : 0n
   }
 
   return () =>

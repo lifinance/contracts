@@ -100,7 +100,7 @@ When bytecode is already in `deployments/<network>.json` (deferred diamond cuts,
 ./script/tasks/proposeContractToNetworks.sh MayanFacet --all-where-deployed --production
 ```
 
-Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
+Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. A diamond-called periphery's registration is proposed in its own timelock batch with its whitelist writes (the replaced address's `whitelistPeripheryFunctions` selectors removed, the new address's added); `config/whitelist.json` is then regenerated locally for the deploy-records PR; the regeneration reads every `deployments/*.json` on disk, so an uncommitted edit to any of them lands in the file too, and a failed regeneration makes the run exit non-zero. A standalone `syncWhitelistToNetworks.sh` run leaves out any such name whose on-chain registry entry still differs from `config/whitelist.json` (it prints both addresses), so it cannot de-whitelist the address the diamond still calls while the registration batch is pending. A codeless address (23 bytes or less, as `LibAsset.isContract` judges it) or unreadable chain state refuses the network before anything is proposed. Directly registered networks sync the allowlist afterwards. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
 
 ### Recomputing the calldata of a pending proposal
 

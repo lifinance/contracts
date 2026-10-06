@@ -1,8 +1,9 @@
 /**
  * Reconciliation of in-flight Safe transactions against on-chain state.
  *
- * Called at the top of each network's processing pass in confirm-safe-tx.
- * Two sweeps:
+ * Called at startup and at the top of each network's processing pass in
+ * confirm-safe-tx, and again before it exits for the executions that run left
+ * `submitted`. Two sweeps:
  *
  * - Sweep A walks every `submitted` row in MongoDB and resolves it from
  *   the receipt of its stored `executionHash`. The row is promoted to
@@ -22,7 +23,7 @@
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import { type Collection } from 'mongodb'
+import { type Collection, type ObjectId } from 'mongodb'
 import {
   decodeEventLog,
   TransactionReceiptNotFoundError,
@@ -31,11 +32,16 @@ import {
   type PublicClient,
 } from 'viem'
 
+import { sleep } from '../../utils/delay'
 import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 
 import { SAFE_EVENTS_ABI, SAFE_SINGLETON_ABI } from './config'
 import { buildReadOnlyClient } from './read-only-safe-client'
-import { NONCE_CONSUMING_STATUSES, type ISafeTxDocument } from './safe-utils'
+import {
+  NONCE_CONSUMING_STATUSES,
+  type ISafeTxDocument,
+  type SafeTxStatus,
+} from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 /**
@@ -75,6 +81,12 @@ export interface IReconcileOptions {
    * without standing up a MongoDB instance for the queue cluster.
    */
   enqueueTimelockOpFn?: typeof enqueueTimelockOpIfApplicable
+  /**
+   * Row `_id`s (hex) Sweep B back-fills first when several `pending` rows share
+   * an executed `safeTxHash` — the rows this run executed. Without a match it
+   * takes the newest row.
+   */
+  preferredRowIds?: ReadonlySet<string>
 }
 
 /**
@@ -152,6 +164,7 @@ export async function reconcileSubmittedSafeTxs(
     safeAddress,
     lookbackBlocks,
     enqueueFn,
+    options?.preferredRowIds ?? new Set(),
     result
   )
 
@@ -246,23 +259,43 @@ export async function reconcileAllSubmittedSafeTxs(
   pendingTransactions: Collection<ISafeTxDocument>,
   options?: IReconcileAllOptions
 ): Promise<Set<string>> {
-  const clientFactory =
-    options?.publicClientFactory ??
-    ((network: string) => buildReadOnlyClient(network, options?.rpcUrl))
-  const nonceReader = options?.readSafeNonce ?? defaultReadSafeNonce
   const networkFilter = options?.network?.toLowerCase()
 
   const submittedRows = await pendingTransactions
     .find({ status: { $eq: 'submitted' } })
     .toArray()
 
+  return reconcileSafesOf(
+    pendingTransactions,
+    submittedRows.filter(
+      (row) => !networkFilter || row.network.toLowerCase() === networkFilter
+    ),
+    options
+  )
+}
+
+/**
+ * Runs the full reconcile (Sweep A + Sweep B) once for each Safe that owns one
+ * of `rows`, skipping Tron. Per-Safe failures are logged and skipped.
+ *
+ * @returns `reconcileCoverageKey` values for each Safe that was successfully swept.
+ */
+async function reconcileSafesOf(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  rows: ISafeTxDocument[],
+  options?: IReconcileAllOptions
+): Promise<Set<string>> {
+  const clientFactory =
+    options?.publicClientFactory ??
+    ((network: string) => buildReadOnlyClient(network, options?.rpcUrl))
+  const nonceReader = options?.readSafeNonce ?? defaultReadSafeNonce
+
   const groups = new Map<
     string,
     { network: string; chainId: number; safeAddress: Address }
   >()
-  for (const row of submittedRows) {
+  for (const row of rows) {
     const network = row.network.toLowerCase()
-    if (networkFilter && network !== networkFilter) continue
     if (isTronNetworkKey(network)) continue
     const safeAddress = row.safeAddress as Address
     const key = reconcileCoverageKey(network, row.chainId, safeAddress)
@@ -297,7 +330,7 @@ export async function reconcileAllSubmittedSafeTxs(
         return key
       } catch (error: unknown) {
         const errorMsg = error instanceof Error ? error.message : String(error)
-        consola.warn(`[${network}] Startup reconcile failed: ${errorMsg}`)
+        consola.warn(`[${network}] Reconcile failed: ${errorMsg}`)
         return null
       }
     }
@@ -306,6 +339,96 @@ export async function reconcileAllSubmittedSafeTxs(
   for (const key of results) if (key !== null) covered.add(key)
 
   return covered
+}
+
+/**
+ * How long the end-of-run pass keeps re-checking this run's `submitted`
+ * executions. The executor has already polled 30s by then, so this brings a
+ * mainnet tx to ~90s (~7 blocks) from broadcast; anything slower is stuck on
+ * gas and is left to the next run's startup sweep.
+ */
+export const END_OF_RUN_WAIT_MS = 60_000 // 60 seconds
+
+/** Pause between end-of-run reconcile rounds — about one mainnet block. */
+export const END_OF_RUN_POLL_MS = 10_000 // 10 seconds
+
+/** A Safe tx this run broadcast whose receipt the executor did not see. */
+export interface IRunSubmission {
+  network: string
+  /** The row's `_id` — `safeTxHash` alone can match a re-proposed tx's older row. */
+  rowId: ObjectId
+}
+
+const isSettled = (status: SafeTxStatus | undefined): boolean =>
+  status === 'executed' || status === 'reverted'
+
+export interface IRunSubmissionReconcileOptions
+  extends Omit<IReconcileAllOptions, 'network'> {
+  waitMs?: number
+  pollMs?: number
+  /** Injectable for tests. */
+  sleep?: (ms: number) => Promise<void>
+  /** Injectable for tests. */
+  now?: () => number
+}
+
+/**
+ * Resolves the executions this run left `submitted` before the run exits.
+ *
+ * Sweep A reads each receipt once, so a reconcile run right after the last
+ * execution would see it as missing and leave it `submitted` — with its
+ * timelock op never queued until some later run. This re-runs the reconcile
+ * for the Safes those rows belong to until every row is `executed` or
+ * `reverted`, or `waitMs` elapses. A row still `pending` keeps the wait going:
+ * its status write failed after the broadcast, and Sweep B back-fills it once
+ * the execution is mined — which is why the Safes are taken from the rows
+ * rather than from the `submitted` rows {@link reconcileAllSubmittedSafeTxs}
+ * sweeps.
+ *
+ * @param pendingTransactions - Safe tx collection.
+ * @param submissions - This run's executions that came back without a receipt.
+ * @param options - Wait bounds plus the {@link reconcileAllSubmittedSafeTxs} seams.
+ * @returns Final status of each submission's row, keyed by `rowId.toHexString()`.
+ */
+export async function reconcileRunSubmissions(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  submissions: IRunSubmission[],
+  options?: IRunSubmissionReconcileOptions
+): Promise<Map<string, SafeTxStatus>> {
+  const evmSubmissions = submissions.filter(
+    (s) => !isTronNetworkKey(s.network.toLowerCase())
+  )
+  const statuses = new Map<string, SafeTxStatus>()
+  if (evmSubmissions.length === 0) return statuses
+
+  const waitMs = options?.waitMs ?? END_OF_RUN_WAIT_MS
+  const pollMs = options?.pollMs ?? END_OF_RUN_POLL_MS
+  const wait = options?.sleep ?? sleep
+  const now = options?.now ?? Date.now
+  const deadline = now() + waitMs
+  const readRows = (ids: ObjectId[]) =>
+    pendingTransactions.find({ _id: { $in: ids } }).toArray()
+
+  const reconcileOptions: IRunSubmissionReconcileOptions = {
+    ...options,
+    preferredRowIds: new Set(evmSubmissions.map((s) => s.rowId.toHexString())),
+  }
+
+  let open = await readRows(evmSubmissions.map((s) => s.rowId))
+  for (;;) {
+    await reconcileSafesOf(pendingTransactions, open, reconcileOptions)
+
+    const rows = await readRows(open.map((row) => row._id))
+    for (const row of rows) statuses.set(row._id.toHexString(), row.status)
+
+    open = rows.filter((row) => !isSettled(row.status))
+    if (open.length === 0 || now() + pollMs > deadline) return statuses
+
+    consola.info(
+      `Waiting for ${open.length} execution(s) to confirm before exit…`
+    )
+    await wait(pollMs)
+  }
 }
 
 /**
@@ -360,7 +483,7 @@ async function sweepA(
       if (now - submittedAtMs > graceMs) {
         const droppedHash = row.executionHash
         await pendingTransactions.updateOne(
-          { safeTxHash: { $eq: row.safeTxHash } },
+          { _id: { $eq: row._id } },
           {
             $set: { status: 'pending' },
             $unset: { executionHash: '', submittedAt: '' },
@@ -376,7 +499,7 @@ async function sweepA(
     }
     if (status === 'success') {
       await pendingTransactions.updateOne(
-        { safeTxHash: { $eq: row.safeTxHash } },
+        { _id: { $eq: row._id } },
         { $set: { status: 'executed' } }
       )
       result.promoted++
@@ -396,7 +519,7 @@ async function sweepA(
       )
     } else {
       await pendingTransactions.updateOne(
-        { safeTxHash: { $eq: row.safeTxHash } },
+        { _id: { $eq: row._id } },
         { $set: { status: 'reverted' } }
       )
       result.reverted++
@@ -405,6 +528,24 @@ async function sweepA(
       )
     }
   }
+}
+
+/**
+ * Chooses which of the `pending` rows sharing an executed `safeTxHash` the
+ * execution belongs to: a row in `preferredRowIds`, else the newest — a
+ * re-proposed payload gets a new row with the same hash.
+ */
+function pickBackfillRow<T extends { _id: ObjectId }>(
+  candidates: T[],
+  preferredRowIds: ReadonlySet<string>
+): T | undefined {
+  let newest: T | undefined
+  for (const row of candidates) {
+    const id = row._id.toHexString()
+    if (preferredRowIds.has(id)) return row
+    if (!newest || id > newest._id.toHexString()) newest = row
+  }
+  return newest
 }
 
 /**
@@ -419,6 +560,7 @@ async function sweepB(
   safeAddress: Address,
   lookbackBlocks: bigint,
   enqueueFn: typeof enqueueTimelockOpIfApplicable,
+  preferredRowIds: ReadonlySet<string>,
   result: IReconcileResult
 ): Promise<void> {
   let latestBlock: bigint
@@ -471,16 +613,19 @@ async function sweepB(
     // Read the row first so we have access to its calldata for the
     // timelock enqueue below. The status:'pending' filter doubles as the
     // "did we actually back-fill anything?" guard.
-    const candidate = await pendingTransactions.findOne({
-      safeTxHash: { $eq: safeTxHash },
-      network: { $eq: networkKey },
-      chainId: { $eq: chainId },
-      status: { $eq: 'pending' },
-    })
+    const candidates = await pendingTransactions
+      .find({
+        safeTxHash: { $eq: safeTxHash },
+        network: { $eq: networkKey },
+        chainId: { $eq: chainId },
+        status: { $eq: 'pending' },
+      })
+      .toArray()
+    const candidate = pickBackfillRow(candidates, preferredRowIds)
     if (!candidate) continue
 
     await pendingTransactions.updateOne(
-      { safeTxHash: { $eq: safeTxHash } },
+      { _id: { $eq: candidate._id } },
       {
         $set: {
           status: isSuccess ? 'executed' : 'reverted',
