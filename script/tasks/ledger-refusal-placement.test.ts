@@ -20,6 +20,8 @@ import {
 
 /** Every refusal here precedes any network work, so it arrives well inside this. */
 const TIMEOUT_MS = 20_000
+/** Bun's 5s default fires before a cold spawn finishes on a loaded full-suite run. */
+const TEST_TIMEOUT_MS = TIMEOUT_MS + 5_000
 
 const run = (...args: string[]): string => {
   const result = Bun.spawnSync(
@@ -51,55 +53,71 @@ describe('a Ledger run that would propose more than once is refused', () => {
       '--allNetworks',
       ['--allNetworks', '--environment', 'production', '--yes'],
     ],
-  ])('refuses a fleet sweep that will propose (%s)', (_label, args) => {
-    expect(run(...args, '--ledger')).toContain('cannot be combined')
-  })
+  ])(
+    'refuses a fleet sweep that will propose (%s)',
+    (_label, args) => {
+      expect(run(...args, '--ledger')).toContain('cannot be combined')
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('refuses several periphery names on one network', () => {
-    expect(
-      run(
-        '--network',
-        'mainnet',
-        '--environment',
-        'production',
-        '--periphery',
-        '["Executor","FeeCollector"]',
-        '--ledger'
-      )
-    ).toContain('cannot be combined')
-  })
+  it(
+    'refuses several periphery names on one network',
+    () => {
+      expect(
+        run(
+          '--network',
+          'mainnet',
+          '--environment',
+          'production',
+          '--periphery',
+          '["Executor","FeeCollector"]',
+          '--ledger'
+        )
+      ).toContain('cannot be combined')
+    },
+    TEST_TIMEOUT_MS
+  )
 })
 
 describe('the argv readers are wired into the real command', () => {
-  it('refuses a value it cannot read, rather than guessing', () => {
-    expect(
-      run(
-        '--network',
-        'mainnet',
-        '--environment',
-        'production',
-        '--periphery',
-        '["Executor"]',
-        '--ledger',
-        '--ledgerLive=no'
-      )
-    ).toContain("accepts no value, 'true' or 'false'")
-  })
+  it(
+    'refuses a value it cannot read, rather than guessing',
+    () => {
+      expect(
+        run(
+          '--network',
+          'mainnet',
+          '--environment',
+          'production',
+          '--periphery',
+          '["Executor"]',
+          '--ledger',
+          '--ledgerLive=no'
+        )
+      ).toContain("accepts no value, 'true' or 'false'")
+    },
+    TEST_TIMEOUT_MS
+  )
 
-  it('refuses the same flag twice', () => {
-    expect(
-      run(
-        '--network',
-        'mainnet',
-        '--environment',
-        'production',
-        '--periphery',
-        '["Executor"]',
-        '--ledger=false',
-        '--ledger'
-      )
-    ).toContain('given more than once')
-  })
+  it(
+    'refuses the same flag twice',
+    () => {
+      expect(
+        run(
+          '--network',
+          'mainnet',
+          '--environment',
+          'production',
+          '--periphery',
+          '["Executor"]',
+          '--ledger=false',
+          '--ledger'
+        )
+      ).toContain('given more than once')
+    },
+    TEST_TIMEOUT_MS
+  )
 })
 
 describe('the interactive periphery multiselect refuses before it proposes', () => {
