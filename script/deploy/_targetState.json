@@ -31,7 +31,7 @@
         "AllBridgeFacet": "latest",
         "ArbitrumBridgeFacet": "latest",
         "CelerCircleBridgeFacet": "latest",
-        "ChainflipFacet": "latest",
+        "ChainflipFacet": "1.0.0",
         "ReceiverChainflip": "latest",
         "EcoFacet": "latest",
         "DeBridgeDlnFacet": "latest",
@@ -116,7 +116,7 @@
         "ReceiverAcrossV4": "latest",
         "AllBridgeFacet": "latest",
         "CelerCircleBridgeFacet": "latest",
-        "ChainflipFacet": "latest",
+        "ChainflipFacet": "1.0.0",
         "ReceiverChainflip": "latest",
         "EcoFacet": "latest",
         "DeBridgeDlnFacet": "latest",
@@ -195,7 +195,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "ThorSwapFacet": "latest",
+        "ThorSwapFacet": "1.2.0",
         "FraxFacet": "latest"
       }
     }
@@ -461,7 +461,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "ThorSwapFacet": "latest",
+        "ThorSwapFacet": "1.2.0",
         "ReceiverOIF": "latest",
         "FraxFacet": "latest"
       }
