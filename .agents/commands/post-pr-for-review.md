@@ -31,7 +31,7 @@ SC-critical paths also need Smart Contract Core. Classify from the files the PR 
 ```bash
 gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
   --jq '.[] | .filename, (.previous_filename // empty)' \
-  | grep -qE '^(src/|script/deploy/safe/|script/emergency/)' && echo critical || echo routine
+  | grep -E '^(src/|script/deploy/safe/|script/emergency/)' >/dev/null && echo critical || echo routine
 ```
 
 `previous_filename` counts so a file renamed out of a critical path still routes to SC Core.
