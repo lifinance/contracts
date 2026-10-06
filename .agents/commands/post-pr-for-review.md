@@ -29,12 +29,13 @@ The thread tag follows the `main` ruleset: any API Expansion approval merges a P
 SC-critical paths also need Smart Contract Core. Classify from the files the PR touches:
 
 ```bash
-gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
-  --jq '.[] | .filename, (.previous_filename // empty)' \
-  | grep -E '^(src/|script/deploy/safe/|script/emergency/)' >/dev/null && echo critical || echo routine
+files=$(gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
+  --jq '.[] | .filename, (.previous_filename // empty)') && [ -n "$files" ] || { echo "files lookup failed"; exit 1; }
+grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo critical || echo routine
 ```
 
-`previous_filename` counts so a file renamed out of a critical path still routes to SC Core.
+`previous_filename` counts so a file renamed out of a critical path still routes to SC Core. A failed lookup
+must stop the post, never default to `routine`.
 
 | Result     | Group                  | Thread tag (`GROUP_TAG`) |
 | ---------- | ---------------------- | ------------------------ |
