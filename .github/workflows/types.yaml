@@ -28,13 +28,16 @@ jobs:
     permissions:
       contents: read # required to fetch repository contents (tags are pushed to lifi-contract-types via SSH key, not GITHUB_TOKEN)
       pull-requests: read # required to read PR labels when gating the job
+    # Upstream-only: publishes tags to the shared lifinance/lifi-contract-types repo. A fork
+    # (e.g. contracts-tron) has no types of its own, so its runs would only publish duplicate tags.
     if: >-
       ${{
-        github.event_name == 'push' ||
-        github.event_name == 'workflow_dispatch' ||
-        (github.event_name == 'pull_request' &&
-         github.event.pull_request.draft == false &&
-         contains(github.event.pull_request.labels.*.name, 'requires-types'))
+        github.repository == 'lifinance/contracts' &&
+        (github.event_name == 'push' ||
+         github.event_name == 'workflow_dispatch' ||
+         (github.event_name == 'pull_request' &&
+          github.event.pull_request.draft == false &&
+          contains(github.event.pull_request.labels.*.name, 'requires-types')))
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 20

@@ -4,7 +4,8 @@
 #   holds no private key.
 # - Triggers: every 10 minutes (cron) and manual workflow_dispatch
 # - Key behaviors:
-#     * Scheduled runs are on unless the repo variable ENABLE_TIMELOCK_WATCHER is "false"
+#     * Runs only in lifinance/contracts (skipped on forks); there, scheduled runs are on unless the
+#       repo variable ENABLE_TIMELOCK_WATCHER is "false"
 #     * Operations are found on chain from CallScheduled/CallSalt/Cancelled logs, not from the execution
 #       queue, so a schedule made by any route is seen; the queue is only a cross-check
 #     * Per operation: op-id recompute, schedule state, delay against config/timelockController.json,
@@ -64,7 +65,9 @@ concurrency:
 
 jobs:
   watch-timelocks:
-    if: github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_WATCHER != 'false'
+    # Upstream-only: forks that sync this file (e.g. contracts-tron) have no deployments/*.json, so
+    # every operation reads as unverified and pages Slack. On forks the job is skipped (neutral).
+    if: github.repository == 'lifinance/contracts' && (github.event_name == 'workflow_dispatch' || vars.ENABLE_TIMELOCK_WATCHER != 'false')
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
