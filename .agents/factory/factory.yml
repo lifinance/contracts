@@ -84,6 +84,10 @@ repo:
   # run-ts-tests, verify-signed-commits and Aikido run only once a PR leaves draft
   ci:
     skips_drafts: true
+  # Zeus reviews against the EXSC ticket once CI and CodeRabbit are clean; contracts' own qa-review-trigger.yml is the doorbell
+  qa:
+    agents:
+      - { id: zeus, at: after_bots, skip_paths: ['**/*.md', 'docs/**'] }
   # Checked in the verify sandbox with the daemons' PATH at every prepare, and by doctor; a gap stops the job.
   # The verify sandbox has no network, so forge cannot download the compiler foundry.toml pins: it must already be in svm.
   requires:
