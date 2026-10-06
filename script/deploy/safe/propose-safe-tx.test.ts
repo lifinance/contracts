@@ -21,7 +21,6 @@ import type { Address, Hex } from 'viem'
 import { proposeSafeTx, type ProposalPayload } from './propose-safe-tx'
 import {
   OperationTypeEnum,
-  type IProposalProvenance,
   type ISafeTransaction,
   type ISafeTxDocument,
   type SafeClient,
@@ -172,17 +171,6 @@ const callPayload: ProposalPayload = {
   nonce: 7n,
 }
 
-/** Without it the store probes git and `gh`, which can outlast the test timeout. */
-const FIXED_PROVENANCE: IProposalProvenance = {
-  actor: 'human',
-  proposerHandle: 'Test User <test@example.com>',
-  gitCommit: 'a'.repeat(40),
-  gitBranch: 'test-branch',
-  dirtyTreeScoped: [],
-  dirtyTreeRead: true,
-  capturedAt: '2026-01-01T00:00:00.000Z',
-}
-
 const run = async (
   safe: SafeClient,
   collection: Collection<ISafeTxDocument>,
@@ -198,7 +186,7 @@ const run = async (
     // Passed rather than set in the environment: the store hard-blocks a
     // proposal without one, and a suite that leans on `SAFE_PROPOSAL_TICKET`
     // would both depend on and disturb whatever else reads it.
-    provenance: { ticket: 'EXSC-957', override: FIXED_PROVENANCE },
+    provenance: { ticket: 'EXSC-957' },
   })
 
 describe('proposeSafeTx — the signer must be a Safe owner', () => {
@@ -293,11 +281,7 @@ describe('proposeSafeTx — what reaches the store', () => {
       pendingTransactions: collection,
       payload: callPayload,
       parkedTaskRefs: parkedTaskRefs as never,
-      provenance: {
-        ticket: 'EXSC-957',
-        reason: 'drained removals',
-        override: FIXED_PROVENANCE,
-      },
+      provenance: { ticket: 'EXSC-957', reason: 'drained removals' },
     })
 
     // The removals a proposal drains are only traceable to their origin PR
