@@ -7,7 +7,6 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { M0Facet } from "lifi/Facets/M0Facet.sol";
 import { IM0OrderBook } from "lifi/Interfaces/IM0OrderBook.sol";
-import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 // solhint-disable-next-line max-line-length
 import { CumulativeSlippageTooHigh, InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
@@ -616,9 +615,7 @@ contract M0FacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        // Solana is the only non-EVM destination the facet translates, so the sentinel is
-        // rejected outright here rather than reaching the uint32 narrowing
-        vm.expectRevert(InvalidReceiver.selector);
+        vm.expectRevert(SafeCastLib.Overflow.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -746,12 +743,7 @@ contract M0FacetTest is TestBaseFacet {
         validM0Data.tokenOut = SOLANA_TOKEN_OUT;
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LibBytes.NotAnAddress.selector,
-                SOLANA_TOKEN_OUT
-            )
-        );
+        vm.expectRevert(InvalidCallData.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -766,12 +758,7 @@ contract M0FacetTest is TestBaseFacet {
 
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LibBytes.NotAnAddress.selector,
-                SOLANA_TOKEN_OUT
-            )
-        );
+        vm.expectRevert(InvalidCallData.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -787,12 +774,7 @@ contract M0FacetTest is TestBaseFacet {
         validM0Data.solver = SOLANA_SOLVER;
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LibBytes.NotAnAddress.selector,
-                SOLANA_SOLVER
-            )
-        );
+        vm.expectRevert(InvalidCallData.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -807,12 +789,7 @@ contract M0FacetTest is TestBaseFacet {
 
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                LibBytes.NotAnAddress.selector,
-                SOLANA_SOLVER
-            )
-        );
+        vm.expectRevert(InvalidCallData.selector);
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();

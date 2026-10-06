@@ -22,11 +22,11 @@ import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 /// @notice This contract is not intended to custody user funds; any balance held is
 ///         incidental (transient during execution) and should not persist.
 /// @dev    The OrderBook is not a bridge in the usual sense: `openOrder` escrows the
-///         sending asset and returns, and a solver settles the order later on the
-///         destination chain. Same-chain orders (`destinationChainId == block.chainid`)
-///         take the same path and are therefore asynchronous escrow rather than atomic
-///         swaps, which is why both entrypoints emit `LiFiTransferStarted` rather than
-///         `GenericSwapCompleted`.
+///         sending asset and completes immediately, and a solver settles the order later
+///         on the destination chain. Same-chain orders
+///         (`destinationChainId == block.chainid`) take the same path and are therefore
+///         asynchronous escrow rather than atomic swaps, which is why both entrypoints emit
+///         `LiFiTransferStarted` rather than `GenericSwapCompleted`.
 ///
 ///         The facet validates only the bindings between `bridgeData` and `M0Data` and
 ///         leaves every protocol rule (deadline, zero amounts, solver/recipient
@@ -218,13 +218,13 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             _bridgeData.minAmount
         );
 
-        (uint256 m0ChainId, ) = _resolveDestination(
+        (uint32 m0ChainId, ) = _resolveDestination(
             _bridgeData.destinationChainId
         );
 
         M0_ORDER_BOOK.openOrder(
             IM0OrderBook.OrderParams({
-                destChainId: SafeCastLib.toUint32(m0ChainId),
+                destChainId: m0ChainId,
                 fillDeadline: _m0Data.fillDeadline,
                 tokenIn: _bridgeData.sendingAssetId,
                 tokenOut: _m0Data.tokenOut,
@@ -304,10 +304,14 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             // OrderBook narrows both with TypeConverter.toAddress — solver unconditionally,
             // before it checks the open-to-all bytes32(0). A value with non-zero high bytes
             // opens and escrows here, then reverts every fill attempt, stranding the
-            // deposit until fillDeadline. Both revert NotAnAddress; bytes32(0) passes, so
-            // an open-to-all order still works.
-            LibBytes.toAddress(_m0Data.tokenOut);
-            LibBytes.toAddress(_m0Data.solver);
+            // deposit until fillDeadline. bytes32(0) passes, so an open-to-all order still
+            // works.
+            if (uint256(_m0Data.tokenOut) >> 160 != 0) {
+                revert InvalidCallData();
+            }
+            if (uint256(_m0Data.solver) >> 160 != 0) {
+                revert InvalidCallData();
+            }
         }
     }
 
@@ -315,24 +319,22 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ///      the destination is non-EVM. Every non-EVM chain has two ids — the LI.FI one
     ///      callers pass and M0's own, which is what the OrderBook stores — and both halves
     ///      belong here so a chain cannot gain a translation without also being rejected in
-    ///      its raw M0 form: passed raw it would survive the `uint32` narrowing in
-    ///      `_startBridge` untouched and be treated as an EVM destination, escrowing to a
-    ///      left-padded EVM address no account on that chain owns and emitting no
-    ///      `BridgeToNonEVMChainBytes32`.
+    ///      its raw M0 form: passed raw it would survive the `uint32` narrowing untouched
+    ///      and be treated as an EVM destination, escrowing to a left-padded EVM address no
+    ///      account on that chain owns and emitting no `BridgeToNonEVMChainBytes32`.
     /// @param _destinationChainId The LI.FI destination chain id
-    /// @return m0ChainId The destination chain id the OrderBook expects. Narrowing stays at
-    ///         the `openOrder` call site, so an oversized id reaches the receiver-format
-    ///         check and fails it with `InvalidReceiver` rather than `Overflow`
+    /// @return m0ChainId The destination chain id the OrderBook expects. Ids wider than
+    ///         `uint32` (every untranslated LI.FI non-EVM id) revert with `Overflow`
     /// @return isNonEVM Whether the destination requires the `NON_EVM_ADDRESS` sentinel
     function _resolveDestination(
         uint256 _destinationChainId
-    ) private pure returns (uint256 m0ChainId, bool isNonEVM) {
+    ) private pure returns (uint32 m0ChainId, bool isNonEVM) {
         if (_destinationChainId == LIFI_CHAIN_ID_SOLANA) {
             return (M0_CHAIN_ID_SOLANA, true);
         }
         if (_destinationChainId == M0_CHAIN_ID_SOLANA) {
             revert InvalidCallData();
         }
-        return (_destinationChainId, false);
+        return (SafeCastLib.toUint32(_destinationChainId), false);
     }
 }
