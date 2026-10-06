@@ -1,6 +1,6 @@
 ---
 name: post-pr-for-review
-description: Post a `lifinance/contracts` pull request to `#dev-sc-review` and enable auto-merge (squash). Top-level message plus a thread reply tagging `@smartcontract_core`. Use when the user says "post PR for review", "send for review", "share for review", "post to dev-sc-review", or supplies a `lifinance/contracts` PR URL with review intent. Requires the Slack MCP server.
+description: Post a `lifinance/contracts` pull request to `#dev-sc-review` and enable auto-merge (squash). Top-level message plus a thread reply tagging `@smartcontract_core` if the PR touches SC-critical paths, else `@api_expansion-squad`. Use when the user says "post PR for review", "send for review", "share for review", "post to dev-sc-review", or supplies a `lifinance/contracts` PR URL with review intent. Requires the Slack MCP server.
 ---
 
 # Post PR for Review (Smart Contracts)
@@ -23,11 +23,26 @@ This skill posts to `#dev-sc-review` only. If the PR's `owner/repo` is not `lifi
 
 ## Channel and tag
 
-| Channel | Channel ID | Group tag |
-|---|---|---|
-| `#dev-sc-review` | `C088UJWC8PR` | `<!subteam^S096X6MCB0C>` (renders `@smartcontract_core`) |
+Channel: `#dev-sc-review` (`C088UJWC8PR`) for every contracts PR.
 
-`@smartcontract_core` MUST be sent as `<!subteam^S096X6MCB0C>` — plain `@…` does not notify (verified 2026-05-13).
+The thread tag follows the `main` ruleset: any API Expansion approval merges a PR, and PRs touching
+SC-critical paths also need Smart Contract Core. Classify from the files the PR touches:
+
+```bash
+gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
+  --jq '.[] | .filename, (.previous_filename // empty)' \
+  | grep -qE '^(src/|script/deploy/safe/|script/emergency/)' && echo critical || echo routine
+```
+
+`previous_filename` counts so a file renamed out of a critical path still routes to SC Core.
+
+| Result     | Group                  | Thread tag (`GROUP_TAG`) |
+| ---------- | ---------------------- | ------------------------ |
+| `critical` | `@smartcontract_core`  | `<!subteam^S096X6MCB0C>` |
+| `routine`  | `@api_expansion-squad` | `<!subteam^S0ADCJQC9F0>` |
+
+Keep the patterns in sync with the `required_reviewers` of the `main protection` ruleset.
+Group tags MUST be sent in `<!subteam^…>` form — plain `@…` does not notify (verified 2026-05-13).
 
 ## Post format
 
@@ -40,14 +55,14 @@ Top-level message (no prefix, no decorative emoji — channel is high-signal / l
 Thread reply (sent immediately after the top-level):
 
 ```text
-<!subteam^S096X6MCB0C> please review 🙏
+<GROUP_TAG> please review 🙏
 ```
 
 ## Workflow
 
 ### 1. Resolve PR
 
-Parse `owner/repo/pull/N` from URL or `gh pr view`. Extract `title`, `url`, `number`, `isDraft`. Confirm `owner/repo == lifinance/contracts`; otherwise hit the scope guard above.
+Parse `owner/repo/pull/N` from URL or `gh pr view`. Extract `title`, `url`, `number`, `isDraft`. Confirm `owner/repo == lifinance/contracts`; otherwise hit the scope guard above. Pick `GROUP_TAG` per "Channel and tag".
 
 ### 2. Pre-flight
 
@@ -72,9 +87,10 @@ Two blocking checks, one soft gate, and one workflow branch:
 
 - **Failing CI** (blocking, `gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore any check whose name ends in `(pull_request_review)` — those are review-gated workflows that haven't fired yet; posting is what triggers them, so blocking would be circular. Match on the suffix only — `version-control` and some `protect-*` checks appear in both push and `(pull_request_review)` forms; only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
 
-- **Audit checks are NON-blocking** — a check matching `audit-verification` / `audit-*` reporting `FAILURE` (or pending) does NOT block posting, in either its push or `(pull_request_review)` form. LI.FI's flow is SC-team review *first*, then audit (Sujith): the PR is posted to `#dev-sc-review` precisely so reviewers can sign off before the audit is requested. Continue to block on every non-audit failure.
+- **Audit checks are NON-blocking** — a check matching `audit-verification` / `audit-*` reporting `FAILURE` (or pending) does NOT block posting, in either its push or `(pull_request_review)` form. LI.FI's flow is SC-team review _first_, then audit (Sujith): the PR is posted to `#dev-sc-review` precisely so reviewers can sign off before the audit is requested. Continue to block on every non-audit failure.
 
 - **Aikido scan** (soft gate) — scan files changed on this branch for security findings:
+
   1. Try `aikido-mcp:aikido_full_scan` with `[{ relativeFilePath: "test.js", content: "// test" }]` to check availability.
   2. **MCP unavailable** → skip with: `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` Continue to step 3.
   3. **MCP available** → get changed files via `git diff --name-only main...HEAD`, scan them, filter against `.agents/references/aikido-false-positive-catalog.md`.
@@ -142,7 +158,7 @@ Channel ID: primary is `C088UJWC8PR`. Use `slack_search_channels` as a safety ne
 
 Top-level: `slack_send_message` with `text = "<url> << <title>"`. Capture `ts`.
 
-Thread reply: `slack_send_message` with `thread_ts = <ts>`, `text = "<!subteam^S096X6MCB0C> please review 🙏"`.
+Thread reply: `slack_send_message` with `thread_ts = <ts>`, `text = "<GROUP_TAG> please review 🙏"`.
 
 ### 7. Report
 
@@ -161,7 +177,8 @@ Posted to #dev-sc-review ✓ — auto-merge (squash) enabled
 
 - "also @ <person>" → append `@<person>` after the group tag in the thread reply.
 - "add context: <msg>" → append as a second thread reply, never the top-level.
-- "quiet ping" → drop the 🙏; thread reply becomes `<!subteam^S096X6MCB0C> please review`. Keep the subteam syntax — plain `@smartcontract_core` does not notify.
+- "quiet ping" → drop the 🙏; thread reply becomes `<GROUP_TAG> please review`. Keep the subteam syntax — plain `@…` does not notify.
+- "tag SC core" → use `<!subteam^S096X6MCB0C>` even for a routine PR.
 - "without auto-merge" → skip step 5.
 - Explicit channel override → use that channel; keep the post shape unless overridden too.
 
