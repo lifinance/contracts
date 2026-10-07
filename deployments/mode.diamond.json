@@ -3,7 +3,7 @@
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
@@ -11,7 +11,7 @@
       },
       "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
         "Name": "DiamondLoupeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xf600Caa1468FFaa0B8Eef877A84152e2bDdDe2Fb": {
         "Name": "WithdrawFacet",

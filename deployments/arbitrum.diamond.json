@@ -3,7 +3,7 @@
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",
