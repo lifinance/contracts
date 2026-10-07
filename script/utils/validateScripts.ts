@@ -172,7 +172,10 @@ const collectBareImportSpecifiers = (filePath: string): string[] => {
     let moduleSpecifier: Expression | undefined
     // Type-only imports are erased at runtime (tsx strips them), so a missing
     // package behind one cannot break script execution.
-    if (isImportDeclaration(node) && !node.importClause?.isTypeOnly)
+    if (
+      isImportDeclaration(node) &&
+      node.importClause?.phaseModifier !== SyntaxKind.TypeKeyword
+    )
       moduleSpecifier = node.moduleSpecifier
     else if (isExportDeclaration(node) && !node.isTypeOnly)
       moduleSpecifier = node.moduleSpecifier

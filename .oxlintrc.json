@@ -118,7 +118,7 @@
       { "accessibility": "explicit" }
     ],
     "typescript/method-signature-style": ["error", "property"],
-    "typescript/no-deprecated": "warn",
+    "typescript/no-deprecated": "error",
     "typescript/no-empty-interface": "error",
     "typescript/no-explicit-any": "warn",
     "typescript/no-extra-non-null-assertion": "error",
@@ -172,6 +172,12 @@
         "valid-typeof": "off",
 
         "typescript/no-var-requires": "error"
+      }
+    },
+    {
+      "files": ["script/demoScripts/demoMayanSolana.ts"],
+      "rules": {
+        "typescript/no-deprecated": "off"
       }
     }
   ]
