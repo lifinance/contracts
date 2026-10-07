@@ -110,7 +110,9 @@ jobs:
       - name: Install dependencies
         id: install
         # node-hid downloads a prebuilt binary and, when that download times out, falls back to a
-        # source build the runner cannot do (no libusb/libudev headers). The timeout is transient.
+        # source build the runner cannot do (no libusb/libudev headers). The timeout is transient,
+        # but a second `bun install` over the same node_modules skips a script that already failed
+        # and exits 0, so each retry starts from an empty node_modules.
         run: |
           set -o pipefail
           for attempt in 1 2 3; do
@@ -118,6 +120,7 @@ jobs:
               exit 0
             fi
             echo -e "\033[31mbun install attempt ${attempt} of 3 failed\033[0m"
+            rm -rf node_modules
             [ "$attempt" -lt 3 ] && sleep 15
           done
           exit 1
@@ -205,8 +208,9 @@ jobs:
           STEPS
           FIRST_ERROR=""
           if [ -n "$STEP_LOG" ] && [ -f "$STEP_LOG" ]; then
-            FIRST_ERROR=$(grep -m1 -E '^error:|(^|[^A-Za-z-])([A-Za-z]*Error|ERR!|error):? ' "$STEP_LOG" || true)
-            [ -z "$FIRST_ERROR" ] && FIRST_ERROR=$(grep -v '^[[:space:]]*$' "$STEP_LOG" | tail -n 1 || true)
+            FIRST_ERROR=$(grep -m1 -E '^(\[error\]|error:)' "$STEP_LOG" || true)
+            [ -z "$FIRST_ERROR" ] && FIRST_ERROR=$(grep -m1 -E '(^|[^A-Za-z-])([A-Za-z]*Error|ERR!|error):? ' "$STEP_LOG" || true)
+            [ -z "$FIRST_ERROR" ] && [ "$FAILED_OUTCOME" = "failure" ] && FIRST_ERROR=$(grep -v '^[[:space:]]*$' "$STEP_LOG" | tail -n 1 || true)
           fi
 
           if [ -n "$FAILED_STEP" ]; then
@@ -228,7 +232,7 @@ jobs:
           fi
           if [ -n "$FIRST_ERROR" ]; then
             # An RPC or webhook error can echo its URL, which may carry an API key.
-            FIRST_ERROR=$(sed -E 's#[a-z]+://[^[:space:]"]+#<url>#g' <<< "$FIRST_ERROR" | cut -c1-300)
+            FIRST_ERROR=$(sed -E -e 's#[A-Za-z][A-Za-z0-9+.-]*://[^[:space:]"]+#[redacted-url]#g' -e 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$FIRST_ERROR" | cut -c1-300)
             NOTICE="${NOTICE}"$'\n'"> ${FIRST_ERROR}"
           fi
           echo "$NOTICE"
