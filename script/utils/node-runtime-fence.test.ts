@@ -38,6 +38,23 @@ const REFUSED: Array<[string, string]> = [
   ['import.meta passed around', 'export const s = String(import.meta)\n'],
   ['the Bun global', "export const f = Bun.file('x')\n"],
   ['the Bun global in shorthand', 'export const o = { Bun }\n'],
+  [
+    'Bun read off an alias of globalThis',
+    'const g = globalThis\nexport const b = g.Bun\n',
+  ],
+  [
+    'Bun looked up by Reflect.get',
+    "export const b = Reflect.get(globalThis, 'Bun')\n",
+  ],
+  [
+    'a template lookup padded with an empty substitution',
+    // eslint-disable-next-line no-template-curly-in-string -- module source under test, not a template
+    'export const b = globalThis[`Bun${""}`]\n',
+  ],
+  [
+    'a member named Bun, which the rule cannot tell from the global',
+    'export const o = { Bun: 1 }\nexport const b = o.Bun\n',
+  ],
   ['globalThis.Bun', 'export const b = globalThis.Bun\n'],
   ["globalThis['Bun']", "export const b = globalThis['Bun']\n"],
   ['global.Bun', 'export const b = global.Bun\n'],
@@ -126,16 +143,8 @@ const ALLOWED: Array<[string, string]> = [
     'export const load = () => import(`bunyan`)\n',
   ],
   [
-    'a member named Bun',
-    'export const o = { Bun: 1 }\nexport const b = o.Bun\n',
-  ],
-  [
-    'a key named Bun destructured off another object',
-    'const o = { Bun: 1 }\nexport const { Bun: b } = o\n',
-  ],
-  [
-    'an object literal with a Bun key used as a default',
-    'export function g(a = { Bun: 1 }) {\n  return a\n}\n',
+    'a string that only contains the word Bun',
+    "export const s = 'Bun APIs are refused'\n",
   ],
   ['a mention in a comment', '// Bun.file and import.meta.main are refused\n'],
 ]
@@ -156,6 +165,15 @@ describe('the Node-runtime fence', () => {
         'script/tasks/someCli.test.ts'
       )
     ).toBe('')
+  })
+
+  it('leaves the fence itself alone, since it names Bun to build its rule', () => {
+    expect(
+      lint(readFileSync(join(REPO_ROOT, FENCE_SCRIPT), 'utf8'), FENCE_SCRIPT)
+    ).toBe('')
+    expect(
+      lint("export const b = 'Bun'\n", 'script/utils/other-fence.ts')
+    ).toContain(REFUSAL)
   })
 
   it('leaves files outside script/ and tasks/ alone', () => {
