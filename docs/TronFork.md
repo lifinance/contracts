@@ -373,6 +373,17 @@ new base is not what was audited.
 - Resolving a version-line conflict on an overlaid contract: **keep our
   `-tron` suffix and move the baseline**, never take upstream's plain
   version line. See [the fork-delta guard](#the-fork-delta-guard).
+- **Never** edit or re-mint `script/deploy/resources/buildAttestations.json`
+  in the fork: it stays upstream's file byte for byte. The fork mints no
+  manifest of its own (`mintBuildAttestations.yml` skips there), and gate K
+  grades Tron by rebuilding — see
+  [MultisigSigningProcess.md §8.1](./MultisigSigningProcess.md#81-reading-the-build-provenance-attestation).
+  If a sync conflicts on it, take upstream's version.
+- Committing a sync-conflict resolution locally runs the pre-commit
+  prettier hook, which has reformatted the Tron bypass in `LibAsset.sol`
+  and failed `version-control`. Commit with `HUSKY=0`, or check that
+  `git diff origin/main HEAD -- src/Libraries/LibAsset.sol src/Periphery/WithdrawablePeriphery.sol`
+  prints nothing before pushing.
 - Watch versioning: one `@custom:version` ↔ one bytecode. Use `-tron` /
   `-tron-rN` for anything that differs.
 
