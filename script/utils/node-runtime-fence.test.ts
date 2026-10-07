@@ -42,6 +42,44 @@ const REFUSED: Array<[string, string]> = [
   ["globalThis['Bun']", "export const b = globalThis['Bun']\n"],
   ['global.Bun', 'export const b = global.Bun\n'],
   ['Bun destructured off globalThis', 'export const { Bun } = globalThis\n'],
+  ['(globalThis).Bun', 'export const b = (globalThis).Bun\n'],
+  [
+    'globalThis cast before reading Bun',
+    'export const b = (globalThis as any).Bun\n',
+  ],
+  ["(global)['Bun']", "export const b = (global)['Bun']\n"],
+  [
+    'Bun destructured off globalThis under another name',
+    'export const { Bun: b } = globalThis\n',
+  ],
+  [
+    'Bun destructured off globalThis by a computed key',
+    "export const { ['Bun']: b } = globalThis\n",
+  ],
+  [
+    'Bun destructured off globalThis by a quoted key',
+    "export const { 'Bun': b } = globalThis\n",
+  ],
+  [
+    'Bun destructured off a parenthesized globalThis',
+    'export const { Bun: b } = (globalThis)\n',
+  ],
+  [
+    'Bun destructured off globalThis by assignment',
+    'let b: unknown\n;({ Bun: b } = globalThis)\nexport { b }\n',
+  ],
+  [
+    'Bun destructured off globalThis by shorthand assignment',
+    'let Bun: unknown\n;({ Bun } = globalThis)\nexport { Bun }\n',
+  ],
+  [
+    'Bun destructured off globalThis in a parameter default',
+    'export function g({ Bun: b } = globalThis) {\n  return b\n}\n',
+  ],
+  [
+    'Bun destructured off globalThis in a nested default',
+    'export const { o: { Bun: b } = globalThis } = {} as any\n',
+  ],
   ['a static bun import', "import { file } from 'bun'\nexport { file }\n"],
   [
     'a bun: import',
@@ -90,6 +128,14 @@ const ALLOWED: Array<[string, string]> = [
   [
     'a member named Bun',
     'export const o = { Bun: 1 }\nexport const b = o.Bun\n',
+  ],
+  [
+    'a key named Bun destructured off another object',
+    'const o = { Bun: 1 }\nexport const { Bun: b } = o\n',
+  ],
+  [
+    'an object literal with a Bun key used as a default',
+    'export function g(a = { Bun: 1 }) {\n  return a\n}\n',
   ],
   ['a mention in a comment', '// Bun.file and import.meta.main are refused\n'],
 ]

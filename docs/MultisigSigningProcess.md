@@ -316,12 +316,14 @@ Entry points:
   `script/deploy/safe/add-safe-owners-and-threshold.ts`. They share the storage
   seam (`proposeSafeTx`) but **not** `propose-to-safe.ts`, so the deploy gate
   below does not see them. None encodes a `diamondCut` today, so none installs
-  facet code. Every propose route is `git grep -l proposeSafeTx script` plus the
-  files still allowlisted in `script/deploy/safe/funnel-fence.ts` (the Tron route,
-  EXSC-984) — matched on the name alone, because a route importing it alongside
-  a type is invisible to a grep for the import statement. Run it rather than
-  trusting this sentence: the fence guarantees the two together are exhaustive,
-  not that this list is current.
+  facet code. Every propose route is
+  `git grep -l proposeSafeTx -- script ':!*.test.ts' ':!script/deploy/safe/propose-safe-tx.ts' ':!script/deploy/safe/funnel-fence.ts'`
+  (which drops the wrapper's own declaration, the fence's refusal message and the
+  tests) plus the files still allowlisted in `script/deploy/safe/funnel-fence.ts`
+  (the Tron route, EXSC-984) — matched on the name alone, because a route
+  importing it alongside a type is invisible to a grep for the import statement.
+  Run it rather than trusting this sentence: the fence guarantees the two
+  together are exhaustive, not that this list is current.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
 The proposal funnel additionally runs the production deploy gate before it signs

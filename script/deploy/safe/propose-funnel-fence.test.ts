@@ -10,14 +10,7 @@
  * through it.
  */
 
-import {
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'fs'
-import { tmpdir } from 'os'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { extname, join } from 'path'
 
 import {
@@ -250,8 +243,11 @@ describe('the fence runs where it has to run', () => {
       if (!STAGED_FENCE)
         throw new Error('package.json lint-staged has no funnel-fence entry')
 
-      // Outside the tree, so a crashed run leaves nothing the CI sweep would see.
-      const dir = mkdtempSync(join(tmpdir(), 'funnel-fence-'))
+      // Inside the repo, since the fence refuses a path outside it, but under an
+      // ignored directory, so a crashed run leaves nothing the CI sweep would see.
+      const cache = join(REPO_ROOT, 'node_modules', '.cache')
+      mkdirSync(cache, { recursive: true })
+      const dir = mkdtempSync(join(cache, 'funnel-fence-'))
       try {
         const file = join(dir, 'proposeSomethingNew.ts')
         writeFileSync(
@@ -310,16 +306,20 @@ describe('the fence runs where it has to run', () => {
 
   it('judges every module extension a propose route could be written at', () => {
     // Measured against what the tree actually holds — `.mjs` is in use today —
-    // rather than against a list written here.
-    const present = new Set<string>()
-    const walk = (dir: string): void => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (entry.isDirectory()) walk(join(dir, entry.name))
-        else present.add(extname(entry.name))
-      }
-    }
-    walk(join(REPO_ROOT, 'script'))
-    walk(join(REPO_ROOT, 'tasks'))
+    // rather than against a list written here, and over the whole tree, since
+    // that is what `bun lint:funnel` sweeps.
+    const listed = Bun.spawnSync(
+      ['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
+      { cwd: REPO_ROOT, stdout: 'pipe', stderr: 'pipe' }
+    )
+    expect(listed.exitCode).toBe(0)
+    const present = new Set(
+      listed.stdout
+        .toString()
+        .split('\0')
+        .filter((path) => path !== '')
+        .map((path) => extname(path))
+    )
 
     const moduleLike = [...present].filter((ext) =>
       /^\.[cm]?[jt]sx?$/.test(ext)

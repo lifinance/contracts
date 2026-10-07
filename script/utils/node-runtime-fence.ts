@@ -91,30 +91,86 @@ const isNameSlot = (node: ts.Identifier): boolean => {
 const readsBunGlobal = (node: ts.Node): boolean =>
   ts.isIdentifier(node) && node.text === 'Bun' && !isNameSlot(node)
 
-const isGlobalObject = (node: ts.Node | undefined): boolean =>
-  node !== undefined &&
-  ts.isIdentifier(node) &&
-  GLOBAL_OBJECTS.includes(node.text)
+/** `node` without the parentheses and type assertions that leave its value unchanged. */
+const unwrap = (node: ts.Node): ts.Node => {
+  let current = node
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  )
+    current = current.expression
+  return current
+}
 
-/** `globalThis.Bun`, `global['Bun']` and `const { Bun } = globalThis`. */
+const isGlobalObject = (node: ts.Node | undefined): boolean => {
+  if (node === undefined) return false
+  const value = unwrap(node)
+  return ts.isIdentifier(value) && GLOBAL_OBJECTS.includes(value.text)
+}
+
+const literalText = (node: ts.Node): string | undefined => {
+  const value = unwrap(node)
+  return ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)
+    ? value.text
+    : undefined
+}
+
+/** The name a property key spells: `Bun`, `'Bun'` and `['Bun']` all spell `Bun`. */
+const keyText = (key: ts.Node): string | undefined => {
+  if (ts.isIdentifier(key)) return key.text
+  if (ts.isComputedPropertyName(key)) return literalText(key.expression)
+  return literalText(key)
+}
+
+/** The value a destructuring pattern reads from, when the pattern is the target side. */
+const destructuredValue = (pattern: ts.Node): ts.Node | undefined => {
+  const { parent } = pattern
+  if (
+    ts.isVariableDeclaration(parent) ||
+    ts.isParameter(parent) ||
+    ts.isBindingElement(parent)
+  )
+    return parent.name === pattern ? parent.initializer : undefined
+  const isAssignmentTarget =
+    ts.isBinaryExpression(parent) &&
+    parent.left === pattern &&
+    parent.operatorToken.kind === ts.SyntaxKind.EqualsToken
+  return isAssignmentTarget ? parent.right : undefined
+}
+
+/**
+ * `{ Bun: b }` or `{ ['Bun']: b }` taken off a global object by declaration,
+ * parameter default or assignment. A shorthand `({ Bun } = globalThis)` reads
+ * the `Bun` identifier itself, so `readsBunGlobal` already refuses it.
+ */
+const destructuresBunOffGlobalObject = (node: ts.Node): boolean => {
+  let key: ts.Node
+  if (ts.isBindingElement(node) && ts.isObjectBindingPattern(node.parent))
+    key = node.propertyName ?? node.name
+  else if (
+    ts.isPropertyAssignment(node) &&
+    ts.isObjectLiteralExpression(node.parent)
+  )
+    key = node.name
+  else return false
+  return (
+    keyText(key) === 'Bun' && isGlobalObject(destructuredValue(node.parent))
+  )
+}
+
+/** `globalThis.Bun`, `(global)['Bun']` and `Bun` destructured off either. */
 const readsBunOffGlobalObject = (node: ts.Node): boolean => {
   if (ts.isPropertyAccessExpression(node))
     return isGlobalObject(node.expression) && node.name.text === 'Bun'
   if (ts.isElementAccessExpression(node))
     return (
       isGlobalObject(node.expression) &&
-      specifierText(node.argumentExpression) === 'Bun'
+      literalText(node.argumentExpression) === 'Bun'
     )
-  if (!ts.isBindingElement(node) || !ts.isObjectBindingPattern(node.parent))
-    return false
-  const key = node.propertyName ?? node.name
-  const declaration = node.parent.parent
-  return (
-    ts.isIdentifier(key) &&
-    key.text === 'Bun' &&
-    ts.isVariableDeclaration(declaration) &&
-    isGlobalObject(declaration.initializer)
-  )
+  return destructuresBunOffGlobalObject(node)
 }
 
 export const NODE_RUNTIME_FENCE: IFence = {
