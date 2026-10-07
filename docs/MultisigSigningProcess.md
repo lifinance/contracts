@@ -865,7 +865,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `script/deploy/safe/timelock-watcher.ts` / `.github/workflows/timelockWatcher.yml` | Report-only watch of every pending timelock operation, 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
 | `.github/workflows/enforceProposalFunnel.yml` | Fence: no propose route outside `proposeSafeTx` |
-| `.github/workflows/mintBuildAttestations.yml` | Verifies the committed build manifest on every PR; mints its build-provenance attestation on push to `main` |
+| `.github/workflows/mintBuildAttestations.yml` | Verifies the committed build manifest on every PR; mints its build-provenance attestation on push to `main`. Upstream only (§8.1) |
 | `tasks/buildAttestationManifest.ts` | Generates `script/deploy/resources/buildAttestations.json`; `bun attestations:mint` / `bun attestations:check` |
 | `.agents/commands/multisig-rollout.md` | The end-to-end rollout runbook |
 
@@ -895,6 +895,22 @@ one the manifest is read for — and the set of workflows holding
 The attestation binds a sha256 of exact bytes, so a manifest that differs by one
 space is one the attestation no longer covers. That is what the PR-time
 `verify-build-manifest` job exists to catch.
+
+The manifest is minted and attested in `lifinance/contracts` only. The
+`contracts-tron` fork keeps upstream's file byte-identical and the workflow
+skips there: the Tron `LibAsset` bypass compiles into nearly every facet, so a
+fork manifest would differ from upstream's on every version change and
+conflict on every sync. The fork therefore mints and attests nothing: its copy
+is upstream's file byte for byte, which upstream's attestation covers when
+verified with `--repo lifinance/contracts` as above. A Tron
+build whose source closure matches upstream's has a valid entry in upstream's
+file; any build that compiles the bypass has none, and the sign-time codehash
+gate (gate K) grades it by rebuilding at the deployment record's commit from
+the `contracts-tron` remote.
+
+Whoever turns the codehash gate into a lookup of this manifest (`A-CI`) has to
+keep the rebuild for every lookup that misses, on any network. A missing entry
+means "not minted here", not MISMATCH or UNVERIFIABLE.
 
 ## 9. Planned improvements (proposal stage — NOT yet implemented)
 
