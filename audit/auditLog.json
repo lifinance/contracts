@@ -757,6 +757,13 @@
       "auditReportPath": "./audit/reports/2026.09.29_LiFiIntentEscrowFacetV2(v2.0.0).pdf",
       "auditCommitHash": "331df8131f4bda1f05f9869b883a9031f9c06572",
       "finalCommitHash": "fcd05b9d02f38272b5384281bc310b5414001347"
+    },
+    "audit20261006": {
+      "auditCompletedOn": "06.10.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.10.06_PaxosTransitFacet(v2.0.0).pdf",
+      "auditCommitHash": "f750ab903ce54dd30c99785eca40c0ed471b52a8"
     }
   },
   "auditedContracts": {
@@ -945,7 +952,8 @@
       "1.0.0": ["audit20251119"]
     },
     "IPaxosTransit": {
-      "1.0.0": ["audit20260708"]
+      "1.0.0": ["audit20260708"],
+      "1.1.0": ["audit20261006"]
     },
     "ISupersetHubPoolManager": {
       "1.1.0": ["audit20260729"]
@@ -1075,7 +1083,8 @@
       "1.0.1": ["audit20251208"]
     },
     "PaxosTransitFacet": {
-      "1.0.0": ["audit20260708"]
+      "1.0.0": ["audit20260708"],
+      "2.0.0": ["audit20261006"]
     },
     "PeripheryRegistryFacet": {
       "1.0.0": ["audit20250508"]

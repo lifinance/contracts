@@ -14,6 +14,11 @@ Key properties of Paxos Transit:
   pays the LayerZero cross-chain messaging fee (`nativeFee`), not the offer asset.
 - The exchange rate is **locked by the signed quote** — there is no slippage / `amountOutMin`
   parameter. The output is `offerAmount − protocolFee − integratorFee`.
+- **Same-chain orders** (`route.destEID == TransitStation.thisChainEID()`, e.g. USDC → USDG on
+  Ethereum) send no LayerZero message: the station queues the order locally for its executor to
+  fill, and reverts (`SameChainOrdersRequireNoValue`) if any native value is attached. The signed
+  quote's `destEID` decides the mode; the facet requires `bridgeData.destinationChainId ==
+  block.chainid` for exactly these orders.
 - Orders are **market orders**: there is no user-initiated refund or cancellation, and no failure
   path returns funds to the submitter (the Diamond).
 
@@ -99,7 +104,7 @@ route.offerAsset`, `receiver == quote.receiver` — and that `distributorCode ==
 LIFI_DISTRIBUTOR_CODE` (`0x4c49464900…`, the left-adjusted bytes32 encoding of "LIFI"). Any
 mismatch reverts with `InformationMismatch`. Both entrypoints validate `minAmount == offerAmount`
 (reverting `InformationMismatch` on mismatch); on the swap path this also extends the non-zero
-`minAmount` guarantee from `validateBridgeData` to the swap floor. Both entrypoints require a
+`minAmount` guarantee from `validateBridgeDataPaxosTransit` to the swap floor. Both entrypoints require a
 non-zero `refundRecipient` (reverting `InvalidCallData`): all value belonging to the user — swap
 leftovers, positive slippage and excess native (including LayerZero fee overage refunded to the
 Diamond mid-call) — is routed there rather than to `msg.sender`, which may be a relayer or the
@@ -109,11 +114,20 @@ from diamond balance. The swap path has no such check because the fee may be fun
 ERC20→native pre-swap — `_depositAndSwap` reserves `nativeFee` of native from the leftover sweep
 so it remains available for `submitOrder`.
 
-**Not enforced on-chain:** the destination routing (`route.destEID`) and the destination asset
-(`route.wantAsset`) are *not* cross-checked against `_bridgeData.destinationChainId`. Funds always
+Same-chain vs cross-chain must agree between the two: `bridgeData.destinationChainId ==
+block.chainid` if and only if `route.destEID == TransitStation.thisChainEID()`, else the facet
+reverts `InformationMismatch`. A same-chain order must carry `nativeFee == 0` (reverts
+`InvalidCallData`); any native sent with it is refunded to `refundRecipient`. The station's
+`thisChainEID()` is read once in the constructor and stored as the `PAXOS_TRANSIT_THIS_CHAIN_EID` immutable. Both checks run at the
+start of each entrypoint, before any deposit or swap.
+
+**Not enforced on-chain:** beyond same-chain vs cross-chain, the destination routing
+(`route.destEID`) and the destination asset (`route.wantAsset`) are *not* cross-checked against
+`_bridgeData.destinationChainId`. Funds always
 follow the Paxos-signed quote, so these are trusted from the LI.FI-backend-generated, Paxos-signed
-calldata (the same trust model as `AcrossFacetV4`'s `outputAmount`). `_bridgeData.destinationChainId`
-is used only for analytics/events — only ever submit backend-generated calldata.
+calldata (the same trust model as `AcrossFacetV4`'s `outputAmount`). Apart from the same-chain
+check above, `_bridgeData.destinationChainId` is used only for analytics/events — only ever submit
+backend-generated calldata.
 
 ## Swap Data
 
