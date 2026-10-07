@@ -650,6 +650,42 @@ contract M0FacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_WhenBridgingToUntranslatedNonEVMChainOnSwapPath()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        validM0Data.receiverAddress = SOLANA_RECEIVER;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(SafeCastLib.Overflow.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenDestinationChainIdExceedsUint32OnSwapPath()
+        public
+    {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.destinationChainId = uint256(type(uint32).max) + 1;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(SafeCastLib.Overflow.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     // --- M0Data validation ---
 
     function testRevert_WhenRefundRecipientIsZero() public {
@@ -793,6 +829,49 @@ contract M0FacetTest is TestBaseFacet {
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
+    }
+
+    function testRevert_WhenEVMTokenOutIsOneBitWiderThanAnAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        validM0Data.tokenOut = bytes32(uint256(1) << 160);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenEVMSolverIsOneBitWiderThanAnAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        validM0Data.solver = bytes32(uint256(1) << 160);
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function test_CanOpenOrderWithMaxAddressTokenOutAndSolver() public {
+        vm.startPrank(USER_SENDER);
+
+        bytes32 maxAddress = bytes32(uint256(type(uint160).max));
+        validM0Data.tokenOut = maxAddress;
+        validM0Data.solver = maxAddress;
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.recordLogs();
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+
+        OpenedOrder memory opened = _lastOpenedOrder();
+        assertEq(opened.tokenOut, maxAddress);
+        assertEq(opened.solver, maxAddress);
     }
 
     /// @dev bytes32(0) means open to all solvers and must survive the guard above. Every

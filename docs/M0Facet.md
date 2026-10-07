@@ -319,8 +319,10 @@ struct M0Data {
   - `orderOwner` and `refundRecipient` stay EVM addresses — they live on the origin chain
   - A `BridgeToNonEVMChainBytes32` event is emitted alongside `LiFiTransferStarted`
   - The sentinel and the Solana destination are bound together: a Solana
-    `destinationChainId` with a plain EVM `bridgeData.receiver`, or the sentinel with any
-    non-Solana destination, both revert `InvalidReceiver`. There is no way to open a Solana
+    `destinationChainId` with a plain EVM `bridgeData.receiver`, or the sentinel with a
+    `uint32`-sized non-Solana destination, both revert `InvalidReceiver`. The sentinel with an
+    untranslated non-EVM id (Aptos, Sui, Tron, …) reverts solady's `Overflow()` first, in
+    `_resolveDestination`. There is no way to open a Solana
     order that skips `BridgeToNonEVMChainBytes32`, and no way to use the sentinel to escape
     the EVM `receiverAddress == bridgeData.receiver` check.
 
