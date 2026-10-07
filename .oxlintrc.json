@@ -139,6 +139,7 @@
     "import/default": "error",
     "import/export": "error",
     "import/first": "error",
+    "import/named": "error",
     "import/namespace": "error",
     "import/no-cycle": "error",
     "import/no-default-export": "error",
@@ -170,6 +171,7 @@
         "no-unreachable": "off",
         "no-unsafe-negation": "off",
         "valid-typeof": "off",
+        "import/named": "off",
 
         "typescript/no-var-requires": "error"
       }
