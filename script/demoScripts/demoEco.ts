@@ -23,8 +23,8 @@ import {
   type Hex,
   toHex,
   keccak256,
+  erc20Abi,
 } from 'viem'
-import { erc20Abi } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import ecoFacetArtifact from '../../out/EcoFacet.sol/EcoFacet.json'

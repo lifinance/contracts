@@ -387,7 +387,7 @@ async function hasEIP7702Delegation(
   address: Address
 ): Promise<boolean> {
   try {
-    const bytecode = await client.getBytecode({ address })
+    const bytecode = await client.getCode({ address })
     if (!bytecode || bytecode === '0x') return false
     // EIP-7702 delegations have exactly 23 bytes of code (0xef0100 + 20-byte address = 23 bytes)
     // In hex: 0x prefix (2 chars) + 23 bytes (46 hex chars) = 48 total characters

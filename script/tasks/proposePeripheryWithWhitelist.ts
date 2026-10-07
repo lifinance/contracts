@@ -594,7 +594,7 @@ export function evmRegistrationReader(
         args: [contract],
       }),
     hasCode: async (address) =>
-      isContractBytecode(await client.getBytecode({ address })),
+      isContractBytecode(await client.getCode({ address })),
   }
 }
 

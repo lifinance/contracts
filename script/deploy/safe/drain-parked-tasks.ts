@@ -438,7 +438,7 @@ export async function proposeWithDrain(
         'parked-task drain: could not open the queue (primary proposal unaffected):',
         error
       )
-      return proposePrimary([])
+      return await proposePrimary([])
     }
 
     try {
@@ -454,7 +454,7 @@ export async function proposeWithDrain(
           'parked-task drain: preparation failed (primary proposal unaffected):',
           error
         )
-        return proposePrimary([])
+        return await proposePrimary([])
       }
 
       const refs =

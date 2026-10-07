@@ -85,6 +85,7 @@ const findNativeSwapAndForwardEthQuote = async (
   route: (typeof NATIVE_ROUTES)[number]
 ) => {
   const quotes: Quote[] = await fetchQuote({
+    // oxlint-disable-next-line typescript/no-deprecated -- amountIn64 changes the quote request
     amount: NATIVE_AMOUNT_ETH,
     fromToken: NATIVE_ETH,
     fromChain: 'arbitrum',
@@ -229,6 +230,7 @@ const runErc20ForwardErc20 = async (
   const mayan = MayanFacet__factory.connect(LIFI_ADDRESS, provider)
 
   const quotes: Quote[] = await fetchQuote({
+    // oxlint-disable-next-line typescript/no-deprecated -- amountIn64 changes the quote request
     amount: WETH_AMOUNT,
     fromToken: ARB_WETH_ADDRESS,
     toToken: POLYGON_USDT_ADDRESS,
