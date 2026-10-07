@@ -23,6 +23,8 @@ by inserting a `.` before the last 6 digits (`p1783082088092039` → `1783082088
   queued/unexecuted ops on the same networks are never stoppers (mention as FYI at most).
 - **No lifi-connect tunnel.** Verification uses the non-gated `MONGODB_URI` timelock queue plus public RPCs.
   Do not call `list-pending-proposals.ts` (lifi-connect-gated `SC_MONGODB_URI`) as part of this skill.
+- **Hands off `.env`.** Never read, grep, `ls` or `test` it: it is deny-listed, so a refused
+  command proves nothing about the file. The Phase 2 script loads `.env` itself.
 - The thread must live in `#dev-sc-multisig-proposals` (`C09DKGYQ1GC`). Anything else: stop
   and ask.
 
@@ -31,8 +33,6 @@ by inserting a `.` before the last 6 digits (`p1783082088092039` → `1783082088
 - Slack MCP connected (read thread, send reply, add reaction). If missing, stop — the Slack
   closure is half the job.
 - `gh auth status` OK (deploy mode edits the rollout PR).
-- Never read, grep, `ls` or `test` `.env`: it is deny-listed, so a refused command proves nothing
-  about the file. The Phase 2 script loads `.env` itself and its exit code is the only check.
 
 ## Phase 1 — Parse the thread
 
