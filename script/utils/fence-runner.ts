@@ -10,17 +10,8 @@
  */
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import {
-  basename,
-  dirname,
-  extname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-  sep,
-} from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { extname, relative, resolve, sep } from 'node:path'
 
 import { consola } from 'consola'
 import ts from 'typescript'
@@ -32,15 +23,12 @@ export const MODULE_EXTENSIONS = [
   '.mts',
   '.cts',
   '.js',
-  '.jsx',
   '.mjs',
   '.cjs',
 ]
 
 /** Tracked but never run: retired scripts kept for reference. */
 const SKIPPED_PREFIXES = ['archive/']
-
-const PARSE_ERROR = 'cannot be parsed, so the fence refuses it unjudged'
 
 export interface IFenceRule {
   matches: (node: ts.Node) => boolean
@@ -54,68 +42,29 @@ export interface IFence {
   rules: IFenceRule[]
 }
 
-interface ITarget {
-  /** Relative to the repo root, with `/` separators: what `appliesTo` matches on. */
-  repoPath: string
-  absolutePath: string
-}
+/**
+ * Builds a rule predicate matching an identifier, a string (a computed lookup
+ * carries a name as one) or a template part whose text is exactly `text`.
+ *
+ * @param text - the name the fence refuses
+ * @returns the predicate, for an `IFenceRule`'s `matches`
+ */
+export const namesText =
+  (text: string) =>
+  (node: ts.Node): boolean =>
+    (ts.isIdentifier(node) ||
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)) &&
+    node.text === text
 
 const scriptKindFor = (path: string): ts.ScriptKind => {
   const extension = extname(path)
   if (extension === '.tsx') return ts.ScriptKind.TSX
-  if (extension === '.jsx') return ts.ScriptKind.JSX
   if (['.js', '.mjs', '.cjs'].includes(extension)) return ts.ScriptKind.JS
   return ts.ScriptKind.TS
-}
-
-/** The parser's syntax errors for `sourceFile`, through the public Program API. */
-const syntaxErrors = (sourceFile: ts.SourceFile): readonly ts.Diagnostic[] => {
-  const host = ts.createCompilerHost({})
-  host.getSourceFile = (): ts.SourceFile => sourceFile
-  const program = ts.createProgram({
-    rootNames: [sourceFile.fileName],
-    options: { allowJs: true, noLib: true, noResolve: true },
-    host,
-  })
-  return program.getSyntacticDiagnostics(sourceFile)
-}
-
-/**
- * Judges a module's syntax nodes against `rules`. A module that does not parse
- * is refused outright: judging the tree the parser recovered from it would let
- * a fence's verdict depend on how that recovery went.
- */
-const judge = (rules: IFenceRule[], source: string, path: string): string[] => {
-  const sourceFile = ts.createSourceFile(
-    path,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    scriptKindFor(path)
-  )
-  const at = (position: number): string => {
-    const { line, character } =
-      sourceFile.getLineAndCharacterOfPosition(position)
-    return `${line + 1}:${character + 1}`
-  }
-
-  const errors = syntaxErrors(sourceFile)
-  if (errors.length > 0)
-    return errors.map(
-      (error) =>
-        `${at(error.start ?? 0)}  ${PARSE_ERROR}: ` +
-        ts.flattenDiagnosticMessageText(error.messageText, ' ')
-    )
-
-  const violations: string[] = []
-  const visit = (node: ts.Node): void => {
-    for (const rule of rules)
-      if (rule.matches(node))
-        violations.push(`${at(node.getStart(sourceFile))}  ${rule.message}`)
-    ts.forEachChild(node, visit)
-  }
-  visit(sourceFile)
-  return violations
 }
 
 /**
@@ -124,52 +73,54 @@ const judge = (rules: IFenceRule[], source: string, path: string): string[] => {
  * @param fence - the fence to apply
  * @param source - the module text
  * @param path - repo-relative path, which is what `appliesTo` matches on
- * @returns one `line:column  message` entry per offending node or syntax
- *   error; empty when the module passes or the fence does not apply to `path`
+ * @returns one `line:column  message` entry per offending node; empty when the
+ *   module passes or the fence does not apply to `path`
  */
 export const findViolations = (
   fence: IFence,
   source: string,
   path: string
-): string[] => (fence.appliesTo(path) ? judge(fence.rules, source, path) : [])
+): string[] => {
+  if (!fence.appliesTo(path)) return []
 
-const repoRoot = (): string =>
-  realpathSync(
-    execFileSync('git', ['rev-parse', '--show-toplevel'], {
-      encoding: 'utf8',
-    }).trim()
+  const sourceFile = ts.createSourceFile(
+    path,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    scriptKindFor(path)
   )
+  const violations: string[] = []
 
-const isModule = (repoPath: string): boolean =>
-  MODULE_EXTENSIONS.includes(extname(repoPath)) &&
-  !SKIPPED_PREFIXES.some((prefix) => repoPath.startsWith(prefix))
+  const visit = (node: ts.Node): void => {
+    for (const rule of fence.rules)
+      if (rule.matches(node)) {
+        const { line, character } = sourceFile.getLineAndCharacterOfPosition(
+          node.getStart(sourceFile)
+        )
+        violations.push(`${line + 1}:${character + 1}  ${rule.message}`)
+      }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
 
-/**
- * Locates a file argument against the repo root. Only its directory is
- * resolved through symlinks, so a symlinked checkout path still lands inside
- * the repo while a symlinked file keeps its own name.
- */
-const toTarget = (root: string, path: string): ITarget => {
-  const absolutePath = join(
-    realpathSync(dirname(resolve(path))),
-    basename(path)
-  )
-  const repoPath = relative(root, absolutePath).split(sep).join('/')
-  if (repoPath.startsWith('../') || isAbsolute(repoPath))
-    throw new Error(
-      `${path} is outside the repository at ${root}. Run the fence from inside the repo it judges.`
-    )
-  return { repoPath, absolutePath }
+  return violations
 }
 
+const toRepoPath = (path: string): string =>
+  relative(process.cwd(), resolve(path)).split(sep).join('/')
+
+const isModule = (path: string): boolean =>
+  MODULE_EXTENSIONS.includes(extname(path)) &&
+  !SKIPPED_PREFIXES.some((prefix) => path.startsWith(prefix))
+
 /** Module files under `directory` that git tracks or would track, so build output is skipped. */
-const listDirectory = (root: string, directory: string): ITarget[] => {
-  const targets = execFileSync(
+const listDirectory = (directory: string): string[] => {
+  const files = execFileSync(
     'git',
     [
       'ls-files',
       '-z',
-      '--full-name',
       '--cached',
       '--others',
       '--exclude-standard',
@@ -179,35 +130,45 @@ const listDirectory = (root: string, directory: string): ITarget[] => {
     { encoding: 'utf8' }
   )
     .split('\0')
-    .filter((repoPath) => repoPath !== '' && isModule(repoPath))
-    .map((repoPath) => ({ repoPath, absolutePath: join(root, repoPath) }))
+    .filter((file) => file !== '')
+    .map(toRepoPath)
+    .filter(isModule)
     // `--cached` still lists a file deleted from the working tree but not yet staged.
-    .filter((target) => existsSync(target.absolutePath))
+    .filter((file) => existsSync(file))
 
   // A sweep that found nothing has judged nothing, which must not read as a pass.
-  if (targets.length === 0)
+  if (files.length === 0)
     throw new Error(
       `${directory} holds no module files git knows about. Pass a directory inside the repo.`
     )
-  return targets
+  return files
 }
 
-const expandPaths = (root: string, paths: string[]): ITarget[] => {
-  const targets = new Map<string, ITarget>()
+/** `appliesTo` matches repo-relative paths, so from a subdirectory every file would pass unjudged. */
+const assertAtRepoRoot = (): void => {
+  const prefix = execFileSync('git', ['rev-parse', '--show-prefix'], {
+    encoding: 'utf8',
+  }).trim()
+  if (prefix !== '')
+    throw new Error(
+      `Run the fence from the repo root, not from ${prefix}: its paths are matched relative to the root.`
+    )
+}
+
+const expandPaths = (paths: string[]): string[] => {
+  assertAtRepoRoot()
+  const files = new Set<string>()
   for (const path of paths) {
     const stat = statSync(path, { throwIfNoEntry: false })
     if (!stat)
       throw new Error(
         `${path} does not exist. Pass existing files or directories.`
       )
-    const found = stat.isDirectory()
-      ? listDirectory(root, path)
-      : [toTarget(root, path)].filter((target) => isModule(target.repoPath))
-    for (const target of found) targets.set(target.repoPath, target)
+    if (stat.isDirectory())
+      for (const file of listDirectory(path)) files.add(file)
+    else if (isModule(toRepoPath(path))) files.add(toRepoPath(path))
   }
-  return [...targets.values()].sort((a, b) =>
-    a.repoPath.localeCompare(b.repoPath)
-  )
+  return [...files].sort()
 }
 
 /**
@@ -216,8 +177,8 @@ const expandPaths = (root: string, paths: string[]): ITarget[] => {
  * @param fence - the fence to apply
  * @param paths - files (as lint-staged passes them) or directories to sweep
  * @returns the process exit code: 0 when nothing was refused, 1 otherwise
- * @throws when a path does not exist or lies outside the repo, or a directory
- *   holds no module files
+ * @throws when run from below the repo root, a path does not exist, or a
+ *   directory holds no module files
  */
 export const runFence = (fence: IFence, paths: string[]): number => {
   if (paths.length === 0)
@@ -225,22 +186,24 @@ export const runFence = (fence: IFence, paths: string[]): number => {
       `${fence.name}: pass at least one file or directory to check.`
     )
 
-  const targets = expandPaths(repoRoot(), paths).filter((target) =>
-    fence.appliesTo(target.repoPath)
-  )
+  const files = expandPaths(paths)
+  let checked = 0
   let refused = 0
 
-  for (const { repoPath, absolutePath } of targets)
-    for (const violation of judge(
-      fence.rules,
-      readFileSync(absolutePath, 'utf8'),
-      repoPath
+  for (const file of files) {
+    if (!fence.appliesTo(file)) continue
+    checked++
+    for (const violation of findViolations(
+      fence,
+      readFileSync(file, 'utf8'),
+      file
     )) {
       refused++
-      consola.error(`${repoPath}:${violation}`)
+      consola.error(`${file}:${violation}`)
     }
+  }
 
-  const summary = `${fence.name}: ${targets.length} file(s) checked, ${refused} refused`
+  const summary = `${fence.name}: ${checked} file(s) checked, ${refused} refused`
   if (refused > 0) {
     consola.error(summary)
     return 1

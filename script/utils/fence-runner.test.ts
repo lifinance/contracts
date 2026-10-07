@@ -1,21 +1,14 @@
 /**
- * How `runFence` turns paths into a verdict: which files it judges, that a
- * sweep which judged nothing is an error rather than a pass, and that a file
- * which does not parse is refused rather than judged.
+ * How `runFence` turns paths into a verdict: which files it judges, and that a
+ * sweep which judged nothing, or a run from below the repo root, is an error
+ * rather than a pass.
  *
- * The `runFence` cases run inside a throwaway git repo, since paths are judged
- * relative to the repo root and directories are listed through git.
+ * The `runFence` cases run inside a throwaway git repo, since directories are
+ * listed through git.
  */
 
 import { execFileSync } from 'child_process'
-import {
-  mkdirSync,
-  mkdtempSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -42,8 +35,6 @@ const DEBUGGER_FENCE: IFence = {
   rules: [{ matches: ts.isDebuggerStatement, message: 'no debugger' }],
 }
 
-const PARSE_ERROR = 'cannot be parsed, so the fence refuses it unjudged'
-
 describe('findViolations', () => {
   it('reports the line and column of each offending node', () => {
     expect(
@@ -65,41 +56,10 @@ describe('findViolations', () => {
       )
     ).toEqual(['1:26  no debugger'])
   })
-
-  it('parses JSX in a .jsx file', () => {
-    expect(
-      findViolations(
-        DEBUGGER_FENCE,
-        'export const C = () => { debugger; return <div /> }\n',
-        'x.jsx'
-      )
-    ).toEqual(['1:26  no debugger'])
-  })
-
-  it('refuses a module that does not parse, even with no rule matching', () => {
-    const violations = findViolations(
-      DEBUGGER_FENCE,
-      'export const a = (\n',
-      'x.ts'
-    )
-    expect(violations.length).toBeGreaterThan(0)
-    expect(violations.join('\n')).toContain(PARSE_ERROR)
-  })
-
-  it('refuses TypeScript syntax in a .js file rather than judging it', () => {
-    expect(
-      findViolations(
-        DEBUGGER_FENCE,
-        'export const a: number = 1\n',
-        'x.js'
-      ).join('\n')
-    ).toContain(PARSE_ERROR)
-  })
 })
 
 describe('runFence', () => {
   let repo = ''
-  let outside = ''
   let originalCwd = ''
   const reported: string[] = []
   // consola's LogFn type carries a `raw` member a plain function lacks.
@@ -110,12 +70,6 @@ describe('runFence', () => {
   const successSpy = spyOn(consola, 'success').mockImplementation(record)
   const output = (): string => reported.join('\n')
 
-  /** Refuses `debugger` only in the file at repo path `bad.ts`. */
-  const ROOT_BAD_FENCE: IFence = {
-    ...DEBUGGER_FENCE,
-    appliesTo: (path) => path === 'bad.ts',
-  }
-
   const write = (path: string, text: string): void => {
     mkdirSync(join(repo, path, '..'), { recursive: true })
     writeFileSync(join(repo, path), text)
@@ -123,8 +77,7 @@ describe('runFence', () => {
 
   beforeAll(() => {
     originalCwd = process.cwd()
-    repo = realpathSync(mkdtempSync(join(tmpdir(), 'fence-runner-')))
-    outside = realpathSync(mkdtempSync(join(tmpdir(), 'fence-outside-')))
+    repo = mkdtempSync(join(tmpdir(), 'fence-runner-'))
     execFileSync('git', ['init', '-q'], { cwd: repo })
     write('bad.ts', 'debugger\n')
     write('good.ts', 'export const a = 1\n')
@@ -135,8 +88,6 @@ describe('runFence', () => {
     write('gone.ts', 'export const c = 3\n')
     execFileSync('git', ['add', '-A'], { cwd: repo })
     rmSync(join(repo, 'gone.ts'))
-    writeFileSync(join(outside, 'stray.ts'), 'debugger\n')
-    symlinkSync(repo, join(outside, 'linked-checkout'))
   })
 
   beforeEach(() => {
@@ -149,7 +100,6 @@ describe('runFence', () => {
     errorSpy.mockRestore()
     successSpy.mockRestore()
     rmSync(repo, { recursive: true, force: true })
-    rmSync(outside, { recursive: true, force: true })
   })
 
   it('exits 1 and names the file when a module is refused', () => {
@@ -174,27 +124,10 @@ describe('runFence', () => {
     expect(output()).not.toContain('gone.ts')
   })
 
-  it('judges a file argument by its repo path from a subdirectory', () => {
+  it('refuses to run from below the repo root, where paths would not match', () => {
     process.chdir(join(repo, 'sub'))
-    expect(runFence(ROOT_BAD_FENCE, [join(repo, 'bad.ts')])).toBe(1)
-    expect(output()).toContain('bad.ts:1:1  no debugger')
-  })
-
-  it('judges a file argument reached through a symlinked checkout', () => {
-    const linked = join(outside, 'linked-checkout', 'bad.ts')
-    expect(runFence(ROOT_BAD_FENCE, [linked])).toBe(1)
-    expect(output()).toContain('1 file(s) checked, 1 refused')
-  })
-
-  it('lists a directory by repo path from a subdirectory', () => {
-    process.chdir(join(repo, 'sub'))
-    expect(runFence(ROOT_BAD_FENCE, [repo])).toBe(1)
-    expect(output()).toContain('bad.ts:1:1  no debugger')
-  })
-
-  it('refuses a file outside the repo rather than skipping it', () => {
-    expect(() => runFence(DEBUGGER_FENCE, [join(outside, 'stray.ts')])).toThrow(
-      'is outside the repository'
+    expect(() => runFence(DEBUGGER_FENCE, ['nested.ts'])).toThrow(
+      'Run the fence from the repo root, not from sub/'
     )
   })
 

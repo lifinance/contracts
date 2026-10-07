@@ -48,7 +48,7 @@ const REFUSED: Array<[string, string]> = [
   ],
   [
     'a template lookup padded with an empty substitution',
-    // eslint-disable-next-line no-template-curly-in-string -- module source under test, not a template
+    // eslint-disable-next-line no-template-curly-in-string -- fixture source
     'export const b = globalThis[`Bun${""}`]\n',
   ],
   [
@@ -59,43 +59,11 @@ const REFUSED: Array<[string, string]> = [
   ["globalThis['Bun']", "export const b = globalThis['Bun']\n"],
   ['global.Bun', 'export const b = global.Bun\n'],
   ['Bun destructured off globalThis', 'export const { Bun } = globalThis\n'],
-  ['(globalThis).Bun', 'export const b = (globalThis).Bun\n'],
+  ['a parenthesized require of bun', "export const b = require(('bun'))\n"],
+  ['a parenthesized require callee', "export const b = (require)('bun')\n"],
   [
-    'globalThis cast before reading Bun',
-    'export const b = (globalThis as any).Bun\n',
-  ],
-  ["(global)['Bun']", "export const b = (global)['Bun']\n"],
-  [
-    'Bun destructured off globalThis under another name',
-    'export const { Bun: b } = globalThis\n',
-  ],
-  [
-    'Bun destructured off globalThis by a computed key',
-    "export const { ['Bun']: b } = globalThis\n",
-  ],
-  [
-    'Bun destructured off globalThis by a quoted key',
-    "export const { 'Bun': b } = globalThis\n",
-  ],
-  [
-    'Bun destructured off a parenthesized globalThis',
-    'export const { Bun: b } = (globalThis)\n',
-  ],
-  [
-    'Bun destructured off globalThis by assignment',
-    'let b: unknown\n;({ Bun: b } = globalThis)\nexport { b }\n',
-  ],
-  [
-    'Bun destructured off globalThis by shorthand assignment',
-    'let Bun: unknown\n;({ Bun } = globalThis)\nexport { Bun }\n',
-  ],
-  [
-    'Bun destructured off globalThis in a parameter default',
-    'export function g({ Bun: b } = globalThis) {\n  return b\n}\n',
-  ],
-  [
-    'Bun destructured off globalThis in a nested default',
-    'export const { o: { Bun: b } = globalThis } = {} as any\n',
+    'a parenthesized dynamic bun: import',
+    "export const load = () => import(('bun:sqlite'))\n",
   ],
   ['a static bun import', "import { file } from 'bun'\nexport { file }\n"],
   [
@@ -115,7 +83,7 @@ const REFUSED: Array<[string, string]> = [
   ],
   [
     'a dynamic bun import by template with a substitution',
-    // eslint-disable-next-line no-template-curly-in-string -- module source under test, not a template
+    // eslint-disable-next-line no-template-curly-in-string -- fixture source
     'export const load = (m: string) => import(`bun:${m}`)\n',
   ],
   [

@@ -10,7 +10,8 @@
  * through it.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { extname, join } from 'path'
 
 import {
@@ -92,21 +93,21 @@ describe('the funnel fence refuses a new propose route', () => {
     [
       'a template lookup padded with an empty substitution before the name',
       `import * as safeUtils from '../deploy/safe/safe-utils'\n` +
-        // eslint-disable-next-line no-template-curly-in-string -- module source under test, not a template
+        // eslint-disable-next-line no-template-curly-in-string -- fixture source
         'export const propose = safeUtils[`storeTransactionInMongoDB${""}`]\n',
       BYPASS_PATH,
     ],
     [
       'a template lookup padded with an empty substitution after the name',
       `import * as safeUtils from '../deploy/safe/safe-utils'\n` +
-        // eslint-disable-next-line no-template-curly-in-string -- module source under test, not a template
+        // eslint-disable-next-line no-template-curly-in-string -- fixture source
         'export const propose = safeUtils[`${""}storeTransactionInMongoDB`]\n',
       BYPASS_PATH,
     ],
     [
       'a template lookup with the name between two empty substitutions',
       `import * as safeUtils from '../deploy/safe/safe-utils'\n` +
-        // eslint-disable-next-line no-template-curly-in-string -- module source under test, not a template
+        // eslint-disable-next-line no-template-curly-in-string -- fixture source
         'export const propose = safeUtils[`${""}storeTransactionInMongoDB${""}`]\n',
       BYPASS_PATH,
     ],
@@ -243,11 +244,8 @@ describe('the fence runs where it has to run', () => {
       if (!STAGED_FENCE)
         throw new Error('package.json lint-staged has no funnel-fence entry')
 
-      // Inside the repo, since the fence refuses a path outside it, but under an
-      // ignored directory, so a crashed run leaves nothing the CI sweep would see.
-      const cache = join(REPO_ROOT, 'node_modules', '.cache')
-      mkdirSync(cache, { recursive: true })
-      const dir = mkdtempSync(join(cache, 'funnel-fence-'))
+      // Outside the tree, so a crashed run leaves nothing the CI sweep would see.
+      const dir = mkdtempSync(join(tmpdir(), 'funnel-fence-'))
       try {
         const file = join(dir, 'proposeSomethingNew.ts')
         writeFileSync(

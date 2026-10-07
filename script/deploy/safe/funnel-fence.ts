@@ -16,10 +16,8 @@
  * no comments, so no inline disable can switch it off.
  */
 
-import ts from 'typescript'
-
 import { isEntrypoint } from '../../utils/is-entrypoint'
-import { type IFence, runFence } from '../../utils/fence-runner'
+import { type IFence, namesText, runFence } from '../../utils/fence-runner'
 
 const FUNNEL = 'storeTransactionInMongoDB'
 
@@ -51,8 +49,7 @@ const MESSAGE =
   `a reason and a ticket.`
 
 /**
- * An identifier, a string (a computed lookup carries the name as one) or a
- * template part naming the funnel.
+ * Refuses every node spelling the funnel's name.
  *
  * Not covered, deliberately: a name assembled by concatenation, which no static
  * check can see, and an alias re-exported from an allowlisted file, which
@@ -60,20 +57,12 @@ const MESSAGE =
  * is a rewrite anyone reaches for by accident; the allowlisted files export no
  * such alias today.
  */
-const namesFunnel = (node: ts.Node): boolean =>
-  (ts.isIdentifier(node) ||
-    ts.isStringLiteral(node) ||
-    ts.isNoSubstitutionTemplateLiteral(node) ||
-    ts.isTemplateHead(node) ||
-    ts.isTemplateMiddle(node) ||
-    ts.isTemplateTail(node)) &&
-  node.text === FUNNEL
-
 export const FUNNEL_FENCE: IFence = {
   name: 'funnel fence',
   appliesTo: (path) => !FUNNEL_ALLOWLIST.includes(path),
-  rules: [{ matches: namesFunnel, message: MESSAGE }],
+  rules: [{ matches: namesText(FUNNEL), message: MESSAGE }],
 }
 
+// `exitCode` rather than `exit()`, which can cut off output still queued for a pipe.
 if (isEntrypoint(import.meta.url))
-  process.exit(runFence(FUNNEL_FENCE, process.argv.slice(2)))
+  process.exitCode = runFence(FUNNEL_FENCE, process.argv.slice(2))

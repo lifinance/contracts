@@ -23,7 +23,7 @@
 
 import ts from 'typescript'
 
-import { type IFence, runFence } from './fence-runner'
+import { type IFence, namesText, runFence } from './fence-runner'
 import { isEntrypoint } from './is-entrypoint'
 
 const NODE_IMPORT_META_MEMBERS = ['url', 'dirname', 'filename', 'resolve']
@@ -55,9 +55,14 @@ const isUnsupportedImportMeta = (node: ts.Node): boolean => {
   return !isSupportedMemberRead
 }
 
+/** ESLint's AST drops parentheses; the TypeScript AST keeps them as a node. */
+const unparenthesized = (node: ts.Node): ts.Node =>
+  ts.isParenthesizedExpression(node) ? unparenthesized(node.expression) : node
+
 /** The leading text of a module specifier, so `bun:${x}` is judged by its `bun:`. */
-const specifierText = (node: ts.Node | undefined): string | undefined => {
-  if (node === undefined) return undefined
+const specifierText = (specifier: ts.Node | undefined): string | undefined => {
+  if (specifier === undefined) return undefined
+  const node = unparenthesized(specifier)
   if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
     return node.text
   if (ts.isTemplateExpression(node)) return node.head.text
@@ -72,26 +77,11 @@ const loadsBun = (node: ts.Node): boolean => {
     return isBunSpecifier(node.moduleSpecifier)
   if (ts.isExternalModuleReference(node)) return isBunSpecifier(node.expression)
   if (!ts.isCallExpression(node)) return false
-  const isImportCall = node.expression.kind === ts.SyntaxKind.ImportKeyword
-  const isRequire =
-    ts.isIdentifier(node.expression) && node.expression.text === 'require'
+  const callee = unparenthesized(node.expression)
+  const isImportCall = callee.kind === ts.SyntaxKind.ImportKeyword
+  const isRequire = ts.isIdentifier(callee) && callee.text === 'require'
   return (isImportCall || isRequire) && isBunSpecifier(node.arguments[0])
 }
-
-/**
- * An identifier, a string or a template part spelling `Bun`, wherever it sits.
- * Refusing the name outright rather than the ways of reading the global covers
- * aliases (`const g = globalThis; g.Bun`) and lookups (`Reflect.get`) alike, at
- * the cost of also refusing an unrelated member named `Bun`.
- */
-const namesBun = (node: ts.Node): boolean =>
-  (ts.isIdentifier(node) ||
-    ts.isStringLiteral(node) ||
-    ts.isNoSubstitutionTemplateLiteral(node) ||
-    ts.isTemplateHead(node) ||
-    ts.isTemplateMiddle(node) ||
-    ts.isTemplateTail(node)) &&
-  node.text === BUN_GLOBAL
 
 export const NODE_RUNTIME_FENCE: IFence = {
   name: 'node-runtime fence',
@@ -103,9 +93,13 @@ export const NODE_RUNTIME_FENCE: IFence = {
   rules: [
     { matches: isUnsupportedImportMeta, message: IMPORT_META_MESSAGE },
     { matches: loadsBun, message: BUN_MESSAGE },
-    { matches: namesBun, message: BUN_MESSAGE },
+    // The name outright, rather than the ways of reading the global, covers
+    // aliases (`const g = globalThis; g.Bun`) and `Reflect.get` lookups alike,
+    // at the cost of also refusing an unrelated member named `Bun`.
+    { matches: namesText(BUN_GLOBAL), message: BUN_MESSAGE },
   ],
 }
 
+// `exitCode` rather than `exit()`, which can cut off output still queued for a pipe.
 if (isEntrypoint(import.meta.url))
-  process.exit(runFence(NODE_RUNTIME_FENCE, process.argv.slice(2)))
+  process.exitCode = runFence(NODE_RUNTIME_FENCE, process.argv.slice(2))
