@@ -49,6 +49,9 @@ const COMPLIANT = [
   'export type SupportedChain = string',
   'export type Address2 = string',
   'export enum EnvironmentEnum { staging, production }',
+  // An empty remainder after the affix passes, as it did under typescript-eslint
+  'export interface I { id: number }',
+  'export enum Enum { staging }',
 ].join('\n')
 
 const REFUSED: Array<[string, string]> = [
@@ -68,6 +71,10 @@ const REFUSED: Array<[string, string]> = [
   ['a type alias with an underscore', 'export type Supported_Chain = string'],
   ['an enum without the Enum suffix', 'export enum Environment { staging }'],
   ['a camelCase enum', 'export enum environmentEnum { staging }'],
+  [
+    'an enum with an underscore before the suffix',
+    'export enum Environment_Enum { staging }',
+  ],
 ]
 
 /**
@@ -123,6 +130,41 @@ const DIRECTIVE_CASES: Record<
   },
 }
 
+const NON_COMPLIANT = 'export interface Network { id: number }'
+const LEGACY = '@typescript-eslint/naming-convention'
+
+/**
+ * How the naming rule reads a directive that names the ESLint rule it
+ * replaces, and whether it still reports.
+ */
+const LEGACY_DIRECTIVES: Array<[string, string, number]> = [
+  [
+    'a trailing eslint-disable-line suppresses',
+    `${NON_COMPLIANT} // eslint-disable-line ${LEGACY}`,
+    0,
+  ],
+  [
+    'a rule list naming it suppresses',
+    `// eslint-disable-next-line no-var, ${LEGACY}\n${NON_COMPLIANT}`,
+    0,
+  ],
+  [
+    'a directive with a -- reason suppresses',
+    `// eslint-disable-next-line ${LEGACY} -- matches a Solidity struct\n${NON_COMPLIANT}`,
+    0,
+  ],
+  [
+    'a directive naming another rule still reports',
+    `// eslint-disable-next-line no-var\n${NON_COMPLIANT}`,
+    1,
+  ],
+  [
+    'a next-line directive two lines up still reports',
+    `// eslint-disable-next-line ${LEGACY}\nexport const a = 1\n${NON_COMPLIANT}`,
+    1,
+  ],
+]
+
 /** Rules the repo switches off for a whole file with a block directive. */
 const BLOCK_FORM = ['no-template-curly-in-string', 'import/first']
 
@@ -138,10 +180,10 @@ const NOT_IN_OXLINT: Record<string, string> = {
     'the ESLint fences own it, and they run with --no-inline-config',
 }
 
-// Real path, because oxlint reports the resolved path of a file outside the repo
 // The hook below runs oxlint; the pinned bun types take no per-hook timeout
 setDefaultTimeout(TIMEOUT_MS)
 
+// Real path, because oxlint reports the resolved path of a file outside the repo
 const workDir = realpathSync(mkdtempSync(join(tmpdir(), 'oxlint-plugin-lifi-')))
 const files = new Map<string, string>()
 let diagnostics: IDiagnostic[] = []
@@ -167,6 +209,9 @@ beforeAll(() => {
   )
   addCase('compliant', `${COMPLIANT}\n`)
   REFUSED.forEach(([, source], i) => addCase(`refused${i}`, `${source}\n`))
+  LEGACY_DIRECTIVES.forEach(([, source], i) =>
+    addCase(`legacy${i}`, `${source}\n`)
+  )
   for (const [rule, { source }] of Object.entries(DIRECTIVE_CASES)) {
     const slug = rule.replace(/\W/g, '_')
     addCase(`bare_${slug}`, source('// no directive'))
@@ -216,6 +261,14 @@ describe('lifi/naming-convention', () => {
     const [finding] = findings('refused0', NAMING)
     expect(finding?.message).toContain('`Network`')
     expect(finding?.message).toContain('`I` prefix')
+  })
+})
+
+describe('lifi/naming-convention and directives naming the ESLint rule', () => {
+  it.each(
+    LEGACY_DIRECTIVES.map(([label, , count], i) => [label, count, i] as const)
+  )('%s', (_label, count, i) => {
+    expect(findings(`legacy${i}`, NAMING)).toHaveLength(count)
   })
 })
 
