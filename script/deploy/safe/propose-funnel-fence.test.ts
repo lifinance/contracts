@@ -349,13 +349,16 @@ describe('the fence runs where it has to run', () => {
   it(
     'fires through the lint-staged entry, so a commit cannot land one',
     async () => {
+      if (!STAGED_FENCE)
+        throw new Error('package.json lint-staged has no funnel-fence entry')
+
       // With a file-level disable, which the entry must ignore as CI does
       const result = await lint(
         `/* eslint-disable no-restricted-syntax */\n` +
           `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
           `export const propose = storeTransactionInMongoDB\n`,
         BYPASS_PATH,
-        (STAGED_FENCE ?? '').split(' ')
+        STAGED_FENCE.split(' ')
       )
 
       expect(result.exitCode).not.toBe(0)
