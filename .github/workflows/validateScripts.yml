@@ -6,7 +6,7 @@
 #   (TS2868) fails fast instead of breaking at runtime
 # - Node runtime fence: `bun lint:node-runtime` over all of script/ and tasks/
 #   refuses Bun-only APIs in shipped modules, including `import.meta.main`,
-#   which type-checks but is dropped by tsx (see .eslintrc.node-runtime.cjs)
+#   which type-checks but is dropped by tsx (see script/utils/node-runtime-fence.ts)
 # - Repo-wide lint: `bun lint:js` over the whole TS/JS tree, after TypeChain
 #   types and diamond.json are generated so imports of generated files resolve.
 #   Lint errors fail the job; warnings do not
@@ -80,11 +80,8 @@ jobs:
               - 'bun.lock'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
-              - '.eslintrc.node-runtime.cjs'
               # The `bun lint:js` (oxlint) config; its local plugin is under script/
               - '.oxlintrc.json'
-              # Ignore list the node-runtime fence reads
-              - '.eslintignore'
               - '.github/workflows/validateScripts.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'

@@ -189,14 +189,14 @@ added that skips them. The refusal happens before the proposal document is
 inserted, so a refused proposal is never created and claims no nonce, and it
 names both `--ticket` and `SAFE_PROPOSAL_TICKET`.
 
-The seam is enforced, not conventional: `.eslintrc.funnel-fence.cjs` refuses any
-file outside its allowlist that names `storeTransactionInMongoDB`, so a propose
-route added later either comes through `proposeSafeTx` or fails lint
-(`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It is an ESLint
-rule keyed on the AST identifier, so an alias, a namespace member access, a
-dynamic import or a computed lookup is refused the same way a plain import is,
-and the CI run passes `--no-inline-config` over every module extension the repo
-can hold, so neither a file-level `eslint-disable` nor a `.mjs` route escapes it.
+The seam is enforced, not conventional: `script/deploy/safe/funnel-fence.ts`
+refuses any file outside its allowlist that names `storeTransactionInMongoDB`, so
+a propose route added later either comes through `proposeSafeTx` or fails the
+fence (`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It judges
+TypeScript syntax nodes, so an alias, a namespace member access, a dynamic import
+or a computed lookup is refused the same way a plain import is. It reads no
+comments and sweeps every module extension the repo can hold, so neither a
+file-level disable comment nor a `.mjs` route escapes it.
 Three things it does **not** cover: a hand-rolled insert into the
 `pendingTransactions` collection that never names the storage function, an alias
 re-exported from an allowlisted file, and the one file still allowlisted for its
@@ -317,7 +317,7 @@ Entry points:
   seam (`proposeSafeTx`) but **not** `propose-to-safe.ts`, so the deploy gate
   below does not see them. None encodes a `diamondCut` today, so none installs
   facet code. Every propose route is `git grep -l proposeSafeTx script` plus the
-  files still allowlisted in `.eslintrc.funnel-fence.cjs` (the Tron route,
+  files still allowlisted in `script/deploy/safe/funnel-fence.ts` (the Tron route,
   EXSC-984) — matched on the name alone, because a route importing it alongside
   a type is invisible to a grep for the import statement. Run it rather than
   trusting this sentence: the fence guarantees the two together are exhaustive,
@@ -736,7 +736,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | CI (PR gate) | ≥ 1 approval from the SC core team | Block merge | Repository ruleset `main protection` — `required_reviewers` on the `smart-contract-core` team |
 | CI (PR gate) | Security-relevant paths need ISM/CTO approval | Block PR | `protectSecurityRelevantCode.yml` |
 | CI (PR gate) | Static analysis; LibAsset routing; config/deploy-log consistency and JSON validity; clear-signing sync; deploy smoke test; signed commits; solc floor; SPDX | Block PR | `olympixStaticAnalysis.yml` + `securityAlertsReview.yml`, `enforceLibAssetRouting.yml`, `deploymentAddressConsistency.yml`, `jsonChecker.yml`, `verifyClearSigning.yml`, `deploy-smoke-test.yml`, `verifyCommitsSigned.yml`, `solc-floor-build.yml`, `spdxLicenseChecker.yml` |
-| CI (PR gate) | Every Safe proposal is created through `proposeSafeTx`: any file outside the allowlist naming `storeTransactionInMongoDB` fails lint. AST-keyed, so an alias, namespace access, dynamic import or computed lookup is refused too, and the CI run ignores inline `eslint-disable` comments; a hand-rolled insert into the collection and an alias re-exported from an allowlisted file are **not** covered | Report only until `enforce-proposal-funnel` is added to the `main protection` ruleset's required checks; blocks the job either way | `.eslintrc.funnel-fence.cjs` via `bun lint:funnel`, run by `.github/workflows/enforceProposalFunnel.yml` and by its own lint-staged entry on every commit |
+| CI (PR gate) | Every Safe proposal is created through `proposeSafeTx`: any file outside the allowlist naming `storeTransactionInMongoDB` fails the fence. AST-keyed, so an alias, namespace access, dynamic import or computed lookup is refused too, and the fence reads no comments, so no inline disable switches it off; a hand-rolled insert into the collection and an alias re-exported from an allowlisted file are **not** covered | Report only until `enforce-proposal-funnel` is added to the `main protection` ruleset's required checks; blocks the job either way | `script/deploy/safe/funnel-fence.ts` via `bun lint:funnel`, run by `.github/workflows/enforceProposalFunnel.yml` and by its own lint-staged entry on every commit |
 | CI (ops) | Daily on-chain health check of every production diamond; weekly emergency-pause readiness | Alert | `healthCheckAllNetworks.yml`, `verifyEmergencyPauseReadiness.yml` |
 
 ## 6. What the signer must verify manually today
