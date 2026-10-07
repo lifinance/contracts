@@ -799,8 +799,6 @@ const workingTreeSourceVersion = (
   return { ok: false, detail: `no source for ${contractName}` }
 }
 
-// Only the `latest` path — the committed file carries no pins today, so matches-pin and
-// pinned-mismatch are exercised on fixtures above and cannot be proven here.
 describe('the gate fires on the committed target state (latest path)', () => {
   const state = committedTargetState as PinnedTargetState
   // A contract the committed file really declares on a real network, resolved
@@ -808,8 +806,10 @@ describe('the gate fires on the committed target state (latest path)', () => {
   const subject = Object.entries(
     state.mainnet?.production?.LiFiDiamond ?? {}
   ).find(
-    ([name]) =>
-      name.endsWith('Facet') && workingTreeSourceVersion(name).ok === true
+    ([name, value]) =>
+      value === 'latest' &&
+      name.endsWith('Facet') &&
+      workingTreeSourceVersion(name).ok === true
   )
 
   const realDeps = (proposedVersion: string): ITargetStateDeps => ({
@@ -848,6 +848,53 @@ describe('the gate fires on the committed target state (latest path)', () => {
       realDeps('0.0.1')
     )
     expect(verdict.findings[0]?.status).toBe('downgrade')
+    expect(verdict.cleared).toBe(false)
+  })
+})
+
+describe('the gate fires on the committed target state (pinned path)', () => {
+  const state = committedTargetState as PinnedTargetState
+  const subject = Object.entries(
+    state.mainnet?.production?.LiFiDiamond ?? {}
+  ).find(([name, value]) => value !== 'latest' && name.endsWith('Facet'))
+
+  const realDeps = (proposedVersion: string): ITargetStateDeps => ({
+    readPinnedState: () => ({ ok: true, state }),
+    readSourceVersion: workingTreeSourceVersion,
+    resolveDeployed: () => ({
+      kind: 'resolved',
+      contractName: subject?.[0] ?? 'unknown',
+      version: proposedVersion,
+    }),
+  })
+
+  it('has a real pinned subject to grade', () => {
+    expect(subject).toBeDefined()
+  })
+
+  it('clears the pinned version', () => {
+    if (typeof subject?.[1] !== 'string') throw new Error('no pinned subject')
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: FACET, action: 1 }])],
+      'mainnet',
+      realDeps(subject[1])
+    )
+    expect(verdict.findings[0]?.status).toBe('matches-pin')
+    expect(verdict.cleared).toBe(true)
+  })
+
+  // The repo has moved past the pin; the pin must still refuse the repo's version.
+  it('refuses the version the repo carries', () => {
+    if (!subject) throw new Error('no subject')
+    const source = workingTreeSourceVersion(subject[0])
+    if (!source.ok) throw new Error('no source version')
+    expect(source.version).not.toBe(subject[1])
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: FACET, action: 1 }])],
+      'mainnet',
+      realDeps(source.version)
+    )
+    expect(verdict.findings[0]?.status).toBe('pinned-mismatch')
     expect(verdict.cleared).toBe(false)
   })
 })

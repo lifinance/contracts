@@ -100,8 +100,9 @@ codehash checks instead.
 
 **Re-entering a deploy run against a live network.** `deployAllContracts` stages 5 and 6
 attempt every facet and periphery contract the network declares, whatever version is already
-deployed; on the version gate only a pin can refuse, and after the migration to `latest`
-there are no pins. Before the migration, stage 6 deployed a periphery contract only where the
+deployed; on the version gate only a pin can refuse, and since the migration to `latest`
+the only pins are deliberate hold-backs (`ChainflipFacet` on mainnet and arbitrum,
+`ThorSwapFacet` on avalanche and bsc until its deprecation, EXSC-1169). Before the migration, stage 6 deployed a periphery contract only where the
 declared version equalled the repo's and skipped the rest with a warning, so an entry whose
 declared version had fallen behind the repo was never touched. Entering a run at stage 5 or 6
 against a network that already has deployments therefore attempts and re-registers the whole
