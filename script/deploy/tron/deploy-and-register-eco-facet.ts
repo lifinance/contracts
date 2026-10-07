@@ -12,6 +12,7 @@ import {
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import { zeroAddress } from 'viem'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
@@ -57,8 +58,8 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   let privateKey: string
   try {
     privateKey = getPrivateKeyForEnvironment(environment)
-  } catch (error: any) {
-    consola.error(error.message)
+  } catch (error: unknown) {
+    consola.error(error instanceof Error ? error.message : String(error))
     consola.error(
       `Please ensure ${
         environment === EnvironmentEnum.production
@@ -153,7 +154,8 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
       })
     } else
       try {
-        const constructorArgs = [portal, backendSigner]
+        // CCTP is not deployed on Tron, so the facet rejects CCTP routes there
+        const constructorArgs = [portal, backendSigner, zeroAddress]
 
         const result = await deployContractWithLogging(
           deployer,
@@ -165,8 +167,11 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
 
         facetAddress = result.address
         deploymentResults.push(result)
-      } catch (error: any) {
-        consola.error('Failed to deploy EcoFacet:', error.message)
+      } catch (error: unknown) {
+        consola.error(
+          'Failed to deploy EcoFacet:',
+          error instanceof Error ? error.message : String(error)
+        )
         deploymentResults.push({
           contract: 'EcoFacet',
           address: 'FAILED',
@@ -207,9 +212,12 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
         ? '\nDry run completed successfully! (no Safe tx created)'
         : '\nDeployment and proposal completed successfully!'
     )
-  } catch (error: any) {
-    consola.error('Deployment failed:', error.message)
-    if (error.stack) consola.error(error.stack)
+  } catch (error: unknown) {
+    consola.error(
+      'Deployment failed:',
+      error instanceof Error ? error.message : String(error)
+    )
+    if (error instanceof Error && error.stack) consola.error(error.stack)
     process.exit(1)
   }
 }

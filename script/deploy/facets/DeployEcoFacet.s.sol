@@ -27,6 +27,14 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".portal")
         );
 
+        // address(0) on chains without CCTP; the facet then rejects CCTP routes
+        address tokenMessenger = _getConfigContractAddress(
+            path,
+            string.concat(".", network, ".tokenMessenger"),
+            true,
+            false
+        );
+
         string memory globalPath = string.concat(root, "/config/global.json");
         string memory globalJson = vm.readFile(globalPath);
 
@@ -42,6 +50,6 @@ contract DeployScript is DeployScriptBase {
             );
         }
 
-        return abi.encode(portal, backendSigner);
+        return abi.encode(portal, backendSigner, tokenMessenger);
     }
 }

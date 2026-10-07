@@ -1,42 +1,55 @@
 {
   "optimism": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "base": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "arbitrum": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "celo": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df",
+    "tokenMessenger": "0x0000000000000000000000000000000000000000"
   },
   "mainnet": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "ink": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "polygon": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "unichain": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "sonic": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "worldchain": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "bsc": {
-    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df"
+    "portal": "0xEC000064576f9C95a8623Bc0eff3db6d296ea6df",
+    "tokenMessenger": "0x0000000000000000000000000000000000000000"
   },
   "hyperevm": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "arc": {
-    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85"
+    "portal": "0xEC000769A73b70e16f361a442292500b3BCf4A85",
+    "tokenMessenger": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d"
   },
   "tron": {
     "portal": "TDYD42VmbScmqYkqG97aLgRN74Dqq9Fuva"
