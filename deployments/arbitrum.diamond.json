@@ -133,9 +133,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x336c70802F71F91C3da62345D0709B511122C2C4": {
+      "0x94a3eDCa65424775651E6FbcE63c89c8cb69a66F": {
         "Name": "PaxosTransitFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
