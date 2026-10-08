@@ -4874,6 +4874,22 @@
           }
         ]
       }
+    },
+    {
+      "name": "Nightshift",
+      "key": "nightshift",
+      "logoURI": "",
+      "webUrl": "",
+      "contracts": {
+        "bsc": [
+          {
+            "address": "0xd53F0e15960F2e1c3091eeD8933BaBC463b2fbAB",
+            "functions": {
+              "0x00a32e6c": "runVM((uint8,bytes32)[],(bytes[]))"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
