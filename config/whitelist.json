@@ -4915,6 +4915,12 @@
             "functions": {
               "0x6e81221c": "swap(address,address,uint256,address)"
             }
+          },
+          {
+            "address": "0x0bc305e7e13113caed3f5486849e9518a1cc4173",
+            "functions": {
+              "0x6e81221c": "swap(address,address,uint256,address)"
+            }
           }
         ],
         "monad": [
@@ -4923,19 +4929,9 @@
             "functions": {
               "0x6e81221c": "swap(address,address,uint256,address)"
             }
-          }
-        ],
-        "linea": [
+          },
           {
-            "address": "0xb6807116b3b1b321a390594e31ecd6e0076f6278",
-            "functions": {
-              "0x6e81221c": "swap(address,address,uint256,address)"
-            }
-          }
-        ],
-        "bsc": [
-          {
-            "address": "0xb6807116b3b1b321a390594e31ecd6e0076f6278",
+            "address": "0x0bc305e7e13113caed3f5486849e9518a1cc4173",
             "functions": {
               "0x6e81221c": "swap(address,address,uint256,address)"
             }
