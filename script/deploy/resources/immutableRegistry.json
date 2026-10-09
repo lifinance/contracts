@@ -235,6 +235,13 @@
       "authorityBearing": true
     }
   },
+  "M0Facet": {
+    "M0_ORDER_BOOK": {
+      "source": "config",
+      "configData": "_orderBook",
+      "authorityBearing": true
+    }
+  },
   "MayanFacet": {
     "MAYAN": {
       "source": "config",
