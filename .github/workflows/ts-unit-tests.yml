@@ -68,10 +68,9 @@ jobs:
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig*.json'
-              # node-runtime-fence.test.ts asserts against this config, and the
-              # whole-tree lint in validateScripts.yml passes on a fence that
-              # no longer matches anything
-              - '.eslintrc.node-runtime.cjs'
+              # propose-funnel-fence.test.ts asserts this workflow still runs the
+              # fence with nothing that can skip or downgrade its verdict
+              - '.github/workflows/enforceProposalFunnel.yml'
               # oxlint-plugin-lifi.test.ts lints its cases with this config, so
               # a config-only change can drop the naming rule or a directive
               # mapping without touching script/**

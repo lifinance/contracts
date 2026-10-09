@@ -177,7 +177,7 @@ const NOT_IN_OXLINT: Record<string, string> = {
     'dropped; bare imports are checked by script/utils/validateScripts.ts',
   'import/order': 'dropped; oxlint has no import/order rule',
   'no-restricted-syntax':
-    'the ESLint fences own it, and they run with --no-inline-config',
+    'named only by fence test fixtures, which prove script/utils/fence-runner.ts ignores directives',
 }
 
 // The hook below runs oxlint; the pinned bun types take no per-hook timeout

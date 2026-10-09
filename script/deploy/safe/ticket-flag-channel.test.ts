@@ -87,7 +87,7 @@ const FUNNELS = [
 /** The blessed wrapper every EVM proposal is created through. */
 const WRAPPER = 'proposeSafeTx'
 
-const FUNNEL_FENCE = '.eslintrc.funnel-fence.cjs'
+const FUNNEL_FENCE = 'script/deploy/safe/funnel-fence.ts'
 
 /** `deploy/tron/...`: signs without a `SafeClient`, so it cannot use WRAPPER. */
 const TRON_FUNNEL = 'deploy/tron/propose-to-safe-tron.ts'
@@ -120,8 +120,14 @@ const STORE_ONLY = [
   'tasks/proposePolymerCCTPChainIdMappings.ts',
 ] as const
 
-/** Where the wrapper is defined, which is not a route into it. */
-const NOT_A_STORE_ROUTE = ['deploy/safe/propose-safe-tx.ts']
+/**
+ * Where the wrapper is defined, and the fence whose refusal message names it;
+ * neither is a route into it.
+ */
+const NOT_A_STORE_ROUTE = [
+  'deploy/safe/propose-safe-tx.ts',
+  'deploy/safe/funnel-fence.ts',
+]
 
 /** Matches the citty argument declaration, not a mention of the word. */
 const TICKET_ARG = /^\s*ticket: \{$/m
