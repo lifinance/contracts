@@ -7,6 +7,7 @@ import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.
 import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
 import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
+import { ITokenMessenger } from "../../../src/Interfaces/ITokenMessenger.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
 import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
 import { LibBytes } from "../../../src/Libraries/LibBytes.sol";
@@ -16,8 +17,9 @@ import { TestEcoBackendSig } from "../utils/TestEcoBackendSig.sol";
 contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
     constructor(
         IEcoPortal _portal,
-        address _backendSigner
-    ) EcoFacet(_portal, _backendSigner) {}
+        address _backendSigner,
+        ITokenMessenger _tokenMessenger
+    ) EcoFacet(_portal, _backendSigner, _tokenMessenger) {}
 }
 
 contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
@@ -25,6 +27,51 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     address internal constant PORTAL =
         0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
+    address internal constant TOKEN_MESSENGER =
+        0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
+    uint256 internal constant ARBITRUM_CHAIN_ID = 42161;
+    uint32 internal constant ARBITRUM_CCTP_DOMAIN = 3;
+    uint32 internal constant CCTP_FAST_FINALITY_THRESHOLD = 1000;
+    /// @dev maxFee = amount / 1000 (10 bps), above Circle's fast-transfer minimum
+    uint256 internal constant CCTP_MAX_FEE_DIVISOR = 1000;
+    uint256 internal constant HYPEREVM_CHAIN_ID = 999;
+    address internal constant HYPEREVM_USDC =
+        0xb88339CB7199b77E23DB6E890353E22632Ba630f;
+    address internal constant HYPERCORE_DEPOSITOR =
+        0x6B9E773128f453f5c2C60935Ee2DE2CBc5390A24;
+    address internal constant HYPERCORE_ROUTE_RECEIVER =
+        0x86DBd094BC7436BD106C53a6a137Ab0Ab810A6A9;
+    /// @dev encodedRoute of Arbitrum tx 0x7d7a7e2e6866ee087f26005dcb9715818df23bfc983789bd6f841091e4adbef4
+    ///      (Eco quote to HyperCore): approve + CoreDepositWallet.depositFor.
+    bytes internal constant HYPERCORE_PRODUCTION_ROUTE =
+        hex"0000000000000000000000000000000000000000000000000000000000000020"
+        hex"ec00ec00ec00ec00ec00ec00ec00ec00aaaf8940ec75ab10853ffaf8da8624ab"
+        hex"000000000000000000000000000000000000000000000000000000006ab275de"
+        hex"000000000000000000000000ec000064576f9c95a8623bc0eff3db6d296ea6df"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000000000000000000000000000000000000000000000c0"
+        hex"0000000000000000000000000000000000000000000000000000000000000120"
+        hex"0000000000000000000000000000000000000000000000000000000000000001"
+        hex"000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f"
+        hex"00000000000000000000000000000000000000000000000000000000002c1d3e"
+        hex"0000000000000000000000000000000000000000000000000000000000000002"
+        hex"0000000000000000000000000000000000000000000000000000000000000040"
+        hex"0000000000000000000000000000000000000000000000000000000000000120"
+        hex"000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f"
+        hex"0000000000000000000000000000000000000000000000000000000000000060"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000044"
+        hex"095ea7b30000000000000000000000006b9e773128f453f5c2c60935ee2de2cb"
+        hex"c5390a2400000000000000000000000000000000000000000000000000000000"
+        hex"002c1d3e00000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000006b9e773128f453f5c2c60935ee2de2cbc5390a24"
+        hex"0000000000000000000000000000000000000000000000000000000000000060"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000064"
+        hex"c23c545a00000000000000000000000086dbd094bc7436bd106c53a6a137ab0a"
+        hex"b810a6a900000000000000000000000000000000000000000000000000000000"
+        hex"002c1d3e00000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000000";
 
     function setUp() public {
         customBlockNumberForForking = 35717845;
@@ -46,7 +93,11 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         backendSignerPrivateKey = 0xB0B;
         backendSignerAddress = vm.addr(backendSignerPrivateKey);
 
-        ecoFacet = new TestEcoFacet(IEcoPortal(PORTAL), backendSignerAddress);
+        ecoFacet = new TestEcoFacet(
+            IEcoPortal(PORTAL),
+            backendSignerAddress,
+            ITokenMessenger(TOKEN_MESSENGER)
+        );
 
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = ecoFacet.startBridgeTokensViaEco.selector;
@@ -115,12 +166,20 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
 
     function testRevert_WhenUsingInvalidConfig() public {
         vm.expectRevert(InvalidConfig.selector);
-        new EcoFacet(IEcoPortal(address(0)), backendSignerAddress);
+        new EcoFacet(
+            IEcoPortal(address(0)),
+            backendSignerAddress,
+            ITokenMessenger(TOKEN_MESSENGER)
+        );
     }
 
     function testRevert_WhenBackendSignerIsZero() public {
         vm.expectRevert(InvalidConfig.selector);
-        new EcoFacet(IEcoPortal(PORTAL), address(0));
+        new EcoFacet(
+            IEcoPortal(PORTAL),
+            address(0),
+            ITokenMessenger(TOKEN_MESSENGER)
+        );
     }
 
     function testRevert_NativeTokenNotSupported() public {
@@ -608,11 +667,12 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
         calls[0] = EcoFacet.Call({
             target: bridgeData.sendingAssetId,
-            callData: abi.encodeWithSelector(
+            data: abi.encodeWithSelector(
                 IERC20.approve.selector,
                 USER_RECEIVER,
                 bridgeData.minAmount
-            )
+            ),
+            value: 0
         });
 
         EcoFacet.Route memory route = EcoFacet.Route({
@@ -665,10 +725,11 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
         calls[0] = EcoFacet.Call({
             target: bridgeData.sendingAssetId,
-            callData: abi.encodeWithSelector(
+            data: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 USER_RECEIVER
-            )
+            ),
+            value: 0
         });
 
         EcoFacet.Route memory route = EcoFacet.Route({
@@ -811,9 +872,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
-        public
-    {
+    function testRevert_NonEVMAddressWithoutNonEVMReceiver() public {
         // Test for InvalidReceiver error when NON_EVM_ADDRESS is set but nonEVMReceiver is empty
         vm.startPrank(USER_SENDER);
 
@@ -845,7 +904,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_RouteReceiverMismatch() public {
+    function testRevert_RouteReceiverMismatch() public {
         // Test for InvalidReceiver error when the receiver in the route doesn't match bridgeData.receiver
         // This triggers line 291 in EcoFacet.sol
         vm.startPrank(USER_SENDER);
@@ -885,7 +944,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_chainIdExceedsUint64Max() public {
+    function testRevert_ChainIdExceedsUint64Max() public {
         vm.startPrank(USER_SENDER);
 
         ILiFi.BridgeData memory overflowBridgeData = bridgeData;
@@ -1201,7 +1260,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_EmptyNonEVMReceiver() public {
+    function testRevert_SolanaEmptyNonEVMReceiver() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1231,7 +1290,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_TooLongNonEVMReceiver() public {
+    function testRevert_SolanaNonEVMReceiverTooLong() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1266,7 +1325,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_RouteTooShort() public {
+    function testRevert_SolanaRouteTooShort() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1466,39 +1525,531 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
+    function test_BridgeToHyperCoreWithProductionRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = HYPEREVM_CHAIN_ID;
+        bridgeData.receiver = HYPERCORE_ROUTE_RECEIVER;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            HYPERCORE_PRODUCTION_ROUTE
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(HYPEREVM_CHAIN_ID),
+                HYPERCORE_PRODUCTION_ROUTE,
+                _expectedReward(ecoData),
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Pins the facet's Route/Call mirror to Eco's real encoding: a
+    ///      field-order or arity drift would decode the production route wrong.
+    function test_ProductionRouteDecodesWithEcoCallLayout() public pure {
+        EcoFacet.Route memory route = abi.decode(
+            HYPERCORE_PRODUCTION_ROUTE,
+            (EcoFacet.Route)
+        );
+
+        assertEq(route.portal, 0xEC000064576f9C95a8623Bc0eff3db6d296ea6df);
+        assertEq(route.tokens.length, 1);
+        assertEq(route.tokens[0].token, HYPEREVM_USDC);
+        assertEq(route.calls.length, 2);
+        assertEq(route.calls[0].target, HYPEREVM_USDC);
+        assertEq(route.calls[1].target, HYPERCORE_DEPOSITOR);
+        assertEq(route.calls[1].value, 0);
+        assertEq(
+            route.calls[1].data,
+            abi.encodeWithSignature(
+                "depositFor(address,uint256,uint32)",
+                HYPERCORE_ROUTE_RECEIVER,
+                route.tokens[0].amount,
+                uint32(0)
+            )
+        );
+    }
+
+    function testRevert_HyperCoreDepositForReceiverMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = HYPEREVM_CHAIN_ID;
+        bridgeData.receiver = USER_RECEIVER;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            HYPERCORE_PRODUCTION_ROUTE
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HyperCoreDepositForMissingArguments() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = HYPEREVM_CHAIN_ID;
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
+        calls[0] = EcoFacet.Call({
+            target: HYPERCORE_DEPOSITOR,
+            data: abi.encodeWithSignature(
+                "depositFor(address,uint256)",
+                USER_RECEIVER,
+                bridgeData.minAmount
+            ),
+            value: 0
+        });
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _encodeRoute(calls, HYPEREVM_USDC, bridgeData.minAmount)
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_UnsupportedFinalCall() public {
+        vm.startPrank(USER_SENDER);
+
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
+        calls[0] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            data: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                USER_RECEIVER,
+                bridgeData.minAmount
+            ),
+            value: 0
+        });
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _encodeRoute(
+                calls,
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount
+            )
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function test_BridgeViaCCTPPublishesIntentOnSourceChain() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        bytes memory route = _createCCTPRoute(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            )
+        );
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(route);
+        IEcoPortal.Reward memory reward = _expectedReward(ecoData);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(block.chainid),
+                route,
+                reward,
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+
+        bytes32 intentHash = keccak256(
+            abi.encodePacked(
+                uint64(block.chainid),
+                keccak256(route),
+                keccak256(abi.encode(reward))
+            )
+        );
+        assertEq(
+            uint8(IEcoPortal(PORTAL).getRewardStatus(intentHash)),
+            uint8(IEcoPortal.Status.Funded)
+        );
+    }
+
+    function test_SwapAndBridgeViaCCTPPublishesIntentOnSourceChain() public {
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        bytes memory route = _createCCTPRoute(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            )
+        );
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(route);
+
+        dai.approve(_facetTestContractAddress, amountIn);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(block.chainid),
+                route,
+                _expectedReward(ecoData),
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _swapAndStartEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Runs the CCTP route's calls the way Eco's Executor would, against
+    ///      the real TokenMessengerV2, so the fixture the facet accepts is one
+    ///      Circle accepts too.
+    function test_CCTPRouteBurnsOnTokenMessenger() public {
+        address executor = address(0xE8EC);
+        EcoFacet.Route memory route = abi.decode(
+            _createCCTPRoute(
+                _depositForBurnData(
+                    bridgeData.minAmount,
+                    USER_RECEIVER,
+                    ADDRESS_USDC,
+                    bytes32(0)
+                )
+            ),
+            (EcoFacet.Route)
+        );
+        deal(ADDRESS_USDC, executor, bridgeData.minAmount);
+        uint256 supplyBefore = usdc.totalSupply();
+
+        vm.startPrank(executor);
+
+        for (uint256 i = 0; i < route.calls.length; i++) {
+            (bool success, ) = route.calls[i].target.call{
+                value: route.calls[i].value
+            }(route.calls[i].data);
+            assertTrue(success);
+        }
+
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(executor), 0);
+        assertEq(usdc.totalSupply(), supplyBefore - bridgeData.minAmount);
+    }
+
+    function testRevert_CCTPMintRecipientMismatch() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                address(0x9999),
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            TOKEN_MESSENGER,
+            InvalidReceiver.selector
+        );
+    }
+
+    function testRevert_CCTPBurnAmountBelowBridgedAmount() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount - 1,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            TOKEN_MESSENGER,
+            EcoFacet.InvalidCCTPBurn.selector
+        );
+    }
+
+    function testRevert_CCTPBurnTokenMismatch() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                ADDRESS_DAI,
+                bytes32(0)
+            ),
+            TOKEN_MESSENGER,
+            EcoFacet.InvalidCCTPBurn.selector
+        );
+    }
+
+    function testRevert_CCTPDestinationCallerRestricted() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                LibBytes.toBytes32(address(0xEC0))
+            ),
+            TOKEN_MESSENGER,
+            EcoFacet.InvalidCCTPBurn.selector
+        );
+    }
+
+    function testRevert_CCTPBurnOnUnknownTokenMessenger() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            address(0xBAD),
+            EcoFacet.InvalidCCTPBurn.selector
+        );
+    }
+
+    function testRevert_CCTPBurnMissingArguments() public {
+        _expectCCTPRouteRevert(
+            abi.encodeWithSelector(
+                ITokenMessenger.depositForBurn.selector,
+                bridgeData.minAmount,
+                ARBITRUM_CCTP_DOMAIN,
+                LibBytes.toBytes32(USER_RECEIVER)
+            ),
+            TOKEN_MESSENGER,
+            InvalidReceiver.selector
+        );
+    }
+
+    function testRevert_CCTPRouteOnChainWithoutTokenMessenger() public {
+        TestEcoFacet facetWithoutCCTP = new TestEcoFacet(
+            IEcoPortal(PORTAL),
+            backendSignerAddress,
+            ITokenMessenger(address(0))
+        );
+        ecoVerifyingContract = address(facetWithoutCCTP);
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        EcoFacet.Call memory burn = EcoFacet.Call({
+            target: address(0),
+            data: _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            value: 0
+        });
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _createCCTPRoute(burn)
+        );
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+
+        vm.expectRevert(EcoFacet.InvalidCCTPBurn.selector);
+
+        facetWithoutCCTP.startBridgeTokensViaEco(bridgeData, ecoData);
+    }
+
+    function _expectCCTPRouteRevert(
+        bytes memory _burnData,
+        address _tokenMessenger,
+        bytes4 _expectedError
+    ) internal {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _createCCTPRoute(
+                EcoFacet.Call({
+                    target: _tokenMessenger,
+                    data: _burnData,
+                    value: 0
+                })
+            )
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(_expectedError);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Eco's CCTP fulfillment route: approve TokenMessengerV2, then burn.
+    function _createCCTPRoute(
+        bytes memory _burnData
+    ) internal view returns (bytes memory) {
+        return
+            _createCCTPRoute(
+                EcoFacet.Call({
+                    target: TOKEN_MESSENGER,
+                    data: _burnData,
+                    value: 0
+                })
+            );
+    }
+
+    function _createCCTPRoute(
+        EcoFacet.Call memory _burn
+    ) internal view returns (bytes memory) {
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](2);
+        calls[0] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            data: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                TOKEN_MESSENGER,
+                bridgeData.minAmount
+            ),
+            value: 0
+        });
+        calls[1] = _burn;
+        return
+            _encodeRoute(
+                calls,
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount
+            );
+    }
+
+    function _depositForBurnData(
+        uint256 _amount,
+        address _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodeWithSelector(
+                ITokenMessenger.depositForBurn.selector,
+                _amount,
+                ARBITRUM_CCTP_DOMAIN,
+                LibBytes.toBytes32(_mintRecipient),
+                _burnToken,
+                _destinationCaller,
+                _amount / CCTP_MAX_FEE_DIVISOR,
+                CCTP_FAST_FINALITY_THRESHOLD
+            );
+    }
+
+    function _ecoDataWithRoute(
+        bytes memory _encodedRoute
+    ) internal view returns (EcoFacet.EcoData memory ecoData) {
+        ecoData = _getValidEcoData();
+        ecoData.encodedRoute = _encodedRoute;
+    }
+
+    function _expectedReward(
+        EcoFacet.EcoData memory _ecoData
+    ) internal view returns (IEcoPortal.Reward memory) {
+        IEcoPortal.TokenAmount[]
+            memory rewardTokens = new IEcoPortal.TokenAmount[](1);
+        rewardTokens[0] = IEcoPortal.TokenAmount({
+            token: bridgeData.sendingAssetId,
+            amount: bridgeData.minAmount
+        });
+        return
+            IEcoPortal.Reward({
+                creator: _ecoData.refundRecipient,
+                prover: _ecoData.prover,
+                deadline: _ecoData.rewardDeadline,
+                nativeAmount: 0,
+                tokens: rewardTokens
+            });
+    }
+
     function _createEncodedRoute(
         address receiver,
         address token,
         uint256 amount
     ) internal view returns (bytes memory) {
-        // Create token array for the route
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
-
-        // Create calls array with exactly one call - the ERC20 transfer to receiver
         EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
         calls[0] = EcoFacet.Call({
             target: token,
-            callData: abi.encodeWithSelector(
+            data: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 receiver,
                 amount
-            )
+            ),
+            value: 0
         });
 
-        // Create the Route struct
+        return _encodeRoute(calls, token, amount);
+    }
+
+    function _encodeRoute(
+        EcoFacet.Call[] memory _calls,
+        address _token,
+        uint256 _amount
+    ) internal view returns (bytes memory) {
+        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
+            1
+        );
+        tokens[0] = IEcoPortal.TokenAmount({ token: _token, amount: _amount });
+
         EcoFacet.Route memory route = EcoFacet.Route({
             salt: keccak256("eco.route.test"),
             deadline: uint64(block.timestamp + 1 days),
-            portal: PORTAL, // Portal is the contract that receives and executes the route
+            portal: PORTAL,
             nativeAmount: 0,
             tokens: tokens,
-            calls: calls
+            calls: _calls
         });
 
-        // ABI encode the route
         return abi.encode(route);
     }
 

@@ -9,6 +9,11 @@
       "source": "config",
       "configData": "_backendSigner",
       "authorityBearing": true
+    },
+    "TOKEN_MESSENGER": {
+      "source": "config",
+      "configData": "_tokenMessenger",
+      "authorityBearing": true
     }
   },
   "AcrossFacet": {

@@ -33,12 +33,14 @@ let onChainValue = ''
 mock.module('./tron/tronUtils', () => ({
   ...tronUtils,
   // Registry lookups answer "unregistered" so the sibling periphery annotations resolve to
-  // nothing and only the facet under test is compared.
+  // nothing, and TOKEN_MESSENGER answers unset as it does on Tron (no CCTP), so only the
+  // portal binding under test is compared.
   callTronContract: async (
     _contractAddress: string,
     functionSignature: string
   ) =>
-    functionSignature.startsWith('getPeripheryContract')
+    functionSignature.startsWith('getPeripheryContract') ||
+    functionSignature.startsWith('TOKEN_MESSENGER')
       ? TRON_ZERO_ADDRESS_BASE58
       : onChainValue,
 }))
