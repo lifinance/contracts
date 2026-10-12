@@ -19,8 +19,6 @@ areas:
     - templates/**
     - '*.md'
 
-protected: []
-
 # How the factory answers each finding. The first choice after each value is the default.
 responses:
   rule-unmet: bounce    # bounce | warn. A rule can override it with on_fail; the factory base rule always bounces
