@@ -26,13 +26,18 @@ import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature
 ///      that commits to the bridge parameters, the prover, and a hash of the
 ///      encoded route. The on-chain receiver cross-checks in `_validateEcoData`
 ///      are retained as defense in depth: the last call of an EVM or Tron
-///      route must pay the receiver through an ERC20 `transfer`, a HyperCore
-///      `depositFor`, or a CCTP `depositForBurn` on `TOKEN_MESSENGER`. A CCTP
-///      route executes on the source chain (Eco's CCTP fulfillment), so its
-///      intent is published with the source chain as destination while
-///      `bridgeData.destinationChainId` stays the chain the receiver is paid on.
-///      The facet does not check the burn's `destinationDomain`, `maxFee` or
-///      finality threshold; the backend must verify them before signing.
+///      route must pay the receiver through an ERC20 `transfer` or a HyperCore
+///      `depositFor`, or be a CCTP `depositForBurn` on `TOKEN_MESSENGER`.
+///      A CCTP route executes on the source chain (Eco's CCTP fulfillment and
+///      bridge-and-swap shapes), so its intent is published with the source
+///      chain as destination while `bridgeData.destinationChainId` stays the
+///      chain the receiver is paid on. The burn's `mintRecipient` is not
+///      checked against the receiver: in bridge-and-swap it is the vault of a
+///      second Eco intent on the destination chain that swaps the minted USDC
+///      to the receiver, so for CCTP routes the receiver is enforced only by
+///      the backend signature. The facet also does not check the burn's
+///      `destinationDomain`, `maxFee` or finality threshold; the backend must
+///      verify these and the `mintRecipient` before signing.
 /// @custom:version 3.0.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
@@ -74,7 +79,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     uint256 private constant HYPERCORE_DEPOSIT_FOR_ARGS_COUNT = 3;
     uint256 private constant DEPOSIT_FOR_BURN_ARGS_COUNT = 7;
     uint256 private constant BURN_AMOUNT_ARG = 0;
-    uint256 private constant BURN_MINT_RECIPIENT_ARG = 2;
     uint256 private constant BURN_TOKEN_ARG = 3;
     uint256 private constant BURN_DESTINATION_CALLER_ARG = 4;
 
@@ -348,9 +352,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         return _validateEVMRoute(_bridgeData, _ecoData.encodedRoute);
     }
 
-    /// @dev Checks that the route's last call pays `bridgeData.receiver`.
-    ///      A CCTP burn executes on the source chain, so its intent is
-    ///      published there; every other route executes on the destination.
+    /// @dev Checks that the route's last call pays `bridgeData.receiver`, or
+    ///      is a CCTP burn of the bridged amount. A CCTP burn executes on the
+    ///      source chain, so its intent is published there; every other route
+    ///      executes on the destination.
     /// @return intentDestination Eco chain ID the intent executes on
     function _validateEVMRoute(
         ILiFi.BridgeData memory _bridgeData,
@@ -387,7 +392,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @dev The route's tokens equal the reward, so whatever the burn leaves
     ///      unspent is paid to the solver; the burn must therefore move the
     ///      full amount. A zero `destinationCaller` lets anyone relay Circle's
-    ///      attestation, so no single relayer can hold the mint back.
+    ///      attestation, so no single relayer can hold the mint back. The
+    ///      `mintRecipient` is either the receiver or, for bridge-and-swap,
+    ///      the destination intent's vault, which only the backend can check.
     function _validateCCTPBurn(
         ILiFi.BridgeData memory _bridgeData,
         Call memory _burn
@@ -398,14 +405,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ) revert InvalidCCTPBurn();
 
         bytes memory data = _burn.data;
-        if (
-            _callArgument(
-                data,
-                DEPOSIT_FOR_BURN_ARGS_COUNT,
-                BURN_MINT_RECIPIENT_ARG
-            ) != LibBytes.toBytes32(_bridgeData.receiver)
-        ) revert InvalidReceiver();
-
         if (
             uint256(
                 _callArgument(

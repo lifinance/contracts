@@ -14,6 +14,14 @@ import { LibBytes } from "../../../src/Libraries/LibBytes.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { TestEcoBackendSig } from "../utils/TestEcoBackendSig.sol";
 
+interface IEcoPortalVault {
+    function intentVaultAddress(
+        uint64 _destination,
+        bytes calldata _route,
+        IEcoPortal.Reward calldata _reward
+    ) external view returns (address);
+}
+
 contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
     constructor(
         IEcoPortal _portal,
@@ -34,6 +42,10 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     uint32 internal constant CCTP_FAST_FINALITY_THRESHOLD = 1000;
     /// @dev maxFee = amount / 1000 (10 bps), above Circle's fast-transfer minimum
     uint256 internal constant CCTP_MAX_FEE_DIVISOR = 1000;
+    address internal constant ARBITRUM_USDC =
+        0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    address internal constant ARBITRUM_KYBERSWAP_ROUTER =
+        0x6131B5fae19EA4f9D964eAc0408E4408b66337b5;
     uint256 internal constant HYPEREVM_CHAIN_ID = 999;
     address internal constant HYPEREVM_USDC =
         0xb88339CB7199b77E23DB6E890353E22632Ba630f;
@@ -1798,16 +1810,57 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         assertEq(usdc.totalSupply(), supplyBefore - bridgeData.minAmount);
     }
 
-    function testRevert_CCTPMintRecipientMismatch() public {
-        _expectCCTPRouteRevert(
+    /// @dev Eco's bridge-and-swap shape: the burn mints to the vault of a
+    ///      second, same-chain intent on Arbitrum whose route swaps the USDC
+    ///      to the receiver and whose refunds go to the receiver.
+    function test_BridgeAndSwapViaCCTPBurnsToDestinationIntentVault() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        address destinationVault = _destinationIntentVault(
+            bridgeData.minAmount - bridgeData.minAmount / CCTP_MAX_FEE_DIVISOR
+        );
+        bytes memory route = _createCCTPRoute(
             _depositForBurnData(
                 bridgeData.minAmount,
-                address(0x9999),
+                destinationVault,
                 bridgeData.sendingAssetId,
                 bytes32(0)
-            ),
-            TOKEN_MESSENGER,
-            InvalidReceiver.selector
+            )
+        );
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(route);
+        IEcoPortal.Reward memory reward = _expectedReward(ecoData);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(block.chainid),
+                route,
+                reward,
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+
+        bytes32 intentHash = keccak256(
+            abi.encodePacked(
+                uint64(block.chainid),
+                keccak256(route),
+                keccak256(abi.encode(reward))
+            )
+        );
+        assertEq(
+            uint8(IEcoPortal(PORTAL).getRewardStatus(intentHash)),
+            uint8(IEcoPortal.Status.Funded)
         );
     }
 
@@ -1983,6 +2036,60 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
                 _destinationCaller,
                 _amount / CCTP_MAX_FEE_DIVISOR,
                 CCTP_FAST_FINALITY_THRESHOLD
+            );
+    }
+
+    /// @dev Vault of the destination intent in Eco's bridge-and-swap shape:
+    ///      approve the router, swap (recipient inside the opaque calldata),
+    ///      reset the approval; the reward is the minted USDC.
+    function _destinationIntentVault(
+        uint256 _mintedAmount
+    ) internal view returns (address) {
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](3);
+        calls[0] = EcoFacet.Call({
+            target: ARBITRUM_USDC,
+            data: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                ARBITRUM_KYBERSWAP_ROUTER,
+                _mintedAmount
+            ),
+            value: 0
+        });
+        calls[1] = EcoFacet.Call({
+            target: ARBITRUM_KYBERSWAP_ROUTER,
+            data: abi.encodeWithSelector(bytes4(0xe21fd0e9), USER_RECEIVER),
+            value: 0
+        });
+        calls[2] = EcoFacet.Call({
+            target: ARBITRUM_USDC,
+            data: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                ARBITRUM_KYBERSWAP_ROUTER,
+                0
+            ),
+            value: 0
+        });
+        bytes memory route = _encodeRoute(calls, ARBITRUM_USDC, _mintedAmount);
+
+        IEcoPortal.TokenAmount[]
+            memory rewardTokens = new IEcoPortal.TokenAmount[](1);
+        rewardTokens[0] = IEcoPortal.TokenAmount({
+            token: ARBITRUM_USDC,
+            amount: _mintedAmount
+        });
+        IEcoPortal.Reward memory reward = IEcoPortal.Reward({
+            creator: USER_RECEIVER,
+            prover: _getValidEcoData().prover,
+            deadline: uint64(block.timestamp + 1 days),
+            nativeAmount: 0,
+            tokens: rewardTokens
+        });
+
+        return
+            IEcoPortalVault(PORTAL).intentVaultAddress(
+                uint64(ARBITRUM_CHAIN_ID),
+                route,
+                reward
             );
     }
 
