@@ -7,8 +7,8 @@
  * written into the tree.
  */
 
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { join, relative } from 'path'
 
 import {
   describe,
@@ -17,12 +17,23 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withholdCredentials } from '../deploy/safe/spawn-env'
+
 import { findViolations } from './fence-runner'
 import { NODE_RUNTIME_FENCE } from './node-runtime-fence'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..')
 const FENCE_SCRIPT = 'script/utils/node-runtime-fence.ts'
 const SHIPPED_PATH = 'script/tasks/someCli.ts'
+
+/** 90 seconds: a tsx run plus a cold bun start, well short of a hang. */
+const TIMEOUT_MS = 90_000
+
+const spawnEnv = (): Record<string, string> => {
+  const env = { ...process.env } as Record<string, string>
+  withholdCredentials(env)
+  return env
+}
 
 /** Fragment every refusal message of the fence starts with. */
 const REFUSAL = 'Shipped modules run on Node via `bunx tsx`'
@@ -135,13 +146,20 @@ describe('the Node-runtime fence', () => {
     ).toBe('')
   })
 
-  it('leaves the fence itself alone, since it names Bun to build its rule', () => {
+  it('lets the fence itself name Bun to build its rule, and nothing else', () => {
     expect(
       lint(readFileSync(join(REPO_ROOT, FENCE_SCRIPT), 'utf8'), FENCE_SCRIPT)
     ).toBe('')
     expect(
       lint("export const b = 'Bun'\n", 'script/utils/other-fence.ts')
     ).toContain(REFUSAL)
+    // An `import.meta.main` entry guard here would leave the CLI checking nothing.
+    expect(lint('export const m = import.meta.main\n', FENCE_SCRIPT)).toContain(
+      REFUSAL
+    )
+    expect(lint("import { file } from 'bun'\n", FENCE_SCRIPT)).toContain(
+      REFUSAL
+    )
   })
 
   it('leaves files outside script/ and tasks/ alone', () => {
@@ -163,13 +181,49 @@ describe('the Node-runtime fence runs where it has to run', () => {
     'lint-staged': Record<string, string[]>
   }
 
+  const staged = (packageJson['lint-staged']['*.{ts,js}'] ?? []).find(
+    (command) => command.includes(FENCE_SCRIPT)
+  )
+
   it('sweeps script/ and tasks/ with the command lint-staged runs per file', () => {
-    const staged = (packageJson['lint-staged']['*.{ts,js}'] ?? []).find(
-      (command) => command.includes(FENCE_SCRIPT)
-    )
     expect(staged).toBeDefined()
     expect(packageJson.scripts['lint:node-runtime']).toBe(
       `${staged} script tasks`
     )
   })
+
+  it(
+    'exits non-zero through that command on a refused module',
+    () => {
+      if (!staged)
+        throw new Error('package.json lint-staged has no node-runtime entry')
+
+      // Inside script/, since the fence judges nothing outside it; a dot-directory
+      // keeps a crashed run's leftover easy to spot.
+      const dir = mkdtempSync(join(REPO_ROOT, 'script', '.node-runtime-fence-'))
+      try {
+        const file = join(dir, 'someCli.ts')
+        writeFileSync(file, 'export const m = import.meta.main\n')
+
+        const result = Bun.spawnSync(
+          [...staged.split(' '), relative(REPO_ROOT, file)],
+          {
+            cwd: REPO_ROOT,
+            env: spawnEnv(),
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: TIMEOUT_MS,
+          }
+        )
+
+        expect(result.exitCode).not.toBe(0)
+        expect(
+          `${result.stdout.toString()}${result.stderr.toString()}`
+        ).toContain(REFUSAL)
+      } finally {
+        rmSync(dir, { recursive: true, force: true })
+      }
+    },
+    TIMEOUT_MS
+  )
 })

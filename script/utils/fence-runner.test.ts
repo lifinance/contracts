@@ -56,6 +56,46 @@ describe('findViolations', () => {
       )
     ).toEqual(['1:26  no debugger'])
   })
+
+  it('parses JSX in a .jsx file', () => {
+    expect(
+      findViolations(
+        DEBUGGER_FENCE,
+        'export const C = () => { debugger; return <div /> }\n',
+        'x.jsx'
+      )
+    ).toEqual(['1:26  no debugger'])
+  })
+
+  it('refuses a module that does not parse, rather than judging what survived', () => {
+    expect(
+      findViolations(DEBUGGER_FENCE, 'debugger\nexport const a = ;\n', 'x.ts')
+    ).toEqual([
+      '2:18  Could not parse (Expression expected.). The fence only judges a file that parses; fix the syntax.',
+    ])
+  })
+
+  it('skips a rule for the paths it exempts, while the other rules still judge them', () => {
+    const fence: IFence = {
+      ...DEBUGGER_FENCE,
+      rules: [
+        ...DEBUGGER_FENCE.rules,
+        {
+          matches: ts.isIdentifier,
+          message: 'no identifiers',
+          exempts: (path) => path === 'exempt.ts',
+        },
+      ],
+    }
+    const source = 'debugger\nexport const a = 1\n'
+    expect(findViolations(fence, source, 'exempt.ts')).toEqual([
+      '1:1  no debugger',
+    ])
+    expect(findViolations(fence, source, 'other.ts')).toEqual([
+      '1:1  no debugger',
+      '2:14  no identifiers',
+    ])
+  })
 })
 
 describe('runFence', () => {

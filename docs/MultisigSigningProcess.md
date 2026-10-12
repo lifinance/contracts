@@ -195,13 +195,16 @@ a propose route added later either comes through `proposeSafeTx` or fails the
 fence (`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It judges
 TypeScript syntax nodes, so an alias, a namespace member access, a dynamic import
 or a computed lookup is refused the same way a plain import is. It reads no
-comments and sweeps every module extension the repo can hold, so neither a
-file-level disable comment nor a `.mjs` route escapes it.
-Three things it does **not** cover: a hand-rolled insert into the
+comments and sweeps every JS/TS module extension (`MODULE_EXTENSIONS` in
+`script/utils/fence-runner.ts`), so neither a file-level disable comment nor a
+`.mjs` or `.jsx` route escapes it, and it refuses a file that does not parse
+rather than judging the part that did.
+Four things it does **not** cover: a hand-rolled insert into the
 `pendingTransactions` collection that never names the storage function, an alias
-re-exported from an allowlisted file, and the one file still allowlisted for its
-own storage call — the Tron route, which hand-rolls its own signature instead of
-signing through a `SafeClient` (EXSC-984).
+re-exported from an allowlisted file, a route in a file with no extension, and
+the one file still allowlisted for its own storage call — the Tron route, which
+hand-rolls its own signature instead of signing through a `SafeClient`
+(EXSC-984).
 
 The ticket check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,

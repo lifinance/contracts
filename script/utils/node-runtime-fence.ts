@@ -85,18 +85,22 @@ const loadsBun = (node: ts.Node): boolean => {
 
 export const NODE_RUNTIME_FENCE: IFence = {
   name: 'node-runtime fence',
-  // `bun test` provides every Bun API; the fence names `Bun` to build its rule.
+  // `bun test` provides every Bun API.
   appliesTo: (path) =>
     (path.startsWith('script/') || path.startsWith('tasks/')) &&
-    !path.endsWith('.test.ts') &&
-    path !== FENCE_PATH,
+    !path.endsWith('.test.ts'),
   rules: [
     { matches: isUnsupportedImportMeta, message: IMPORT_META_MESSAGE },
     { matches: loadsBun, message: BUN_MESSAGE },
     // The name outright, rather than the ways of reading the global, covers
     // aliases (`const g = globalThis; g.Bun`) and `Reflect.get` lookups alike,
     // at the cost of also refusing an unrelated member named `Bun`.
-    { matches: namesText(BUN_GLOBAL), message: BUN_MESSAGE },
+    {
+      matches: namesText(BUN_GLOBAL),
+      message: BUN_MESSAGE,
+      // The fence names `Bun` to build this rule; the other rules still judge it.
+      exempts: (path) => path === FENCE_PATH,
+    },
   ],
 }
 

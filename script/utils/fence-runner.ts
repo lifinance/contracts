@@ -23,6 +23,7 @@ export const MODULE_EXTENSIONS = [
   '.mts',
   '.cts',
   '.js',
+  '.jsx',
   '.mjs',
   '.cjs',
 ]
@@ -33,6 +34,8 @@ const SKIPPED_PREFIXES = ['archive/']
 export interface IFenceRule {
   matches: (node: ts.Node) => boolean
   message: string
+  /** Repo-relative paths this one rule skips, while the fence's other rules still judge them. */
+  exempts?: (path: string) => boolean
 }
 
 export interface IFence {
@@ -63,9 +66,30 @@ export const namesText =
 const scriptKindFor = (path: string): ts.ScriptKind => {
   const extension = extname(path)
   if (extension === '.tsx') return ts.ScriptKind.TSX
+  if (extension === '.jsx') return ts.ScriptKind.JSX
   if (['.js', '.mjs', '.cjs'].includes(extension)) return ts.ScriptKind.JS
   return ts.ScriptKind.TS
 }
+
+/**
+ * `createSourceFile` recovers from a syntax error and returns a partial tree,
+ * which would let a file that does not parse pass on whatever survived.
+ */
+const syntaxErrors = (source: string, path: string): string[] =>
+  (
+    ts.transpileModule(source, { fileName: path, reportDiagnostics: true })
+      .diagnostics ?? []
+  ).map((diagnostic) => {
+    const text = ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')
+    const position =
+      diagnostic.file && diagnostic.start !== undefined
+        ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
+        : { line: 0, character: 0 }
+    return (
+      `${position.line + 1}:${position.character + 1}  Could not parse ` +
+      `(${text}). The fence only judges a file that parses; fix the syntax.`
+    )
+  })
 
 /**
  * Judges one module's source as if it were the file at `path`.
@@ -73,8 +97,9 @@ const scriptKindFor = (path: string): ts.ScriptKind => {
  * @param fence - the fence to apply
  * @param source - the module text
  * @param path - repo-relative path, which is what `appliesTo` matches on
- * @returns one `line:column  message` entry per offending node; empty when the
- *   module passes or the fence does not apply to `path`
+ * @returns one `line:column  message` entry per offending node, or per syntax
+ *   error when the module does not parse; empty when the module passes or the
+ *   fence does not apply to `path`
  */
 export const findViolations = (
   fence: IFence,
@@ -83,6 +108,9 @@ export const findViolations = (
 ): string[] => {
   if (!fence.appliesTo(path)) return []
 
+  const unparseable = syntaxErrors(source, path)
+  if (unparseable.length > 0) return unparseable
+
   const sourceFile = ts.createSourceFile(
     path,
     source,
@@ -90,10 +118,11 @@ export const findViolations = (
     true,
     scriptKindFor(path)
   )
+  const rules = fence.rules.filter((rule) => !rule.exempts?.(path))
   const violations: string[] = []
 
   const visit = (node: ts.Node): void => {
-    for (const rule of fence.rules)
+    for (const rule of rules)
       if (rule.matches(node)) {
         const { line, character } = sourceFile.getLineAndCharacterOfPosition(
           node.getStart(sourceFile)
