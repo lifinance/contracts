@@ -396,7 +396,8 @@ new base is not what was audited.
 - On sync PRs, unrelated required-check / healthcheck failures are
   **expected** — confirm the real diff is clean; don't fix on-chain state
   to satisfy a sync PR. The **overlay check is the exception**: when it
-  fails it is never noise, it is the overlay being lost.
+  fails it is never noise. Act on the code it reports — a lost suffix or
+  lost Tron lines, a stale base version, a deleted file, or a git error.
 - Resolving a conflict on an overlaid contract: **keep our `-tron` suffix
   and the Tron lines, and move the baseline**; never take upstream's version
   line or whole file. See [the overlay check](#the-overlay-check).
