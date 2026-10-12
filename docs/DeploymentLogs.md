@@ -129,9 +129,10 @@ each correction is a decision, not a sweep.
 
 **It only gives a verdict where it can prove one.** Artifacts exist for the working tree
 only, so a record is judged against its own ABI just when the tree still holds the version
-the record names — a plain version means the fork's source is identical to this repo's,
-since [the fork-delta guard](TronFork.md#the-fork-delta-guard) rejects an undeclared
-divergence. Everything else is reported as **unverified**: a `-tron` overlay version, a
+the record names. For a Tron record, a plain version is taken to mean the fork's source is
+identical to this repo's. That rests on fork policy, not a check:
+[the overlay check](TronFork.md#the-overlay-check) covers only `-tron` files, so a fork-only
+edit to a plain-versioned file would still get a `same-version` verdict. Everything else is reported as **unverified**: a `-tron` overlay version, a
 version the tree has moved past, or a version that cannot be read. Those lines carry what
 the working tree's ABI _would_ have said as a lead to chase, never as a verdict — the
 deployed version may have taken a different number of arguments, and acting on the
