@@ -313,8 +313,12 @@ struct M0Data {
     (`1151111081099710`); the facet translates it to M0's Solana chain id `1399811149`.
     Sending `1399811149` directly reverts `InvalidCallData` — it would survive the `uint32`
     cast untouched and take the EVM branch of the receiver binding
-  - Set `receiverAddress` to the Solana recipient's 32-byte public key — non-zero, or the
-    call reverts `InvalidNonEVMReceiver`
+  - Set `receiverAddress` to the Solana **wallet** that should own the tokens, as its 32-byte
+    public key — non-zero, or the call reverts `InvalidNonEVMReceiver`. M0 derives the
+    recipient's associated token account (ATA) from it. Never pass a token-account address
+    (as CCTP's `mintRecipient` expects): M0 would derive an ATA owned by that token account,
+    which cannot sign, so the delivered tokens would be unrecoverable. The facet cannot check
+    this on-chain, so the backend must enforce it
   - Set `tokenOut` to the SPL mint as bytes32
   - `orderOwner` and `refundRecipient` stay EVM addresses — they live on the origin chain
   - A `BridgeToNonEVMChainBytes32` event is emitted alongside `LiFiTransferStarted`
