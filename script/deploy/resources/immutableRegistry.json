@@ -10,7 +10,7 @@
       "configData": "_backendSigner",
       "authorityBearing": true
     },
-    "TOKEN_MESSENGER": {
+    "ECO_TOKEN_MESSENGER": {
       "source": "config",
       "configData": "_tokenMessenger",
       "authorityBearing": true

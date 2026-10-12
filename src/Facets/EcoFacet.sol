@@ -13,7 +13,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -27,7 +27,9 @@ import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature
 ///      encoded route. The on-chain receiver cross-checks in `_validateEcoData`
 ///      are retained as defense in depth: the last call of an EVM or Tron
 ///      route must pay the receiver through an ERC20 `transfer` or a HyperCore
-///      `depositFor`, or be a CCTP `depositForBurn` on `TOKEN_MESSENGER`.
+///      `depositFor`, or be a CCTP `depositForBurn` on `ECO_TOKEN_MESSENGER`.
+///      HyperCore routes must use LI.FI's HyperCore chain ID and are published
+///      to HyperEVM, where the deposit executes.
 ///      A CCTP route executes on the source chain (Eco's CCTP fulfillment and
 ///      bridge-and-swap shapes), so its intent is published with the source
 ///      chain as destination while `bridgeData.destinationChainId` stays the
@@ -55,9 +57,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @notice Backend signer authorized to sign the EcoPayload
     address internal immutable BACKEND_SIGNER;
     /// @notice Circle CCTP TokenMessengerV2; address(0) on chains without CCTP
-    ITokenMessenger public immutable TOKEN_MESSENGER;
+    ITokenMessenger public immutable ECO_TOKEN_MESSENGER;
     uint64 private constant ECO_CHAIN_ID_TRON = 728126428;
     uint64 private constant ECO_CHAIN_ID_SOLANA = 1399811149;
+    uint64 private constant ECO_CHAIN_ID_HYPEREVM = 999;
 
     // EIP-712 typehash: keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
     bytes32 private constant ECO_PAYLOAD_TYPEHASH =
@@ -148,7 +151,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         }
         PORTAL = _portal;
         BACKEND_SIGNER = _backendSigner;
-        TOKEN_MESSENGER = _tokenMessenger;
+        ECO_TOKEN_MESSENGER = _tokenMessenger;
     }
 
     /// External Methods ///
@@ -354,8 +357,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     /// @dev Checks that the route's last call pays `bridgeData.receiver`, or
     ///      is a CCTP burn of the bridged amount. A CCTP burn executes on the
-    ///      source chain, so its intent is published there; every other route
-    ///      executes on the destination.
+    ///      source chain, so its intent is published there; a HyperCore
+    ///      `depositFor` (LI.FI chain ID 1337) executes on HyperEVM; every
+    ///      other route executes on the destination.
     /// @return intentDestination Eco chain ID the intent executes on
     function _validateEVMRoute(
         ILiFi.BridgeData memory _bridgeData,
@@ -370,18 +374,23 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             return uint64(block.chainid);
         }
 
-        uint256 argsCount;
-        if (selector == IERC20.transfer.selector) {
-            argsCount = TRANSFER_ARGS_COUNT;
-        } else if (selector == HYPERCORE_DEPOSIT_FOR_SELECTOR) {
-            argsCount = HYPERCORE_DEPOSIT_FOR_ARGS_COUNT;
-        } else {
-            revert InvalidReceiver();
+        bool isHyperCoreDestination = _bridgeData.destinationChainId ==
+            LIFI_CHAIN_ID_HYPERCORE;
+        if (selector == HYPERCORE_DEPOSIT_FOR_SELECTOR) {
+            if (!isHyperCoreDestination) revert InvalidDestinationChain();
+            if (
+                _callArgument(
+                    lastCall.data,
+                    HYPERCORE_DEPOSIT_FOR_ARGS_COUNT,
+                    0
+                ) != receiver
+            ) revert InvalidReceiver();
+            // HyperCore has no Eco portal; its deposit executes on HyperEVM
+            return ECO_CHAIN_ID_HYPEREVM;
         }
-        // Both `transfer` and `depositFor` take the recipient first
-        if (_callArgument(lastCall.data, argsCount, 0) != receiver) {
-            revert InvalidReceiver();
-        }
+        if (isHyperCoreDestination) revert InvalidDestinationChain();
+
+        _validateTransferTo(lastCall.data, receiver);
 
         if (_bridgeData.destinationChainId > type(uint64).max) {
             revert InvalidConfig();
@@ -400,8 +409,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         Call memory _burn
     ) private view {
         if (
-            address(TOKEN_MESSENGER) == address(0) ||
-            _burn.target != address(TOKEN_MESSENGER)
+            address(ECO_TOKEN_MESSENGER) == address(0) ||
+            _burn.target != address(ECO_TOKEN_MESSENGER)
         ) revert InvalidCCTPBurn();
 
         bytes memory data = _burn.data;
@@ -462,12 +471,19 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidNonEVMReceiver();
         }
 
-        bytes memory lastCallData = _decodeLastCall(_ecoData.encodedRoute)
-            .data;
-        if (
-            bytes4(lastCallData) != IERC20.transfer.selector ||
-            _callArgument(lastCallData, TRANSFER_ARGS_COUNT, 0) !=
+        _validateTransferTo(
+            _decodeLastCall(_ecoData.encodedRoute).data,
             nonEVMReceiver
+        );
+    }
+
+    function _validateTransferTo(
+        bytes memory _callData,
+        bytes32 _recipient
+    ) private pure {
+        if (
+            bytes4(_callData) != IERC20.transfer.selector ||
+            _callArgument(_callData, TRANSFER_ARGS_COUNT, 0) != _recipient
         ) revert InvalidReceiver();
     }
 
