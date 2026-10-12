@@ -23,6 +23,8 @@ by inserting a `.` before the last 6 digits (`p1783082088092039` → `1783082088
   queued/unexecuted ops on the same networks are never stoppers (mention as FYI at most).
 - **No lifi-connect tunnel.** Verification uses the non-gated `MONGODB_URI` timelock queue plus public RPCs.
   Do not call `list-pending-proposals.ts` (lifi-connect-gated `SC_MONGODB_URI`) as part of this skill.
+- **Hands off `.env`.** Never read, grep, `ls` or `test` it: it is deny-listed, so a refused
+  command proves nothing about the file. The Phase 2 script loads `.env` itself.
 - The thread must live in `#dev-sc-multisig-proposals` (`C09DKGYQ1GC`). Anything else: stop
   and ask.
 
@@ -31,7 +33,6 @@ by inserting a `.` before the last 6 digits (`p1783082088092039` → `1783082088
 - Slack MCP connected (read thread, send reply, add reaction). If missing, stop — the Slack
   closure is half the job.
 - `gh auth status` OK (deploy mode edits the rollout PR).
-- `MONGODB_URI` present in `.env` (the verification script exits `2` if not).
 
 ## Phase 1 — Parse the thread
 
@@ -66,7 +67,8 @@ Correlate queue rows to this rollout by **deployed address in the scheduled payl
    ```
 
    Exit codes: `0` ok, `1` real error (stop, report), `2` `MONGODB_URI` missing/unreachable
-   (tell the user, stop).
+   (re-run once; still `2` → relay the script's error verbatim and stop, without guessing at
+   `.env`).
 3. **Gate**: every target network has ≥1 correlated row, and every correlated row is
    `status: "executed"` with `onChainDone: true`. A diamond-called periphery rollout expects
    **two** rows per network (registration + whitelist).
@@ -157,8 +159,8 @@ same networks).
 
 ## Failure modes
 
-- `list-timelock-queue.ts` exit `2` → `MONGODB_URI` missing or cluster unreachable — relay,
-  stop.
+- `list-timelock-queue.ts` exit `2` twice in a row → `MONGODB_URI` missing or cluster
+  unreachable — relay the error verbatim, stop.
 - A correlated row is `status: "blocked"` → the pre-execute guard refused the batch and the
   timelock op is still un-executed. The gate fails; do not treat it as done. **Report and
   stop** — clearing a block is outside the finisher's authority (Hard rails: the workflow
