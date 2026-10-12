@@ -99,10 +99,13 @@ is Tron-enablement, CI, test, config or audit — **no product features**.
   `2026.05.22_TronCanonicalUSDT(Part-2).pdf` report, and
   `auditedPatches.json` (see [the audit gate on the fork](#the-audit-gate-on-the-fork)).
 - **Config (1)** — `config/networks.json` still carries the obsolete
-  `skipHealthcheck` key for `somnia` (see "The main pain" below).
+  `skipHealthcheck` key for `somnia`. It is leftover, not intended delta;
+  remove it from the fork (see "The main pain" below).
 
 If a change lands only in `contracts-tron` and grows beyond this shape,
-stop and reconsider — it almost certainly belongs here in `main` instead
+stop and reconsider. No check enforces this — the overlay check covers
+only `-tron` files — so it rests on review. Such a change almost certainly
+belongs here in `main` instead
 (this doc included: it lives here so it flows to the fork through the
 normal sync rather than becoming its own untracked delta item).
 
@@ -251,8 +254,10 @@ contract can never merge silently.
 
 But the conflict then lands on a human. Resolving it by taking upstream's
 whole file gives audited upstream code at an audited upstream version: the
-audit gate passes, `forge test` stays green, and the Tron USDT bypass is
-gone. Dropping the suffix, deleting the file, or leaving the overlay on a
+audit gate passes and the Tron USDT bypass is gone. `forge test` catches it
+only while the fork's Tron tests (in `LibAsset.t.sol` and
+`WithdrawablePeriphery.t.sol`) survive; a sync that also touches those test
+files can lose them the same way. Dropping the suffix, deleting the file, or leaving the overlay on a
 stale base are quieter versions of the same mistake.
 
 #### What it checks
@@ -270,7 +275,10 @@ and on label changes.
   `merge-base(HEAD, upstream/main)`. Upstream moving on after a sync is
   therefore not a failure. When both are the same commit, the PR brings in
   nothing from upstream and passes without checking, which is why ordinary
-  fork PRs are unaffected.
+  fork PRs are unaffected. This relies on upstream's commits becoming
+  ancestors of the fork's `main`, so **merge sync PRs with a merge commit,
+  never squash or rebase**. A squashed sync leaves the merge-base behind,
+  and the next sync re-conflicts and is checked against a stale upstream.
 - **Only overlays the sync reached are checked:** the fork's file changed, or
   upstream's did. An overlay the sync didn't touch isn't re-flagged.
 - **Git errors fail the run.** A file counts as absent only when
@@ -328,12 +336,16 @@ Almost always this means upstream changed an overlaid contract. Then:
 
 4. If upstream adopted an equivalent fix, `OVERLAY_DELTA_LOST` fires too.
    That is good news — retire the overlay deliberately (drop the `-tron`
-   version along with the code, and set the override label) rather than
-   patching the check.
+   version along with the code, remove its `audit/auditedPatches.json`
+   entry, and set the override label) rather than patching the check. A
+   stale `auditedPatches.json` entry makes the audit gate report drift on
+   every contract that imports the retired file.
 
 Run it locally from a **`contracts-tron` checkout** (the scripts are
 fork-only and are not present in this repo), with this repo fetched as the
-`upstream` remote:
+`upstream` remote. `HEAD` must already have the fork's `main` merged in, as a
+resolved sync branch does. On a raw `sync/upstream-*` branch, which carries
+only upstream's history, every overlay reads as lost:
 
 ```bash
 bunx tsx script/tasks/checkTronOverlays.ts --before origin/main --after HEAD --upstream upstream/main
@@ -397,7 +409,7 @@ new base is not what was audited.
 - Committing a sync-conflict resolution locally runs the pre-commit
   prettier hook, which has reformatted the Tron bypass in `LibAsset.sol`
   and failed `version-control`. Commit with `HUSKY=0`, or check that
-  `git diff origin/main HEAD -- src/Libraries/LibAsset.sol src/Periphery/WithdrawablePeriphery.sol`
+  `git diff origin/main HEAD -- src/Libraries/LibAsset.sol src/Helpers/WithdrawablePeriphery.sol`
   prints nothing before pushing.
 - Watch versioning: one `@custom:version` ↔ one bytecode. Use `-tron` /
   `-tron-rN` for anything that differs.
