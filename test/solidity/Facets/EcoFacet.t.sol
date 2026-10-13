@@ -25,12 +25,18 @@ contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
 contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
-        0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
+        0xEC000769A73b70e16f361a442292500b3BCf4A85;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
     address internal constant TOKEN_MESSENGER =
         0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
     uint256 internal constant ARBITRUM_CHAIN_ID = 42161;
     uint32 internal constant ARBITRUM_CCTP_DOMAIN = 3;
+    uint32 internal constant BASE_CCTP_DOMAIN = 6;
+    uint32 internal constant HYPEREVM_CCTP_DOMAIN = 19;
+    uint256 internal constant BSC_CHAIN_ID = 56;
+    /// @dev Eco's Base Portal before the #2502 address change
+    address internal constant OLD_PORTAL =
+        0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
     uint32 internal constant CCTP_FAST_FINALITY_THRESHOLD = 1000;
     /// @dev maxFee = amount / 1000 (10 bps), above Circle's fast-transfer minimum
     uint256 internal constant CCTP_MAX_FEE_DIVISOR = 1000;
@@ -114,7 +120,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         hex"000003e800000000000000000000000000000000000000000000000000000000";
 
     function setUp() public {
-        customBlockNumberForForking = 35717845;
+        customBlockNumberForForking = 52500000;
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
         initTestBase();
         addLiquidity(
@@ -1844,6 +1850,8 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             )
         );
         EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(route);
+        IEcoPortal.Reward memory reward = _expectedReward(ecoData);
+        uint256 daiBefore = dai.balanceOf(USER_SENDER);
 
         dai.approve(_facetTestContractAddress, amountIn);
 
@@ -1853,7 +1861,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
                 IEcoPortal.publishAndFund.selector,
                 uint64(block.chainid),
                 route,
-                _expectedReward(ecoData),
+                reward,
                 false
             )
         );
@@ -1864,6 +1872,159 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         _swapAndStartEco(bridgeData, swapData, ecoData);
 
         vm.stopPrank();
+
+        bytes32 intentHash = keccak256(
+            abi.encodePacked(
+                uint64(block.chainid),
+                keccak256(route),
+                keccak256(abi.encode(reward))
+            )
+        );
+        assertEq(
+            uint8(IEcoPortal(PORTAL).getRewardStatus(intentHash)),
+            uint8(IEcoPortal.Status.Funded)
+        );
+        assertEq(dai.balanceOf(USER_SENDER), daiBefore - amountIn);
+        assertEq(usdc.balanceOf(_facetTestContractAddress), 0);
+        assertEq(dai.balanceOf(_facetTestContractAddress), 0);
+    }
+
+    function testRevert_SwapAndBridgeViaCCTPBurnTokenMismatch() public {
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _createCCTPRoute(
+                _depositForBurnData(
+                    bridgeData.minAmount,
+                    USER_RECEIVER,
+                    ADDRESS_DAI,
+                    bytes32(0)
+                )
+            )
+        );
+
+        dai.approve(_facetTestContractAddress, amountIn);
+
+        vm.expectRevert(EcoFacet.InvalidCCTPBurn.selector);
+
+        _swapAndStartEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Native the swap leaves unspent and `msg.value` above the swap's
+    ///      `fromAmount` both go to `refundRecipient`, not to the caller
+    ///      (who may be a relayer or proxy).
+    function test_SwapAndBridgeRefundsExcessNativeToRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        address refundRecipient = address(0xABCD);
+        uint256 excessNative = 1 ether;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn + excessNative,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.refundRecipient = refundRecipient;
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        uint256 senderBefore = USER_SENDER.balance;
+
+        ecoFacet.swapAndStartBridgeTokensViaEco{
+            value: amountIn + 2 * excessNative
+        }(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+
+        assertEq(refundRecipient.balance, 2 * excessNative);
+        assertEq(
+            USER_SENDER.balance,
+            senderBefore - amountIn - 2 * excessNative
+        );
+        assertEq(_facetTestContractAddress.balance, 0);
+    }
+
+    /// @dev Pins the facet's Route/Call mirror to Eco's real CCTP quote route.
+    function test_CCTPQuoteRouteDecodesWithEcoCallLayout() public view {
+        EcoFacet.Route memory route = abi.decode(
+            CCTP_QUOTE_ROUTE,
+            (EcoFacet.Route)
+        );
+
+        assertEq(route.portal, PORTAL);
+        assertEq(route.tokens.length, 1);
+        assertEq(route.tokens[0].token, ADDRESS_USDC);
+        assertEq(route.tokens[0].amount, CCTP_QUOTE_AMOUNT);
+        assertEq(route.calls.length, 2);
+        assertEq(route.calls[0].target, ADDRESS_USDC);
+        assertEq(
+            route.calls[0].data,
+            abi.encodeWithSelector(
+                IERC20.approve.selector,
+                TOKEN_MESSENGER,
+                CCTP_QUOTE_AMOUNT
+            )
+        );
+        assertEq(route.calls[1].target, TOKEN_MESSENGER);
+        assertEq(route.calls[1].value, 0);
+        assertEq(
+            route.calls[1].data,
+            abi.encodeWithSelector(
+                ITokenMessenger.depositForBurn.selector,
+                CCTP_QUOTE_AMOUNT,
+                ARBITRUM_CCTP_DOMAIN,
+                LibBytes.toBytes32(CCTP_QUOTE_RECEIVER),
+                ADDRESS_USDC,
+                bytes32(0),
+                uint256(650),
+                uint32(1000)
+            )
+        );
     }
 
     /// @dev Runs the CCTP route's calls the way Eco's Executor would, against
@@ -1966,6 +2127,131 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         );
     }
 
+    function testRevert_CCTPBurnAmountAboveBridgedAmount() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount + 1,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            TOKEN_MESSENGER,
+            EcoFacet.InvalidCCTPBurn.selector
+        );
+    }
+
+    function testRevert_CCTPBurnToOtherChainDomain() public {
+        _expectCCTPRouteRevert(
+            _depositForBurnData(
+                bridgeData.minAmount,
+                BASE_CCTP_DOMAIN,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            TOKEN_MESSENGER,
+            EcoFacet.InvalidCCTPBurn.selector
+        );
+    }
+
+    /// @dev A plain burn mints on HyperEVM; it cannot deliver to HyperCore.
+    function testRevert_CCTPRouteToHyperCore() public {
+        _expectCCTPRouteRevertTo(
+            HYPERCORE_CHAIN_ID,
+            _depositForBurnData(
+                bridgeData.minAmount,
+                HYPEREVM_CCTP_DOMAIN,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            InvalidDestinationChain.selector
+        );
+    }
+
+    function testRevert_CCTPRouteToChainWithoutCCTP() public {
+        _expectCCTPRouteRevertTo(
+            BSC_CHAIN_ID,
+            _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            InvalidDestinationChain.selector
+        );
+    }
+
+    function testRevert_CCTPRouteWithOtherPortal() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        EcoFacet.Route memory route = abi.decode(
+            _createCCTPRoute(
+                _depositForBurnData(
+                    bridgeData.minAmount,
+                    USER_RECEIVER,
+                    bridgeData.sendingAssetId,
+                    bytes32(0)
+                )
+            ),
+            (EcoFacet.Route)
+        );
+        route.portal = OLD_PORTAL;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(abi.encode(route));
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(EcoFacet.InvalidRoutePortal.selector);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev Only the last call is checked, so a burn followed by any other
+    ///      call is an unsupported route.
+    function testRevert_CCTPBurnNotLastCall() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](2);
+        calls[0] = EcoFacet.Call({
+            target: TOKEN_MESSENGER,
+            data: _depositForBurnData(
+                bridgeData.minAmount,
+                USER_RECEIVER,
+                bridgeData.sendingAssetId,
+                bytes32(0)
+            ),
+            value: 0
+        });
+        calls[1] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            data: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                TOKEN_MESSENGER,
+                0
+            ),
+            value: 0
+        });
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _encodeRoute(
+                calls,
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount
+            )
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
     function testRevert_CCTPBurnTokenMismatch() public {
         _expectCCTPRouteRevert(
             _depositForBurnData(
@@ -2046,6 +2332,27 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         facetWithoutCCTP.startBridgeTokensViaEco(bridgeData, ecoData);
     }
 
+    function _expectCCTPRouteRevertTo(
+        uint256 _destinationChainId,
+        bytes memory _burnData,
+        bytes4 _expectedError
+    ) internal {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = _destinationChainId;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _createCCTPRoute(_burnData)
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(_expectedError);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
     function _expectCCTPRouteRevert(
         bytes memory _burnData,
         address _tokenMessenger,
@@ -2116,10 +2423,27 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         bytes32 _destinationCaller
     ) internal pure returns (bytes memory) {
         return
+            _depositForBurnData(
+                _amount,
+                ARBITRUM_CCTP_DOMAIN,
+                _mintRecipient,
+                _burnToken,
+                _destinationCaller
+            );
+    }
+
+    function _depositForBurnData(
+        uint256 _amount,
+        uint32 _destinationDomain,
+        address _mintRecipient,
+        address _burnToken,
+        bytes32 _destinationCaller
+    ) internal pure returns (bytes memory) {
+        return
             abi.encodeWithSelector(
                 ITokenMessenger.depositForBurn.selector,
                 _amount,
-                ARBITRUM_CCTP_DOMAIN,
+                _destinationDomain,
                 LibBytes.toBytes32(_mintRecipient),
                 _burnToken,
                 _destinationCaller,

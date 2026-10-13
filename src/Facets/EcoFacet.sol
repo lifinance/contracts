@@ -28,26 +28,36 @@ import { InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMR
 ///      are retained as defense in depth: the last call of an EVM or Tron
 ///      route must pay the receiver through an ERC20 `transfer` or a HyperCore
 ///      `depositFor`, or be a CCTP `depositForBurn` on `ECO_TOKEN_MESSENGER`.
+///      For `transfer` and `depositFor` only the selector and recipient
+///      argument are checked, not the call target or amount; the backend
+///      must verify those before signing.
 ///      HyperCore routes must use LI.FI's HyperCore chain ID and are published
 ///      to HyperEVM, where the deposit executes.
 ///      A CCTP route executes on the source chain (Eco's CCTP fulfillment and
 ///      bridge-and-swap shapes), so its intent is published with the source
 ///      chain as destination while `bridgeData.destinationChainId` stays the
-///      chain the receiver is paid on. The burn's `mintRecipient` is not
-///      checked against the receiver: in bridge-and-swap it is the vault of a
-///      second Eco intent on the destination chain that swaps the minted USDC
-///      to the receiver, so for CCTP routes the receiver is enforced only by
-///      the backend signature. The facet also does not check the burn's
-///      `destinationDomain`, `maxFee` or finality threshold; the backend must
-///      verify these and the `mintRecipient` before signing.
+///      chain the receiver is paid on. The route must name this chain's
+///      `PORTAL`, and the burn must target the destination chain's CCTP
+///      domain. The burn's `mintRecipient` is not checked against the
+///      receiver: in bridge-and-swap it is the vault of a second Eco intent
+///      on the destination chain that swaps the minted USDC to the receiver,
+///      so for CCTP routes the receiver is enforced only by the backend
+///      signature. The facet also does not check the burn's `maxFee` or
+///      finality threshold; the backend must verify these and the
+///      `mintRecipient` before signing.
 /// @custom:version 3.0.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
 
     error IntentAlreadyFunded();
-    /// @notice Thrown when a CCTP route's burn does not move exactly the
-    ///         bridged amount of the sending asset with an open destination caller
+    /// @notice Thrown when a CCTP route's burn is not a `depositForBurn` on
+    ///         `ECO_TOKEN_MESSENGER` (or the facet has none on this chain), or
+    ///         does not burn exactly the bridged amount of the sending asset
+    ///         to the destination chain's CCTP domain with an open destination
+    ///         caller
     error InvalidCCTPBurn();
+    /// @notice Thrown when a CCTP route names a Portal other than `PORTAL`
+    error InvalidRoutePortal();
     /// @notice Thrown when the backend signature has expired
     error SignatureExpired();
 
@@ -82,6 +92,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     uint256 private constant HYPERCORE_DEPOSIT_FOR_ARGS_COUNT = 3;
     uint256 private constant DEPOSIT_FOR_BURN_ARGS_COUNT = 7;
     uint256 private constant BURN_AMOUNT_ARG = 0;
+    uint256 private constant BURN_DESTINATION_DOMAIN_ARG = 1;
     uint256 private constant BURN_TOKEN_ARG = 3;
     uint256 private constant BURN_DESTINATION_CALLER_ARG = 4;
 
@@ -182,10 +193,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     /// @notice Swaps and bridges tokens via Eco Protocol
-    /// @dev TODO (next iteration): unused swap leftovers and excess native below are refunded
-    ///      to msg.sender (which may be a relayer), not _ecoData.refundRecipient, unlike the
-    ///      positive slippage refund further down, which already uses refundRecipient. Align
-    ///      the two msg.sender-based refunds to refundRecipient as well.
     /// @param _bridgeData Bridge data containing core parameters
     /// @param _swapData Array of swap data for source swaps
     /// @param _ecoData Eco-specific parameters for the bridge
@@ -197,7 +204,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_ecoData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -212,7 +219,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_ecoData.refundRecipient)
         );
 
         if (actualAmountAfterSwap > _bridgeData.minAmount) {
@@ -365,11 +372,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         bytes calldata _encodedRoute
     ) private view returns (uint64 intentDestination) {
-        Call memory lastCall = _decodeLastCall(_encodedRoute);
+        Route memory route = _decodeRoute(_encodedRoute);
+        Call memory lastCall = _lastCall(route);
         bytes4 selector = bytes4(lastCall.data);
         bytes32 receiver = LibBytes.toBytes32(_bridgeData.receiver);
 
         if (selector == ITokenMessenger.depositForBurn.selector) {
+            // The intent executes here, so only this chain's Portal can fill it
+            if (route.portal != address(PORTAL)) revert InvalidRoutePortal();
             _validateCCTPBurn(_bridgeData, lastCall);
             return uint64(block.chainid);
         }
@@ -423,6 +433,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 )
             ) !=
             _bridgeData.minAmount ||
+            uint256(
+                _callArgument(
+                    data,
+                    DEPOSIT_FOR_BURN_ARGS_COUNT,
+                    BURN_DESTINATION_DOMAIN_ARG
+                )
+            ) !=
+            _chainIdToCctpDomainId(_bridgeData.destinationChainId) ||
             _callArgument(data, DEPOSIT_FOR_BURN_ARGS_COUNT, BURN_TOKEN_ARG) !=
             LibBytes.toBytes32(_bridgeData.sendingAssetId) ||
             _callArgument(
@@ -434,12 +452,52 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ) revert InvalidCCTPBurn();
     }
 
-    function _decodeLastCall(
+    /// @dev EVM chains with CCTP v2, from Circle's supported domains
+    ///      (https://developers.circle.com/cctp/cctp-supported-blockchains).
+    ///      HyperCore (1337) is absent: a plain burn mints on HyperEVM, not
+    ///      HyperCore. Adding a chain requires a new facet version.
+    /// @param _chainId LI.FI destination chain ID
+    /// @return CCTP domain ID of the destination chain
+    // solhint-disable-next-line code-complexity
+    function _chainIdToCctpDomainId(
+        uint256 _chainId
+    ) private pure returns (uint256) {
+        if (_chainId == 1) return 0; // Ethereum
+        if (_chainId == 43114) return 1; // Avalanche
+        if (_chainId == 10) return 2; // OP Mainnet
+        if (_chainId == 42161) return 3; // Arbitrum
+        if (_chainId == 8453) return 6; // Base
+        if (_chainId == 137) return 7; // Polygon PoS
+        if (_chainId == 130) return 10; // Unichain
+        if (_chainId == 59144) return 11; // Linea
+        if (_chainId == 81224) return 12; // Codex
+        if (_chainId == 146) return 13; // Sonic
+        if (_chainId == 480) return 14; // World Chain
+        if (_chainId == 143) return 15; // Monad
+        if (_chainId == 1329) return 16; // Sei
+        if (_chainId == 50) return 18; // XDC
+        if (_chainId == 999) return 19; // HyperEVM
+        if (_chainId == 57073) return 21; // Ink
+        if (_chainId == 98866) return 22; // Plume
+        if (_chainId == 5042) return 26; // Arc
+        if (_chainId == 1776) return 29; // Injective
+        if (_chainId == 2818) return 30; // Morph
+        if (_chainId == 1672) return 31; // Pharos
+        if (_chainId == 25) return 32; // Cronos
+        revert InvalidDestinationChain();
+    }
+
+    function _decodeRoute(
         bytes calldata _encodedRoute
+    ) private pure returns (Route memory) {
+        return abi.decode(_encodedRoute, (Route));
+    }
+
+    function _lastCall(
+        Route memory _route
     ) private pure returns (Call memory) {
-        Route memory route = abi.decode(_encodedRoute, (Route));
-        if (route.calls.length == 0) revert InvalidReceiver();
-        return route.calls[route.calls.length - 1];
+        if (_route.calls.length == 0) revert InvalidReceiver();
+        return _route.calls[_route.calls.length - 1];
     }
 
     /// @dev Returns the `_index`-th static argument word of ABI-encoded call
@@ -472,7 +530,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         }
 
         _validateTransferTo(
-            _decodeLastCall(_ecoData.encodedRoute).data,
+            _lastCall(_decodeRoute(_ecoData.encodedRoute)).data,
             nonEVMReceiver
         );
     }

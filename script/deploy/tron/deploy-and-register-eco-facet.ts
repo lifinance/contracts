@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises'
 import {
   MIN_BALANCE_WARNING,
   TronContractDeployer,
+  ZERO_ADDRESS,
   createTronWeb,
   tronAddressToHex,
   type ITronDeploymentConfig,
@@ -12,7 +13,6 @@ import {
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { zeroAddress } from 'viem'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
@@ -155,7 +155,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
     } else
       try {
         // CCTP is not deployed on Tron, so the facet rejects CCTP routes there
-        const constructorArgs = [portal, backendSigner, zeroAddress]
+        const constructorArgs = [portal, backendSigner, ZERO_ADDRESS]
 
         const result = await deployContractWithLogging(
           deployer,
