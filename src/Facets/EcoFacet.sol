@@ -36,8 +36,9 @@ import { InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMR
 ///      A CCTP route executes on the source chain (Eco's CCTP fulfillment and
 ///      bridge-and-swap shapes), so its intent is published with the source
 ///      chain as destination while `bridgeData.destinationChainId` stays the
-///      chain the receiver is paid on. The route must name this chain's
-///      `PORTAL`, and the burn must target the destination chain's CCTP
+///      chain the receiver is paid on. A route whose intent executes on this
+///      chain (CCTP, or HyperCore from HyperEVM) must name this chain's
+///      `PORTAL`. The burn must target the destination chain's CCTP
 ///      domain. The burn's `mintRecipient` is not checked against the
 ///      receiver: in bridge-and-swap it is the vault of a second Eco intent
 ///      on the destination chain that swaps the minted USDC to the receiver,
@@ -56,7 +57,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ///         to the destination chain's CCTP domain with an open destination
     ///         caller
     error InvalidCCTPBurn();
-    /// @notice Thrown when a CCTP route names a Portal other than `PORTAL`
+    /// @notice Thrown when a route whose intent executes on this chain names
+    ///         a Portal other than `PORTAL`
     error InvalidRoutePortal();
     /// @notice Thrown when the backend signature has expired
     error SignatureExpired();
@@ -377,16 +379,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bytes4 selector = bytes4(lastCall.data);
         bytes32 receiver = LibBytes.toBytes32(_bridgeData.receiver);
 
-        if (selector == ITokenMessenger.depositForBurn.selector) {
-            // The intent executes here, so only this chain's Portal can fill it
-            if (route.portal != address(PORTAL)) revert InvalidRoutePortal();
-            _validateCCTPBurn(_bridgeData, lastCall);
-            return uint64(block.chainid);
-        }
-
         bool isHyperCoreDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_HYPERCORE;
-        if (selector == HYPERCORE_DEPOSIT_FOR_SELECTOR) {
+        if (selector == ITokenMessenger.depositForBurn.selector) {
+            _validateCCTPBurn(_bridgeData, lastCall);
+            intentDestination = uint64(block.chainid);
+        } else if (selector == HYPERCORE_DEPOSIT_FOR_SELECTOR) {
             if (!isHyperCoreDestination) revert InvalidDestinationChain();
             if (
                 _callArgument(
@@ -396,16 +394,22 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 ) != receiver
             ) revert InvalidReceiver();
             // HyperCore has no Eco portal; its deposit executes on HyperEVM
-            return ECO_CHAIN_ID_HYPEREVM;
+            intentDestination = ECO_CHAIN_ID_HYPEREVM;
+        } else {
+            if (isHyperCoreDestination) revert InvalidDestinationChain();
+            _validateTransferTo(lastCall.data, receiver);
+            if (_bridgeData.destinationChainId > type(uint64).max) {
+                revert InvalidConfig();
+            }
+            intentDestination = uint64(_bridgeData.destinationChainId);
         }
-        if (isHyperCoreDestination) revert InvalidDestinationChain();
 
-        _validateTransferTo(lastCall.data, receiver);
-
-        if (_bridgeData.destinationChainId > type(uint64).max) {
-            revert InvalidConfig();
-        }
-        return uint64(_bridgeData.destinationChainId);
+        // A same-chain intent is filled here, so only this chain's Portal can
+        // fill it
+        if (
+            intentDestination == block.chainid &&
+            route.portal != address(PORTAL)
+        ) revert InvalidRoutePortal();
     }
 
     /// @dev The route's tokens equal the reward, so whatever the burn leaves
@@ -424,31 +428,22 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ) revert InvalidCCTPBurn();
 
         bytes memory data = _burn.data;
+        if (!_hasArguments(data, DEPOSIT_FOR_BURN_ARGS_COUNT)) {
+            revert InvalidCCTPBurn();
+        }
+        uint256 amount = uint256(_callWord(data, BURN_AMOUNT_ARG));
+        uint256 domain = uint256(_callWord(data, BURN_DESTINATION_DOMAIN_ARG));
+        bytes32 burnToken = _callWord(data, BURN_TOKEN_ARG);
+        bytes32 destinationCaller = _callWord(
+            data,
+            BURN_DESTINATION_CALLER_ARG
+        );
+
         if (
-            uint256(
-                _callArgument(
-                    data,
-                    DEPOSIT_FOR_BURN_ARGS_COUNT,
-                    BURN_AMOUNT_ARG
-                )
-            ) !=
-            _bridgeData.minAmount ||
-            uint256(
-                _callArgument(
-                    data,
-                    DEPOSIT_FOR_BURN_ARGS_COUNT,
-                    BURN_DESTINATION_DOMAIN_ARG
-                )
-            ) !=
-            _chainIdToCctpDomainId(_bridgeData.destinationChainId) ||
-            _callArgument(data, DEPOSIT_FOR_BURN_ARGS_COUNT, BURN_TOKEN_ARG) !=
-            LibBytes.toBytes32(_bridgeData.sendingAssetId) ||
-            _callArgument(
-                data,
-                DEPOSIT_FOR_BURN_ARGS_COUNT,
-                BURN_DESTINATION_CALLER_ARG
-            ) !=
-            bytes32(0)
+            amount != _bridgeData.minAmount ||
+            domain != _chainIdToCctpDomainId(_bridgeData.destinationChainId) ||
+            burnToken != LibBytes.toBytes32(_bridgeData.sendingAssetId) ||
+            destinationCaller != bytes32(0)
         ) revert InvalidCCTPBurn();
     }
 
@@ -458,6 +453,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     ///      HyperCore. Adding a chain requires a new facet version.
     /// @param _chainId LI.FI destination chain ID
     /// @return CCTP domain ID of the destination chain
+    // One branch per chain: a flat lookup table, not branching logic
     // solhint-disable-next-line code-complexity
     function _chainIdToCctpDomainId(
         uint256 _chainId
@@ -507,10 +503,23 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         bytes memory _data,
         uint256 _argsCount,
         uint256 _index
+    ) private pure returns (bytes32) {
+        if (!_hasArguments(_data, _argsCount)) revert InvalidReceiver();
+        return _callWord(_data, _index);
+    }
+
+    function _hasArguments(
+        bytes memory _data,
+        uint256 _argsCount
+    ) private pure returns (bool) {
+        return _data.length >= SELECTOR_LENGTH + _argsCount * 32;
+    }
+
+    /// @dev Callers must first check the word is in bounds (`_hasArguments`)
+    function _callWord(
+        bytes memory _data,
+        uint256 _index
     ) private pure returns (bytes32 word) {
-        if (_data.length < SELECTOR_LENGTH + _argsCount * 32) {
-            revert InvalidReceiver();
-        }
         uint256 offset = SELECTOR_LENGTH + _index * 32;
         // Memory `bytes` cannot be sliced or abi.decoded at an offset, so the
         // word is read directly: skip the 32-byte length prefix, then `offset`.

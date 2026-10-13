@@ -1719,6 +1719,72 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
+    function test_BridgeFromHyperEVMToHyperCore() public {
+        vm.chainId(HYPEREVM_CHAIN_ID);
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = HYPERCORE_CHAIN_ID;
+        bytes memory route = _hyperCoreRoute(PORTAL);
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(route);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(HYPEREVM_CHAIN_ID),
+                route,
+                _expectedReward(ecoData),
+                false
+            )
+        );
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HyperEVMToHyperCoreWithOtherPortal() public {
+        vm.chainId(HYPEREVM_CHAIN_ID);
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = HYPERCORE_CHAIN_ID;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _hyperCoreRoute(OLD_PORTAL)
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(EcoFacet.InvalidRoutePortal.selector);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function _hyperCoreRoute(
+        address _portal
+    ) internal view returns (bytes memory) {
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
+        calls[0] = EcoFacet.Call({
+            target: HYPERCORE_DEPOSITOR,
+            data: abi.encodeWithSelector(
+                bytes4(keccak256("depositFor(address,uint256,uint32)")),
+                bridgeData.receiver,
+                bridgeData.minAmount,
+                uint32(0)
+            ),
+            value: 0
+        });
+        EcoFacet.Route memory route = abi.decode(
+            _encodeRoute(calls, HYPEREVM_USDC, bridgeData.minAmount),
+            (EcoFacet.Route)
+        );
+        route.portal = _portal;
+        return abi.encode(route);
+    }
+
     function testRevert_TransferRouteToHyperCoreChainId() public {
         vm.startPrank(USER_SENDER);
 
@@ -2300,7 +2366,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
                 LibBytes.toBytes32(USER_RECEIVER)
             ),
             TOKEN_MESSENGER,
-            InvalidReceiver.selector
+            EcoFacet.InvalidCCTPBurn.selector
         );
     }
 

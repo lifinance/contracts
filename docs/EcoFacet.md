@@ -53,7 +53,7 @@ The receiver address is specified differently depending on the destination chain
   - Leave `nonEVMReceiver` empty (`""`)
   - Leave `solanaATA` as `bytes32(0)`
   - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
-  - The contract checks that the route's last call is an ERC20 `transfer(receiver, amount)` or a HyperCore `depositFor(receiver, amount, dex)` whose recipient argument equals `bridgeData.receiver`. It checks only the selector and recipient, not the call target or amount; the backend must verify those before signing. A `depositFor` route requires `bridgeData.destinationChainId = 1337` (LI.FI's HyperCore ID) and is published to HyperEVM (999), where the deposit executes; 1337 with any other last call reverts `InvalidDestinationChain`. A route may instead end in a CCTP `depositForBurn`, whose `mintRecipient` is not checked on-chain (see **CCTP Routes** below)
+  - The contract checks that the route's last call is an ERC20 `transfer(receiver, amount)` or a HyperCore `depositFor(receiver, amount, dex)` whose recipient argument equals `bridgeData.receiver`. It checks only the selector and recipient, not the call target or amount; the backend must verify those before signing. A `depositFor` route requires `bridgeData.destinationChainId = 1337` (LI.FI's HyperCore ID) and is published to HyperEVM (999), where the deposit executes; 1337 with any other last call reverts `InvalidDestinationChain`. When the source chain is HyperEVM, that intent executes on the source chain, so the route's `portal` must equal the facet's `PORTAL`, otherwise it reverts `InvalidRoutePortal`. A route may instead end in a CCTP `depositForBurn`, whose `mintRecipient` is not checked on-chain (see **CCTP Routes** below)
 
 - **For Solana destination chain**:
   - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant (`0x11f111f111f111F111f111f111F111f111f111F1`)
@@ -97,7 +97,7 @@ ecoData.refundRecipient = msg.sender;            // User address for refunds
 
 - **Duplicate Bridge Protection**: The contract prevents duplicate bridge calls with identical parameters. If you attempt to bridge with the same intent parameters twice, the second transaction will revert with an `IntentAlreadyFunded` error. This protects against accidental fund loss.
 
-- **Positive Slippage**: When using `swapAndStartBridgeTokensViaEco`, any positive slippage from the swap (tokens received above `minAmount`) is automatically refunded to the user. Only the exact `minAmount` specified is bridged. Unused swap leftovers and excess native are refunded to `refundRecipient`, not `msg.sender`.
+- **Positive Slippage**: When using `swapAndStartBridgeTokensViaEco`, any positive slippage from the swap (tokens received above `minAmount`) is sent to `refundRecipient`. Only the exact `minAmount` specified is bridged. Unused swap leftovers and excess native are refunded to `refundRecipient`, not `msg.sender`.
 
 - **Native Token Bridging**: The EcoFacet contract does not support native token bridging. Only ERC20 token transfers are supported. Transactions will revert if native tokens are specified as the sending asset.
 

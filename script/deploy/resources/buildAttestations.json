@@ -736,7 +736,7 @@
         "contractName": "EcoFacet",
         "sourceId": "src/Facets/EcoFacet.sol",
         "version": "3.0.0",
-        "closureHash": "0xacbc608501b08cbbc6b1cdd0a4c917347ae2699eb390ac1e69eb3557d615dd4c",
+        "closureHash": "0x6c7779d4d0da7bbadad519a914f1de73b630cb6621f796b584acea166bbf1be3",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -756,9 +756,9 @@
           }
         }
       },
-      "maskedHash": "0xd559cf577131e5ea20678a1aded58e09fce75878338063fcf91086f8f3c576a9",
+      "maskedHash": "0x13cd5bc9e57991c41a1447a0af8a25018014d9a0938c27ea2a623bdc2abbf52b",
       "lineage": "EcoFacet@3.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 14725,
+      "rawByteLength": 14857,
       "immutableOffsets": [
         {
           "start": 83,
@@ -785,15 +785,15 @@
           "length": 32
         },
         {
-          "start": 5585,
+          "start": 5991,
           "length": 32
         },
         {
-          "start": 8546,
+          "start": 8568,
           "length": 32
         },
         {
-          "start": 8608,
+          "start": 8630,
           "length": 32
         }
       ]
