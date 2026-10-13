@@ -3,11 +3,11 @@
     "Facets": {
       "0xf7993A8df974AD022647E63402d6315137c58ABf": {
         "Name": "DiamondCutFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0xF5ba8Db6fEA7aF820De35C8D0c294e17DBC1b9D2": {
         "Name": "DiamondLoupeFacet",
-        "Version": ""
+        "Version": "1.0.0"
       },
       "0x6faA6906b9e4A59020e673910105567e809789E0": {
         "Name": "OwnershipFacet",
@@ -49,9 +49,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x5C47966EAAa5dbf30E20C1a01ED0acFCBCcF1349": {
+      "0x94a3eDCa65424775651E6FbcE63c89c8cb69a66F": {
         "Name": "PaxosTransitFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",

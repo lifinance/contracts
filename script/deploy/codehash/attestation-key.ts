@@ -11,7 +11,10 @@ import { keccak256, stringToHex } from 'viem'
 
 import { digestFault, normalizeHash } from './hex'
 
-/** Which repo produced a build; the minter runs in both. */
+/**
+ * Which repo produced a build. The minter runs only in `contracts`; the
+ * `contracts-tron` fork mints nothing (docs/MultisigSigningProcess.md §8.1).
+ */
 export type BuildRepo = 'contracts' | 'contracts-tron'
 
 /**

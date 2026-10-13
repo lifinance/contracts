@@ -103,11 +103,11 @@ describe('validate-scripts job', () => {
   it('runs when only the lint config changes', () => {
     expect(scriptsFilter()).toEqual(
       expect.arrayContaining([
-        '.eslintrc.cjs',
-        // Extended by .eslintrc.cjs, so its rules are part of `bun lint:js`
-        '.eslintrc.funnel-fence.cjs',
-        '.eslintignore',
-        'tsconfig.eslint.json',
+        '.oxlintrc.json',
+        // Covers the local oxlint plugin `.oxlintrc.json` loads
+        'script/**/*.{ts,tsx,mts,cts,js,mjs,cjs}',
+        // Type-aware rules read the project from it
+        'tsconfig.json',
       ])
     )
   })

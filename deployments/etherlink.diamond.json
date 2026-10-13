@@ -48,6 +48,10 @@
       "0xBbb1Fa2505385A3cBE6aC37bB9bf42bf7C0Ceff0": {
         "Name": "GlacisFacet",
         "Version": "1.2.0"
+      },
+      "0xE5C975473A80777C4DfB68cB2cEAA71756997170": {
+        "Name": "LayerSwapFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

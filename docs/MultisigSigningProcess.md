@@ -189,19 +189,22 @@ added that skips them. The refusal happens before the proposal document is
 inserted, so a refused proposal is never created and claims no nonce, and it
 names both `--ticket` and `SAFE_PROPOSAL_TICKET`.
 
-The seam is enforced, not conventional: `.eslintrc.funnel-fence.cjs` refuses any
-file outside its allowlist that names `storeTransactionInMongoDB`, so a propose
-route added later either comes through `proposeSafeTx` or fails lint
-(`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It is an ESLint
-rule keyed on the AST identifier, so an alias, a namespace member access, a
-dynamic import or a computed lookup is refused the same way a plain import is,
-and the CI run passes `--no-inline-config` over every module extension the repo
-can hold, so neither a file-level `eslint-disable` nor a `.mjs` route escapes it.
-Three things it does **not** cover: a hand-rolled insert into the
+The seam is enforced, not conventional: `script/deploy/safe/funnel-fence.ts`
+refuses any file outside its allowlist that names `storeTransactionInMongoDB`, so
+a propose route added later either comes through `proposeSafeTx` or fails the
+fence (`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It judges
+TypeScript syntax nodes, so an alias, a namespace member access, a dynamic import
+or a computed lookup is refused the same way a plain import is. It reads no
+comments and sweeps every JS/TS module extension (`MODULE_EXTENSIONS` in
+`script/utils/fence-runner.ts`), so neither a file-level disable comment nor a
+`.mjs` or `.jsx` route escapes it, and it refuses a file that does not parse
+rather than judging the part that did.
+Four things it does **not** cover: a hand-rolled insert into the
 `pendingTransactions` collection that never names the storage function, an alias
-re-exported from an allowlisted file, and the one file still allowlisted for its
-own storage call — the Tron route, which hand-rolls its own signature instead of
-signing through a `SafeClient` (EXSC-984).
+re-exported from an allowlisted file, a route in a file with no extension, and
+the one file still allowlisted for its own storage call — the Tron route, which
+hand-rolls its own signature instead of signing through a `SafeClient`
+(EXSC-984).
 
 The ticket check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
@@ -316,12 +319,14 @@ Entry points:
   `script/deploy/safe/add-safe-owners-and-threshold.ts`. They share the storage
   seam (`proposeSafeTx`) but **not** `propose-to-safe.ts`, so the deploy gate
   below does not see them. None encodes a `diamondCut` today, so none installs
-  facet code. Every propose route is `git grep -l proposeSafeTx script` plus the
-  files still allowlisted in `.eslintrc.funnel-fence.cjs` (the Tron route,
-  EXSC-984) — matched on the name alone, because a route importing it alongside
-  a type is invisible to a grep for the import statement. Run it rather than
-  trusting this sentence: the fence guarantees the two together are exhaustive,
-  not that this list is current.
+  facet code. Every propose route is
+  `git grep -l proposeSafeTx -- script ':!*.test.ts' ':!script/deploy/safe/propose-safe-tx.ts' ':!script/deploy/safe/funnel-fence.ts'`
+  (which drops the wrapper's own declaration, the fence's refusal message and the
+  tests) plus the files still allowlisted in `script/deploy/safe/funnel-fence.ts`
+  (the Tron route, EXSC-984) — matched on the name alone, because a route
+  importing it alongside a type is invisible to a grep for the import statement.
+  Run it rather than trusting this sentence: the fence guarantees the two
+  together are exhaustive, not that this list is current.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
 The proposal funnel additionally runs the production deploy gate before it signs
@@ -736,7 +741,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | CI (PR gate) | ≥ 1 approval from the SC core team | Block merge | Repository ruleset `main protection` — `required_reviewers` on the `smart-contract-core` team |
 | CI (PR gate) | Security-relevant paths need ISM/CTO approval | Block PR | `protectSecurityRelevantCode.yml` |
 | CI (PR gate) | Static analysis; LibAsset routing; config/deploy-log consistency and JSON validity; clear-signing sync; deploy smoke test; signed commits; solc floor; SPDX | Block PR | `olympixStaticAnalysis.yml` + `securityAlertsReview.yml`, `enforceLibAssetRouting.yml`, `deploymentAddressConsistency.yml`, `jsonChecker.yml`, `verifyClearSigning.yml`, `deploy-smoke-test.yml`, `verifyCommitsSigned.yml`, `solc-floor-build.yml`, `spdxLicenseChecker.yml` |
-| CI (PR gate) | Every Safe proposal is created through `proposeSafeTx`: any file outside the allowlist naming `storeTransactionInMongoDB` fails lint. AST-keyed, so an alias, namespace access, dynamic import or computed lookup is refused too, and the CI run ignores inline `eslint-disable` comments; a hand-rolled insert into the collection and an alias re-exported from an allowlisted file are **not** covered | Report only until `enforce-proposal-funnel` is added to the `main protection` ruleset's required checks; blocks the job either way | `.eslintrc.funnel-fence.cjs` via `bun lint:funnel`, run by `.github/workflows/enforceProposalFunnel.yml` and by lint-staged through `.eslintrc.cjs` |
+| CI (PR gate) | Every Safe proposal is created through `proposeSafeTx`: any file outside the allowlist naming `storeTransactionInMongoDB` fails the fence. AST-keyed, so an alias, namespace access, dynamic import or computed lookup is refused too, and the fence reads no comments, so no inline disable switches it off; a hand-rolled insert into the collection and an alias re-exported from an allowlisted file are **not** covered | Report only until `enforce-proposal-funnel` is added to the `main protection` ruleset's required checks; blocks the job either way | `script/deploy/safe/funnel-fence.ts` via `bun lint:funnel`, run by `.github/workflows/enforceProposalFunnel.yml` and by its own lint-staged entry on every commit |
 | CI (ops) | Daily on-chain health check of every production diamond; weekly emergency-pause readiness | Alert | `healthCheckAllNetworks.yml`, `verifyEmergencyPauseReadiness.yml` |
 
 ## 6. What the signer must verify manually today
@@ -865,7 +870,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `script/deploy/safe/timelock-watcher.ts` / `.github/workflows/timelockWatcher.yml` | Report-only watch of every pending timelock operation, 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
 | `.github/workflows/enforceProposalFunnel.yml` | Fence: no propose route outside `proposeSafeTx` |
-| `.github/workflows/mintBuildAttestations.yml` | Verifies the committed build manifest on every PR; mints its build-provenance attestation on push to `main` |
+| `.github/workflows/mintBuildAttestations.yml` | Verifies the committed build manifest on every PR; mints its build-provenance attestation on push to `main`. Upstream only (§8.1) |
 | `tasks/buildAttestationManifest.ts` | Generates `script/deploy/resources/buildAttestations.json`; `bun attestations:mint` / `bun attestations:check` |
 | `.agents/commands/multisig-rollout.md` | The end-to-end rollout runbook |
 
@@ -895,6 +900,22 @@ one the manifest is read for — and the set of workflows holding
 The attestation binds a sha256 of exact bytes, so a manifest that differs by one
 space is one the attestation no longer covers. That is what the PR-time
 `verify-build-manifest` job exists to catch.
+
+The manifest is minted and attested in `lifinance/contracts` only. The
+`contracts-tron` fork keeps upstream's file byte-identical and the workflow
+skips there: the Tron `LibAsset` bypass compiles into nearly every facet, so a
+fork manifest would differ from upstream's on every version change and
+conflict on every sync. The fork therefore mints and attests nothing: its copy
+is upstream's file byte for byte, which upstream's attestation covers when
+verified with `--repo lifinance/contracts` as above. A Tron
+build whose source closure matches upstream's has a valid entry in upstream's
+file; any build that compiles the bypass has none, and the sign-time codehash
+gate (gate K) grades it by rebuilding at the deployment record's commit from
+the `contracts-tron` remote.
+
+Whoever turns the codehash gate into a lookup of this manifest (`A-CI`) has to
+keep the rebuild for every lookup that misses, on any network. A missing entry
+means "not minted here", not MISMATCH or UNVERIFIABLE.
 
 ## 9. Planned improvements (proposal stage — NOT yet implemented)
 

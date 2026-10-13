@@ -29,6 +29,7 @@
 #       repeats ride along with the next post, or go out as a digest 24 hours after the last post
 #     * The job fails when a network could not be read, an operation or network mismatches, or an
 #       alert could not be delivered; a crashed, cancelled or undelivered run posts its own notice
+#       naming the failing step and its first error line
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_WATCHER (optional; "false" pauses scheduled runs)
 #     * secrets.MONGODB_URI (non-sensitive cluster: RPC endpoints, the execution queue, sign-time
@@ -76,6 +77,7 @@ jobs:
 
     steps:
       - name: Checkout repository
+        id: checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           # Gate K checks out each recorded deployment commit to rebuild it.
@@ -83,9 +85,11 @@ jobs:
           persist-credentials: false # no git writes needed; avoid leaving GITHUB_TOKEN in .git/config
 
       - name: Install Foundry
+        id: foundry
         uses: ./.github/actions/setup-foundry
 
       - name: Install the compilers gate K rebuilds with
+        id: compilers
         # Gate K builds with --offline, so a solc version foundry.toml pins but the runner lacks
         # would make every rebuild unverifiable. A rebuild needing any other version still reports
         # that as its unverified reason.
@@ -98,19 +102,37 @@ jobs:
           done
 
       - name: Setup Bun
+        id: bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:
           bun-version-file: package.json
 
       - name: Install dependencies
-        run: bun install
+        id: install
+        # node-hid downloads a prebuilt binary and, when that download times out, falls back to a
+        # source build the runner cannot do (no libusb/libudev headers). The timeout is transient,
+        # but a second `bun install` over the same node_modules skips a script that already failed
+        # and exits 0, so each retry starts from an empty node_modules.
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            if bun install 2>&1 | tee -a install.log; then
+              exit 0
+            fi
+            echo -e "\033[31mbun install attempt ${attempt} of 3 failed\033[0m"
+            rm -rf node_modules
+            [ "$attempt" -lt 3 ] && sleep 15
+          done
+          exit 1
 
       - name: Fetch RPC endpoints from MongoDB
+        id: rpcs
         uses: ./.github/actions/fetch-rpcs
         with:
           mongodb-uri: ${{ secrets.MONGODB_URI }}
 
       - name: Restore watcher state
+        id: restore
         uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
         with:
           path: timelock-watcher-state.json
@@ -121,6 +143,7 @@ jobs:
             timelock-watcher-state-
 
       - name: Watch timelocks
+        id: watch
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
@@ -143,6 +166,7 @@ jobs:
             2>&1 | tee watcher.log
 
       - name: Save watcher state
+        id: save
         # Saved on failure too: a run that read ten networks and lost one keeps the progress it made.
         if: always() && hashFiles('timelock-watcher-state.json') != ''
         uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
@@ -157,10 +181,47 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STEPS_JSON: ${{ toJSON(steps) }}
         run: |
-          NOTICE="❌ Timelock watcher crashed before reporting; no pending operation was checked this run."
+          ##### Name the first step that did not succeed, and the first error line of its log if it keeps one
+          FAILED_STEP=""
+          FAILED_OUTCOME=""
+          STEP_LOG=""
+          while IFS='|' read -r id name log; do
+            outcome=$(jq -r --arg id "$id" '.[$id].outcome // empty' <<< "$STEPS_JSON")
+            if [ "$outcome" = "failure" ] || [ "$outcome" = "cancelled" ]; then
+              FAILED_STEP="$name"
+              FAILED_OUTCOME="$outcome"
+              STEP_LOG="$log"
+              break
+            fi
+          done <<'STEPS'
+          checkout|Checkout repository|
+          foundry|Install Foundry|
+          compilers|Install the compilers gate K rebuilds with|
+          bun|Setup Bun|
+          install|Install dependencies|install.log
+          rpcs|Fetch RPC endpoints from MongoDB|
+          restore|Restore watcher state|
+          watch|Watch timelocks|watcher.log
+          save|Save watcher state|
+          STEPS
+          FIRST_ERROR=""
+          if [ -n "$STEP_LOG" ] && [ -f "$STEP_LOG" ]; then
+            FIRST_ERROR=$(grep -m1 -E '^(\[error\]|error:)' "$STEP_LOG" || true)
+            [ -z "$FIRST_ERROR" ] && FIRST_ERROR=$(grep -m1 -E '(^|[^A-Za-z-])([A-Za-z]*Error|ERR!|error):? ' "$STEP_LOG" || true)
+            [ -z "$FIRST_ERROR" ] && [ "$FAILED_OUTCOME" = "failure" ] && FIRST_ERROR=$(grep -v '^[[:space:]]*$' "$STEP_LOG" | tail -n 1 || true)
+          fi
+
+          if [ -n "$FAILED_STEP" ]; then
+            WHY="in step \"${FAILED_STEP}\" (${FAILED_OUTCOME})"
+          else
+            WHY="(no failed step recorded; see the logs)"
+          fi
+          NOTICE="❌ Timelock watcher crashed ${WHY} before reporting; no pending operation was checked this run."
           if [ -f watcher.log ] && grep -q "Alert delivery failed" watcher.log; then
             NOTICE="❌ Timelock watcher could not deliver its alerts; the findings are in the job summary."
+            FIRST_ERROR=$(grep -m1 "Alert delivery failed" watcher.log)
           elif [ -f watcher.log ] && grep -q "^.*Checked [0-9]* of [0-9]* network" watcher.log; then
             echo "The watcher finished and delivered its own findings; no notice."
             exit 0
@@ -169,8 +230,14 @@ jobs:
             echo -e "\033[31m::error::The watcher failed and no Slack webhook is configured\033[0m"
             exit 1
           fi
+          if [ -n "$FIRST_ERROR" ]; then
+            # An RPC or webhook error can echo its URL, which may carry an API key.
+            FIRST_ERROR=$(sed -E -e 's#[A-Za-z][A-Za-z0-9+.-]*://[^[:space:]"]+#[redacted-url]#g' -e 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' <<< "$FIRST_ERROR" | cut -c1-300)
+            NOTICE="${NOTICE}"$'\n'"> ${FIRST_ERROR}"
+          fi
+          echo "$NOTICE"
           PAYLOAD=$(jq -n --arg notice "$NOTICE" --arg url "$WORKFLOW_URL" \
-            '{text: ($notice + " <" + $url + "|Logs>")}')
+            '{text: ($notice + "\n<" + $url + "|Logs>")}')
           if ! curl -sS --fail-with-body --max-time 10 -X POST -H 'Content-Type: application/json' \
             --data "$PAYLOAD" "$SLACK_WEBHOOK_URL" > /dev/null; then
             echo -e "\033[31m::error::Failed to send the notice to Slack\033[0m"
@@ -185,5 +252,6 @@ jobs:
           name: timelock-watcher-logs
           path: |
             watcher.log
+            install.log
             timelock-watcher-state.json
           retention-days: 7
