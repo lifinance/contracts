@@ -136,6 +136,10 @@
       "0x94a3eDCa65424775651E6FbcE63c89c8cb69a66F": {
         "Name": "PaxosTransitFacet",
         "Version": "2.0.0"
+      },
+      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
+        "Name": "M0Facet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
