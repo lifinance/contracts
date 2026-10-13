@@ -9,9 +9,10 @@
  * is never read — nothing a proposer controls may turn this check green.
  */
 
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { type Hex } from 'viem'
@@ -283,18 +284,18 @@ export type ExpectedVersion =
  * @param readSourceVersion - reads a contract's version at the pinned ref
  * @returns What the network expects, or why it could not be established
  */
-export const resolveExpectedVersion = (
+export const resolveExpectedVersion = async (
   state: PinnedTargetState,
   network: string,
   contractName: string,
-  readSourceVersion: (contractName: string) => SourceVersionRead
-): ExpectedVersion => {
+  readSourceVersion: (contractName: string) => Promise<SourceVersionRead>
+): Promise<ExpectedVersion> => {
   const declared = readDeclaredVersion(state, network, contractName)
   if (declared === null) return { kind: 'absent' }
   if (declared !== TARGET_STATE_VERSION_LATEST)
     return { kind: 'pin', version: declared }
 
-  const read = readSourceVersion(contractName)
+  const read = await readSourceVersion(contractName)
   if (read.ok) return { kind: 'latest', version: read.version }
   return { kind: 'unresolved', detail: read.detail }
 }
@@ -307,9 +308,9 @@ export type SourceVersionRead =
 /** The reads this check needs, injectable so the policy is testable. */
 export interface ITargetStateDeps {
   /** The expected state, read at {@link PINNED_REF}. */
-  readPinnedState: () => PinnedTargetStateRead
+  readPinnedState: () => Promise<PinnedTargetStateRead>
   /** A contract's `@custom:version`, read at {@link PINNED_REF}. */
-  readSourceVersion: (contractName: string) => SourceVersionRead
+  readSourceVersion: (contractName: string) => Promise<SourceVersionRead>
   /** What the deployment record says a facet address is. */
   resolveDeployed: (facetAddress: string) => DeployedContractLookup
 }
@@ -349,11 +350,11 @@ export const describeTargetStateUnavailable = (
  * @param deps - the pinned-state and deployment-record reads
  * @returns Every finding, and whether all of them are cleared to proceed
  */
-export const evaluateTargetStateIntent = (
+export const evaluateTargetStateIntent = async (
   calldatas: readonly Hex[],
   network: string,
   deps: ITargetStateDeps
-): ITargetStateVerdict => {
+): Promise<ITargetStateVerdict> => {
   const findings: ITargetStateFinding[] = []
   const blank = {
     facetAddress: null,
@@ -391,8 +392,8 @@ export const evaluateTargetStateIntent = (
   // at all, needs no anchor, and must not be refused because the remote is
   // unreachable.
   let pinned: PinnedTargetStateRead | undefined
-  const pinnedState = (): PinnedTargetStateRead => {
-    pinned ??= deps.readPinnedState()
+  const pinnedState = async (): Promise<PinnedTargetStateRead> => {
+    pinned ??= await deps.readPinnedState()
     return pinned
   }
 
@@ -420,7 +421,7 @@ export const evaluateTargetStateIntent = (
       continue
     }
 
-    const read = pinnedState()
+    const read = await pinnedState()
     if (!read.ok) {
       findings.push({
         ...blank,
@@ -467,7 +468,7 @@ export const evaluateTargetStateIntent = (
       continue
     }
 
-    const expected = resolveExpectedVersion(
+    const expected = await resolveExpectedVersion(
       read.state,
       network,
       contractName,
@@ -578,47 +579,55 @@ export const evaluateTargetStateIntent = (
 
 /** Injectable git reads, so tests never touch a real remote. */
 export interface IPinnedStateGit {
-  remoteUrl: () => string
-  fetch: () => void
-  show: (revSpec: string) => string
+  remoteUrl: () => Promise<string>
+  fetch: () => Promise<void>
+  show: (revSpec: string) => Promise<string>
   /** Resolves a ref to the commit it points at. */
-  revParse: (ref: string) => string
+  revParse: (ref: string) => Promise<string>
 }
 
-const defaultGit = (repoRoot: string): IPinnedStateGit => ({
-  // `get-url` rather than `config remote.origin.url`, because it applies any
-  // insteadOf rewrite and so reports where a fetch would actually go.
-  remoteUrl: () =>
-    execFileSync('git', ['remote', 'get-url', 'origin'], {
+/** 60 seconds per git call — a hung remote must not hold up a review. */
+export const PINNED_GIT_TIMEOUT_MS = 60_000
+
+const execFileAsync = promisify(execFile)
+
+/**
+ * The git reads the pinned anchor is taken through, run off the event loop so
+ * the signer's network requests are read while git works.
+ *
+ * Output is captured rather than inherited, so a routine miss — a source lookup
+ * tries each candidate directory in turn — never prints a raw `fatal:` into the
+ * signer's terminal mid-ceremony. The rejection still carries the failure.
+ *
+ * @param repoRoot - the clone whose `origin` is read and fetched
+ * @param timeoutMs - how long one git call may run before it is killed and fails
+ * @returns The git seam every pinned read goes through
+ */
+export const createPinnedStateGit = (
+  repoRoot: string,
+  timeoutMs: number = PINNED_GIT_TIMEOUT_MS
+): IPinnedStateGit => {
+  const git = async (args: string[]): Promise<string> => {
+    const pending = execFileAsync('git', args, {
       cwd: repoRoot,
       encoding: 'utf8',
-      timeout: 60_000,
-    }),
-  fetch: () => {
-    execFileSync('git', ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC], {
-      cwd: repoRoot,
-      stdio: 'ignore',
-      timeout: 60_000, // 60 seconds — a hung remote must not hold up a review
-    })
-  },
-  revParse: (ref) =>
-    execFileSync('git', ['rev-parse', ref], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      timeout: 60_000,
-    }),
-  show: (revSpec) =>
-    execFileSync('git', ['show', revSpec], {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      // A source lookup tries each candidate directory in turn, so a miss is routine
-      // rather than an incident; without this every miss prints a raw `fatal:` into the
-      // signer's terminal mid-ceremony. The throw still carries the failure.
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 60_000, // 60 seconds — matches the other git seams
+      timeout: timeoutMs,
       maxBuffer: 16 * 1024 * 1024, // 16 MB — the target state is ~74 KB today
-    }),
-})
+    })
+    pending.child.stdin?.end()
+    return (await pending).stdout
+  }
+  return {
+    // `get-url` rather than `config remote.origin.url`, because it applies any
+    // insteadOf rewrite and so reports where a fetch would actually go.
+    remoteUrl: () => git(['remote', 'get-url', 'origin']),
+    fetch: async () => {
+      await git(['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
+    },
+    revParse: (ref) => git(['rev-parse', ref]),
+    show: (revSpec) => git(['show', revSpec]),
+  }
+}
 
 /**
  * Establishes that the anchor may be trusted, and refreshes it.
@@ -633,14 +642,14 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
  * @param git - the git seam to read and fetch through
  * @returns That the ref is refreshed, or why it is not and whether to cache that
  */
-const verifyRemoteAndFetch = (
+const verifyRemoteAndFetch = async (
   git: IPinnedStateGit
-):
-  | { ok: true }
-  | { ok: false; reason: PinnedReadFailure; memoizable: boolean } => {
+): Promise<
+  { ok: true } | { ok: false; reason: PinnedReadFailure; memoizable: boolean }
+> => {
   let remote: string
   try {
-    remote = git.remoteUrl()
+    remote = await git.remoteUrl()
   } catch {
     // Not memoizable, for the same reason a failed fetch is not: an exec that
     // could not run says nothing about what the remote is.
@@ -650,7 +659,7 @@ const verifyRemoteAndFetch = (
     return { ok: false, reason: 'remote-unexpected', memoizable: true }
 
   try {
-    git.fetch()
+    await git.fetch()
   } catch {
     // A transient fetch must not pin the rest of the process to a refusal —
     // the sibling cache reader in facet-version-utils.ts makes the same call.
@@ -659,10 +668,13 @@ const verifyRemoteAndFetch = (
   return { ok: true }
 }
 
-/** A verified, fetched `origin/main`, pinned to the commit every read resolves against. */
-export type PinnedAnchor = () =>
+/** The commit every pinned read resolves against, or why there is none. */
+export type PinnedAnchorRead =
   | { ok: true; revision: string }
   | { ok: false; reason: PinnedReadFailure }
+
+/** A verified, fetched `origin/main`, pinned to the commit every read resolves against. */
+export type PinnedAnchor = () => Promise<PinnedAnchorRead>
 
 /**
  * Establishes the anchor once and hands back the exact commit to read from.
@@ -673,6 +685,9 @@ export type PinnedAnchor = () =>
  * and whose verdict belongs to neither snapshot.
  *
  * Refuses when the fetched ref cannot be resolved to an immutable commit.
+ *
+ * Callers arriving while the anchor is still being established share that one
+ * attempt, so concurrent reads cost one fetch and resolve to one commit.
  * @param options - repository root and git seam; both default to this checkout
  * @returns A memoized resolver for the commit to read, or why it is unavailable
  */
@@ -681,24 +696,23 @@ export const createPinnedAnchor = (options?: {
   git?: IPinnedStateGit
 }): PinnedAnchor => {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
-  const git = options?.git ?? defaultGit(repoRoot)
-  let memo: ReturnType<PinnedAnchor> | undefined
+  const git = options?.git ?? createPinnedStateGit(repoRoot)
+  let memo: Promise<PinnedAnchorRead> | undefined
 
-  return () => {
-    // Failures are memoized only when they cannot change within the process, so a
-    // stored one is as final as a success.
-    if (memo) return memo
-
-    const anchored = verifyRemoteAndFetch(git)
-    if (!anchored.ok) {
-      const failure = { ok: false as const, reason: anchored.reason }
-      if (anchored.memoizable) memo = failure
-      return failure
-    }
+  const establish = async (): Promise<{
+    read: PinnedAnchorRead
+    final: boolean
+  }> => {
+    const anchored = await verifyRemoteAndFetch(git)
+    if (!anchored.ok)
+      return {
+        read: { ok: false, reason: anchored.reason },
+        final: anchored.memoizable,
+      }
 
     let revision: string
     try {
-      revision = git.revParse(PINNED_READ_REF).trim()
+      revision = (await git.revParse(PINNED_READ_REF)).trim()
     } catch {
       revision = ''
     }
@@ -706,16 +720,28 @@ export const createPinnedAnchor = (options?: {
     // concurrent fetch, so reading it twice is not one commit — and callers now rely on
     // this being one commit.
     //
-    // Memoized, unlike the fetch failures: the fetch already succeeded, so this is a
+    // Final, unlike the fetch failures: the fetch already succeeded, so this is a
     // property of the clone and not a transient network fault. Retrying it would re-fetch
     // once per network per contract for a condition that cannot resolve itself.
-    if (!revision) {
-      memo = { ok: false, reason: 'revision-unresolvable' }
-      return memo
-    }
+    if (!revision)
+      return {
+        read: { ok: false, reason: 'revision-unresolvable' },
+        final: true,
+      }
 
-    memo = { ok: true, revision }
-    return memo
+    return { read: { ok: true, revision }, final: true }
+  }
+
+  return () => {
+    // Failures are kept only when they cannot change within the process, so a
+    // stored one is as final as a success.
+    if (memo) return memo
+    const attempt = establish().then(({ read, final }) => {
+      if (!final) memo = undefined
+      return read
+    })
+    memo = attempt
+    return attempt
   }
 }
 
@@ -736,17 +762,17 @@ export const createPinnedBlobReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
   anchor?: PinnedAnchor
-}): ((repoPath: string) => PinnedJsonRead) => {
+}): ((repoPath: string) => Promise<PinnedJsonRead>) => {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
-  const git = options?.git ?? defaultGit(repoRoot)
+  const git = options?.git ?? createPinnedStateGit(repoRoot)
   const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
   const blobs = new Map<string, PinnedJsonRead>()
 
-  return (repoPath: string): PinnedJsonRead => {
+  return async (repoPath: string): Promise<PinnedJsonRead> => {
     const cached = blobs.get(repoPath)
     if (cached) return cached
 
-    const anchored = anchor()
+    const anchored = await anchor()
     if (!anchored.ok) {
       // A refusal that cannot change within the process is the only one worth holding.
       if (anchored.reason === 'remote-unexpected')
@@ -756,7 +782,7 @@ export const createPinnedBlobReader = (options?: {
 
     let raw: string
     try {
-      raw = git.show(`${anchored.revision}:${repoPath}`)
+      raw = await git.show(`${anchored.revision}:${repoPath}`)
     } catch {
       const failed = { ok: false, reason: 'blob-unreadable' } as const
       blobs.set(repoPath, failed)
@@ -794,10 +820,10 @@ export const createPinnedTargetStateReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
   anchor?: PinnedAnchor
-}): (() => PinnedTargetStateRead) => {
+}): (() => Promise<PinnedTargetStateRead>) => {
   const readBlob = createPinnedBlobReader(options)
-  return () => {
-    const read = readBlob(TARGET_STATE_REPO_PATH)
+  return async () => {
+    const read = await readBlob(TARGET_STATE_REPO_PATH)
     return read.ok
       ? { ok: true, state: read.value as PinnedTargetState }
       : { ok: false, reason: read.reason }
@@ -817,17 +843,20 @@ export const createPinnedSourceVersionReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
   anchor?: PinnedAnchor
-}): ((contractName: string) => SourceVersionRead) => {
+}): ((contractName: string) => Promise<SourceVersionRead>) => {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
-  const git = options?.git ?? defaultGit(repoRoot)
+  const git = options?.git ?? createPinnedStateGit(repoRoot)
   const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
   const memo = new Map<string, SourceVersionRead>()
 
-  return (contractName) => {
+  return async (contractName) => {
     const cached = memo.get(contractName)
     if (cached) return cached
 
-    const resolve = (): { read: SourceVersionRead; memoizable: boolean } => {
+    const resolve = async (): Promise<{
+      read: SourceVersionRead
+      memoizable: boolean
+    }> => {
       if (!CONTRACT_NAME_RE.test(contractName))
         return {
           read: {
@@ -837,7 +866,7 @@ export const createPinnedSourceVersionReader = (options?: {
           memoizable: true,
         }
 
-      const anchored = anchor()
+      const anchored = await anchor()
       if (!anchored.ok)
         return {
           read: {
@@ -850,7 +879,9 @@ export const createPinnedSourceVersionReader = (options?: {
       for (const dir of SOURCE_DIRS) {
         let source: string
         try {
-          source = git.show(`${anchored.revision}:${dir}/${contractName}.sol`)
+          source = await git.show(
+            `${anchored.revision}:${dir}/${contractName}.sol`
+          )
         } catch {
           continue
         }
@@ -883,7 +914,7 @@ export const createPinnedSourceVersionReader = (options?: {
     }
 
     // An unreachable remote must not turn the rest of a fleet run into refusals.
-    const { read, memoizable } = resolve()
+    const { read, memoizable } = await resolve()
     if (memoizable) memo.set(contractName, read)
     return read
   }
@@ -903,8 +934,8 @@ export const createPinnedSourceVersionReader = (options?: {
 export const createTargetStateDeps = (
   network: string,
   options?: {
-    readPinnedState?: () => PinnedTargetStateRead
-    readSourceVersion?: (contractName: string) => SourceVersionRead
+    readPinnedState?: () => Promise<PinnedTargetStateRead>
+    readSourceVersion?: (contractName: string) => Promise<SourceVersionRead>
     /**
      * The anchor both reads resolve against.
      *
