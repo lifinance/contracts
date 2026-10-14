@@ -1609,6 +1609,61 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
+    // For EVM destinations the signature is the only receiver control, so
+    // each signed bridge parameter must invalidate it when changed.
+    function testRevert_TamperedReceiver() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.receiver = address(0xBEEF);
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedDestinationChainId() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.destinationChainId = 137;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedMinAmount() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.minAmount -= 1;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedRefundRecipient() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.refundRecipient = address(0xBEEF);
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedRewardDeadline() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.rewardDeadline += 1;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_SwapAndBridgeTamperedReceiver() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.receiver = address(0xBEEF);
+        bridgeData.hasSourceSwaps = true;
+
+        // Never executed: the signature check reverts before the swap.
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: 1,
+                callData: "",
+                requiresDeposit: true
+            })
+        );
+
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
     /// @dev Native the swap leaves unspent and `msg.value` above the swap's
     ///      `fromAmount` both go to `refundRecipient`, not to the caller
     ///      (who may be a relayer or proxy).
@@ -1878,6 +1933,24 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
                 deadline: block.timestamp + 1 hours,
                 signature: ""
             });
+    }
+
+    function _getSignedEcoData()
+        internal
+        view
+        returns (EcoFacet.EcoData memory)
+    {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        return ecoData;
+    }
+
+    function _expectInvalidSignature(
+        EcoFacet.EcoData memory _ecoData
+    ) internal {
+        vm.prank(USER_SENDER);
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, _ecoData);
     }
 
     function testRevert_DuplicateBridgeCallIntentAlreadyFunded() public {
