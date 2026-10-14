@@ -16,6 +16,7 @@
  */
 
 import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
 import { cp, mkdir, rename, rm } from 'fs/promises'
 import { tmpdir } from 'os'
@@ -1194,7 +1195,9 @@ export const createArtifactCache = (
     // dies mid-copy cannot leave a half-written build where the next run reads
     // a whole one. The rename loses to whichever process got there first, and
     // losing is fine — both copies are builds of the same commit.
-    const staged = join(root, `.staging-${process.pid}-${key}`)
+    // Per save, not per process: two runners in one process can save the same
+    // key while each copy is still in flight.
+    const staged = join(root, `.staging-${process.pid}-${randomUUID()}-${key}`)
     try {
       await mkdir(root, { recursive: true })
       await cp(outDir, staged, { recursive: true })
@@ -1203,7 +1206,7 @@ export const createArtifactCache = (
       try {
         await rm(staged, { recursive: true, force: true })
       } catch {
-        // Disk, not correctness, and the next save overwrites the staging path.
+        // Disk, not correctness.
       }
     }
   },
