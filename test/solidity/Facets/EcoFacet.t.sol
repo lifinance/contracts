@@ -265,6 +265,46 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
+    function testRevert_SwapAndBridgeRefundRecipientZeroAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.refundRecipient = address(0);
+
+        dai.approve(_facetTestContractAddress, amountIn);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        _swapAndStartEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+    }
+
     function testRevert_NativeTokenNotSupportedInSwap() public {
         vm.startPrank(USER_SENDER);
 
@@ -2289,10 +2329,12 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         );
     }
 
-    /// @dev Checks every EVM row of the facet's domain table against the
-    ///      independently maintained `config/polymercctp.json`. Skipped:
-    ///      non-EVM chains, HyperCore (no plain-burn delivery) and Base (the
-    ///      fork's own chain).
+    /// @dev Checks that every EVM chain in the independently maintained
+    ///      `config/polymercctp.json` maps to its configured domain in the
+    ///      facet. Skipped: non-EVM chains, HyperCore (no plain-burn delivery)
+    ///      and Base (the fork's own chain). The reverse direction (no facet
+    ///      row for a chain outside the config) is pinned for chains without
+    ///      CCTP by `testRevert_CCTPRouteToChainWithoutCCTP`.
     function test_CCTPDomainMatchesPolymerConfigForEveryChain() public {
         CctpDomainMapping[] memory mappings = abi.decode(
             vm.parseJson(vm.readFile("config/polymercctp.json"), ".mappings"),
