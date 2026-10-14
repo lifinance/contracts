@@ -53,10 +53,6 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "1.0.0"
-      },
       "TY2QxU6JSr7Xm1uDWoQpkN7crzjxDjuYZH": {
         "Name": "EcoFacet",
         "Version": "2.0.0"
@@ -64,6 +60,10 @@
       "TY4s2H2Uu7KugFHsTnZj768WNze9DVNqZm": {
         "Name": "NEARIntentsFacet",
         "Version": "3.0.0"
+      },
+      "TBvoXFLtPhp3Zb9JjAckyG9SfkRU7meiKX": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
@@ -80,7 +80,7 @@
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
-      "ReceiverOIF": "TSZnVJnhPCH8PECjEY4zNbv7kK1XiBUwwb",
+      "ReceiverOIF": "TX8drNJ2JuobT2LeMmfQTp4ygVWVhqGQEP",
       "ReceiverStargateV2": "",
       "TokenWrapper": "TBfUqkmaBBMFA87ZCCu9aibjo2EZLTSJv2"
     }
