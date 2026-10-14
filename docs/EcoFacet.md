@@ -26,15 +26,20 @@ The methods listed above take a variable labeled `_ecoData`. This data is specif
 /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
 /// @param prover Address of the prover contract for validation
 /// @param rewardDeadline Timestamp for reward claim eligibility
+/// @param intentDestination Eco chain ID the route executes on, which
+///        differs from `bridgeData.destinationChainId` for CCTP (source
+///        chain), HyperCore (HyperEVM), Solana and Tron routes
 /// @param encodedRoute Encoded route data containing destination chain routing information
 /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
-/// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
+/// @param refundRecipient Address that receives source-chain leftovers and
+///        the reward refund if the intent expires unfulfilled
 /// @param deadline Timestamp after which the backend signature is no longer valid
 /// @param signature Backend EIP-712 signature over the EcoPayload authorizing this bridge
 struct EcoData {
   bytes nonEVMReceiver;
   address prover;
   uint64 rewardDeadline;
+  uint64 intentDestination;
   bytes encodedRoute;
   bytes32 solanaATA;
   address refundRecipient;
@@ -53,7 +58,7 @@ The receiver address is specified differently depending on the destination chain
   - Leave `nonEVMReceiver` empty (`""`)
   - Leave `solanaATA` as `bytes32(0)`
   - Set `refundRecipient` to the address that should receive refunds (typically the user's address)
-  - The contract checks that the route's last call is an ERC20 `transfer(receiver, amount)` or a HyperCore `depositFor(receiver, amount, dex)` whose recipient argument equals `bridgeData.receiver`. It checks only the selector and recipient, not the call target or amount; the backend must verify those before signing. A `depositFor` route requires `bridgeData.destinationChainId = 1337` (LI.FI's HyperCore ID) and is published to HyperEVM (999), where the deposit executes; 1337 with any other last call reverts `InvalidDestinationChain`. When the source chain is HyperEVM, that intent executes on the source chain, so the route's `portal` must equal the facet's `PORTAL`, otherwise it reverts `InvalidRoutePortal`. A route may instead end in a CCTP `depositForBurn`, whose `mintRecipient` is not checked on-chain (see **CCTP Routes** below)
+  - The contract does not decode the route: the receiver is enforced only by the backend signature (see **Backend Signature** below)
 
 - **For Solana destination chain**:
   - Set `bridgeData.receiver` to `NON_EVM_ADDRESS` constant (`0x11f111f111f111F111f111f111F111f111f111F1`)
@@ -74,18 +79,21 @@ Examples:
 ```solidity
 // EVM to EVM bridge (e.g., Optimism to Base)
 bridgeData.receiver = 0x123...;      // Actual EVM receiver address
+ecoData.intentDestination = 8453;    // Eco chain ID the route executes on
 ecoData.nonEVMReceiver = "";         // Empty bytes
 ecoData.solanaATA = bytes32(0);      // Zero for EVM chains
 ecoData.refundRecipient = msg.sender; // User address for refunds
 
 // EVM to Solana bridge
 bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
+ecoData.intentDestination = 1399811149;          // Eco's Solana chain ID
 ecoData.nonEVMReceiver = solanaAddressBytes;     // Solana address as bytes
 ecoData.solanaATA = 0x8f37c499ccbb92...;         // Solana ATA as bytes32
 ecoData.refundRecipient = msg.sender;            // User address for refunds
 
 // EVM to Tron bridge
 bridgeData.receiver = NON_EVM_ADDRESS;           // Special constant
+ecoData.intentDestination = 728126428;           // Eco's Tron chain ID
 ecoData.nonEVMReceiver = abi.encode(tronAddr);   // Tron address, 32-byte left-padded
 ecoData.solanaATA = bytes32(0);                  // Zero for Tron
 ecoData.refundRecipient = msg.sender;            // User address for refunds
@@ -119,23 +127,20 @@ ecoData.refundRecipient = msg.sender;            // User address for refunds
 
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet automatically approves the Eco Portal to spend `minAmount` (the fee-inclusive amount).
 
-- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations. The contract decodes the route's last call:
-  - **EVM destinations**: a CCTP `depositForBurn` must pass the checks under **CCTP Routes** (its `mintRecipient` is not checked on-chain). A HyperCore `depositFor` requires destination 1337, otherwise `InvalidDestinationChain`. With destination 1337, any other final call reverts `InvalidDestinationChain` before the receiver check. Otherwise the final call must be a `transfer`. A `depositFor` or `transfer` whose recipient is not the receiver, or any other final call, reverts `InvalidReceiver`.
-  - **Tron**: the final call must be a `transfer` to `nonEVMReceiver`; any other final call, including `depositFor` and `depositForBurn`, reverts `InvalidReceiver`.
+- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is required for all bridge operations (an empty route reverts `InvalidConfig`) and is passed to the Eco Portal as-is. For EVM destinations the facet does not decode it; for Tron and Solana it checks the receiver (see below).
 
-- **CCTP Routes**: For large USDC transfers Eco settles over Circle's CCTP instead of solver inventory. The route executes on the source chain: it approves USDC to TokenMessengerV2 and calls `depositForBurn`. Two Eco intent types use this route:
-  - **CCTP fulfillment**: CCTP mints USDC to the receiver on the destination chain (`mintRecipient = receiver`).
-  - **Bridge and swap** (destination token is not a stablecoin Eco lists): CCTP mints USDC to the vault of a second, same-chain Eco intent on the destination chain (`mintRecipient = destination intent vault`). That intent's route swaps the USDC through a DEX to the receiver, and its refunds go to the receiver as USDC on the destination chain. Eco's solver fulfills the destination intent; the facet only publishes and funds the source intent.
+- **Intent Destination**: `intentDestination` is the Eco chain ID the route executes on, and the chain the facet publishes the intent to. `bridgeData.destinationChainId` stays the LI.FI chain ID of the chain the receiver is paid on, for analytics. The two differ for:
+  - **CCTP routes** (Eco's CCTP fulfillment and bridge-and-swap intents for large USDC transfers): the route approves USDC to Circle's TokenMessengerV2 and calls `depositForBurn` on the source chain, so `intentDestination` is the source chain ID. In bridge-and-swap, CCTP mints to the vault of a second Eco intent on the destination chain that swaps the USDC to the receiver.
+  - **HyperCore** (`bridgeData.destinationChainId = 1337`): the route's `depositFor` executes on HyperEVM, so `intentDestination = 999`.
+  - **Solana** (`intentDestination = 1399811149`) and **Tron** (`intentDestination = 728126428`): Eco's chain IDs for these chains.
 
-  When the route's last call is `depositForBurn` on the facet's `ECO_TOKEN_MESSENGER`, the facet publishes the intent with the source chain as its destination, while `bridgeData.destinationChainId` stays the chain the receiver is paid on (no extra calldata field). The route's `portal` must equal the facet's `PORTAL` (the intent executes on the source chain), otherwise it reverts `InvalidRoutePortal`. The facet does not check `mintRecipient`, so for CCTP routes the receiver is enforced only by the backend signature. The facet requires the burn to have `amount = bridgeData.minAmount` (the route's tokens equal the reward, so any unburned remainder would go to the solver), `burnToken = bridgeData.sendingAssetId`, `destinationDomain` = the CCTP domain of `bridgeData.destinationChainId` (a fixed list of EVM CCTP v2 chains; HyperCore 1337 and unlisted chains revert `InvalidDestinationChain`), and `destinationCaller = 0` (anyone can relay Circle's attestation). `maxFee` and `minFinalityThreshold` are not checked on-chain: the backend must verify them before signing. On chains without CCTP the facet is deployed with `ECO_TOKEN_MESSENGER = address(0)` and rejects CCTP routes. Eco reports a CCTP intent as fulfilled once the burn executes; delivery is the destination mint.
+- **Backend Signature (trust assumption)**: `encodedRoute`, `intentDestination` and `prover` are opaque, backend-supplied values the facet does not validate on-chain: the route encodes destination calls the facet does not interpret (a transfer, a CCTP burn, a HyperCore deposit, a second Eco intent), and a malicious prover could mark an intent fulfilled without paying the destination. All of them are gated by a backend EIP-712 signature. The LI.FI backend signs an `EcoPayload` that commits to `transactionId`, `sendingAssetId`, `minAmount`, `destinationChainId`, `receiver`, `keccak256(nonEVMReceiver)`, `intentDestination`, `keccak256(encodedRoute)`, `prover`, `refundRecipient`, `rewardDeadline`, `solanaATA`, and `deadline`; the facet recovers the signer and requires it to equal the configured `BACKEND_SIGNER`. `deadline` bounds the signature's validity window. Integrators must obtain `signature` and `deadline` from the LI.FI backend per call.
 
-- **Backend Signature (trust assumption)**: `encodedRoute` and `prover` are opaque, backend-supplied values whose full contents cannot be reconstructed and validated on-chain — the route encodes destination calls the facet does not interpret, and a malicious prover could mark an intent fulfilled without paying the destination. Both are therefore gated by a backend EIP-712 signature. The LI.FI backend signs an `EcoPayload` that commits to `transactionId`, `sendingAssetId`, `minAmount`, `destinationChainId`, `receiver`, `keccak256(nonEVMReceiver)`, `keccak256(encodedRoute)`, `prover`, `refundRecipient`, `rewardDeadline`, `solanaATA`, and `deadline`; the facet recovers the signer and requires it to equal the configured `BACKEND_SIGNER`. `deadline` bounds the signature's validity window. Integrators must obtain `signature` and `deadline` from the LI.FI backend per call. The on-chain receiver checks cover the route's last call only; the rest of the route (and, for CCTP routes, the burn's mint recipient, `maxFee` and `minFinalityThreshold`, and for bridge-and-swap the destination intent) is trusted through the signature. The signature only proves the backend approved these values; the backend must validate each of them before signing. Before signing a bridge-and-swap route the backend must check that `mintRecipient` is the vault of the quoted destination intent, and that intent pays the receiver and refunds to it.
+  **For EVM destinations the receiver is enforced only by this signature, not on-chain.** The signature only proves the backend approved these values, so the backend must validate them before signing: that the route pays `bridgeData.receiver` the quoted amount (for CCTP routes, the burn's `mintRecipient`, `destinationDomain`, `maxFee` and finality threshold, and for bridge-and-swap that the destination intent pays the receiver and refunds to it), that `intentDestination` is the chain the route executes on, and that the route's `portal` is Eco's Portal on that chain.
 
   - EIP-712 domain: `name = "LI.FI Eco Facet"`, `version = "1"`, `chainId` = the source chain, `verifyingContract` = the LiFiDiamond address.
 
-- **Chain ID Mapping**: The facet automatically maps LiFi chain IDs to Eco protocol chain IDs for non-EVM chains (Tron: 728126428, Solana: 1399811149).
-
-- **TRON Handling**: Tron follows the non-EVM receiver convention (`bridgeData.receiver` set to `NON_EVM_ADDRESS`, real recipient in `nonEVMReceiver`), matching the backend's generic non-EVM bridge-data builder and the other non-EVM facets. Because Tron uses the same Route struct encoding as EVM chains, its recipient is decoded from the route's final `transfer` call and cross-checked against `nonEVMReceiver`; a `BridgeToNonEVMChainBytes32` event is emitted. Solana keeps its own handling via `nonEVMReceiver` (base58 bytes) and `solanaATA`.
+- **TRON Handling**: Tron follows the non-EVM receiver convention (`bridgeData.receiver` set to `NON_EVM_ADDRESS`, real recipient in `nonEVMReceiver`), matching the backend's generic non-EVM bridge-data builder and the other non-EVM facets. Because Tron uses the same Route struct encoding as EVM chains, the facet checks that the route's final call is a TRC20 `transfer` to `nonEVMReceiver` (otherwise `InvalidReceiver`); a `BridgeToNonEVMChainBytes32` event is emitted. Solana keeps its own handling via `nonEVMReceiver` (base58 bytes) and `solanaATA`.
 
 - **Solana ATA Validation**: For Solana bridges, the contract validates that the Associated Token Account (ATA) specified in `solanaATA` matches the ATA encoded in bytes 251-283 of the route. The ATA is derived from the user's wallet address and the SPL token mint address, not the user's wallet address directly.
 

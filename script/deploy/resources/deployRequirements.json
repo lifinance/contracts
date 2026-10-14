@@ -212,13 +212,6 @@
         "configFileName": "global.json",
         "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
         "allowToDeployWithZeroAddress": "false"
-      },
-      "_tokenMessenger": {
-        "configFileName": "eco.json",
-        "keyInConfigFile": ".<NETWORK>.tokenMessenger",
-        "allowToDeployWithZeroAddress": "true",
-        "getter": "ECO_TOKEN_MESSENGER",
-        "getterSinceVersion": "3.0.0"
       }
     }
   },

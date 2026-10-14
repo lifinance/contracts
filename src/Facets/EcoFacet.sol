@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { ECDSA } from "solady/utils/ECDSA.sol";
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { IEcoPortal } from "../Interfaces/IEcoPortal.sol";
-import { ITokenMessenger } from "../Interfaces/ITokenMessenger.sol";
 import { LibAsset } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
@@ -13,53 +12,31 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidCallData, InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Eco Protocol
-/// @dev The `encodedRoute` and `prover` are opaque, backend-supplied parameters
-///      whose full contents cannot be reconstructed and validated on-chain (the
-///      route encodes destination calls the facet does not interpret, and a
-///      malicious prover could mark an intent fulfilled without paying out). Both
-///      are therefore gated by a backend EIP-712 signature (see `_verifySignature`)
-///      that commits to the bridge parameters, the prover, and a hash of the
-///      encoded route. The on-chain receiver cross-checks in `_validateEcoData`
-///      are retained as defense in depth: the last call of an EVM or Tron
-///      route must pay the receiver through an ERC20 `transfer` or a HyperCore
-///      `depositFor`, or be a CCTP `depositForBurn` on `ECO_TOKEN_MESSENGER`.
-///      For `transfer` and `depositFor` only the selector and recipient
-///      argument are checked, not the call target or amount; the backend
-///      must verify those before signing.
-///      HyperCore routes must use LI.FI's HyperCore chain ID and are published
-///      to HyperEVM, where the deposit executes.
-///      A CCTP route executes on the source chain (Eco's CCTP fulfillment and
-///      bridge-and-swap shapes), so its intent is published with the source
-///      chain as destination while `bridgeData.destinationChainId` stays the
-///      chain the receiver is paid on. A route whose intent executes on this
-///      chain (CCTP, or HyperCore from HyperEVM) must name this chain's
-///      `PORTAL`. The burn must target the destination chain's CCTP
-///      domain. The burn's `mintRecipient` is not checked against the
-///      receiver: in bridge-and-swap it is the vault of a second Eco intent
-///      on the destination chain that swaps the minted USDC to the receiver,
-///      so for CCTP routes the receiver is enforced only by the backend
-///      signature. The facet also does not check the burn's `maxFee` or
-///      finality threshold; the backend must verify these and the
-///      `mintRecipient` before signing.
+/// @dev The `encodedRoute`, `intentDestination` and `prover` are opaque,
+///      backend-supplied parameters whose contents the facet does not
+///      validate on-chain: the route encodes destination calls the facet does
+///      not interpret (a CCTP burn, a HyperCore deposit, a second Eco intent),
+///      `intentDestination` is the Eco chain ID the route executes on (the
+///      source chain for CCTP routes, HyperEVM for HyperCore), and a
+///      malicious prover could mark an intent fulfilled without paying out.
+///      All three are gated by a backend EIP-712 signature (see
+///      `_verifySignature`) that commits to the bridge parameters, the prover,
+///      the intent destination and a hash of the encoded route. For EVM
+///      destinations the receiver is therefore enforced only by the backend
+///      signature, not on-chain. For Solana and Tron the facet additionally
+///      checks that the route pays `nonEVMReceiver`/`solanaATA`.
+///      This contract is not intended to custody user funds; any balance is
+///      transient within a single transaction.
 /// @custom:version 3.0.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
 
     error IntentAlreadyFunded();
-    /// @notice Thrown when a CCTP route's burn is not a `depositForBurn` on
-    ///         `ECO_TOKEN_MESSENGER` (or the facet has none on this chain), or
-    ///         does not burn exactly the bridged amount of the sending asset
-    ///         to the destination chain's CCTP domain with an open destination
-    ///         caller
-    error InvalidCCTPBurn();
-    /// @notice Thrown when a route whose intent executes on this chain names
-    ///         a Portal other than `PORTAL`
-    error InvalidRoutePortal();
     /// @notice Thrown when the backend signature has expired
     error SignatureExpired();
 
@@ -68,15 +45,10 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     IEcoPortal public immutable PORTAL;
     /// @notice Backend signer authorized to sign the EcoPayload
     address internal immutable BACKEND_SIGNER;
-    /// @notice Circle CCTP TokenMessengerV2; address(0) on chains without CCTP
-    ITokenMessenger public immutable ECO_TOKEN_MESSENGER;
-    uint64 private constant ECO_CHAIN_ID_TRON = 728126428;
-    uint64 private constant ECO_CHAIN_ID_SOLANA = 1399811149;
-    uint64 private constant ECO_CHAIN_ID_HYPEREVM = 999;
 
-    // EIP-712 typehash: keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
+    // EIP-712 typehash: keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,uint64 intentDestination,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
     bytes32 private constant ECO_PAYLOAD_TYPEHASH =
-        0xa3243df568679887ffddc8c7d34cf0bd57b0a8d9430c7044d28def7369fd7881;
+        0x5eab41fdaef699ef7c6516a09842972b29e6319a531c00a7f90ab2292d78d9d8;
 
     /// Constants ///
 
@@ -87,16 +59,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     uint256 private constant SOLANA_RECEIVER_END = 283;
     uint256 private constant SOLANA_ADDRESS_MIN_LENGTH = 32;
     uint256 private constant SOLANA_ADDRESS_MAX_LENGTH = 44;
-    /// @dev HyperCore CoreDepositWallet `depositFor(address,uint256,uint32)`
-    bytes4 private constant HYPERCORE_DEPOSIT_FOR_SELECTOR = 0xc23c545a;
-    uint256 private constant SELECTOR_LENGTH = 4;
-    uint256 private constant TRANSFER_ARGS_COUNT = 2;
-    uint256 private constant HYPERCORE_DEPOSIT_FOR_ARGS_COUNT = 3;
-    uint256 private constant DEPOSIT_FOR_BURN_ARGS_COUNT = 7;
-    uint256 private constant BURN_AMOUNT_ARG = 0;
-    uint256 private constant BURN_DESTINATION_DOMAIN_ARG = 1;
-    uint256 private constant BURN_TOKEN_ARG = 3;
-    uint256 private constant BURN_DESTINATION_CALLER_ARG = 4;
+    /// @dev `transfer(address,uint256)`: 4-byte selector plus two words
+    uint256 private constant TRANSFER_CALL_LENGTH = 68;
 
     /// Types ///
 
@@ -132,15 +96,20 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
     /// @param prover Address of the prover contract for validation
     /// @param rewardDeadline Timestamp for reward claim eligibility
+    /// @param intentDestination Eco chain ID the route executes on, which
+    ///        differs from `bridgeData.destinationChainId` for CCTP (source
+    ///        chain), HyperCore (HyperEVM), Solana and Tron routes
     /// @param encodedRoute Encoded route data containing destination chain routing information
     /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
-    /// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
+    /// @param refundRecipient Address that receives source-chain leftovers and
+    ///        the reward refund if the intent expires unfulfilled
     /// @param deadline Timestamp after which the backend signature is no longer valid
     /// @param signature Backend EIP-712 signature over the EcoPayload authorizing this bridge
     struct EcoData {
         bytes nonEVMReceiver;
         address prover;
         uint64 rewardDeadline;
+        uint64 intentDestination;
         bytes encodedRoute;
         bytes32 solanaATA;
         address refundRecipient;
@@ -153,18 +122,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @notice Initializes the EcoFacet with the Eco Portal contract
     /// @param _portal Address of the Eco Portal contract
     /// @param _backendSigner Address of the backend signer authorized to sign the EcoPayload
-    /// @param _tokenMessenger Circle CCTP TokenMessengerV2, or address(0) to reject CCTP routes
-    constructor(
-        IEcoPortal _portal,
-        address _backendSigner,
-        ITokenMessenger _tokenMessenger
-    ) {
+    constructor(IEcoPortal _portal, address _backendSigner) {
         if (address(_portal) == address(0) || _backendSigner == address(0)) {
             revert InvalidConfig();
         }
         PORTAL = _portal;
         BACKEND_SIGNER = _backendSigner;
-        ECO_TOKEN_MESSENGER = _tokenMessenger;
     }
 
     /// External Methods ///
@@ -184,14 +147,14 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         noNativeAsset(_bridgeData)
     {
         _verifySignature(_bridgeData, _ecoData);
-        uint64 intentDestination = _validateEcoData(_bridgeData, _ecoData);
+        _validateEcoData(_bridgeData, _ecoData);
 
         LibAsset.depositAsset(
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount
         );
 
-        _startBridge(_bridgeData, _ecoData, intentDestination);
+        _startBridge(_bridgeData, _ecoData);
     }
 
     /// @notice Swaps and bridges tokens via Eco Protocol
@@ -215,7 +178,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // The signature is intentionally verified with the pre-swap `minAmount`,
         // which is also the amount funded into the reward in `_startBridge`.
         _verifySignature(_bridgeData, _ecoData);
-        uint64 intentDestination = _validateEcoData(_bridgeData, _ecoData);
+        _validateEcoData(_bridgeData, _ecoData);
 
         uint256 actualAmountAfterSwap = _depositAndSwap(
             _bridgeData.transactionId,
@@ -234,7 +197,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             );
         }
 
-        _startBridge(_bridgeData, _ecoData, intentDestination);
+        _startBridge(_bridgeData, _ecoData);
     }
 
     /// Internal Methods ///
@@ -261,12 +224,9 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             });
     }
 
-    /// @param _intentDestination Eco chain ID the intent executes on, as
-    ///        returned by `_validateEcoData`
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        EcoData calldata _ecoData,
-        uint64 _intentDestination
+        EcoData calldata _ecoData
     ) internal {
         uint256 totalAmount = _bridgeData.minAmount;
 
@@ -277,7 +237,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         );
 
         bytes32 intentHash = _getIntentHash(
-            _intentDestination,
+            _ecoData.intentDestination,
             _ecoData.encodedRoute,
             reward
         );
@@ -293,7 +253,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         );
 
         PORTAL.publishAndFund(
-            _intentDestination,
+            _ecoData.intentDestination,
             _ecoData.encodedRoute,
             reward,
             ALLOW_PARTIAL_FILL
@@ -316,16 +276,16 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @return intentDestination Eco chain ID the intent executes on
     function _validateEcoData(
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData
-    ) private view returns (uint64 intentDestination) {
+    ) private view {
         if (_ecoData.prover == address(0)) revert InvalidConfig();
         if (_ecoData.refundRecipient == address(0)) revert InvalidCallData();
         if (_ecoData.rewardDeadline <= block.timestamp) {
             revert InvalidConfig();
         }
+        if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
 
         bool isSolanaDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_SOLANA;
@@ -341,190 +301,16 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                     _ecoData.encodedRoute.length != SOLANA_ENCODED_ROUTE_LENGTH
                 ) revert InvalidReceiver();
                 _validateSolanaReceiver(_ecoData);
-                return ECO_CHAIN_ID_SOLANA;
-            }
-            if (isTronDestination) {
-                if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+            } else if (isTronDestination) {
                 if (_ecoData.nonEVMReceiver.length != 32)
                     revert InvalidReceiver();
                 _validateTronReceiver(_ecoData);
-                return ECO_CHAIN_ID_TRON;
-            }
-            revert InvalidConfig();
-        }
-
-        if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
-
-        // A concrete receiver is only valid for EVM destinations; non-EVM
-        // chains must use the NON_EVM_ADDRESS sentinel path above.
-        if (isSolanaDestination || isTronDestination) {
-            revert InvalidReceiver();
-        }
-
-        return _validateEVMRoute(_bridgeData, _ecoData.encodedRoute);
-    }
-
-    /// @dev Checks that the route's last call pays `bridgeData.receiver`, or
-    ///      is a CCTP burn of the bridged amount. A CCTP burn executes on the
-    ///      source chain, so its intent is published there; a HyperCore
-    ///      `depositFor` (LI.FI chain ID 1337) executes on HyperEVM; every
-    ///      other route executes on the destination.
-    /// @return intentDestination Eco chain ID the intent executes on
-    function _validateEVMRoute(
-        ILiFi.BridgeData memory _bridgeData,
-        bytes calldata _encodedRoute
-    ) private view returns (uint64 intentDestination) {
-        Route memory route = _decodeRoute(_encodedRoute);
-        Call memory lastCall = _lastCall(route);
-        bytes4 selector = bytes4(lastCall.data);
-        bytes32 receiver = LibBytes.toBytes32(_bridgeData.receiver);
-
-        bool isHyperCoreDestination = _bridgeData.destinationChainId ==
-            LIFI_CHAIN_ID_HYPERCORE;
-        if (selector == ITokenMessenger.depositForBurn.selector) {
-            _validateCCTPBurn(_bridgeData, lastCall);
-            intentDestination = uint64(block.chainid);
-        } else if (selector == HYPERCORE_DEPOSIT_FOR_SELECTOR) {
-            if (!isHyperCoreDestination) revert InvalidDestinationChain();
-            if (
-                _callArgument(
-                    lastCall.data,
-                    HYPERCORE_DEPOSIT_FOR_ARGS_COUNT,
-                    0
-                ) != receiver
-            ) revert InvalidReceiver();
-            // HyperCore has no Eco portal; its deposit executes on HyperEVM
-            intentDestination = ECO_CHAIN_ID_HYPEREVM;
-        } else {
-            if (isHyperCoreDestination) revert InvalidDestinationChain();
-            _validateTransferTo(lastCall.data, receiver);
-            if (_bridgeData.destinationChainId > type(uint64).max) {
+            } else {
                 revert InvalidConfig();
             }
-            intentDestination = uint64(_bridgeData.destinationChainId);
-        }
-
-        // A same-chain intent is filled here, so only this chain's Portal can
-        // fill it
-        if (
-            intentDestination == block.chainid &&
-            route.portal != address(PORTAL)
-        ) revert InvalidRoutePortal();
-    }
-
-    /// @dev The route's tokens equal the reward, so whatever the burn leaves
-    ///      unspent is paid to the solver; the burn must therefore move the
-    ///      full amount. A zero `destinationCaller` lets anyone relay Circle's
-    ///      attestation, so no single relayer can hold the mint back. The
-    ///      `mintRecipient` is either the receiver or, for bridge-and-swap,
-    ///      the destination intent's vault, which only the backend can check.
-    function _validateCCTPBurn(
-        ILiFi.BridgeData memory _bridgeData,
-        Call memory _burn
-    ) private view {
-        if (
-            address(ECO_TOKEN_MESSENGER) == address(0) ||
-            _burn.target != address(ECO_TOKEN_MESSENGER)
-        ) revert InvalidCCTPBurn();
-
-        bytes memory data = _burn.data;
-        if (!_hasArguments(data, DEPOSIT_FOR_BURN_ARGS_COUNT)) {
-            revert InvalidCCTPBurn();
-        }
-        uint256 amount = uint256(_callWord(data, BURN_AMOUNT_ARG));
-        uint256 domain = uint256(_callWord(data, BURN_DESTINATION_DOMAIN_ARG));
-        bytes32 burnToken = _callWord(data, BURN_TOKEN_ARG);
-        bytes32 destinationCaller = _callWord(
-            data,
-            BURN_DESTINATION_CALLER_ARG
-        );
-
-        if (
-            amount != _bridgeData.minAmount ||
-            domain != _chainIdToCctpDomainId(_bridgeData.destinationChainId) ||
-            burnToken != LibBytes.toBytes32(_bridgeData.sendingAssetId) ||
-            destinationCaller != bytes32(0)
-        ) revert InvalidCCTPBurn();
-    }
-
-    /// @dev EVM chains with CCTP v2, from Circle's supported domains
-    ///      (https://developers.circle.com/cctp/cctp-supported-blockchains).
-    ///      HyperCore (1337) is absent: a plain burn mints on HyperEVM, not
-    ///      HyperCore. Adding a chain requires a new facet version.
-    /// @param _chainId LI.FI destination chain ID
-    /// @return CCTP domain ID of the destination chain
-    // One branch per chain: a flat lookup table, not branching logic
-    // solhint-disable-next-line code-complexity
-    function _chainIdToCctpDomainId(
-        uint256 _chainId
-    ) private pure returns (uint256) {
-        if (_chainId == 1) return 0; // Ethereum
-        if (_chainId == 43114) return 1; // Avalanche
-        if (_chainId == 10) return 2; // OP Mainnet
-        if (_chainId == 42161) return 3; // Arbitrum
-        if (_chainId == 8453) return 6; // Base
-        if (_chainId == 137) return 7; // Polygon PoS
-        if (_chainId == 130) return 10; // Unichain
-        if (_chainId == 59144) return 11; // Linea
-        if (_chainId == 81224) return 12; // Codex
-        if (_chainId == 146) return 13; // Sonic
-        if (_chainId == 480) return 14; // World Chain
-        if (_chainId == 143) return 15; // Monad
-        if (_chainId == 1329) return 16; // Sei
-        if (_chainId == 50) return 18; // XDC
-        if (_chainId == 999) return 19; // HyperEVM
-        if (_chainId == 57073) return 21; // Ink
-        if (_chainId == 98866) return 22; // Plume
-        if (_chainId == 5042) return 26; // Arc
-        if (_chainId == 1776) return 29; // Injective
-        if (_chainId == 2818) return 30; // Morph
-        if (_chainId == 1672) return 31; // Pharos
-        if (_chainId == 25) return 32; // Cronos
-        revert InvalidDestinationChain();
-    }
-
-    function _decodeRoute(
-        bytes calldata _encodedRoute
-    ) private pure returns (Route memory) {
-        return abi.decode(_encodedRoute, (Route));
-    }
-
-    function _lastCall(
-        Route memory _route
-    ) private pure returns (Call memory) {
-        if (_route.calls.length == 0) revert InvalidReceiver();
-        return _route.calls[_route.calls.length - 1];
-    }
-
-    /// @dev Returns the `_index`-th static argument word of ABI-encoded call
-    ///      data after checking it holds at least `_argsCount` argument words,
-    ///      so a short call cannot yield a word read past its end.
-    function _callArgument(
-        bytes memory _data,
-        uint256 _argsCount,
-        uint256 _index
-    ) private pure returns (bytes32) {
-        if (!_hasArguments(_data, _argsCount)) revert InvalidReceiver();
-        return _callWord(_data, _index);
-    }
-
-    function _hasArguments(
-        bytes memory _data,
-        uint256 _argsCount
-    ) private pure returns (bool) {
-        return _data.length >= SELECTOR_LENGTH + _argsCount * 32;
-    }
-
-    /// @dev Callers must first check the word is in bounds (`_hasArguments`)
-    function _callWord(
-        bytes memory _data,
-        uint256 _index
-    ) private pure returns (bytes32 word) {
-        uint256 offset = SELECTOR_LENGTH + _index * 32;
-        // Memory `bytes` cannot be sliced or abi.decoded at an offset, so the
-        // word is read directly: skip the 32-byte length prefix, then `offset`.
-        assembly {
-            word := mload(add(add(_data, 32), offset))
+        } else if (isSolanaDestination || isTronDestination) {
+            // Non-EVM chains must use the NON_EVM_ADDRESS sentinel path above
+            revert InvalidReceiver();
         }
     }
 
@@ -538,19 +324,22 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidNonEVMReceiver();
         }
 
-        _validateTransferTo(
-            _lastCall(_decodeRoute(_ecoData.encodedRoute)).data,
-            nonEVMReceiver
-        );
-    }
+        Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
+        if (route.calls.length == 0) revert InvalidReceiver();
+        bytes memory lastCallData = route.calls[route.calls.length - 1].data;
+        if (lastCallData.length < TRANSFER_CALL_LENGTH) {
+            revert InvalidReceiver();
+        }
 
-    function _validateTransferTo(
-        bytes memory _callData,
-        bytes32 _recipient
-    ) private pure {
+        bytes32 recipient;
+        // Memory `bytes` cannot be sliced, so the first argument is read
+        // directly: skip the 32-byte length prefix and the 4-byte selector
+        assembly {
+            recipient := mload(add(lastCallData, 36))
+        }
         if (
-            bytes4(_callData) != IERC20.transfer.selector ||
-            _callArgument(_callData, TRANSFER_ARGS_COUNT, 0) != _recipient
+            bytes4(lastCallData) != IERC20.transfer.selector ||
+            recipient != nonEVMReceiver
         ) revert InvalidReceiver();
     }
 
@@ -616,6 +405,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _bridgeData.destinationChainId,
                 _bridgeData.receiver,
                 keccak256(_ecoData.nonEVMReceiver),
+                _ecoData.intentDestination,
                 keccak256(_ecoData.encodedRoute),
                 _ecoData.prover,
                 _ecoData.refundRecipient,
