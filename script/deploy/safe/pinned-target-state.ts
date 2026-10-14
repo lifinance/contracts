@@ -766,44 +766,53 @@ export const createPinnedBlobReader = (options?: {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
   const git = options?.git ?? createPinnedStateGit(repoRoot)
   const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
-  const blobs = new Map<string, PinnedJsonRead>()
+  const blobs = new Map<string, Promise<PinnedJsonRead>>()
 
-  return async (repoPath: string): Promise<PinnedJsonRead> => {
-    const cached = blobs.get(repoPath)
-    if (cached) return cached
-
+  const readBlob = async (
+    repoPath: string
+  ): Promise<{ read: PinnedJsonRead; final: boolean }> => {
     const anchored = await anchor()
-    if (!anchored.ok) {
-      // A refusal that cannot change within the process is the only one worth holding.
-      if (anchored.reason === 'remote-unexpected')
-        blobs.set(repoPath, { ok: false, reason: anchored.reason })
-      return { ok: false, reason: anchored.reason }
-    }
+    // A refusal that cannot change within the process is the only one worth holding.
+    if (!anchored.ok)
+      return {
+        read: { ok: false, reason: anchored.reason },
+        final: anchored.reason === 'remote-unexpected',
+      }
 
     let raw: string
     try {
       raw = await git.show(`${anchored.revision}:${repoPath}`)
     } catch {
-      const failed = { ok: false, reason: 'blob-unreadable' } as const
-      blobs.set(repoPath, failed)
-      return failed
+      return { read: { ok: false, reason: 'blob-unreadable' }, final: true }
     }
 
     let parsed: unknown
     try {
       parsed = JSON.parse(raw)
     } catch {
-      const failed = { ok: false, reason: 'invalid-shape' } as const
-      blobs.set(repoPath, failed)
-      return failed
+      return { read: { ok: false, reason: 'invalid-shape' }, final: true }
     }
 
-    const read: PinnedJsonRead =
-      typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
-        ? { ok: false, reason: 'invalid-shape' }
-        : { ok: true, value: parsed as Record<string, unknown> }
-    blobs.set(repoPath, read)
-    return read
+    return {
+      read:
+        typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+          ? { ok: false, reason: 'invalid-shape' }
+          : { ok: true, value: parsed as Record<string, unknown> },
+      final: true,
+    }
+  }
+
+  return (repoPath: string): Promise<PinnedJsonRead> => {
+    // Callers arriving while a path is being read share that one read; it is
+    // kept afterwards only when final, as the anchor does.
+    const known = blobs.get(repoPath)
+    if (known) return known
+    const attempt = readBlob(repoPath).then(({ read, final }) => {
+      if (!final) blobs.delete(repoPath)
+      return read
+    })
+    blobs.set(repoPath, attempt)
+    return attempt
   }
 }
 
@@ -847,11 +856,11 @@ export const createPinnedSourceVersionReader = (options?: {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
   const git = options?.git ?? createPinnedStateGit(repoRoot)
   const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
-  const memo = new Map<string, SourceVersionRead>()
+  const memo = new Map<string, Promise<SourceVersionRead>>()
 
-  return async (contractName) => {
-    const cached = memo.get(contractName)
-    if (cached) return cached
+  return (contractName) => {
+    const known = memo.get(contractName)
+    if (known) return known
 
     const resolve = async (): Promise<{
       read: SourceVersionRead
@@ -913,10 +922,14 @@ export const createPinnedSourceVersionReader = (options?: {
       }
     }
 
-    // An unreachable remote must not turn the rest of a fleet run into refusals.
-    const { read, memoizable } = await resolve()
-    if (memoizable) memo.set(contractName, read)
-    return read
+    // Shared while in flight. An unreachable remote must not turn the rest of a
+    // fleet run into refusals, so a transient failure is dropped once it settles.
+    const attempt = resolve().then(({ read, memoizable }) => {
+      if (!memoizable) memo.delete(contractName)
+      return read
+    })
+    memo.set(contractName, attempt)
+    return attempt
   }
 }
 

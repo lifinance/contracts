@@ -688,8 +688,8 @@ describe('createForgeRebuildRunner', () => {
         sourceRoot: string
       ) => IDeclaredImmutables
       artifactCache?: {
-        restore: (key: string, outDir: string) => boolean
-        save: (key: string, outDir: string) => void
+        restore: (key: string, outDir: string) => Promise<boolean>
+        save: (key: string, outDir: string) => Promise<void>
       }
       calls?: unknown[]
     } = {}
@@ -857,11 +857,11 @@ describe('createForgeRebuildRunner', () => {
         path.endsWith('.json') ? restored : !path.endsWith('.env')
       ),
       artifactCache: {
-        restore: () => {
+        restore: async () => {
           restored = true
           return true
         },
-        save: () => undefined,
+        save: async () => undefined,
       },
     })
 
@@ -878,7 +878,12 @@ describe('createForgeRebuildRunner', () => {
       exists: freshOutDirs(
         (path) => !path.endsWith('.json') && !path.endsWith('.env')
       ),
-      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+      artifactCache: {
+        restore: async () => false,
+        save: async (key) => {
+          saved.push(key)
+        },
+      },
     })
 
     // `exists` reports the artifact absent throughout, which the runner treats
@@ -912,7 +917,12 @@ describe('createForgeRebuildRunner', () => {
           ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
         })
       ),
-      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+      artifactCache: {
+        restore: async () => false,
+        save: async (key) => {
+          saved.push(key)
+        },
+      },
     })
     await ok.runner.build(request)
     compiled = false
@@ -951,6 +961,50 @@ describe('createForgeRebuildRunner', () => {
     await harness.runner.build(request)
 
     expect((calls[0] as { args: string[] }).args).toContain('--ast')
+  })
+
+  it('parses one output directory once for every build that reads it', async () => {
+    let reads = 0
+    const harness = runner({
+      readDeclarations: () => {
+        reads += 1
+        return NO_DECLARATIONS
+      },
+    })
+
+    await harness.runner.build(request)
+    await harness.runner.build(request)
+    await harness.runner.build({ ...request, contractName: 'OwnershipFacet' })
+
+    expect(reads).toBe(1)
+  })
+
+  it('parses an output directory again once a build has written into it', async () => {
+    let reads = 0
+    let compiled = false
+    const harness = runner({
+      exists: freshOutDirs((path) =>
+        path.endsWith('AccessManagerFacet.json')
+          ? true
+          : path.endsWith('OwnershipFacet.json')
+          ? compiled
+          : !path.endsWith('.env')
+      ),
+      run: () => {
+        compiled = true
+        return { ok: true, output: '' }
+      },
+      readDeclarations: () => {
+        reads += 1
+        return NO_DECLARATIONS
+      },
+    })
+
+    await harness.runner.build(request)
+    await harness.runner.build({ ...request, contractName: 'OwnershipFacet' })
+
+    expect(compiled).toBe(true)
+    expect(reads).toBe(2)
   })
 
   it("returns the graded contract's declarations, resolved against its own checkout", async () => {
@@ -1725,8 +1779,8 @@ describe('createForgeRebuildRunner', () => {
         /** The checkout carries a `.env`. */
         dotenv?: boolean
         artifactCache?: {
-          restore: (key: string, outDir: string) => boolean
-          save: (key: string, outDir: string) => void
+          restore: (key: string, outDir: string) => Promise<boolean>
+          save: (key: string, outDir: string) => Promise<void>
         }
       } = {}
     ) => {
@@ -1773,8 +1827,9 @@ describe('createForgeRebuildRunner', () => {
         ...(over.artifactCache
           ? {
               artifactCache: {
-                restore: (key: string, outDir: string) => {
-                  const hit = over.artifactCache?.restore(key, outDir) ?? false
+                restore: async (key: string, outDir: string) => {
+                  const hit =
+                    (await over.artifactCache?.restore(key, outDir)) ?? false
                   if (hit) written = true
                   return hit
                 },
@@ -1864,11 +1919,13 @@ describe('createForgeRebuildRunner', () => {
       const touched: string[] = []
       const made = harness({
         artifactCache: {
-          restore: (key) => {
+          restore: async (key) => {
             touched.push(`restore ${key}`)
             return true
           },
-          save: (key) => touched.push(`save ${key}`),
+          save: async (key) => {
+            touched.push(`save ${key}`)
+          },
         },
       })
 
@@ -2284,11 +2341,11 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       readFile: () => FORGED,
       readDeclarations: () => NO_DECLARATIONS,
       artifactCache: {
-        restore: (key) => {
+        restore: async (key) => {
           restored.push(key)
           return false
         },
-        save: () => undefined,
+        save: async () => undefined,
       },
     })
     return { runner, spawned, restored }
@@ -3363,7 +3420,7 @@ describe('createArtifactCache', () => {
       rmSync(root, { recursive: true, force: true })
   })
 
-  it('serves a later run the build an earlier one made', () => {
+  it('serves a later run the build an earlier one made', async () => {
     const cache = createArtifactCache(tempRoot())
     const built = tempRoot()
     mkdirSync(join(built, 'AccessManagerFacet.sol'), { recursive: true })
@@ -3372,12 +3429,12 @@ describe('createArtifactCache', () => {
       '{"deployedBytecode":{"object":"0xdead"}}'
     )
 
-    cache.save('commit-out-codehash-default', built)
+    await cache.save('commit-out-codehash-default', built)
     const restoredInto = join(tempRoot(), 'out-codehash-default')
 
-    expect(cache.restore('commit-out-codehash-default', restoredInto)).toBe(
-      true
-    )
+    expect(
+      await cache.restore('commit-out-codehash-default', restoredInto)
+    ).toBe(true)
     expect(
       readFileSync(
         join(restoredInto, 'AccessManagerFacet.sol', 'AccessManagerFacet.json'),
@@ -3388,14 +3445,14 @@ describe('createArtifactCache', () => {
 
   // The gate must reach "build it again", never "the gate could not run": every
   // way the cache can fail is an optimisation missing, not a signing outage.
-  it('reports a miss rather than throwing, for a key and a source it cannot read', () => {
+  it('reports a miss rather than throwing, for a key and a source it cannot read', async () => {
     const cache = createArtifactCache(tempRoot())
 
-    expect(cache.restore('nothing-was-ever-saved-here', tempRoot())).toBe(false)
-    expect(() =>
-      cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
-    ).not.toThrow()
-    expect(cache.restore('unbuilt', tempRoot())).toBe(false)
+    expect(await cache.restore('nothing-was-ever-saved-here', tempRoot())).toBe(
+      false
+    )
+    await cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
+    expect(await cache.restore('unbuilt', tempRoot())).toBe(false)
   })
 })
 

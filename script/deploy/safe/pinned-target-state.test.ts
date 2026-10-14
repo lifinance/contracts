@@ -973,6 +973,30 @@ describe('createPinnedSourceVersionReader', () => {
     expect(await read()('AFacet')).toEqual({ ok: true, version: '1.2.0' })
   })
 
+  it('shares one read of a contract between callers that arrive while it runs', async () => {
+    let shows = 0
+    const base = realGit(clone)
+    const reader = createPinnedSourceVersionReader({
+      repoRoot: clone,
+      git: {
+        ...base,
+        show: async (revSpec) => {
+          shows += 1
+          return base.show(revSpec)
+        },
+      },
+    })
+
+    const reads = await Promise.all([reader('AFacet'), reader('AFacet')])
+
+    expect(reads).toEqual([
+      { ok: true, version: '1.2.0' },
+      { ok: true, version: '1.2.0' },
+    ])
+    // One read: a miss under `src`, then the hit under `src/Facets`.
+    expect(shows).toBe(2)
+  })
+
   it('finds a contract under src/Periphery', async () => {
     expect(await read()('APeriphery')).toEqual({ ok: true, version: '3.1.0' })
   })
@@ -1715,6 +1739,38 @@ describe('createPinnedBlobReader', () => {
     expect(counts.show).toBe(1)
   })
 
+  it('shares one read of a path between callers that arrive while it runs', async () => {
+    const { git, counts } = okGit({ 'a.json': '{"a":1}' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    const reads = await Promise.all([read('a.json'), read('a.json')])
+
+    expect(reads).toEqual([
+      { ok: true, value: { a: 1 } },
+      { ok: true, value: { a: 1 } },
+    ])
+    expect(counts.show).toBe(1)
+  })
+
+  it('reads a path again after a fetch failure, which may not recur', async () => {
+    const { git, counts } = okGit({ 'a.json': '{"a":1}' })
+    let fetches = 0
+    const read = createPinnedBlobReader({
+      repoRoot: '/repo',
+      git: {
+        ...git,
+        fetch: async () => {
+          fetches += 1
+          if (fetches === 1) throw new Error('network down')
+        },
+      },
+    })
+
+    expect(await read('a.json')).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(await read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+    expect(counts.show).toBe(1)
+  })
+
   it('keeps one unreadable path from condemning another', async () => {
     const { git } = okGit({ 'b.json': '{"b":2}' })
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
@@ -1821,8 +1877,6 @@ describe('createPinnedStateGit', () => {
 
     expect(anchored).toEqual({ ok: false, reason: 'fetch-failed' })
     expect(Date.now() - started).toBeLessThan(4_500)
-    // A synchronous git would return only after the timeout, and the await
-    // would resume before any timer ran.
     expect(ticked).toBe(true)
   })
 })

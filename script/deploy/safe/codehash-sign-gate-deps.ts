@@ -16,14 +16,8 @@
  */
 
 import { spawn } from 'node:child_process'
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-} from 'fs'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import { cp, mkdir, rename, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -410,10 +404,10 @@ export interface IForgeRebuildDeps {
    * fail is a signing outage.
    */
   artifactCache?: {
-    /** Puts a cached build at `outDir`. Returns false when it holds none. */
-    restore: (key: string, outDir: string) => boolean
+    /** Puts a cached build at `outDir`. Resolves false when it holds none. */
+    restore: (key: string, outDir: string) => Promise<boolean>
     /** Keeps `outDir` for the next run. */
-    save: (key: string, outDir: string) => void
+    save: (key: string, outDir: string) => Promise<void>
   }
 }
 
@@ -827,6 +821,21 @@ export const createForgeRebuildRunner = (
     await assertSubmodulesPinned(deps.git, checkout)
   }
 
+  // Every artifact's AST is parsed to read these, and one target asks for the
+  // same output directory up to three times, so the parse is kept until a
+  // restore or build writes into that directory again.
+  const outDeclarations = new Map<string, IDeclaredImmutables>()
+  const declarationsIn = (
+    outPath: string,
+    checkout: string
+  ): IDeclaredImmutables => {
+    const known = outDeclarations.get(outPath)
+    if (known) return known
+    const read = deps.readDeclarations(outPath, checkout)
+    outDeclarations.set(outPath, read)
+    return read
+  }
+
   const buildNow = async (
     request: IRebuildRequest
   ): Promise<IRebuiltArtifact> => {
@@ -881,7 +890,10 @@ export const createForgeRebuildRunner = (
     // toolchain sends every profile to `zkout`, so a key spelled from the
     // directory alone would serve one zksolc version's build as another's.
     const cacheKey = `${request.commit}-${request.profile.profile}-${outDir}`
-    if (!usable()) deps.artifactCache?.restore(cacheKey, outPath)
+    if (!usable()) {
+      await deps.artifactCache?.restore(cacheKey, outPath)
+      outDeclarations.delete(outPath)
+    }
 
     if (!usable()) {
       await pinSubmodules(checkout)
@@ -925,6 +937,7 @@ export const createForgeRebuildRunner = (
       }
 
       const result = await deps.run(command, args, { cwd: checkout, env })
+      outDeclarations.delete(outPath)
       if (!result.ok)
         throw new Error(
           `rebuilding ${request.contractName} at ${request.commit.slice(
@@ -945,7 +958,7 @@ export const createForgeRebuildRunner = (
       // Only a build this run made and can vouch for. Keyed on the commit and
       // the profile, which is what determines the output — a key that named
       // neither would serve one commit's bytecode as another's.
-      if (usable()) deps.artifactCache?.save(cacheKey, outPath)
+      if (usable()) await deps.artifactCache?.save(cacheKey, outPath)
     }
 
     let parsed: {
@@ -981,9 +994,9 @@ export const createForgeRebuildRunner = (
     // Read from the build's own output directory and resolved against its own
     // checkout, so both the ids and the line numbers describe the commit being
     // graded rather than whatever the operator has checked out.
-    const declarations = deps
-      .readDeclarations(outPath, checkout)
-      .declarations.filter((one) => one.contract === request.contractName)
+    const declarations = declarationsIn(outPath, checkout).declarations.filter(
+      (one) => one.contract === request.contractName
+    )
 
     return {
       runtimeHex,
@@ -1166,29 +1179,29 @@ export const defaultArtifactCacheRoot = (): string =>
 export const createArtifactCache = (
   root: string = defaultArtifactCacheRoot()
 ): NonNullable<IForgeRebuildDeps['artifactCache']> => ({
-  restore: (key, outDir) => {
+  restore: async (key, outDir) => {
     const cached = join(root, key)
     try {
       if (!existsSync(cached)) return false
-      cpSync(cached, outDir, { recursive: true })
+      await cp(cached, outDir, { recursive: true })
       return true
     } catch {
       return false
     }
   },
-  save: (key, outDir) => {
+  save: async (key, outDir) => {
     // Staged under this process and moved into place in one step, so a run that
     // dies mid-copy cannot leave a half-written build where the next run reads
     // a whole one. The rename loses to whichever process got there first, and
     // losing is fine — both copies are builds of the same commit.
     const staged = join(root, `.staging-${process.pid}-${key}`)
     try {
-      mkdirSync(root, { recursive: true })
-      cpSync(outDir, staged, { recursive: true })
-      renameSync(staged, join(root, key))
+      await mkdir(root, { recursive: true })
+      await cp(outDir, staged, { recursive: true })
+      await rename(staged, join(root, key))
     } catch {
       try {
-        rmSync(staged, { recursive: true, force: true })
+        await rm(staged, { recursive: true, force: true })
       } catch {
         // Disk, not correctness, and the next save overwrites the staging path.
       }
@@ -1581,7 +1594,7 @@ export const createOffCodeImmutablesReader = (deps: {
  * request's timeout fire before the reply already sitting in its socket is read.
  *
  * Never rejects. A process that could not start at all — no such binary, no
- * such directory — reports a null status, as a synchronous spawn did.
+ * such directory — reports a null status.
  *
  * @param command - the binary to run
  * @param args - its argv
@@ -1996,8 +2009,12 @@ const priceWithLoadedConfig = async <T>(
       return null
     })
     if (missing.size === 0) return priced
-    for (const fileName of missing)
-      loaded.set(fileName, await loadConfigFile(fileName))
+    const entries = await Promise.all(
+      [...missing].map(
+        async (fileName) => [fileName, await loadConfigFile(fileName)] as const
+      )
+    )
+    for (const [fileName, value] of entries) loaded.set(fileName, value)
   }
 }
 
@@ -2036,8 +2053,10 @@ export const createPinnedImmutableExpectations = (
 
   return {
     loadRequirements: async () => {
-      const requirements = await read(REQUIREMENTS_REPO_PATH)
-      const registry = await read(REGISTRY_REPO_PATH)
+      const [requirements, registry] = await Promise.all([
+        read(REQUIREMENTS_REPO_PATH),
+        read(REGISTRY_REPO_PATH),
+      ])
       return mergeRequirements(
         requirements as DeployRequirements,
         registry as Record<string, Record<string, IImmutableEntry>>
