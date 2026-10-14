@@ -3,6 +3,7 @@ import {
   getTronWebCodecOnlyForNetwork,
 } from '@lifi/tron-devkit'
 import {
+  beforeEach,
   describe,
   expect,
   it,
@@ -10,11 +11,24 @@ import {
 } from 'bun:test'
 
 import {
+  assertTronToolchainOrThrow,
+  resetTronToolchainCache,
+} from '../assertTronToolchain'
+
+import {
   assertDiamondConstructorShape,
   getConstructorArgs,
   resolveCoreFacetConstructorArgs,
   type ArtifactLoader,
 } from './coreFacetConstructorArgs'
+
+// The checks under test sit behind the toolchain gate, which is covered in
+// assertTronToolchain.test.ts. Confirming it here with a passing runner keeps these tests
+// independent of the local forge and of whatever another test file left in the cache.
+beforeEach(() => {
+  resetTronToolchainCache()
+  assertTronToolchainOrThrow({ run: () => ({ status: 0, output: '' }) })
+})
 
 const ONE_ADDRESS_ABI = [
   {
