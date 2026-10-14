@@ -9,7 +9,7 @@ import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
 import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
 import { ITokenMessenger } from "../../../src/Interfaces/ITokenMessenger.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
 import { LibBytes } from "../../../src/Libraries/LibBytes.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { TestEcoBackendSig } from "../utils/TestEcoBackendSig.sol";
@@ -23,6 +23,12 @@ contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
 }
 
 contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
+    /// @dev Fields in alphabetical order, as `vm.parseJson` decodes them
+    struct CctpDomainMapping {
+        uint256 chainId;
+        uint256 domainId;
+    }
+
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
         0xEC000769A73b70e16f361a442292500b3BCf4A85;
@@ -1505,7 +1511,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(InvalidCallData.selector);
         _startEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -2055,6 +2061,69 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         assertEq(_facetTestContractAddress.balance, 0);
     }
 
+    function test_SwapAndBridgeRefundsUnusedERC20InputToRefundRecipient()
+        public
+    {
+        ecoFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactTokens.selector
+        );
+        vm.startPrank(USER_SENDER);
+
+        address refundRecipient = address(0xABCD);
+        uint256 unusedInput = 1 ether;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+        uint256 fromAmount = amountIn + unusedInput;
+        deal(ADDRESS_WRAPPED_NATIVE, USER_SENDER, fromAmount);
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_WRAPPED_NATIVE,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: fromAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactTokens.selector,
+                    bridgeData.minAmount,
+                    fromAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.refundRecipient = refundRecipient;
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        IERC20(ADDRESS_WRAPPED_NATIVE).approve(
+            _facetTestContractAddress,
+            fromAmount
+        );
+
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+
+        assertEq(
+            IERC20(ADDRESS_WRAPPED_NATIVE).balanceOf(refundRecipient),
+            unusedInput
+        );
+        assertEq(IERC20(ADDRESS_WRAPPED_NATIVE).balanceOf(USER_SENDER), 0);
+        assertEq(
+            IERC20(ADDRESS_WRAPPED_NATIVE).balanceOf(
+                _facetTestContractAddress
+            ),
+            0
+        );
+    }
+
     /// @dev Pins the facet's Route/Call mirror to Eco's real CCTP quote route.
     function test_CCTPQuoteRouteDecodesWithEcoCallLayout() public view {
         EcoFacet.Route memory route = abi.decode(
@@ -2218,6 +2287,73 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             TOKEN_MESSENGER,
             EcoFacet.InvalidCCTPBurn.selector
         );
+    }
+
+    /// @dev Checks every EVM row of the facet's domain table against the
+    ///      independently maintained `config/polymercctp.json`. Skipped:
+    ///      non-EVM chains, HyperCore (no plain-burn delivery) and Base (the
+    ///      fork's own chain).
+    function test_CCTPDomainMatchesPolymerConfigForEveryChain() public {
+        CctpDomainMapping[] memory mappings = abi.decode(
+            vm.parseJson(vm.readFile("config/polymercctp.json"), ".mappings"),
+            (CctpDomainMapping[])
+        );
+        uint256 checked;
+
+        for (uint256 i = 0; i < mappings.length; i++) {
+            uint256 chainId = mappings[i].chainId;
+            if (
+                chainId > type(uint32).max ||
+                chainId == HYPERCORE_CHAIN_ID ||
+                chainId == block.chainid
+            ) continue;
+            uint32 domain = uint32(mappings[i].domainId);
+
+            uint256 snapshot = vm.snapshotState();
+            _bridgeViaCCTPTo(chainId, domain);
+            vm.revertToState(snapshot);
+
+            _expectCCTPRouteRevertTo(
+                chainId,
+                _depositForBurnData(
+                    bridgeData.minAmount,
+                    domain + 1,
+                    USER_RECEIVER,
+                    bridgeData.sendingAssetId,
+                    bytes32(0)
+                ),
+                EcoFacet.InvalidCCTPBurn.selector
+            );
+            checked++;
+        }
+
+        assertEq(checked, 21);
+    }
+
+    function _bridgeViaCCTPTo(uint256 _chainId, uint32 _domain) internal {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = _chainId;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            _createCCTPRoute(
+                _depositForBurnData(
+                    bridgeData.minAmount,
+                    _domain,
+                    USER_RECEIVER,
+                    bridgeData.sendingAssetId,
+                    bytes32(0)
+                )
+            )
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
     }
 
     /// @dev A plain burn mints on HyperEVM; it cannot deliver to HyperCore.

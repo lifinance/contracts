@@ -119,7 +119,7 @@ ecoData.refundRecipient = msg.sender;            // User address for refunds
 
 - **ERC20 Token Bridging**: For ERC20 tokens, the facet automatically approves the Eco Portal to spend `minAmount` (the fee-inclusive amount).
 
-- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations. For EVM and Tron destinations the contract decodes the route's last call and validates that it pays the specified receiver; any other final call reverts with `InvalidReceiver`.
+- **Encoded Route**: The `encodedRoute` parameter is provided by the Eco API and contains all necessary routing information for the destination chain. It is used as-is by the facet and is required for all bridge operations. For EVM and Tron destinations the contract decodes the route's last call: a `transfer` or HyperCore `depositFor` must pay the specified receiver, a CCTP `depositForBurn` must pass the checks under **CCTP Routes** (its `mintRecipient` is not checked on-chain), and any other final call reverts with `InvalidReceiver`.
 
 - **CCTP Routes**: For large USDC transfers Eco settles over Circle's CCTP instead of solver inventory. The route executes on the source chain: it approves USDC to TokenMessengerV2 and calls `depositForBurn`. Two Eco intent types use this route:
   - **CCTP fulfillment**: CCTP mints USDC to the receiver on the destination chain (`mintRecipient = receiver`).

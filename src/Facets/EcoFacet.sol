@@ -13,7 +13,7 @@ import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidDestinationChain, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -322,7 +322,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         EcoData calldata _ecoData
     ) private view returns (uint64 intentDestination) {
         if (_ecoData.prover == address(0)) revert InvalidConfig();
-        if (_ecoData.refundRecipient == address(0)) revert InvalidConfig();
+        if (_ecoData.refundRecipient == address(0)) revert InvalidCallData();
         if (_ecoData.rewardDeadline <= block.timestamp) {
             revert InvalidConfig();
         }
