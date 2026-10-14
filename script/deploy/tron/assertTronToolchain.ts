@@ -10,8 +10,9 @@
  * The scripts deploy whatever is in `out/` and label it with the source file's
  * `@custom:version`, so a stale `out/` puts old bytecode on chain under the new version.
  * `buildForgeArtifactsOrThrow` therefore runs `forge build` with the checked forge before
- * any artifact is read; forge recompiles whatever changed since the last build, including a
- * build left by another profile or compiler.
+ * any artifact is read, then refuses unless every `src/` artifact records the solc version,
+ * EVM version and optimizer runs of `[profile.default]`, as the EVM path does after its
+ * rebuild.
  *
  * The comparison is delegated to the same `script/utils/verify-foundry-version.sh` the CI
  * foundry setup and the bash deploy seam run, so there is one verdict rather than a second
@@ -20,8 +21,14 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+
+import {
+  getFoundryDefaultEvmVersion,
+  getFoundryDefaultOptimizerRuns,
+  getFoundryDefaultSolcVersion,
+} from '../../utils/utils'
 
 /** Path of the checker, relative to the repository root. */
 export const FOUNDRY_VERSION_CHECKER = 'script/utils/verify-foundry-version.sh'
@@ -63,26 +70,136 @@ export const spawnFoundryVersionChecker: TCheckerRunner = (checkerPath) =>
     })
   )
 
+// 30 minutes: a fresh checkout compiles src/ in a few; past this, forge is stuck.
+const FORGE_BUILD_TIMEOUT_MS = 30 * 60 * 1000
+
 /**
- * Runs the real `forge build` with every `FOUNDRY_*` override removed, so the build uses
- * `[profile.default]` of `foundry.toml` even when a shell still exports, say,
- * `FOUNDRY_PROFILE=solc_floor`.
+ * The environment `forge build` runs under: every `FOUNDRY_*` override removed and
+ * `FOUNDRY_PROFILE=default` set explicitly. Removing it is not enough, because forge loads
+ * the project's `.env` itself and fills in any variable that is unset.
+ *
+ * @param env - Environment to derive from. Defaults to this process's.
+ * @returns The child environment.
+ */
+export const forgeBuildEnv = (
+  env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv => ({
+  ...Object.fromEntries(
+    Object.entries(env).filter(([name]) => !name.startsWith('FOUNDRY_'))
+  ),
+  FOUNDRY_PROFILE: 'default',
+})
+
+/**
+ * Runs the real `forge build` of everything but tests, under {@link forgeBuildEnv}. Its
+ * output goes straight to the terminal, so a long compile shows progress.
  *
  * @param repoRoot - Directory to build in.
- * @returns Its exit status and combined output.
+ * @returns Its exit status; the output is already on the terminal.
  */
 export const spawnForgeBuild: TForgeBuildRunner = (repoRoot) =>
   toCheckerResult(
-    spawnSync('forge', ['build'], {
+    spawnSync('forge', ['build', '--skip', 'test/**'], {
       cwd: repoRoot,
-      encoding: 'utf8',
-      env: Object.fromEntries(
-        Object.entries(process.env).filter(
-          ([name]) => !name.startsWith('FOUNDRY_')
-        )
-      ),
+      stdio: ['ignore', 'inherit', 'inherit'],
+      timeout: FORGE_BUILD_TIMEOUT_MS,
+      env: forgeBuildEnv(),
     })
   )
+
+/** The compiler settings of `[profile.default]` that a deployable artifact must record. */
+export interface IBuildProfile {
+  solcVersion: string
+  evmVersion: string
+  optimizerRuns: number
+}
+
+/**
+ * Reads {@link IBuildProfile} from `[profile.default]` of `foundry.toml`.
+ *
+ * @returns The default profile's compiler settings.
+ * @throws When `foundry.toml` does not pin them.
+ */
+export const readDefaultBuildProfile = (): IBuildProfile => ({
+  solcVersion: getFoundryDefaultSolcVersion(),
+  evmVersion: getFoundryDefaultEvmVersion(),
+  optimizerRuns: getFoundryDefaultOptimizerRuns(),
+})
+
+interface IArtifactMetadata {
+  compiler?: { version?: string }
+  settings?: {
+    compilationTarget?: Record<string, string>
+    evmVersion?: string
+    optimizer?: { runs?: number }
+  }
+}
+
+const describeMismatch = (
+  metadata: IArtifactMetadata | undefined,
+  expected: IBuildProfile
+): string | undefined => {
+  // solc records itself as `0.8.29+commit.ab55807c`; foundry.toml pins the version alone.
+  const solc = metadata?.compiler?.version?.split('+')[0]
+  const evm = metadata?.settings?.evmVersion
+  const runs = metadata?.settings?.optimizer?.runs
+  if (
+    solc === expected.solcVersion &&
+    evm === expected.evmVersion &&
+    runs === expected.optimizerRuns
+  )
+    return undefined
+  return `solc ${solc}, evm ${evm}, optimizer runs ${runs}`
+}
+
+const readMetadata = (path: string): IArtifactMetadata | undefined =>
+  (JSON.parse(readFileSync(path, 'utf8')) as { metadata?: IArtifactMetadata })
+    .metadata
+
+/**
+ * Refuses unless every artifact compiled from `src/` records the expected compiler settings.
+ *
+ * @param outRoot - Forge output directory.
+ * @param expected - Settings every `src/` artifact must record.
+ * @throws When an artifact records other settings, or no `src/` artifact is found.
+ */
+export function assertSrcArtifactsMatchProfile(
+  outRoot: string,
+  expected: IBuildProfile
+): void {
+  const mismatches: string[] = []
+  let checked = 0
+  const directories = existsSync(outRoot)
+    ? readdirSync(outRoot, { withFileTypes: true })
+    : []
+  for (const directory of directories) {
+    if (!directory.isDirectory()) continue
+    for (const file of readdirSync(join(outRoot, directory.name))) {
+      if (!file.endsWith('.json')) continue
+      const metadata = readMetadata(join(outRoot, directory.name, file))
+      const targets = Object.keys(metadata?.settings?.compilationTarget ?? {})
+      if (!targets.some((source) => source.startsWith('src/'))) continue
+
+      checked++
+      const mismatch = describeMismatch(metadata, expected)
+      if (mismatch) mismatches.push(`${directory.name}/${file}: ${mismatch}`)
+    }
+  }
+
+  const want = `solc ${expected.solcVersion}, evm ${expected.evmVersion}, optimizer runs ${expected.optimizerRuns}`
+  if (checked === 0)
+    throw new Error(
+      `forge build left no src/ artifact in ${outRoot}, so nothing confirms it was built with ${want}. Refusing to deploy to Tron. Nothing has been broadcast.`
+    )
+  if (mismatches.length > 0)
+    throw new Error(
+      `${mismatches.length} artifact(s) in ${outRoot} were not built with [profile.default] (${want}). ` +
+        'Remove FOUNDRY_* overrides from .env, run `forge clean`, and retry. ' +
+        `Refusing to deploy to Tron. Nothing has been broadcast.\n${mismatches
+          .slice(0, 10)
+          .join('\n')}`
+    )
+}
 
 /** Set once the checker has passed in this process, so N deployments cost one spawn. */
 // Keyed by the repo root it was confirmed for, not a bare flag: a pass for one checkout
@@ -99,17 +216,21 @@ export const resetTronToolchainCache = (): void => {
 }
 
 /**
- * Confirms the toolchain, then runs `forge build` so `out/` matches the source on disk.
+ * Confirms the toolchain, runs `forge build` so `out/` matches the source on disk, then
+ * confirms every `src/` artifact records the `[profile.default]` compiler settings.
  *
  * Call it before the first artifact is read; once per process per root is enough.
  *
  * @param options.repoRoot - Forge project root. Defaults to the working directory.
  * @param options.build - Build runner. Defaults to spawning the real `forge build`.
- * @throws When the toolchain check refuses, or the build fails.
+ * @param options.verify - Post-build check. Defaults to {@link assertSrcArtifactsMatchProfile}
+ * of `out/` against `[profile.default]`.
+ * @throws When the toolchain check refuses, the build fails, or the post-build check refuses.
  */
 export function buildForgeArtifactsOrThrow(options?: {
   repoRoot?: string
   build?: TForgeBuildRunner
+  verify?: (repoRoot: string) => void
 }): void {
   const repoRoot = options?.repoRoot ?? process.cwd()
   if (builtRoots.has(repoRoot)) return
@@ -122,6 +243,15 @@ export function buildForgeArtifactsOrThrow(options?: {
         'Fix the build and retry. Nothing has been broadcast.' +
         (output ? `\n${output}` : '')
     )
+
+  const verify =
+    options?.verify ??
+    ((root: string) =>
+      assertSrcArtifactsMatchProfile(
+        join(root, 'out'),
+        readDefaultBuildProfile()
+      ))
+  verify(repoRoot)
 
   builtRoots.add(repoRoot)
 }

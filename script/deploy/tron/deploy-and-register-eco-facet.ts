@@ -32,10 +32,12 @@ import { flagIsOn } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
   consola.start('TRON EcoFacet Deployment & Registration')
+  buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 

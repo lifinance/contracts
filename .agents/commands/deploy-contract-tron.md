@@ -78,7 +78,7 @@ bunx tsx script/deploy/tron/deploy-and-register-eco-facet.ts
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with a safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.
 
-**The scripts build first.** They deploy the artifact in `out/` but label it with the source file's `@custom:version`, so each deploy script runs `forge build` (with `FOUNDRY_*` overrides such as `FOUNDRY_PROFILE` removed, so `[profile.default]` applies) before it reads any artifact. A failed build stops the run before anything is broadcast.
+**The scripts build first.** They deploy the artifact in `out/` but label it with the source file's `@custom:version`, so every script that reads `out/` (the deploy scripts, `register-facets-to-diamond.ts` and `transfer-ownership-to-timelock.ts`) first runs `forge build --skip 'test/**'` with `FOUNDRY_*` overrides removed and `FOUNDRY_PROFILE=default` set, so `[profile.default]` applies even when `.env` names another profile. It then refuses unless every `src/` artifact records the default profile's solc version, EVM version and optimizer runs. A failed build or check stops the run before anything is broadcast.
 
 **Keep the fork's `deployments/` across runs.** The scripts write `deployments/tron.json` / `tron.diamond.json` at deploy time and again at propose time. Resetting the fork's `deployments/` between runs of the same rollout (e.g. `git checkout -- deployments/`) drops those writes, so a later `deploy-and-register-periphery.ts --registerOnly` run reads the old address and reports "already correctly registered" without proposing the new one.
 

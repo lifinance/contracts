@@ -3,6 +3,7 @@ import {
   getTronWebCodecOnlyForNetwork,
 } from '@lifi/tron-devkit'
 import {
+  afterEach,
   beforeEach,
   describe,
   expect,
@@ -24,11 +25,15 @@ import {
 
 // The checks under test sit behind the toolchain gate, which is covered in
 // assertTronToolchain.test.ts. Confirming it here with a passing runner keeps these tests
-// independent of the local forge and of whatever another test file left in the cache.
+// independent of the local forge, the working directory, and the cache other files share.
 beforeEach(() => {
   resetTronToolchainCache()
-  assertTronToolchainOrThrow({ run: () => ({ status: 0, output: '' }) })
+  assertTronToolchainOrThrow({
+    run: () => ({ status: 0, output: '' }),
+    exists: () => true,
+  })
 })
+afterEach(resetTronToolchainCache)
 
 const ONE_ADDRESS_ABI = [
   {
