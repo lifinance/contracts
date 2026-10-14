@@ -1636,6 +1636,74 @@ describe('createForgeRebuildRunner', () => {
     ).toBe(true)
   })
 
+  it('starts no queued build after cleanup, so no checkout outlives the teardown', async () => {
+    const gitCalls: string[][] = []
+    let releaseCompile: () => void = () => undefined
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: async (args) => {
+        gitCalls.push(args)
+        return ''
+      },
+      run: async () => {
+        await new Promise<void>((resolve) => {
+          releaseCompile = resolve
+        })
+        return { ok: false, output: 'abandoned' }
+      },
+      exists: freshOutDirs(() => false),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    const running = runner.build(request)
+    const queued = runner.build({ ...request, commit: 'b'.repeat(40) })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await runner.cleanup()
+    releaseCompile()
+
+    expect(await rejection(running)).toContain('abandoned')
+    expect(await rejection(queued)).toContain('cleaned up')
+    expect(
+      gitCalls.some((args) => args.includes(`/tmp/rebuilds/${'b'.repeat(40)}`))
+    ).toBe(false)
+  })
+
+  it('removes a checkout whose add was still running when cleanup ran', async () => {
+    const gitCalls: string[][] = []
+    let releaseAdd: () => void = () => undefined
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: async (args) => {
+        gitCalls.push(args)
+        if (args[1] === 'add')
+          await new Promise<void>((resolve) => {
+            releaseAdd = resolve
+          })
+        return ''
+      },
+      run: async () => ({ ok: true, output: '' }),
+      exists: freshOutDirs(() => false),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    const building = runner.build(request)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await runner.cleanup()
+    releaseAdd()
+
+    expect(await rejection(building)).toContain('cleaned up')
+    expect(gitCalls.at(-1)).toEqual([
+      'worktree',
+      'remove',
+      '--force',
+      `/tmp/rebuilds/${request.commit}`,
+    ])
+  })
+
   describe('declarationsAt', () => {
     const COMMIT = 'a'.repeat(40)
     const CHECKOUT = `/tmp/rebuilds/${COMMIT}`

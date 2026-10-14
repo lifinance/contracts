@@ -767,9 +767,22 @@ export const createForgeRebuildRunner = (
   // into them, so everything they hold since was written by this run.
   const vettedOutDirs = new Set<string>()
 
+  // Set by `cleanup`, which runs outside the queue: a turn that starts after
+  // teardown would add a worktree nothing is left to remove.
+  let closed = false
+  const refuseAfterCleanup = (): void => {
+    if (closed)
+      throw new Error(
+        'the rebuild runner was cleaned up, so no further checkout or build may start'
+      )
+  }
+
   let queue: Promise<unknown> = Promise.resolve()
   const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
-    const turn = queue.then(work)
+    const turn = queue.then(() => {
+      refuseAfterCleanup()
+      return work()
+    })
     // A failed turn is its caller's to handle, never the next caller's.
     queue = turn.catch(() => undefined)
     return turn
@@ -786,6 +799,14 @@ export const createForgeRebuildRunner = (
     const checkout = join(deps.checkoutRoot, commit)
     if (!deps.exists(checkout)) {
       await deps.git(['worktree', 'add', '--detach', checkout, commit])
+      // A teardown that ran while this add was in flight has already walked
+      // `created`, so the checkout is removed here instead.
+      if (closed) {
+        await deps
+          .git(['worktree', 'remove', '--force', checkout])
+          .catch(() => undefined)
+        refuseAfterCleanup()
+      }
       created.add(checkout)
     }
     return checkout
@@ -1067,6 +1088,7 @@ export const createForgeRebuildRunner = (
     // Outside the queue: a caller that gave up on a rebuild still running —
     // the watcher's timeout — must be able to tear down without waiting for it.
     cleanup: async (): Promise<void> => {
+      closed = true
       for (const checkout of created)
         try {
           await deps.git(['worktree', 'remove', '--force', checkout])
