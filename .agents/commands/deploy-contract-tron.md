@@ -10,7 +10,7 @@ Tron has no Foundry support, so it does not go through `deployContractToNetworks
 
 ## Why a separate repo
 
-`main` in `lifinance/contracts` carries **zero** Tron branching by design — Tron USDT is a broken ERC-20, so the fix (a bypass in `LibAsset.transferERC20` + a `WithdrawablePeriphery` re-route) lives only in the fork as a small, deliberate delta. Code flows one-way `contracts` → `contracts-tron`; deploy logs flow back the other way via a PR against upstream — never a direct commit to the fork. Full rationale, the exact fork delta, and the sync mechanism: **`docs/TronFork.md`** (read it if anything below is unclear on _why_, not just _what_).
+`main` in `lifinance/contracts` carries **zero** Tron branching by design — Tron USDT is a broken ERC-20, so the fix (a bypass in `LibAsset.transferERC20` + a `WithdrawablePeriphery` re-route) lives only in the fork as a small, deliberate delta. Code flows one-way `contracts` → `contracts-tron`; deploy logs flow back the other way via a PR against upstream — never a direct commit to the fork. Full rationale, the exact fork delta, and the sync mechanism: **`docs/TronFork.md`** (read it if anything below is unclear on *why*, not just *what*).
 
 ## Phase 0 — Locate the `contracts-tron` checkout
 
@@ -79,7 +79,7 @@ bunx tsx script/deploy/tron/deploy-and-register-eco-facet.ts
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with a safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.
 
-**Build first.** The scripts label each deploy with the source file's `@custom:version` but deploy the artifact in `out/`, so a stale build would put old bytecode on chain under the new version. `assertTronDeploymentRecordable` refuses an artifact whose `metadata.sources` hashes differ from the files on disk; if it does, run `forge build` and retry.
+**Build first.** The scripts label each deploy with the source file's `@custom:version` but deploy the artifact in `out/`, so a stale build would put old bytecode on chain under the new version. `assertTronDeploymentRecordable` refuses an artifact whose `metadata.sources` hashes differ from the files on disk, or whose solc version, EVM version, optimizer or IR setting differs from `[profile.default]` in `foundry.toml` (e.g. an `out/` left by a `FOUNDRY_PROFILE=solc_floor` build). If it does, unset `FOUNDRY_PROFILE`, run `forge build` and retry.
 
 **Keep the fork's `deployments/` across runs.** The scripts write `deployments/tron.json` / `tron.diamond.json` at deploy time and again at propose time. Resetting the fork's `deployments/` between runs of the same rollout (e.g. `git checkout -- deployments/`) drops those writes, so a later `deploy-and-register-periphery.ts --registerOnly` run reads the old address and reports "already correctly registered" without proposing the new one.
 
@@ -95,7 +95,7 @@ Foundry's `forge verify` does not support Tron. Verify manually:
 
 Tronscan API (for scripted checks): mainnet `https://apilist.tronscan.org/api`, testnet `https://api.shasta.tronscan.org/api`.
 
-## Phase 5 — PR the deploy logs to _upstream_, never the fork
+## Phase 5 — PR the deploy logs to *upstream*, never the fork
 
 This is the step most likely to be gotten backwards. The fork never pushes back to `main` — deploy logs are the one exception, and even they don't go to the fork's own PR flow. `contracts-tron` and `contracts` are separate repos with unrelated-enough histories that cherry-picking commits between them is the wrong tool — **copy the two generated JSON files as plain data**, from the `contracts-tron` checkout into a fresh branch of `contracts`.
 

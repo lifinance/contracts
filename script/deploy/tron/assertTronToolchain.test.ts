@@ -28,7 +28,6 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { keccak256 } from 'viem'
 
 import {
   FOUNDRY_VERSION_CHECKER,
@@ -37,6 +36,7 @@ import {
   spawnFoundryVersionChecker,
   type ICheckerResult,
 } from './assertTronToolchain'
+import { metadataBuiltFrom } from './helpers/forgeArtifactBuild.fixture'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const PINNED = readFileSync(join(REPO_ROOT, '.foundry-version'), 'utf8').trim()
@@ -338,19 +338,12 @@ describe('the placement at the deploy chokepoint', () => {
       assertTronDeploymentRecordable(
         {
           abi: [{ type: 'constructor', inputs: [] }],
-          metadata: {
-            sources: {
-              [EXECUTOR_SOURCE]: {
-                keccak256: keccak256(
-                  readFileSync(join(REPO_ROOT, EXECUTOR_SOURCE))
-                ),
-              },
-            },
-          },
+          metadata: metadataBuiltFrom(REPO_ROOT, [EXECUTOR_SOURCE]),
         },
         [],
         'Executor',
-        'tron'
+        'tron',
+        { repoRoot: REPO_ROOT }
       )
       return undefined
     } catch (error) {
@@ -395,25 +388,36 @@ describe('the gate is on the Tron seams a deployment cannot avoid', () => {
     const occurrences = (source: string, needle: string): number =>
       source.split(needle).length - 1
 
+    // `assertTronDeploymentRecordable` is the gate: it carries the toolchain, stale-artifact
+    // and constructor-argument checks. Only the files listed here may deploy behind the
+    // toolchain check alone. The Safe singleton and proxy factory in deploy-safe-tron.ts are
+    // third-party artifacts built by `forge build -C safe/london` and never written to the
+    // deployment log; the fuller gate refuses every run there, because it validates
+    // constructor args against the artifact ABI, and that committed build declares none
+    // while its source declares one.
+    const toolchainOnly = new Set(['script/deploy/tron/deploy-safe-tron.ts'])
+    const gateFor = (path: string): string =>
+      toolchainOnly.has(path)
+        ? 'assertTronToolchainOrThrow('
+        : 'assertTronDeploymentRecordable('
+
     const ungated = files
       .map((file) => ({
         path: file.path,
         deploys: occurrences(file.source, 'deployer.deployContract('),
-        // Either gate counts. `assertTronDeploymentRecordable` is the fuller
-        // check and is what a recorded LI.FI deployment needs; the Safe
-        // singleton and proxy factory in deploy-safe-tron.ts are third-party
-        // artifacts built by `forge build -C safe/london` and never written to
-        // the deployment log, so they take the toolchain check alone. Requiring
-        // the fuller one there refused every run: it validates constructor args
-        // against the artifact ABI, and that committed build declares none
-        // while its source declares one.
-        asserts:
-          occurrences(file.source, 'assertTronDeploymentRecordable(') +
-          occurrences(file.source, 'assertTronToolchainOrThrow('),
+        asserts: occurrences(file.source, gateFor(file.path)),
       }))
       .filter((file) => file.deploys > file.asserts)
 
     expect(ungated).toEqual([])
+    // An allowlist entry for a file that no longer deploys anything is stale.
+    for (const path of toolchainOnly)
+      expect(
+        occurrences(
+          files.find((file) => file.path === path)?.source ?? '',
+          'deployer.deployContract('
+        )
+      ).toBeGreaterThan(0)
     // Paired positive: if nothing deployed anywhere, the check above is vacuous.
     expect(
       files.reduce(

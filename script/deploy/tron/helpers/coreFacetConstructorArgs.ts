@@ -23,6 +23,8 @@ import { consola } from 'consola'
 import type { SupportedChain } from '../../../common/types'
 import { assertTronDeploymentRecordable } from '../tronUtils'
 
+import { ForgeArtifactBuildError } from './forgeArtifactBuild'
+
 /** Loads a compiled artifact by contract name. Injectable so tests need no `out/`. */
 export type ArtifactLoader = (
   contractName: string
@@ -135,6 +137,7 @@ export async function resolveCoreFacetConstructorArgs(
     try {
       assertTronDeploymentRecordable(artifact, args, facet, network)
     } catch (error: unknown) {
+      if (error instanceof ForgeArtifactBuildError) throw error
       const message = error instanceof Error ? error.message : String(error)
       throw new Error(
         `${message} Core facet constructor arguments are built by getConstructorArgs in script/deploy/tron/helpers/coreFacetConstructorArgs.ts.`
@@ -201,6 +204,7 @@ export async function assertDiamondConstructorShape(
   try {
     assertTronDeploymentRecordable(artifact, probe, diamondName, network)
   } catch (error: unknown) {
+    if (error instanceof ForgeArtifactBuildError) throw error
     const message = error instanceof Error ? error.message : String(error)
     throw new Error(
       `${message} The diamond is deployed with [owner, diamondCutFacet] in script/deploy/tron/deploy-core-facets.ts.`

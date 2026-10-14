@@ -1,10 +1,4 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -16,11 +10,10 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { keccak256 } from 'viem'
 
-import { assertTronToolchainOrThrow } from './assertTronToolchain'
+import type { ITronToolchainOptions } from './assertTronToolchain'
+import { metadataBuiltFrom } from './helpers/forgeArtifactBuild.fixture'
 import {
-  assertArtifactBuiltFromCurrentSource,
   assertTronDeploymentRecordable,
   parseTronAddressOutput,
   parseTroncastArrayOutput,
@@ -131,176 +124,91 @@ describe('parseTroncastArrayOutput', () => {
   })
 })
 
-describe('assertArtifactBuiltFromCurrentSource', () => {
-  const SOURCE_PATH = 'src/Facets/Example.sol'
-  const LIB_PATH = 'lib/dep/Dep.sol'
-  let root: string
-
-  beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'tron-artifact-source-'))
-    mkdirSync(join(root, 'src/Facets'), { recursive: true })
-    mkdirSync(join(root, 'lib/dep'), { recursive: true })
-    writeFileSync(join(root, SOURCE_PATH), 'contract Example {}\n')
-    writeFileSync(join(root, LIB_PATH), 'library Dep {}\n')
-  })
-
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true })
-  })
-
-  const hashOf = (path: string): string =>
-    keccak256(readFileSync(join(root, path)))
-
-  const artifactFor = (
-    sources: Record<string, unknown>
-  ): { metadata: { sources: Record<string, unknown> } } => ({
-    metadata: { sources },
-  })
-
-  it('passes when every source hash matches the file on disk', () => {
-    expect(() =>
-      assertArtifactBuiltFromCurrentSource(
-        artifactFor({
-          [SOURCE_PATH]: { keccak256: hashOf(SOURCE_PATH) },
-          [LIB_PATH]: { keccak256: hashOf(LIB_PATH) },
-        }),
-        'Example',
-        root
-      )
-    ).not.toThrow()
-  })
-
-  it('refuses an artifact built from older source, naming every changed path', () => {
-    const builtHash = hashOf(SOURCE_PATH)
-    const builtLibHash = hashOf(LIB_PATH)
-    writeFileSync(join(root, SOURCE_PATH), 'contract Example { uint x; }\n')
-    writeFileSync(join(root, LIB_PATH), 'library Dep { function f() {} }\n')
-
-    expect(() =>
-      assertArtifactBuiltFromCurrentSource(
-        artifactFor({
-          [SOURCE_PATH]: { keccak256: builtHash },
-          [LIB_PATH]: { keccak256: builtLibHash },
-        }),
-        'Example',
-        root
-      )
-    ).toThrow(
-      /Example.*src\/Facets\/Example\.sol.*lib\/dep\/Dep\.sol.*forge build/su
-    )
-  })
-
-  it('counts a whitespace-only edit as a mismatch', () => {
-    const builtHash = hashOf(SOURCE_PATH)
-    writeFileSync(join(root, SOURCE_PATH), 'contract Example {}\n\n')
-
-    expect(() =>
-      assertArtifactBuiltFromCurrentSource(
-        artifactFor({ [SOURCE_PATH]: { keccak256: builtHash } }),
-        'Example',
-        root
-      )
-    ).toThrow(/Example.*src\/Facets\/Example\.sol.*forge build/su)
-  })
-
-  it('refuses an artifact with no metadata', () => {
-    expect(() =>
-      assertArtifactBuiltFromCurrentSource({}, 'Example', root)
-    ).toThrow(/Example.*cannot be checked against the source/su)
-  })
-
-  it('refuses an artifact whose metadata.sources is empty or not a map', () => {
-    for (const sources of [{}, null, SOURCE_PATH, []])
-      expect(() =>
-        assertArtifactBuiltFromCurrentSource(
-          { metadata: { sources } },
-          'Example',
-          root
-        )
-      ).toThrow(/Example.*cannot be checked against the source/su)
-  })
-
-  it('refuses a source entry that carries no keccak256', () => {
-    expect(() =>
-      assertArtifactBuiltFromCurrentSource(
-        artifactFor({ [SOURCE_PATH]: { urls: [] } }),
-        'Example',
-        root
-      )
-    ).toThrow(
-      /Example.*cannot be checked against the source.*src\/Facets\/Example\.sol/su
-    )
-  })
-
-  it('refuses a source path that no longer exists on disk', () => {
-    expect(() =>
-      assertArtifactBuiltFromCurrentSource(
-        artifactFor({
-          [SOURCE_PATH]: { keccak256: hashOf(SOURCE_PATH) },
-          'src/Facets/Deleted.sol': { keccak256: hashOf(SOURCE_PATH) },
-        }),
-        'Example',
-        root
-      )
-    ).toThrow(
-      /Example.*cannot be checked against the source.*src\/Facets\/Deleted\.sol/su
-    )
-  })
-})
-
 describe('assertTronDeploymentRecordable', () => {
   const SOURCE_PATH = 'src/Facets/Example.sol'
   const NO_ARG_ABI = [{ type: 'constructor', inputs: [] }]
-  const originalCwd = process.cwd()
   let root: string
 
-  // Runs from a fixture root so the result depends on neither the caller's cwd nor the
-  // local forge: the toolchain check is confirmed for that root through its injectable
-  // runner, which leaves the stale-artifact check as the only thing under test. The cache is
-  // never cleared here: it is process-wide, and the root is unique, so adding it is enough.
+  // The toolchain checker is stubbed through the injected options, so the result depends on
+  // neither the caller's cwd nor the local forge.
+  const passingToolchain = (): ITronToolchainOptions => ({
+    repoRoot: root,
+    run: () => ({ status: 0, output: '' }),
+    exists: () => true,
+  })
+
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'tron-recordable-'))
     mkdirSync(join(root, 'src/Facets'), { recursive: true })
     writeFileSync(join(root, SOURCE_PATH), 'contract Example {}\n')
-    process.chdir(root)
-    assertTronToolchainOrThrow({
-      repoRoot: process.cwd(),
-      run: () => ({ status: 0, output: '' }),
-      exists: () => true,
-    })
+    writeFileSync(
+      join(root, 'foundry.toml'),
+      "[profile.default]\nsolc_version = '0.8.29'\nevm_version = 'cancun'\n"
+    )
   })
 
   afterEach(() => {
-    process.chdir(originalCwd)
     rmSync(root, { recursive: true, force: true })
   })
 
-  const artifactBuiltWith = (
-    builtHash: string
-  ): { abi: unknown; metadata: { sources: Record<string, unknown> } } => ({
+  const freshArtifact = (): { abi: unknown; metadata: unknown } => ({
     abi: NO_ARG_ABI,
-    metadata: { sources: { [SOURCE_PATH]: { keccak256: builtHash } } },
+    metadata: metadataBuiltFrom(root, [SOURCE_PATH]),
   })
 
   it('refuses a stale artifact before anything is broadcast', () => {
+    const artifact = freshArtifact()
+    writeFileSync(join(root, SOURCE_PATH), 'contract Example { uint x; }\n')
+
     expect(() =>
       assertTronDeploymentRecordable(
-        artifactBuiltWith(keccak256('0x00')),
+        artifact,
         [],
         'Example',
-        'tron'
+        'tron',
+        passingToolchain()
       )
-    ).toThrow(/Example.*src\/Facets\/Example\.sol.*forge build/su)
+    ).toThrow(/Example.*stale.*src\/Facets\/Example\.sol.*forge build/su)
+  })
+
+  it('refuses an artifact built under another profile', () => {
+    const artifact = freshArtifact()
+    writeFileSync(
+      join(root, 'foundry.toml'),
+      "[profile.default]\nsolc_version = '0.8.30'\nevm_version = 'cancun'\n"
+    )
+
+    expect(() =>
+      assertTronDeploymentRecordable(
+        artifact,
+        [],
+        'Example',
+        'tron',
+        passingToolchain()
+      )
+    ).toThrow(
+      /Example.*\[profile\.default\].*solc 0\.8\.29.*expected 0\.8\.30/su
+    )
   })
 
   it('lets an artifact built from the current source through', () => {
     expect(() =>
       assertTronDeploymentRecordable(
-        artifactBuiltWith(keccak256(readFileSync(join(root, SOURCE_PATH)))),
+        freshArtifact(),
         [],
         'Example',
-        'tron'
+        'tron',
+        passingToolchain()
       )
     ).not.toThrow()
+  })
+
+  it('refuses before the artifact checks when the toolchain does not match', () => {
+    expect(() =>
+      assertTronDeploymentRecordable(freshArtifact(), [], 'Example', 'tron', {
+        ...passingToolchain(),
+        run: () => ({ status: 1, output: 'forge 0.0.1' }),
+      })
+    ).toThrow(/Cannot confirm the local foundry matches/u)
   })
 })

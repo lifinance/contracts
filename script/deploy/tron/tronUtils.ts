@@ -15,18 +15,9 @@ import {
   loadForgeArtifact,
   tronAddressToHex,
 } from '@lifi/tron-devkit'
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
-
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
-import {
-  decodeFunctionResult,
-  keccak256,
-  parseAbi,
-  type Abi,
-  type Hex,
-} from 'viem'
+import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { sleep } from '../../utils/delay'
@@ -41,13 +32,20 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-import { assertTronToolchainOrThrow } from './assertTronToolchain'
+import {
+  assertTronToolchainOrThrow,
+  type ITronToolchainOptions,
+} from './assertTronToolchain'
 import {
   assertRecordedArgsMatchAbi,
   constructorInputTypes,
   encodeConstructorArgs as encodeWithTypes,
   type AbiParamEncoder,
 } from './constructor-args'
+import {
+  assertArtifactBuiltFromCurrentSource,
+  assertArtifactBuiltWithDefaultProfile,
+} from './helpers/forgeArtifactBuild'
 
 /**
  * Check if a contract is deployed on Tron
@@ -253,34 +251,40 @@ const tronAbiEncoder =
 
 /**
  * Checks that a deployment will be recordable and that its artifact came from the pinned
- * toolchain, before anything is broadcast.
+ * toolchain and the source now on disk, before anything is broadcast.
  *
- * Call this immediately before deploying. Everything it checks is pure — the
- * artifact's ABI and the values — so failing here costs nothing, while the same
- * failure after `deployer.deployContract` leaves a contract on chain that
- * cannot be recorded, and TRX already spent.
+ * Call this immediately before deploying. Everything it checks is local — the toolchain,
+ * the artifact's metadata against `foundry.toml` and the source files, the ABI and the
+ * values — so failing here costs nothing, while the same failure after
+ * `deployer.deployContract` leaves a contract on chain that cannot be recorded, and TRX
+ * already spent.
  *
- * The toolchain pre-flight lives here because every Tron deploy site calls this immediately
- * before its `deployer.deployContract`, so a new deploy site cannot reach a chain without
- * passing it. It costs one checker run per process, not one per contract. The same holds for
- * the stale-artifact check, which reads and hashes the artifact's source files.
+ * The pre-flights live here because every Tron deploy site calls this immediately before
+ * its `deployer.deployContract`, so a new deploy site cannot reach a chain without passing
+ * them. The toolchain checker runs once per process; the artifact checks run on every call
+ * and re-hash the artifact's whole source closure each time.
  *
  * @param artifact - The Forge artifact about to be deployed.
  * @param constructorArgs - Exactly the values the constructor will receive.
  * @param contractName - Named in every message.
  * @param network - Network whose codec will encode the values.
- * @throws When the local forge does not match the pin, the artifact was not built from the
- * source now on disk, the ABI is unreadable, the arity disagrees, or the values cannot be
- * encoded.
+ * @param toolchain - Forwarded to the toolchain check. Its `repoRoot` (default: the working
+ * directory) is also where `foundry.toml` and the artifact's source paths are resolved.
+ * @throws When the local forge does not match the pin; a `ForgeArtifactBuildError` when the
+ * artifact was not built by the default profile from the source now on disk; otherwise when
+ * the ABI is unreadable, the arity disagrees, or the values cannot be encoded.
  */
 export function assertTronDeploymentRecordable(
   artifact: { abi?: unknown; metadata?: unknown },
   constructorArgs: readonly unknown[],
   contractName: string,
-  network: SupportedChain
+  network: SupportedChain,
+  toolchain?: ITronToolchainOptions
 ): void {
-  assertTronToolchainOrThrow()
-  assertArtifactBuiltFromCurrentSource(artifact, contractName)
+  const repoRoot = toolchain?.repoRoot ?? process.cwd()
+  assertTronToolchainOrThrow({ ...toolchain, repoRoot })
+  assertArtifactBuiltWithDefaultProfile(artifact, contractName, repoRoot)
+  assertArtifactBuiltFromCurrentSource(artifact, contractName, repoRoot)
 
   const types = constructorInputTypes(artifact?.abi, contractName)
   const encoded = encodeWithTypes(
@@ -290,71 +294,6 @@ export function assertTronDeploymentRecordable(
     contractName
   )
   assertRecordedArgsMatchAbi(contractName, encoded, types)
-}
-
-/**
- * Refuses a Forge artifact that was not compiled from the source files now on disk.
- *
- * The Tron deploy scripts load `out/` without compiling and label the deployment with the
- * source file's `@custom:version`, so a stale artifact would put old bytecode on chain under
- * the new version. solc records the keccak256 of every source file's exact bytes in
- * `metadata.sources`; any difference, whitespace included, means the build is stale.
- *
- * @param artifact - The Forge artifact about to be deployed.
- * @param contractName - Named in every message.
- * @param sourceRoot - Directory the artifact's source paths are relative to; the Forge
- * project root, which is where `loadForgeArtifact` reads `out/` from by default.
- * @throws When any source file differs from the one compiled, or the artifact cannot be
- * checked: no readable `metadata.sources`, an entry without a hash, or a missing file.
- */
-export function assertArtifactBuiltFromCurrentSource(
-  artifact: { metadata?: unknown },
-  contractName: string,
-  sourceRoot: string = process.cwd()
-): void {
-  const fix = 'Run `forge build` and retry.'
-  const sources = readArtifactSources(artifact)
-  if (!sources)
-    throw new Error(
-      `${contractName}: the Forge artifact cannot be checked against the source: it holds no readable metadata.sources. ${fix}`
-    )
-
-  const unverifiable: string[] = []
-  const changed: string[] = []
-  for (const [path, entry] of Object.entries(sources)) {
-    const builtHash = (entry as { keccak256?: unknown } | null)?.keccak256
-    const file = resolve(sourceRoot, path)
-    if (typeof builtHash !== 'string')
-      unverifiable.push(`${path} (no keccak256)`)
-    else if (!existsSync(file)) unverifiable.push(`${path} (not on disk)`)
-    else if (keccak256(readFileSync(file)) !== builtHash.toLowerCase())
-      changed.push(path)
-  }
-
-  if (unverifiable.length > 0)
-    throw new Error(
-      `${contractName}: the Forge artifact cannot be checked against the source: ${unverifiable.join(
-        ', '
-      )}. ${fix}`
-    )
-  if (changed.length > 0)
-    throw new Error(
-      `${contractName}: the Forge artifact is stale; it was compiled from different source than is on disk, so it would deploy old bytecode under the current version. Changed since the build: ${changed.join(
-        ', '
-      )}. ${fix}`
-    )
-}
-
-const readArtifactSources = (artifact: {
-  metadata?: unknown
-}): Record<string, unknown> | undefined => {
-  const sources = (artifact?.metadata as { sources?: unknown } | undefined)
-    ?.sources
-  if (typeof sources !== 'object' || sources === null || Array.isArray(sources))
-    return undefined
-  return Object.keys(sources).length > 0
-    ? (sources as Record<string, unknown>)
-    : undefined
 }
 
 /**

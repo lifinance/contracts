@@ -9,9 +9,9 @@
  *
  * This checks the forge that is about to run, not the one that built the artifacts on
  * disk, and those can differ: build with a drifted forge, `foundryup` back to the pin, and
- * the deploy passes over bytecode no rebuild reproduces. Closing that needs the compiler
- * version read out of the artifact's own metadata; until then the guarantee is "the
- * toolchain here is the pinned one", not "these artifacts were built with it".
+ * the deploy passes this check over bytecode no rebuild reproduces. The artifact side is
+ * covered separately by `helpers/forgeArtifactBuild.ts`, which compares the solc version
+ * and settings recorded in each artifact's metadata against `foundry.toml`.
  *
  * The comparison is delegated to the same `script/utils/verify-foundry-version.sh` the CI
  * foundry setup and the bash deploy seam run, so there is one verdict rather than a second
@@ -66,6 +66,13 @@ export const resetTronToolchainCache = (): void => {
   confirmedRoots.clear()
 }
 
+/** Injection points for {@link assertTronToolchainOrThrow}; every field is optional. */
+export interface ITronToolchainOptions {
+  repoRoot?: string
+  run?: TCheckerRunner
+  exists?: (path: string) => boolean
+}
+
 /**
  * Refuses the Tron deploy path unless the local forge matches the checked-out
  * `.foundry-version`.
@@ -79,11 +86,9 @@ export const resetTronToolchainCache = (): void => {
  * @param options.exists - Existence probe for the checker path.
  * @throws When the toolchain cannot be confirmed to match the pin.
  */
-export function assertTronToolchainOrThrow(options?: {
-  repoRoot?: string
-  run?: TCheckerRunner
-  exists?: (path: string) => boolean
-}): void {
+export function assertTronToolchainOrThrow(
+  options?: ITronToolchainOptions
+): void {
   const repoRoot = options?.repoRoot ?? process.cwd()
   if (confirmedRoots.has(repoRoot)) return
 
