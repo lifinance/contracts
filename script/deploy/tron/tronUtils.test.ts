@@ -19,6 +19,10 @@ import {
 import { keccak256 } from 'viem'
 
 import {
+  assertTronToolchainOrThrow,
+  resetTronToolchainCache,
+} from './assertTronToolchain'
+import {
   assertArtifactBuiltFromCurrentSource,
   assertTronDeploymentRecordable,
   parseTronAddressOutput,
@@ -248,40 +252,57 @@ describe('assertArtifactBuiltFromCurrentSource', () => {
 })
 
 describe('assertTronDeploymentRecordable', () => {
-  const REAL_SOURCE = 'src/Facets/DiamondCutFacet.sol'
+  const SOURCE_PATH = 'src/Facets/Example.sol'
   const NO_ARG_ABI = [{ type: 'constructor', inputs: [] }]
+  const originalCwd = process.cwd()
+  let root: string
+
+  // Runs from a fixture root so the result depends on neither the caller's cwd nor the
+  // local forge: the toolchain check is confirmed for that root through its injectable
+  // runner, which leaves the stale-artifact check as the only thing under test.
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'tron-recordable-'))
+    mkdirSync(join(root, 'src/Facets'), { recursive: true })
+    writeFileSync(join(root, SOURCE_PATH), 'contract Example {}\n')
+    process.chdir(root)
+    resetTronToolchainCache()
+    assertTronToolchainOrThrow({
+      repoRoot: process.cwd(),
+      run: () => ({ status: 0, output: '' }),
+      exists: () => true,
+    })
+  })
+
+  afterEach(() => {
+    process.chdir(originalCwd)
+    resetTronToolchainCache()
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const artifactBuiltWith = (
+    builtHash: string
+  ): { abi: unknown; metadata: { sources: Record<string, unknown> } } => ({
+    abi: NO_ARG_ABI,
+    metadata: { sources: { [SOURCE_PATH]: { keccak256: builtHash } } },
+  })
 
   it('refuses a stale artifact before anything is broadcast', () => {
     expect(() =>
       assertTronDeploymentRecordable(
-        {
-          abi: NO_ARG_ABI,
-          metadata: {
-            sources: { [REAL_SOURCE]: { keccak256: keccak256('0x00') } },
-          },
-        },
+        artifactBuiltWith(keccak256('0x00')),
         [],
-        'DiamondCutFacet',
+        'Example',
         'tron'
       )
-    ).toThrow(/DiamondCutFacet.*DiamondCutFacet\.sol.*forge build/su)
+    ).toThrow(/Example.*src\/Facets\/Example\.sol.*forge build/su)
   })
 
   it('lets an artifact built from the current source through', () => {
     expect(() =>
       assertTronDeploymentRecordable(
-        {
-          abi: NO_ARG_ABI,
-          metadata: {
-            sources: {
-              [REAL_SOURCE]: {
-                keccak256: keccak256(readFileSync(REAL_SOURCE)),
-              },
-            },
-          },
-        },
+        artifactBuiltWith(keccak256(readFileSync(join(root, SOURCE_PATH)))),
         [],
-        'DiamondCutFacet',
+        'Example',
         'tron'
       )
     ).not.toThrow()
