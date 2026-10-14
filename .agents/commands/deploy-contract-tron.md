@@ -66,7 +66,6 @@ Present: contract + version, target network(s) (`tron` and/or `tronshasta`), and
 export NETWORK=tron            # or tron-shasta for testnet
 export PRIVATE_KEY=<64-char hex, no 0x>   # deployerWallet — see config/global.json tronWallets
 
-forge build                    # the scripts deploy whatever is in out/ and compile nothing
 bunx tsx script/deploy/tron/deploy-core-facets.ts
 bunx tsx script/deploy/tron/register-facets-to-diamond.ts
 # only the ones relevant to <Contract>'s type:
@@ -79,7 +78,7 @@ bunx tsx script/deploy/tron/deploy-and-register-eco-facet.ts
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with a safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.
 
-**Build first.** The scripts label each deploy with the source file's `@custom:version` but deploy the artifact in `out/`, so a stale build would put old bytecode on chain under the new version. `assertTronDeploymentRecordable` refuses an artifact whose `metadata.sources` hashes differ from the files on disk, or whose solc version, EVM version, optimizer or IR setting differs from `[profile.default]` in `foundry.toml` (e.g. an `out/` left by a `FOUNDRY_PROFILE=solc_floor` build). If it does, unset `FOUNDRY_PROFILE`, run `forge build` and retry.
+**The scripts build first.** They deploy the artifact in `out/` but label it with the source file's `@custom:version`, so each deploy script runs `forge build` (with `FOUNDRY_*` overrides such as `FOUNDRY_PROFILE` removed, so `[profile.default]` applies) before it reads any artifact. A failed build stops the run before anything is broadcast.
 
 **Keep the fork's `deployments/` across runs.** The scripts write `deployments/tron.json` / `tron.diamond.json` at deploy time and again at propose time. Resetting the fork's `deployments/` between runs of the same rollout (e.g. `git checkout -- deployments/`) drops those writes, so a later `deploy-and-register-periphery.ts --registerOnly` run reads the old address and reports "already correctly registered" without proposing the new one.
 

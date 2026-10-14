@@ -7,11 +7,11 @@
  * gated the Tron path, so a drifted forge could put bytecode on chain that no later rebuild
  * reproduces.
  *
- * This checks the forge that is about to run, not the one that built the artifacts on
- * disk, and those can differ: build with a drifted forge, `foundryup` back to the pin, and
- * the deploy passes this check over bytecode no rebuild reproduces. The artifact side is
- * covered separately by `helpers/forgeArtifactBuild.ts`, which compares the solc version
- * and settings recorded in each artifact's metadata against `foundry.toml`.
+ * The scripts deploy whatever is in `out/` and label it with the source file's
+ * `@custom:version`, so a stale `out/` puts old bytecode on chain under the new version.
+ * `buildForgeArtifactsOrThrow` therefore runs `forge build` with the checked forge before
+ * any artifact is read; forge recompiles whatever changed since the last build, including a
+ * build left by another profile or compiler.
  *
  * The comparison is delegated to the same `script/utils/verify-foundry-version.sh` the CI
  * foundry setup and the bash deploy seam run, so there is one verdict rather than a second
@@ -35,42 +35,95 @@ export interface ICheckerResult {
 /** Runs the checker at an absolute path. */
 export type TCheckerRunner = (checkerPath: string) => ICheckerResult
 
+/** Runs `forge build` in a repository root. */
+export type TForgeBuildRunner = (repoRoot: string) => ICheckerResult
+
+const toCheckerResult = (
+  result: ReturnType<typeof spawnSync>
+): ICheckerResult => ({
+  status: result.error ? null : result.status,
+  output: `${result.stdout ?? ''}${result.stderr ?? ''}${
+    result.error ? result.error.message : ''
+  }`.trim(),
+})
+
 /**
  * Runs the real checker through bash.
  *
  * @param checkerPath - Absolute path of the checker script.
  * @returns Its exit status and combined output.
  */
-export const spawnFoundryVersionChecker: TCheckerRunner = (checkerPath) => {
-  const result = spawnSync('bash', [checkerPath, '--quiet'], {
-    encoding: 'utf8',
-    // Passed explicitly: bun's spawnSync snapshots the environment it was started with, so
-    // a child would not see the PATH the caller is actually running under.
-    env: { ...process.env },
-  })
-  return {
-    status: result.error ? null : result.status,
-    output: `${result.stdout ?? ''}${result.stderr ?? ''}${
-      result.error ? result.error.message : ''
-    }`.trim(),
-  }
-}
+export const spawnFoundryVersionChecker: TCheckerRunner = (checkerPath) =>
+  toCheckerResult(
+    spawnSync('bash', [checkerPath, '--quiet'], {
+      encoding: 'utf8',
+      // Passed explicitly: bun's spawnSync snapshots the environment it was started with,
+      // so a child would not see the PATH the caller is actually running under.
+      env: { ...process.env },
+    })
+  )
+
+/**
+ * Runs the real `forge build` with every `FOUNDRY_*` override removed, so the build uses
+ * `[profile.default]` of `foundry.toml` even when a shell still exports, say,
+ * `FOUNDRY_PROFILE=solc_floor`.
+ *
+ * @param repoRoot - Directory to build in.
+ * @returns Its exit status and combined output.
+ */
+export const spawnForgeBuild: TForgeBuildRunner = (repoRoot) =>
+  toCheckerResult(
+    spawnSync('forge', ['build'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      env: Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([name]) => !name.startsWith('FOUNDRY_')
+        )
+      ),
+    })
+  )
 
 /** Set once the checker has passed in this process, so N deployments cost one spawn. */
 // Keyed by the repo root it was confirmed for, not a bare flag: a pass for one checkout
 // must not authorise another, and the flag was read before the root was even resolved.
 const confirmedRoots = new Set<string>()
 
-/** Clears the per-process pass so the next call re-runs the checker. */
+/** Roots already built in this process; one build covers every artifact of the run. */
+const builtRoots = new Set<string>()
+
+/** Clears the per-process passes so the next call re-runs the checker and the build. */
 export const resetTronToolchainCache = (): void => {
   confirmedRoots.clear()
+  builtRoots.clear()
 }
 
-/** Injection points for {@link assertTronToolchainOrThrow}; every field is optional. */
-export interface ITronToolchainOptions {
+/**
+ * Confirms the toolchain, then runs `forge build` so `out/` matches the source on disk.
+ *
+ * Call it before the first artifact is read; once per process per root is enough.
+ *
+ * @param options.repoRoot - Forge project root. Defaults to the working directory.
+ * @param options.build - Build runner. Defaults to spawning the real `forge build`.
+ * @throws When the toolchain check refuses, or the build fails.
+ */
+export function buildForgeArtifactsOrThrow(options?: {
   repoRoot?: string
-  run?: TCheckerRunner
-  exists?: (path: string) => boolean
+  build?: TForgeBuildRunner
+}): void {
+  const repoRoot = options?.repoRoot ?? process.cwd()
+  if (builtRoots.has(repoRoot)) return
+
+  assertTronToolchainOrThrow({ repoRoot })
+  const { status, output } = (options?.build ?? spawnForgeBuild)(repoRoot)
+  if (status !== 0)
+    throw new Error(
+      `forge build failed in ${repoRoot}, so out/ may not match the source on disk. ` +
+        'Fix the build and retry. Nothing has been broadcast.' +
+        (output ? `\n${output}` : '')
+    )
+
+  builtRoots.add(repoRoot)
 }
 
 /**
@@ -86,9 +139,11 @@ export interface ITronToolchainOptions {
  * @param options.exists - Existence probe for the checker path.
  * @throws When the toolchain cannot be confirmed to match the pin.
  */
-export function assertTronToolchainOrThrow(
-  options?: ITronToolchainOptions
-): void {
+export function assertTronToolchainOrThrow(options?: {
+  repoRoot?: string
+  run?: TCheckerRunner
+  exists?: (path: string) => boolean
+}): void {
   const repoRoot = options?.repoRoot ?? process.cwd()
   if (confirmedRoots.has(repoRoot)) return
 

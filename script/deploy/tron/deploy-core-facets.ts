@@ -32,6 +32,7 @@ import { flagIsOn } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import {
   assertDiamondConstructorShape,
   resolveCoreFacetConstructorArgs,
@@ -53,6 +54,7 @@ async function deployCoreFacetsImpl(options: {
   delaySeconds: number
 }) {
   consola.start('TRON Core Facets Deployment')
+  buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 

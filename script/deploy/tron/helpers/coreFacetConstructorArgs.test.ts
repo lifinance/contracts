@@ -1,5 +1,3 @@
-import { join } from 'node:path'
-
 import {
   evmHexToTronBase58,
   getTronWebCodecOnlyForNetwork,
@@ -17,7 +15,6 @@ import {
   resolveCoreFacetConstructorArgs,
   type ArtifactLoader,
 } from './coreFacetConstructorArgs'
-import { metadataBuiltFrom } from './forgeArtifactBuild.fixture'
 
 const ONE_ADDRESS_ABI = [
   {
@@ -48,21 +45,9 @@ const NO_CONSTRUCTOR_ABI = [
   },
 ]
 
-const REPO_ROOT = join(import.meta.dir, '..', '..', '..', '..')
-const FRESH_METADATA = metadataBuiltFrom(REPO_ROOT, [
-  'src/Facets/DiamondCutFacet.sol',
-])
-const STALE_METADATA = { ...FRESH_METADATA, sources: {} }
-
 const loaderFor =
-  (
-    abiByFacet: Record<string, unknown>,
-    metadata: unknown = FRESH_METADATA
-  ): ArtifactLoader =>
-  async (contractName: string) => ({
-    abi: abiByFacet[contractName],
-    metadata,
-  })
+  (abiByFacet: Record<string, unknown>): ArtifactLoader =>
+  async (contractName: string) => ({ abi: abiByFacet[contractName] })
 
 const NETWORKS_FIXTURE = {
   tron: { nativeAddress: '0x0000000000000000000000000000000000000000' },
@@ -250,45 +235,5 @@ describe('assertDiamondConstructorShape', () => {
       ),
       /expects 1 constructor arguments, got 2/u
     )
-  })
-})
-
-describe('a stale artifact is reported as a build problem', () => {
-  const rejectionOf = async (promise: Promise<unknown>): Promise<Error> => {
-    try {
-      await promise
-    } catch (error) {
-      return error as Error
-    }
-    throw new Error('expected a rejection')
-  }
-
-  it('does not send a core facet build failure to the constructor-arg code', async () => {
-    const error = await rejectionOf(
-      resolveCoreFacetConstructorArgs(
-        ['DiamondCutFacet'],
-        'tron',
-        NETWORKS_FIXTURE,
-        loaderFor({ DiamondCutFacet: NO_CONSTRUCTOR_ABI }, STALE_METADATA)
-      )
-    )
-
-    expect(error.name).toBe('ForgeArtifactBuildError')
-    expect(error.message).toMatch(/DiamondCutFacet.*forge build/su)
-    expect(error.message).not.toContain('getConstructorArgs')
-  })
-
-  it('does not send a diamond build failure to the deploy call', async () => {
-    const error = await rejectionOf(
-      assertDiamondConstructorShape(
-        'LiFiDiamond',
-        'tron',
-        2,
-        loaderFor({ LiFiDiamond: TWO_ADDRESS_ABI }, STALE_METADATA)
-      )
-    )
-
-    expect(error.name).toBe('ForgeArtifactBuildError')
-    expect(error.message).not.toContain('deploy-core-facets.ts')
   })
 })

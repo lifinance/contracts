@@ -34,7 +34,7 @@ import { isRateLimitError } from '../shared/rateLimit'
 
 import {
   assertTronToolchainOrThrow,
-  type ITronToolchainOptions,
+  buildForgeArtifactsOrThrow,
 } from './assertTronToolchain'
 import {
   assertRecordedArgsMatchAbi,
@@ -42,10 +42,6 @@ import {
   encodeConstructorArgs as encodeWithTypes,
   type AbiParamEncoder,
 } from './constructor-args'
-import {
-  assertArtifactBuiltFromCurrentSource,
-  assertArtifactBuiltWithDefaultProfile,
-} from './helpers/forgeArtifactBuild'
 
 /**
  * Check if a contract is deployed on Tron
@@ -180,10 +176,9 @@ export async function deployContractWithLogging(
   network: SupportedChain = 'tron'
 ): Promise<IDeploymentResult> {
   try {
-    // Ahead of the artifact load so a drifted toolchain is reported as such, rather than as
-    // a stale or missing artifact. The same call also guards every deploy site from inside
-    // assertTronDeploymentRecordable; it runs the checker once per process either way.
-    assertTronToolchainOrThrow()
+    // Ahead of the artifact load, so the artifact read is the one just built from the source
+    // on disk. Builds once per process.
+    buildForgeArtifactsOrThrow()
 
     const artifact = await loadForgeArtifact(contractName)
     const version = await getContractVersion(contractName)
@@ -251,40 +246,31 @@ const tronAbiEncoder =
 
 /**
  * Checks that a deployment will be recordable and that its artifact came from the pinned
- * toolchain and the source now on disk, before anything is broadcast.
+ * toolchain, before anything is broadcast.
  *
- * Call this immediately before deploying. Everything it checks is local — the toolchain,
- * the artifact's metadata against `foundry.toml` and the source files, the ABI and the
- * values — so failing here costs nothing, while the same failure after
- * `deployer.deployContract` leaves a contract on chain that cannot be recorded, and TRX
- * already spent.
+ * Call this immediately before deploying. Everything it checks is pure — the
+ * artifact's ABI and the values — so failing here costs nothing, while the same
+ * failure after `deployer.deployContract` leaves a contract on chain that
+ * cannot be recorded, and TRX already spent.
  *
- * The pre-flights live here because every Tron deploy site calls this immediately before
- * its `deployer.deployContract`, so a new deploy site cannot reach a chain without passing
- * them. The toolchain checker runs once per process; the artifact checks run on every call
- * and re-hash the artifact's whole source closure each time.
+ * The toolchain pre-flight lives here because every Tron deploy site calls this immediately
+ * before its `deployer.deployContract`, so a new deploy site cannot reach a chain without
+ * passing it. It costs one checker run per process, not one per contract.
  *
  * @param artifact - The Forge artifact about to be deployed.
  * @param constructorArgs - Exactly the values the constructor will receive.
  * @param contractName - Named in every message.
  * @param network - Network whose codec will encode the values.
- * @param toolchain - Forwarded to the toolchain check. Its `repoRoot` (default: the working
- * directory) is also where `foundry.toml` and the artifact's source paths are resolved.
- * @throws When the local forge does not match the pin; a `ForgeArtifactBuildError` when the
- * artifact was not built by the default profile from the source now on disk; otherwise when
- * the ABI is unreadable, the arity disagrees, or the values cannot be encoded.
+ * @throws When the local forge does not match the pin, the ABI is unreadable, the arity
+ * disagrees, or the values cannot be encoded.
  */
 export function assertTronDeploymentRecordable(
-  artifact: { abi?: unknown; metadata?: unknown },
+  artifact: { abi?: unknown },
   constructorArgs: readonly unknown[],
   contractName: string,
-  network: SupportedChain,
-  toolchain?: ITronToolchainOptions
+  network: SupportedChain
 ): void {
-  const repoRoot = toolchain?.repoRoot ?? process.cwd()
-  assertTronToolchainOrThrow({ ...toolchain, repoRoot })
-  assertArtifactBuiltWithDefaultProfile(artifact, contractName, repoRoot)
-  assertArtifactBuiltFromCurrentSource(artifact, contractName, repoRoot)
+  assertTronToolchainOrThrow()
 
   const types = constructorInputTypes(artifact?.abi, contractName)
   const encoded = encodeWithTypes(

@@ -1,23 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-
 import {
-  afterEach,
-  beforeEach,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import type { ITronToolchainOptions } from './assertTronToolchain'
-import { metadataBuiltFrom } from './helpers/forgeArtifactBuild.fixture'
-import {
-  assertTronDeploymentRecordable,
-  parseTronAddressOutput,
-  parseTroncastArrayOutput,
-} from './tronUtils'
+import { parseTronAddressOutput, parseTroncastArrayOutput } from './tronUtils'
 
 describe('parseTronAddressOutput', () => {
   const ADDR = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'
@@ -121,94 +109,5 @@ describe('parseTroncastArrayOutput', () => {
 
   it('throws on empty input', () => {
     expect(() => parseTroncastArrayOutput('')).toThrow('Expected array format')
-  })
-})
-
-describe('assertTronDeploymentRecordable', () => {
-  const SOURCE_PATH = 'src/Facets/Example.sol'
-  const NO_ARG_ABI = [{ type: 'constructor', inputs: [] }]
-  let root: string
-
-  // The toolchain checker is stubbed through the injected options, so the result depends on
-  // neither the caller's cwd nor the local forge.
-  const passingToolchain = (): ITronToolchainOptions => ({
-    repoRoot: root,
-    run: () => ({ status: 0, output: '' }),
-    exists: () => true,
-  })
-
-  beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), 'tron-recordable-'))
-    mkdirSync(join(root, 'src/Facets'), { recursive: true })
-    writeFileSync(join(root, SOURCE_PATH), 'contract Example {}\n')
-    writeFileSync(
-      join(root, 'foundry.toml'),
-      "[profile.default]\nsolc_version = '0.8.29'\nevm_version = 'cancun'\n"
-    )
-  })
-
-  afterEach(() => {
-    rmSync(root, { recursive: true, force: true })
-  })
-
-  const freshArtifact = (): { abi: unknown; metadata: unknown } => ({
-    abi: NO_ARG_ABI,
-    metadata: metadataBuiltFrom(root, [SOURCE_PATH]),
-  })
-
-  it('refuses a stale artifact before anything is broadcast', () => {
-    const artifact = freshArtifact()
-    writeFileSync(join(root, SOURCE_PATH), 'contract Example { uint x; }\n')
-
-    expect(() =>
-      assertTronDeploymentRecordable(
-        artifact,
-        [],
-        'Example',
-        'tron',
-        passingToolchain()
-      )
-    ).toThrow(/Example.*stale.*src\/Facets\/Example\.sol.*forge build/su)
-  })
-
-  it('refuses an artifact built under another profile', () => {
-    const artifact = freshArtifact()
-    writeFileSync(
-      join(root, 'foundry.toml'),
-      "[profile.default]\nsolc_version = '0.8.30'\nevm_version = 'cancun'\n"
-    )
-
-    expect(() =>
-      assertTronDeploymentRecordable(
-        artifact,
-        [],
-        'Example',
-        'tron',
-        passingToolchain()
-      )
-    ).toThrow(
-      /Example.*\[profile\.default\].*solc 0\.8\.29.*expected 0\.8\.30/su
-    )
-  })
-
-  it('lets an artifact built from the current source through', () => {
-    expect(() =>
-      assertTronDeploymentRecordable(
-        freshArtifact(),
-        [],
-        'Example',
-        'tron',
-        passingToolchain()
-      )
-    ).not.toThrow()
-  })
-
-  it('refuses before the artifact checks when the toolchain does not match', () => {
-    expect(() =>
-      assertTronDeploymentRecordable(freshArtifact(), [], 'Example', 'tron', {
-        ...passingToolchain(),
-        run: () => ({ status: 1, output: 'forge 0.0.1' }),
-      })
-    ).toThrow(/Cannot confirm the local foundry matches/u)
   })
 })

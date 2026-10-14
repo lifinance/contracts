@@ -32,16 +32,16 @@ import {
 import {
   FOUNDRY_VERSION_CHECKER,
   assertTronToolchainOrThrow,
+  buildForgeArtifactsOrThrow,
   resetTronToolchainCache,
   spawnFoundryVersionChecker,
+  spawnForgeBuild,
   type ICheckerResult,
 } from './assertTronToolchain'
-import { metadataBuiltFrom } from './helpers/forgeArtifactBuild.fixture'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const PINNED = readFileSync(join(REPO_ROOT, '.foundry-version'), 'utf8').trim()
 const REFUSAL = 'Cannot confirm the local foundry matches'
-const EXECUTOR_SOURCE = 'src/Periphery/Executor.sol'
 
 /**
  * Await a rejection without using Bun's `.rejects` matcher, which is not a thenable
@@ -336,14 +336,10 @@ describe('the placement at the deploy chokepoint', () => {
     const { assertTronDeploymentRecordable } = await import('./tronUtils')
     try {
       assertTronDeploymentRecordable(
-        {
-          abi: [{ type: 'constructor', inputs: [] }],
-          metadata: metadataBuiltFrom(REPO_ROOT, [EXECUTOR_SOURCE]),
-        },
+        { abi: [{ type: 'constructor', inputs: [] }] },
         [],
         'Executor',
-        'tron',
-        { repoRoot: REPO_ROOT }
+        'tron'
       )
       return undefined
     } catch (error) {
@@ -388,36 +384,25 @@ describe('the gate is on the Tron seams a deployment cannot avoid', () => {
     const occurrences = (source: string, needle: string): number =>
       source.split(needle).length - 1
 
-    // `assertTronDeploymentRecordable` is the gate: it carries the toolchain, stale-artifact
-    // and constructor-argument checks. Only the files listed here may deploy behind the
-    // toolchain check alone. The Safe singleton and proxy factory in deploy-safe-tron.ts are
-    // third-party artifacts built by `forge build -C safe/london` and never written to the
-    // deployment log; the fuller gate refuses every run there, because it validates
-    // constructor args against the artifact ABI, and that committed build declares none
-    // while its source declares one.
-    const toolchainOnly = new Set(['script/deploy/tron/deploy-safe-tron.ts'])
-    const gateFor = (path: string): string =>
-      toolchainOnly.has(path)
-        ? 'assertTronToolchainOrThrow('
-        : 'assertTronDeploymentRecordable('
-
     const ungated = files
       .map((file) => ({
         path: file.path,
         deploys: occurrences(file.source, 'deployer.deployContract('),
-        asserts: occurrences(file.source, gateFor(file.path)),
+        // Either gate counts. `assertTronDeploymentRecordable` is the fuller
+        // check and is what a recorded LI.FI deployment needs; the Safe
+        // singleton and proxy factory in deploy-safe-tron.ts are third-party
+        // artifacts built by `forge build -C safe/london` and never written to
+        // the deployment log, so they take the toolchain check alone. Requiring
+        // the fuller one there refused every run: it validates constructor args
+        // against the artifact ABI, and that committed build declares none
+        // while its source declares one.
+        asserts:
+          occurrences(file.source, 'assertTronDeploymentRecordable(') +
+          occurrences(file.source, 'assertTronToolchainOrThrow('),
       }))
       .filter((file) => file.deploys > file.asserts)
 
     expect(ungated).toEqual([])
-    // An allowlist entry for a file that no longer deploys anything is stale.
-    for (const path of toolchainOnly)
-      expect(
-        occurrences(
-          files.find((file) => file.path === path)?.source ?? '',
-          'deployer.deployContract('
-        )
-      ).toBeGreaterThan(0)
     // Paired positive: if nothing deployed anywhere, the check above is vacuous.
     expect(
       files.reduce(
@@ -437,5 +422,126 @@ describe('the gate is on the Tron seams a deployment cannot avoid', () => {
 
     expect(source).toContain('process.cwd()')
     expect(existsSync(join(REPO_ROOT, FOUNDRY_VERSION_CHECKER))).toBe(true)
+  })
+})
+
+describe('buildForgeArtifactsOrThrow', () => {
+  const originalPath = process.env.PATH
+
+  const restoreEnv = (name: string, value: string | undefined): void => {
+    if (value === undefined) {
+      delete process.env[name]
+    } else {
+      process.env[name] = value
+    }
+  }
+
+  beforeEach(() => {
+    resetTronToolchainCache()
+    process.env.PATH = `${forgeStub(PINNED)}:${pathWithoutForge()}`
+  })
+  afterEach(() => {
+    process.env.PATH = originalPath
+  })
+
+  it('builds once per process after the toolchain passes', () => {
+    const spy = spyRunner({ status: 0, output: '' })
+
+    buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: spy.run })
+    buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: spy.run })
+
+    expect(spy.calls).toEqual([REPO_ROOT])
+  })
+
+  it('does not build with a forge that fails the toolchain check', () => {
+    process.env.PATH = `${forgeStub('0.0.1')}:${pathWithoutForge()}`
+    const spy = spyRunner({ status: 0, output: '' })
+
+    expect(() =>
+      buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: spy.run })
+    ).toThrow(REFUSAL)
+    expect(spy.calls).toEqual([])
+  })
+
+  it('refuses when the build fails, with its output, and builds again next time', () => {
+    const failing = spyRunner({
+      status: 1,
+      output: 'Error: Compiler run failed',
+    })
+
+    expect(() =>
+      buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: failing.run })
+    ).toThrow(
+      /forge build failed.*Nothing has been broadcast.*Compiler run failed/su
+    )
+
+    const passing = spyRunner({ status: 0, output: '' })
+    buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: passing.run })
+    expect(passing.calls).toEqual([REPO_ROOT])
+  })
+
+  it('builds without FOUNDRY_* overrides such as FOUNDRY_PROFILE', () => {
+    const stubDirectory = mkdtempSync(join(tmpdir(), 'tron-forge-build-stub-'))
+    const forge = join(stubDirectory, 'forge')
+    writeFileSync(
+      forge,
+      '#!/bin/bash\necho "args=$* profile=[$FOUNDRY_PROFILE] runs=[$FOUNDRY_OPTIMIZER_RUNS]"\n'
+    )
+    chmodSync(forge, 0o755)
+    process.env.PATH = `${stubDirectory}:${pathWithoutForge()}`
+    const saved = {
+      profile: process.env.FOUNDRY_PROFILE,
+      runs: process.env.FOUNDRY_OPTIMIZER_RUNS,
+    }
+    process.env.FOUNDRY_PROFILE = 'solc_floor'
+    process.env.FOUNDRY_OPTIMIZER_RUNS = '200'
+    try {
+      expect(spawnForgeBuild(REPO_ROOT)).toEqual({
+        status: 0,
+        output: 'args=build profile=[] runs=[]',
+      })
+    } finally {
+      restoreEnv('FOUNDRY_PROFILE', saved.profile)
+      restoreEnv('FOUNDRY_OPTIMIZER_RUNS', saved.runs)
+    }
+  })
+})
+
+describe('every script that reads Forge artifacts builds them first', () => {
+  it('calls buildForgeArtifactsOrThrow in each file that loads or deploys an artifact', () => {
+    // deploy-safe-tron.ts deploys third-party Safe artifacts that `forge build -C safe/london`
+    // produces, not `out/`; audit-recorded-constructor-args.ts only reads ABIs and deploys
+    // nothing.
+    const exempt = new Set([
+      'script/deploy/tron/deploy-safe-tron.ts',
+      'script/deploy/tron/audit-recorded-constructor-args.ts',
+    ])
+    const files = ['script/deploy/tron', 'script/deploy/tron/helpers'].flatMap(
+      (directory) =>
+        readdirSync(join(REPO_ROOT, directory))
+          .filter(
+            (entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts')
+          )
+          .map((entry) => ({
+            path: `${directory}/${entry}`,
+            source: readFileSync(join(REPO_ROOT, directory, entry), 'utf8'),
+          }))
+    )
+    const readsArtifacts = files.filter(
+      (file) =>
+        file.source.includes('loadForgeArtifact(') ||
+        file.source.includes('deployer.deployContract(')
+    )
+
+    const unbuilt = readsArtifacts
+      .filter((file) => !exempt.has(file.path))
+      .filter((file) => !file.source.includes('buildForgeArtifactsOrThrow('))
+      .map((file) => file.path)
+
+    expect(unbuilt).toEqual([])
+    // Paired positive, and no stale exemptions.
+    expect(readsArtifacts.length).toBeGreaterThan(exempt.size)
+    for (const path of exempt)
+      expect(readsArtifacts.map((file) => file.path)).toContain(path)
   })
 })
