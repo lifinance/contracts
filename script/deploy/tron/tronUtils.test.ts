@@ -18,10 +18,7 @@ import {
 } from 'bun:test'
 import { keccak256 } from 'viem'
 
-import {
-  assertTronToolchainOrThrow,
-  resetTronToolchainCache,
-} from './assertTronToolchain'
+import { assertTronToolchainOrThrow } from './assertTronToolchain'
 import {
   assertArtifactBuiltFromCurrentSource,
   assertTronDeploymentRecordable,
@@ -259,13 +256,13 @@ describe('assertTronDeploymentRecordable', () => {
 
   // Runs from a fixture root so the result depends on neither the caller's cwd nor the
   // local forge: the toolchain check is confirmed for that root through its injectable
-  // runner, which leaves the stale-artifact check as the only thing under test.
+  // runner, which leaves the stale-artifact check as the only thing under test. The cache is
+  // never cleared here: it is process-wide, and the root is unique, so adding it is enough.
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'tron-recordable-'))
     mkdirSync(join(root, 'src/Facets'), { recursive: true })
     writeFileSync(join(root, SOURCE_PATH), 'contract Example {}\n')
     process.chdir(root)
-    resetTronToolchainCache()
     assertTronToolchainOrThrow({
       repoRoot: process.cwd(),
       run: () => ({ status: 0, output: '' }),
@@ -275,7 +272,6 @@ describe('assertTronDeploymentRecordable', () => {
 
   afterEach(() => {
     process.chdir(originalCwd)
-    resetTronToolchainCache()
     rmSync(root, { recursive: true, force: true })
   })
 
