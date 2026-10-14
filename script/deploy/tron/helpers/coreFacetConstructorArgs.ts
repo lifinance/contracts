@@ -26,7 +26,7 @@ import { assertTronDeploymentRecordable } from '../tronUtils'
 /** Loads a compiled artifact by contract name. Injectable so tests need no `out/`. */
 export type ArtifactLoader = (
   contractName: string
-) => Promise<{ abi?: unknown }>
+) => Promise<{ abi?: unknown; metadata?: unknown }>
 
 /**
  * Builds one facet's constructor arguments.

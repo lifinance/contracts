@@ -28,6 +28,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { keccak256 } from 'viem'
 
 import {
   FOUNDRY_VERSION_CHECKER,
@@ -40,6 +41,7 @@ import {
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const PINNED = readFileSync(join(REPO_ROOT, '.foundry-version'), 'utf8').trim()
 const REFUSAL = 'Cannot confirm the local foundry matches'
+const EXECUTOR_SOURCE = 'src/Periphery/Executor.sol'
 
 /**
  * Await a rejection without using Bun's `.rejects` matcher, which is not a thenable
@@ -334,7 +336,18 @@ describe('the placement at the deploy chokepoint', () => {
     const { assertTronDeploymentRecordable } = await import('./tronUtils')
     try {
       assertTronDeploymentRecordable(
-        { abi: [{ type: 'constructor', inputs: [] }] },
+        {
+          abi: [{ type: 'constructor', inputs: [] }],
+          metadata: {
+            sources: {
+              [EXECUTOR_SOURCE]: {
+                keccak256: keccak256(
+                  readFileSync(join(REPO_ROOT, EXECUTOR_SOURCE))
+                ),
+              },
+            },
+          },
+        },
         [],
         'Executor',
         'tron'

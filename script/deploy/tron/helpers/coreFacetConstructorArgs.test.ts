@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import {
   evmHexToTronBase58,
   getTronWebCodecOnlyForNetwork,
@@ -8,6 +10,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { keccak256 } from 'viem'
 
 import {
   assertDiamondConstructorShape,
@@ -45,9 +48,19 @@ const NO_CONSTRUCTOR_ABI = [
   },
 ]
 
+const FRESH_SOURCE = 'src/Facets/DiamondCutFacet.sol'
+const FRESH_METADATA = {
+  sources: {
+    [FRESH_SOURCE]: { keccak256: keccak256(readFileSync(FRESH_SOURCE)) },
+  },
+}
+
 const loaderFor =
   (abiByFacet: Record<string, unknown>): ArtifactLoader =>
-  async (contractName: string) => ({ abi: abiByFacet[contractName] })
+  async (contractName: string) => ({
+    abi: abiByFacet[contractName],
+    metadata: FRESH_METADATA,
+  })
 
 const NETWORKS_FIXTURE = {
   tron: { nativeAddress: '0x0000000000000000000000000000000000000000' },
