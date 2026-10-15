@@ -24,6 +24,7 @@ import {
   sendTransferOwnership,
   type ITronOwnershipDiamond,
 } from './send-transfer-ownership.js'
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain.js'
 import { waitBetweenDeployments } from './tronUtils.js'
 
 /**
@@ -42,6 +43,8 @@ async function transferOwnershipToTimelock(options: {
   delaySeconds?: number
   verbose?: boolean
 }) {
+  buildForgeArtifactsOrThrow()
+
   const stepOnly = options.step
   const runStep1 = stepOnly === undefined || stepOnly === 1
   const runStep2 = stepOnly === undefined ? !!options.confirm : stepOnly === 2

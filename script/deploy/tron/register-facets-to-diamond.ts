@@ -20,6 +20,7 @@ import { redactUrls } from '../../utils/redactUrls'
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain.js'
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
 import {
   DIAMOND_CUT_FEE_LIMIT_SUN,
@@ -322,6 +323,8 @@ async function registerFacetsToDiamond(
   } = {}
 ) {
   try {
+    buildForgeArtifactsOrThrow()
+
     // Get environment and determine network
     const environment = getEnvironment()
     const networkName =

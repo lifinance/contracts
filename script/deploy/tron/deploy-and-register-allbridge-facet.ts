@@ -36,6 +36,7 @@ import {
   encodeAllBridgeInitCalldata,
   parseAllBridgeMappings,
 } from './helpers/allBridgeInit'
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 /**
@@ -43,6 +44,7 @@ import { deployContractWithLogging, validateBalance } from './tronUtils'
  */
 async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
   consola.start('TRON AllBridgeFacet Deployment & Registration')
+  buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 
