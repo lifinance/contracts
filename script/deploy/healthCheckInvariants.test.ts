@@ -1703,24 +1703,24 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
     expect(ctx.errors[0]).toContain('.pathUsd.mainnet')
   })
 
-  const bobaPeriphery = collectImmutableBindingChecks(
-    'boba',
+  const robinhoodPeriphery = collectImmutableBindingChecks(
+    'robinhood',
     'production'
   ).find((c) => c.getter === 'SPOKE_POOL_PERIPHERY')
 
-  it('across.json holds an explicit zero periphery for boba (test precondition)', () => {
-    expect(bobaPeriphery?.expectedAddress).toBe(ZERO)
-    expect(bobaPeriphery?.zeroAddressAllowed).toBe(true)
+  it('across.json holds an explicit zero periphery for robinhood (test precondition)', () => {
+    expect(robinhoodPeriphery?.expectedAddress).toBe(ZERO)
+    expect(robinhoodPeriphery?.zeroAddressAllowed).toBe(true)
   })
 
   it('passes a zero binding whose config value is an explicit zero', async () => {
     const acrossChecks = collectImmutableBindingChecks(
-      'boba',
+      'robinhood',
       'production'
     ).filter((c) => c.contractName === 'AcrossV4SwapFacet')
     const ctx = makeFacetCtx(
       'AcrossV4SwapFacet',
-      'boba',
+      'robinhood',
       Object.fromEntries(
         acrossChecks.map((c) => [c.getter, c.expectedAddress ?? ZERO])
       )
@@ -1758,12 +1758,12 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
 
   it('errors when a binding config states as zero holds an address', async () => {
     const acrossChecks = collectImmutableBindingChecks(
-      'boba',
+      'robinhood',
       'production'
     ).filter((c) => c.contractName === 'AcrossV4SwapFacet')
     const ctx = makeFacetCtx(
       'AcrossV4SwapFacet',
-      'boba',
+      'robinhood',
       Object.fromEntries(
         acrossChecks.map((c) => [
           c.getter,
@@ -1778,7 +1778,7 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
 
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain('SPOKE_POOL_PERIPHERY()')
-    expect(ctx.errors[0]).toContain('.boba.spokePoolPeriphery')
+    expect(ctx.errors[0]).toContain('.robinhood.spokePoolPeriphery')
   })
 })
 

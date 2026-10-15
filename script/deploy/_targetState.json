@@ -331,97 +331,6 @@
       }
     }
   },
-  "blast": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "latest",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "AcrossFacetV4": "latest",
-        "AcrossFacetPackedV4": "latest",
-        "ReceiverAcrossV4": "latest",
-        "GlacisFacet": "latest",
-        "LayerSwapFacet": "latest",
-        "RelayDepositoryFacet": "latest",
-        "SquidFacet": "latest",
-        "SymbiosisFacet": "latest"
-      }
-    }
-  },
-  "bob": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "latest",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "DeBridgeDlnFacet": "latest",
-        "LayerSwapFacet": "latest",
-        "RelayDepositoryFacet": "latest"
-      }
-    }
-  },
-  "boba": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "latest",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "RelayDepositoryFacet": "latest",
-        "SymbiosisFacet": "latest"
-      }
-    }
-  },
   "bsc": {
     "production": {
       "LiFiDiamond": {
@@ -877,35 +786,6 @@
       }
     }
   },
-  "lens": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "latest",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "AcrossFacetV4": "latest",
-        "AcrossFacetPackedV4": "latest",
-        "ReceiverAcrossV4": "latest"
-      }
-    }
-  },
   "lisk": {
     "production": {
       "LiFiDiamond": {
@@ -1102,33 +982,6 @@
         "SymbiosisFacet": "latest",
         "ReceiverOIF": "latest",
         "FraxFacet": "latest"
-      }
-    }
-  },
-  "opbnb": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "latest",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "LayerSwapFacet": "latest"
       }
     }
   },
@@ -1593,37 +1446,6 @@
         "OutputValidator": "latest",
         "Permit2Proxy": "latest",
         "TokenWrapper": "latest",
-        "StargateFacetV2": "latest",
-        "ReceiverStargateV2": "latest"
-      }
-    }
-  },
-  "converge": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "latest",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "AcrossFacetV4": "latest",
-        "AcrossFacetPackedV4": "latest",
-        "ReceiverAcrossV4": "latest",
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest"
       }

@@ -610,7 +610,7 @@ describe('deploySingleContract selects the profile from the network', () => {
 
   // The negative control for the refusal above: tightening that guard must not
   // start refusing the profile the zk toolchain is supposed to run under.
-  it.each([ZKEVM_NETWORK, 'abstract', 'lens'])(
+  it.each([ZKEVM_NETWORK, 'abstract'])(
     'still accepts FOUNDRY_PROFILE=zksync for the zkEVM network %s',
     (network) => {
       const output = run(

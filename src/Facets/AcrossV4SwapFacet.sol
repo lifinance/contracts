@@ -799,6 +799,8 @@ contract AcrossV4SwapFacet is
         if (_chainId == 534352) return 30214; // Scroll
         if (_chainId == 57073) return 30339; // Ink
         if (_chainId == 59144) return 30183; // Linea
+        // Blast is no longer supported by LI.FI (deprecated in EXSC-1191); Across still supports it.
+        // Remove this entry the next time this facet is modified.
         if (_chainId == 81457) return 30243; // Blast
         if (_chainId == 8453) return 30184; // Base
         if (_chainId == 81224) return 30323; // Codex
