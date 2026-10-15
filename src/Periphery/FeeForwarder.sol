@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { InvalidConfig, InsufficientBalance } from "../Errors/GenericErrors.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { InvalidConfig, InsufficientBalance, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
@@ -12,7 +12,7 @@ import { InvalidConfig, InsufficientBalance } from "../Errors/GenericErrors.sol"
 ///      everything it receives and leaves no net balance behind. A balance that does
 ///      accumulate anyway (e.g. a forced transfer) is never paid out as a caller refund
 ///      and is recoverable only by the owner via WithdrawablePeriphery.
-/// @custom:version 2.0.0
+/// @custom:version 2.1.0
 contract FeeForwarder is WithdrawablePeriphery {
     /// Types ///
 
@@ -23,6 +23,24 @@ contract FeeForwarder is WithdrawablePeriphery {
         address recipient;
         uint256 amount;
     }
+
+    /// @notice Represents a fee share of the caller's token balance for a recipient
+    /// @param recipient The address that will receive the fee share
+    /// @param bps The share of the caller's balance in basis points (10_000 = 100%)
+    struct FeeBpsDistribution {
+        address recipient;
+        uint16 bps;
+    }
+
+    /// Constants ///
+
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+
+    /// Errors ///
+
+    /// @notice Thrown when the bps shares of a call add up to more than 10_000
+    /// @param totalBps The sum of all bps shares passed to the call
+    error InvalidTotalBps(uint256 totalBps);
 
     /// Events ///
 
@@ -74,6 +92,58 @@ contract FeeForwarder is WithdrawablePeriphery {
         }
 
         emit FeesForwarded(_token, _distributions);
+    }
+
+    /// @notice Forwards bps shares of the caller's full ERC20 balance to the specified recipients
+    /// @dev Intended as a swap step after the swap that produces `_token`, to take fees as a share
+    ///      of the actual output. All shares are computed from the balance read once before any
+    ///      transfer, so every fee for `_token` must go in a single call: a second call would
+    ///      compute its shares from the balance the first one already reduced.
+    ///      The caller's full balance is the fee base, including any balance it held before the
+    ///      swap (same full-balance pattern as OutputValidator).
+    ///      Shares are rounded down and a share of zero is skipped (some tokens revert on
+    ///      zero-value transfers); the event still lists it with amount 0.
+    ///      The caller must have approved this contract to spend the tokens.
+    /// @param _token The address of the ERC20 token to forward
+    /// @param _distributions Array of recipients and their shares in basis points
+    function forwardERC20FeesBps(
+        address _token,
+        FeeBpsDistribution[] calldata _distributions
+    ) external {
+        if (LibAsset.isNativeAsset(_token)) revert NullAddrIsNotAnERC20Token();
+
+        uint256 balance = IERC20(_token).balanceOf(msg.sender);
+
+        uint256 length = _distributions.length;
+        FeeDistribution[] memory forwarded = new FeeDistribution[](length);
+        uint256 totalBps;
+        FeeBpsDistribution calldata distribution;
+        for (uint256 i; i < length; ++i) {
+            distribution = _distributions[i];
+
+            uint256 bps = distribution.bps;
+            // cannot overflow: the check below keeps totalBps <= 10_000 before each addition
+            unchecked {
+                totalBps += bps;
+            }
+            // checked before the transfer: past 10_000 the shares exceed the balance and the
+            // transfer would revert first with a less specific error
+            if (totalBps > BPS_DENOMINATOR) revert InvalidTotalBps(totalBps);
+
+            uint256 amount = (balance * bps) / BPS_DENOMINATOR;
+            forwarded[i] = FeeDistribution(distribution.recipient, amount);
+
+            if (amount != 0) {
+                LibAsset.transferFromERC20(
+                    _token,
+                    msg.sender,
+                    distribution.recipient,
+                    amount
+                );
+            }
+        }
+
+        emit FeesForwarded(_token, forwarded);
     }
 
     /// @notice Forwards native token fees to the specified recipients
