@@ -42,6 +42,7 @@ on:
     - cron: '0 7 * * 4' # 07:00 UTC every Thursday (≈09:00 CEST summer / 08:00 CET winter — cron is UTC, no DST)
   workflow_dispatch: # manual trigger (e.g. after rotating the key or before a drill)
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       # Catch a bad pauser/governance config edit, or a change to a script this check runs.
       # (The funds check is skipped on PRs, so only the readiness check's inputs are covered here.)
@@ -63,7 +64,13 @@ jobs:
     # Upstream-only: this readiness/funds/Slack check needs lifinance/contracts' secrets,
     # RPCs and production diamonds. On forks (e.g. contracts-tron) the guard is false, so the
     # job is skipped (neutral, not failed) across schedule / workflow_dispatch / pull_request.
-    if: ${{ github.repository == 'lifinance/contracts' }}
+    # AI-factory (fac/*) drafts are opened before a human has read the diff, and this job runs
+    # PR scripts with the pauser key and MONGODB_URI; it runs once the engineer marks the PR ready.
+    if: >-
+      ${{
+        github.repository == 'lifinance/contracts' &&
+        !(github.event.pull_request.draft && startsWith(github.head_ref, 'fac/'))
+      }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

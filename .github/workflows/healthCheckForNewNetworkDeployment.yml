@@ -15,6 +15,9 @@ permissions:
 
 jobs:
   check-new-network-health:
+    # AI-factory (fac/*) drafts are opened before a human has read the diff, and this job
+    # runs PR code with MONGODB_URI; it runs once the engineer marks the PR ready.
+    if: ${{ !(github.event.pull_request.draft && startsWith(github.head_ref, 'fac/')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
