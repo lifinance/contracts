@@ -29,7 +29,7 @@
 
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import type { Address, Hex } from 'viem'
-import { decodeFunctionData, parseAbi } from 'viem'
+import { decodeFunctionData, parseAbi, toFunctionSelector } from 'viem'
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
@@ -49,6 +49,7 @@ import {
   getDiamondAbiItemForSelector,
   getRoleName,
   getTargetName,
+  lookupWhitelistMetaForContractSelector,
 } from './safe-decode-utils'
 import {
   createSelectorMap,
@@ -801,15 +802,80 @@ async function whitelistLines(
   )
 
   const shown = Math.min(count, MAX_WHITELIST_ROWS_SHOWN)
+  const shownSelectors = selectors
+    .slice(0, shown)
+    .map((selector: unknown) => String(selector ?? '').toLowerCase())
+  const localNames = shownSelectors.map(
+    (selector, i) =>
+      whitelistSignature(context.network, contracts[i], selector) ??
+      getLocalSelectorInfo(selector)?.signature
+  )
+
+  // One batched, disk-cached lookup for every selector no local source knows,
+  // so rendering below stays synchronous per row.
+  const unknown = shownSelectors.filter(
+    (selector, i) => selector !== '' && localNames[i] === undefined
+  )
+  const fourByte =
+    unknown.length > 0
+      ? await resolveSelectorsViaFourByte(unknown)
+      : new Map<string, string>()
+
   for (let i = 0; i < shown; i++) {
     const contract = await renderAddress(context.network, contracts[i])
     lines.push(...addressLines(`${pre}  `, EMPTY, contract))
+    const selector = shownSelectors[i] ?? ''
+    const named = localNames[i] ?? fourByte.get(selector)
+    const name =
+      selector === ''
+        ? EMPTY
+        : concatPrintable(
+            trustedMarkup('  '),
+            named
+              ? storedField(named, BLUE)
+              : color(GREY, trustedMarkup('no name for this selector'))
+          )
     lines.push(
-      `${pre}    ${color(CYAN, asPrintable(String(selectors[i] ?? '')).text)}`
+      `${pre}    ${color(
+        CYAN,
+        asPrintable(String(selectors[i] ?? '')).text
+      )}${name}`
     )
   }
   lines.push(...withheldLine(`${pre}  `, count - shown, count, 'pair'))
   return lines
+}
+
+/**
+ * The signature `config/whitelist.json` files under this contract on this
+ * network, when it hashes to the selector.
+ *
+ * The file pairs selector and signature by hand, so one that does not hash back
+ * is left for the registry and 4byte rather than shown as a plausible wrong
+ * name. The lookup takes the address in the network's display form because
+ * Tron entries are filed in base58 while the decoded address is hex.
+ */
+function whitelistSignature(
+  network: string,
+  contract: unknown,
+  selector: string
+): string | undefined {
+  try {
+    const address = formatAddressForNetworkCliDisplay(
+      network,
+      normalizeAddressForNetwork(network, String(contract ?? '').trim())
+    )
+    const signature = lookupWhitelistMetaForContractSelector(
+      network,
+      address,
+      selector
+    ).signature?.trim()
+    return signature && toFunctionSelector(signature) === selector
+      ? signature
+      : undefined
+  } catch {
+    return undefined
+  }
 }
 
 async function registerPeripheryLines(

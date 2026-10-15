@@ -87,7 +87,18 @@ function computeSelectorFromSignature(signature: string): string {
   return `0x${hash.slice(2, 10)}`
 }
 
-function lookupWhitelistMetaForContractSelector(
+/**
+ * Looks a contract/selector pair up in `config/whitelist.json` for one network.
+ *
+ * The signature is returned as the file stores it; nothing here checks that it
+ * hashes to `selector`.
+ * @param network - `networks.json` key the whitelist entry is filed under
+ * @param contractAddress - The contract, in the form the file stores it for this network
+ * @param selector - The 4-byte selector
+ * @returns The entry's label and signature; empty when the contract is not listed
+ * @throws When `config/whitelist.json` cannot be read or parsed
+ */
+export function lookupWhitelistMetaForContractSelector(
   network: string,
   contractAddress: string,
   selector: string
