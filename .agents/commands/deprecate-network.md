@@ -241,22 +241,14 @@ When `/deprecate-network` is invoked with network names:
       mappings (e.g. `AcrossV4SwapFacet.sol`). If the deprecated network appears in one,
       **do not remove the entry** — the underlying bridge may still support that chain,
       and the mapping describes the bridge's coverage, not LI.FI's.
-    - Add a comment above the entry marking it for removal on the next modification of
-      the facet. A comment-only change leaves the compiled bytecode identical, so it
-      triggers neither a contract version bump nor a re-audit.
-    - Wording template — substitute the actual network name and deprecation ticket before
-      writing it; the placeholders below are not literal text (see the Taiko entry added
-      in #2141 and the Moonbeam entry added in #2222, both in
-      `src/Facets/AcrossV4SwapFacet.sol`):
-
-      ```solidity
-      // <Network> is no longer supported by LI.FI (deprecated in <TICKET>); Across still supports it.
-      // Remove this entry the next time this facet is modified.
-      if (_chainId == <chainId>) return <value>; // <Network>
-      ```
-
-    - Confirm bytecode really is unchanged before claiming it: `forge build` and compare
-      the artifact's `bytecode.object` against the pre-change build.
+    - **Do not edit the facet source at all — not even a comment.** The compiler embeds
+      an IPFS hash of the source metadata (Foundry's default `bytecode_hash`), so any source change,
+      comments included, changes the bytecode. That changes the CREATE3 deploy salt (and
+      so the predicted address of the next deploy of that version), breaks the exact
+      source match of already-deployed instances on explorers, and forces a
+      `buildAttestations.json` re-mint.
+    - List the kept entry in the PR body under the records deliberately preserved
+      (step 14), naming the facet, chainId and why the bridge still needs it.
 
 12. **Preserve the historical records** (do not delete):
 
@@ -484,7 +476,7 @@ Everything listed in the summary above is already gone; these are what is left.
 Network: fantom
   📄 deployments/_deployments_log_file.json   (41 matches)  — master log, intentional keep
   📄 archive/config/networks.2024.json        (3 matches)   — archived, intentional keep
-  📄 src/Facets/AcrossV4SwapFacet.sol         (2 matches)   — chainId mapping, marked in step 11
+  📄 src/Facets/AcrossV4SwapFacet.sol         (1 match)     — chainId mapping, intentional keep (step 11)
 
 Network: harmony
   📄 deployments/_deployments_log_file.json   (12 matches)  — master log, intentional keep

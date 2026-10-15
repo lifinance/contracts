@@ -207,7 +207,7 @@
         "contractName": "AcrossV4SwapFacet",
         "sourceId": "src/Facets/AcrossV4SwapFacet.sol",
         "version": "1.0.0",
-        "closureHash": "0x9eea7a27aea19875216b124b0cb378839bdeab631f4eaf600e2e961a1c6f9447",
+        "closureHash": "0xa68081e0409dd82542f40c703fe2fc3060058512df86ac3ab9056314fd96440e",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
