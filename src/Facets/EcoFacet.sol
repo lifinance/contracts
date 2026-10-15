@@ -2,17 +2,17 @@
 pragma solidity ^0.8.17;
 
 import { ECDSA } from "solady/utils/ECDSA.sol";
-import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IEcoPortal } from "../Interfaces/IEcoPortal.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
-import { LibBytes } from "../Libraries/LibBytes.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2 } from "../Helpers/SwapperV2.sol";
-import { Validatable } from "../Helpers/Validatable.sol";
-import { LiFiData } from "../Helpers/LiFiData.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
+import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
+import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
+import { Validatable } from "lifi/Helpers/Validatable.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
+import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)

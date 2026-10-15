@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "test/solidity/utils/TestBaseFacet.sol";
 import { ERC20 } from "lib/solmate/src/tokens/ERC20.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
-import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
-import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
-import { ITokenMessenger } from "../../../src/Interfaces/ITokenMessenger.sol";
-import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
-import { LibBytes } from "../../../src/Libraries/LibBytes.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { TestEcoBackendSig } from "../utils/TestEcoBackendSig.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
+import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
+import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
+import { TestWhitelistManagerBase } from "test/solidity/utils/TestWhitelistManagerBase.sol";
+import { TestEcoBackendSig } from "test/solidity/utils/TestEcoBackendSig.sol";
 
 contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
     constructor(
