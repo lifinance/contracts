@@ -29,7 +29,9 @@ import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver,
 ///      the intent destination and a hash of the encoded route. For EVM
 ///      destinations the receiver is therefore enforced only by the backend
 ///      signature, not on-chain. For Solana and Tron the facet additionally
-///      checks that the route pays `nonEVMReceiver`/`solanaATA`.
+///      checks that the route pays `nonEVMReceiver`/`solanaATA`, and requires
+///      `intentDestination` to be Eco's ID for that chain exactly when
+///      `bridgeData.destinationChainId` is Solana or Tron.
 ///      This contract is not intended to custody user funds; any balance is
 ///      transient within a single transaction.
 /// @custom:version 3.0.0
@@ -54,6 +56,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
 
     uint256 private constant NATIVE_REWARD_AMOUNT = 0;
     bool private constant ALLOW_PARTIAL_FILL = false;
+    uint64 private constant ECO_CHAIN_ID_SOLANA = 1399811149;
+    uint64 private constant ECO_CHAIN_ID_TRON = 728126428;
     uint256 private constant SOLANA_ENCODED_ROUTE_LENGTH = 319;
     uint256 private constant SOLANA_RECEIVER_OFFSET = 251;
     uint256 private constant SOLANA_RECEIVER_END = 283;
@@ -286,11 +290,21 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidConfig();
         }
         if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+        if (_ecoData.intentDestination == 0) revert InvalidConfig();
 
         bool isSolanaDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_SOLANA;
         bool isTronDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_TRON;
+
+        // The Solana/Tron receiver checks below are selected by
+        // destinationChainId, so the intent must be published to the same chain
+        if (
+            isSolanaDestination !=
+            (_ecoData.intentDestination == ECO_CHAIN_ID_SOLANA) ||
+            isTronDestination !=
+            (_ecoData.intentDestination == ECO_CHAIN_ID_TRON)
+        ) revert InvalidConfig();
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (isSolanaDestination) {

@@ -1663,6 +1663,43 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
     }
 
+    function testRevert_ZeroIntentDestination() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = 0;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    // The Solana/Tron receiver checks are selected by destinationChainId, so a
+    // signed payload must not publish to Solana/Tron under another chain ID
+    // (which would skip them) or the other way round.
+    function testRevert_EVMDestinationWithSolanaIntentDestination() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = ECO_CHAIN_ID_SOLANA;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_EVMDestinationWithTronIntentDestination() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = ECO_CHAIN_ID_TRON;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_SolanaDestinationWithEVMIntentDestination() public {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = 10;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_TronDestinationWithSolanaIntentDestination() public {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = ECO_CHAIN_ID_SOLANA;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
     /// @dev Native the swap leaves unspent and `msg.value` above the swap's
     ///      `fromAmount` both go to `refundRecipient`, not to the caller
     ///      (who may be a relayer or proxy).
@@ -1951,6 +1988,15 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     ) internal {
         vm.prank(USER_SENDER);
         vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, _ecoData);
+    }
+
+    function _expectSignedInvalidConfig(
+        EcoFacet.EcoData memory _ecoData
+    ) internal {
+        _ecoData.signature = _signEcoData(bridgeData, _ecoData);
+        vm.prank(USER_SENDER);
+        vm.expectRevert(InvalidConfig.selector);
         ecoFacet.startBridgeTokensViaEco(bridgeData, _ecoData);
     }
 
