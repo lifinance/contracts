@@ -2151,6 +2151,15 @@
             }
           }
         ],
+        "robinhood": [
+          {
+            "address": "0x8e6fd69a77e88ee20ba4b4fbd59dfcda3ec0e98a",
+            "functions": {
+              "0x5f3bd1c8": "snwap(address,uint256,address,address,uint256,address,bytes)",
+              "0xd33721a5": "snwapMultiple((address,uint256,address)[],(address,address,uint256)[],(address,uint256,bytes)[])"
+            }
+          }
+        ],
         "mantle": [
           {
             "address": "0x85cd07ea01423b1e937929b44e4ad8c40bbb5e71",
@@ -4813,6 +4822,12 @@
             "functions": {
               "0xf8989325": ""
             }
+          },
+          {
+            "address": "0x58C8fa6dC39040A382fE787C5C8A12F0CdCe1289",
+            "functions": {
+              "0xf8989325": ""
+            }
           }
         ]
       }
@@ -4870,6 +4885,22 @@
             "address": "0x2528f3190603b85a155d48c31946703d71f921ed",
             "functions": {
               "0x02fcde22": "executePlan((uint64,uint64,uint256,address,address,address,address,address,address,uint8,uint8,uint256,uint256,uint256,bytes32,bytes32,bytes32,uint16,address,uint64,uint256),(address,address,uint256,uint256,(address,address,address,address,uint256,bytes)[],address[],uint256,bytes32,uint256,address,uint16),bytes32[],uint8[],bytes,bytes)"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Nightshift",
+      "key": "nightshift",
+      "logoURI": "",
+      "webUrl": "",
+      "contracts": {
+        "bsc": [
+          {
+            "address": "0xd53F0e15960F2e1c3091eeD8933BaBC463b2fbAB",
+            "functions": {
+              "0x00a32e6c": "runVM((uint8,bytes32)[],(bytes[]))"
             }
           }
         ]
@@ -5901,6 +5932,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6975,6 +7016,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "injective": [
@@ -7089,6 +7140,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x8D2bD2776338afeb68830F3253aF17CD82141Bb0",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -7889,6 +7950,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -10025,6 +10096,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }

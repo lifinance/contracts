@@ -325,9 +325,8 @@ describe('sealCollectionReadOnly, against a descriptor read', () => {
     // Redacted rather than refused outright: throwing here would take down
     // `Object.keys` and `for…in`, which read descriptors but never values.
     expect(descriptor?.value).not.toEqual({ db: expect.any(Function) })
-    expect(() => (descriptor?.value as () => unknown)()).toThrow(
-      RehearsalWriteRefusedError
-    )
+    const redacted = descriptor?.value as () => unknown
+    expect(() => redacted()).toThrow(RehearsalWriteRefusedError)
   })
 })
 

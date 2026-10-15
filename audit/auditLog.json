@@ -764,6 +764,14 @@
       "auditorGitHandle": "sujithsomraaj",
       "auditReportPath": "./audit/reports/2026.10.06_PaxosTransitFacet(v2.0.0).pdf",
       "auditCommitHash": "f750ab903ce54dd30c99785eca40c0ed471b52a8"
+    },
+    "audit20261013": {
+      "auditCompletedOn": "13.10.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.10.13_M0Facet(v1.0.0).pdf",
+      "auditCommitHash": "787b2517f8113be9ce4e969beb5aad40c5e29352",
+      "finalCommitHash": "1e1065a970e2231333ec3f3aaae73a9417d06a68"
     }
   },
   "auditedContracts": {
@@ -945,6 +953,9 @@
     "ILayerSwapDepository": {
       "1.0.0": ["audit20260715_1"]
     },
+    "IM0OrderBook": {
+      "1.0.0": ["audit20261013"]
+    },
     "IOpenIntentFramework": {
       "1.0.0": ["audit20251119"]
     },
@@ -1044,6 +1055,9 @@
     },
     "LidoWrapper": {
       "1.0.0": ["audit20250610"]
+    },
+    "M0Facet": {
+      "1.0.0": ["audit20261013"]
     },
     "MayanFacet": {
       "1.0.0": ["audit20250508"],

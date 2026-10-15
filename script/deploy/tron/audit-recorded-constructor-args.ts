@@ -67,10 +67,10 @@ export interface IAuditableRecord {
  * Where the ABI behind a record's assessment came from.
  *
  * Artifacts exist only for the working tree, so only `same-version` puts the
- * record's own ABI in hand. A plain version means the fork's source is
- * identical to this repo's — the fork-delta guard rejects an undeclared
- * divergence — so a Tron record at a plain version is still judged against the
- * source it was built from.
+ * record's own ABI in hand. A Tron record at a plain version is judged against
+ * this repo's source on the assumption that the fork's copy is identical. Fork
+ * policy says so, but no check enforces it: the fork's overlay check covers
+ * only `-tron` files.
  */
 export type AbiProvenance =
   | 'same-version'

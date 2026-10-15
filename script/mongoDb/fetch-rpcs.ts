@@ -35,7 +35,7 @@ async function fetchRpcEndpoints(environment: string): Promise<{
     const cursor = collection.find({})
     const endpoints: { [network: string]: IRpcEndpoint[] } = {}
 
-    await cursor.forEach((doc) => {
+    for await (const doc of cursor) {
       if (doc?.chainName && Array.isArray(doc?.rpcs)) {
         const usableEndpoints = selectEndpoints(doc.rpcs, environment)
         if (usableEndpoints.length > 0) {
@@ -43,7 +43,7 @@ async function fetchRpcEndpoints(environment: string): Promise<{
           endpoints[envVar] = usableEndpoints
         }
       }
-    })
+    }
 
     return endpoints
   } catch (error) {

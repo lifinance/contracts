@@ -9,7 +9,7 @@ paths:
 
 ## TypeScript Script Conventions
 
-- TS scripts use `.eslintrc.cjs` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
+- TS scripts follow the `.oxlintrc.json` lint rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
 - **No Bun-only runtime APIs in shipped modules** ([CONV:NODE-RUNTIME-APIS]). A module under `script/**` or `tasks/**` that is not a `*.test.ts` runs on **Node** via `tsx`; only tests run under `bun test`, which is why a test passing proves nothing here. Use the Node equivalent:
   - `Bun.file` / `Bun.write` → `readFile` / `writeFile` from `node:fs/promises`; `Bun.file(p).exists()` → `existsSync(p)`. `Bun` is undefined under Node, so the call throws `ReferenceError` where it runs. Two semantics differ: `Bun.file(dir).exists()` is `false` for a directory, and `Bun.write` creates missing parent directories.
   - `import.meta.dir` / `.file` / `.path` → `dirname(fileURLToPath(import.meta.url))` / `fileURLToPath(import.meta.url)`. They are undefined under Node, so a module-scope `join(import.meta.dir, …)` throws at **import time** and takes down every CLI that imports the module.
@@ -24,8 +24,8 @@ paths:
 
 ## Code Quality
 
-- Obey `.eslintrc.cjs`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
-- When editing any file matching this rule’s globs, run `bunx eslint <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
+- Obey `.oxlintrc.json`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- When editing any file matching this rule’s globs, run `bunx oxlint --type-aware <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
 - **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
   - `script/utils/deploymentHelpers.ts` (deployment loading),
@@ -60,8 +60,8 @@ paths:
   - Other domains where neither file fits: colocate (e.g. `script/troncast/types.ts`, shapes next to Safe helpers in `script/deploy/safe/`).
 - **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
 - **Config-derived types**: Prefer deriving types from config schemas (e.g., `EVMVersion` from `networks.json`) over manually maintained union types. See `script/common/types.ts` for examples.
-- **Naming conventions** (enforced by `.eslintrc.cjs`):
-  - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by ESLint.
+- **Naming conventions** (enforced by `lifi/naming-convention` in `script/utils/oxlint-plugin-lifi.mjs`):
+  - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by `bun lint:js`.
   - Type aliases use PascalCase without prefix (e.g., `SupportedChain`, `HexString`).
   - Enums use PascalCase with `Enum` suffix (e.g., `EnvironmentEnum`).
 
@@ -133,7 +133,7 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 
 ## Post-Change Actions
 
-- After TS changes run lint/tests (or state which remain) to ensure eslint/type checks pass.
+- After TS changes run lint/tests (or state which remain) to ensure lint/type checks pass.
 
 ### Hard gate: CLI validation required
 
@@ -141,17 +141,17 @@ Editor diagnostics (and Cursor “lints”) are **not sufficient** to claim a Ty
 
 If you edit any file matching this rule’s globs, you **MUST** do the following before finalizing:
 
-- **Run ESLint CLI on the changed file(s)**:
-  - `bunx eslint <changed-file-1> [<changed-file-2> ...]`
-  - If ESLint reports fixable issues, run: `bunx eslint --fix <changed-file(s)>`
-  - Re-run `bunx eslint <changed-file(s)>` and ensure it exits `0`.
+- **Run oxlint on the changed file(s)**:
+  - `bunx oxlint --type-aware <changed-file-1> [<changed-file-2> ...]`
+  - If oxlint reports fixable issues, run: `bunx oxlint --type-aware --fix <changed-file(s)>`
+  - Re-run `bunx oxlint --type-aware <changed-file(s)>` and ensure it exits `0`.
 - **Run TypeScript typecheck on the changed file(s)**:
   - `bash script/utils/typecheck-files.sh <changed-file-1> [<changed-file-2> ...]`
 
 ### Reporting requirement
 
 - In the final message, explicitly list the commands that were run and whether they passed.
-- **Never** state or imply “no linting errors” unless `bunx eslint ...` was executed and returned `0`.
+- **Never** state or imply “no linting errors” unless `bunx oxlint ...` was executed and returned `0`.
 
 ### Scope escalation (when needed)
 

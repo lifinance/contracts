@@ -610,7 +610,7 @@ async function main() {
 
   // Process all networks in parallel
   const networkResults = await Promise.all(
-    networksToCheck.map((networkName) => {
+    networksToCheck.map(async (networkName) => {
       const networkConfig = networks[networkName]
       if (!networkConfig) {
         const errorStatus: INetworkStatus = {

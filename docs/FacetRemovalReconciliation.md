@@ -507,7 +507,7 @@ deliberate steps.
 - CLI: dry-run (no `--yes`, or non-TTY) proposes nothing; `--all-networks` skips
   diamond-less networks; per-branch routing via `prepareTimelockCalldata` +
   `sendOrPropose`.
-- No Solidity changes → no `forge` impact; `bun test`, `bunx eslint`,
+- No Solidity changes → no `forge` impact; `bun test`, `bunx oxlint --type-aware`,
   `bunx tsc-files --noEmit` on changed files.
 
 ## 10. Open decisions (recommended defaults in **bold**)
