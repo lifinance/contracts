@@ -103,9 +103,10 @@ attempt every facet and periphery contract the network declares, whatever versio
 deployed; on the version gate only a pin can refuse, and since the migration to `latest`
 the only pins are deliberate hold-backs (`ChainflipFacet` on mainnet and arbitrum,
 `ThorSwapFacet` on avalanche and bsc until its deprecation, EXSC-1169; `GasZipFacet` at 2.0.4
-on the production networks that run it, EXSC-1214). Before the migration, stage 6 deployed a periphery contract only where the
-declared version equalled the repo's and skipped the rest with a warning, so an entry whose
-declared version had fallen behind the repo was never touched. Entering a run at stage 5 or 6
+on the production networks still running 2.0.4, EXSC-1214). Before the migration, stage 6
+deployed a periphery contract only where the declared version equalled the repo's and skipped
+the rest with a warning, so an entry whose declared version had fallen behind the repo was
+never touched. Entering a run at stage 5 or 6
 against a network that already has deployments therefore attempts and re-registers the whole
 declared set rather than only what has drifted. CREATE3 derives the address from the bytecode,
 so an unchanged contract resolves to the address it already has and no deployment is
