@@ -9,9 +9,9 @@ import { TestEIP712 } from "./TestEIP712.sol";
 /// @notice Payload-specific backend EIP-712 signature helpers for `EcoFacet` tests.
 abstract contract TestEcoBackendSig is TestEIP712 {
     // EIP-712 typehash for EcoPayload:
-    // keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
+    // keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,uint64 intentDestination,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
     bytes32 internal constant ECO_PAYLOAD_TYPEHASH =
-        0xa3243df568679887ffddc8c7d34cf0bd57b0a8d9430c7044d28def7369fd7881;
+        0x5eab41fdaef699ef7c6516a09842972b29e6319a531c00a7f90ab2292d78d9d8;
 
     string internal constant ECO_DOMAIN_NAME = "LI.FI Eco Facet";
     string internal constant ECO_EIP712_VERSION = "1";
@@ -37,6 +37,7 @@ abstract contract TestEcoBackendSig is TestEIP712 {
                     _bridgeData.destinationChainId,
                     _bridgeData.receiver,
                     keccak256(_ecoData.nonEVMReceiver),
+                    _ecoData.intentDestination,
                     keccak256(_ecoData.encodedRoute),
                     _ecoData.prover,
                     _ecoData.refundRecipient,
