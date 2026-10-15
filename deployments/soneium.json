@@ -1,6 +1,6 @@
 {
   "AccessManagerFacet": "0xcdEC3efD307BaC9dD88c7EdD962F7681C79eD90E",
-  "CalldataVerificationFacet": "0x091EBD75fCD19286b082Ce27b955F01816Af16d2",
+  "CalldataVerificationFacet": "0xA418201c9D772994b34428C1948d318B992251E3",
   "DiamondCutFacet": "0x2407c1598650f8CD4Aaa0c1a4BCcd12D4999a6E9",
   "DiamondLoupeFacet": "0x1E007BB710D4330109B4Cf4f3D4D8e25a8b54BEB",
   "EmergencyPauseFacet": "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd",
