@@ -69,7 +69,7 @@ for a london or zkEVM network is not what `main` would have produced for that ch
 | --- | --- | --- | --- |
 | london | `targetEvmVersion` is `london` | `forge build --use 0.8.17 --evm-version london -o /path/to/main-london/out` | `/path/to/main-london/out` |
 | cancun | `targetEvmVersion` is `cancun` | `forge build --use 0.8.29 --evm-version cancun -o /path/to/main-cancun/out` | `/path/to/main-cancun/out` |
-| zkevm | `isZkEVM` is `true` (`zksync`, `abstract`, `lens`) | `FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test` | `./out/zksync` (the zkSync profile default; omit the env var if the build wrote there) |
+| zkevm | `isZkEVM` is `true` (`zksync`, `abstract`) | `FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test` | `./out/zksync` (the zkSync profile default; omit the env var if the build wrote there) |
 
 Use a dedicated `-o` directory for london and cancun so the two solc pins do not overwrite each
 other. `FOUNDRY_PROFILE=solc_floor forge build -o /path/to/main-london/out` produces the london
@@ -93,7 +93,7 @@ forge script script/deploy/facets/UpdateAcrossFacetV4.s.sol \
   --json
 ```
 
-zkEVM networks (`zksync`, `abstract`, `lens`) have to use the foundry-zksync binary, the zkSync
+zkEVM networks (`zksync`, `abstract`) have to use the foundry-zksync binary, the zkSync
 script copy, and zkSync artifacts:
 
 ```bash

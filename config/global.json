@@ -144,10 +144,7 @@
   },
   "whitelistPeripheryNetworks": {
     "LiFiDEXAggregator": [
-      "bob",
-      "lens",
       "lisk",
-      "opbnb",
       "vana",
       "viction",
       "worldchain"

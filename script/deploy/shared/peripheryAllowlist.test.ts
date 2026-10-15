@@ -28,7 +28,7 @@ describe('parsePeripheryAllowlistRequirements', () => {
     expect([...selectors.keys()].sort()).toEqual(
       Object.keys(globalConfig.whitelistPeripheryFunctions).sort()
     )
-    expect(networkScope.get('LiFiDEXAggregator')?.has('lens')).toBe(true)
+    expect(networkScope.get('LiFiDEXAggregator')?.has('lisk')).toBe(true)
   })
 
   it('normalises checksum-cased selectors and drops duplicates', () => {

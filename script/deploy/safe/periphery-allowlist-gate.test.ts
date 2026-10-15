@@ -812,7 +812,7 @@ describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
     const verdict = await evaluatePeripheryAllowlist(
       viaTimelock(
         scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
-        'lens'
+        'lisk'
       ),
       chain([])
     )
@@ -821,7 +821,7 @@ describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
     ])
     expect(verdict.findings[0]?.missing).toEqual(LDA_SELECTORS)
     expect(verdict.cleared).toBe(false)
-    expect(rowOf(verdict, 'lens').status).toBe('fail')
+    expect(rowOf(verdict, 'lisk').status).toBe('fail')
     expect(renderPeripheryAllowlistLines(verdict).join('\n')).not.toContain(
       'not whitelisted on'
     )
@@ -831,7 +831,7 @@ describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
     const verdict = await evaluatePeripheryAllowlist(
       viaTimelock(
         scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
-        'LENS'
+        'LISK'
       ),
       chain([])
     )
