@@ -36,7 +36,6 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     /// @dev maxFee = amount / 1000 (10 bps), above Circle's fast-transfer minimum
     uint256 internal constant CCTP_MAX_FEE_DIVISOR = 1000;
     uint64 internal constant HYPEREVM_CHAIN_ID = 999;
-    uint256 internal constant HYPERCORE_CHAIN_ID = 1337;
     address internal constant HYPERCORE_ROUTE_RECEIVER =
         0x86DBd094BC7436BD106C53a6a137Ab0Ab810A6A9;
     /// @dev encodedRoute of Arbitrum tx 0x7d7a7e2e6866ee087f26005dcb9715818df23bfc983789bd6f841091e4adbef4
@@ -1443,7 +1442,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     function test_BridgeToHyperCoreWithProductionRoute() public {
         vm.startPrank(USER_SENDER);
 
-        bridgeData.destinationChainId = HYPERCORE_CHAIN_ID;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
         bridgeData.receiver = HYPERCORE_ROUTE_RECEIVER;
         EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
             HYPERCORE_PRODUCTION_ROUTE,
@@ -1793,15 +1792,17 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         });
         calls[1] = EcoFacet.Call({
             target: TOKEN_MESSENGER,
-            data: abi.encodeWithSelector(
-                ITokenMessenger.depositForBurn.selector,
-                bridgeData.minAmount,
-                ARBITRUM_CCTP_DOMAIN,
-                LibBytes.toBytes32(USER_RECEIVER),
-                bridgeData.sendingAssetId,
-                bytes32(0),
-                bridgeData.minAmount / CCTP_MAX_FEE_DIVISOR,
-                CCTP_FAST_FINALITY_THRESHOLD
+            data: abi.encodeCall(
+                ITokenMessenger.depositForBurn,
+                (
+                    bridgeData.minAmount,
+                    ARBITRUM_CCTP_DOMAIN,
+                    LibBytes.toBytes32(USER_RECEIVER),
+                    bridgeData.sendingAssetId,
+                    bytes32(0),
+                    bridgeData.minAmount / CCTP_MAX_FEE_DIVISOR,
+                    CCTP_FAST_FINALITY_THRESHOLD
+                )
             ),
             value: 0
         });
