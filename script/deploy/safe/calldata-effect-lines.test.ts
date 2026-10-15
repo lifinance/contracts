@@ -30,7 +30,10 @@ import {
   zeroAddress,
 } from 'viem'
 
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+
 import { buildCalldataEffectLines } from './calldata-effect-lines'
+import * as selectorRegistry from './selector-registry'
 
 // The 4byte answers for the selectors these tests leave to the fallback; any
 // other selector gets no name. The real fetch never runs, and the cache lives in
@@ -38,6 +41,8 @@ import { buildCalldataEffectLines } from './calldata-effect-lines'
 const FOUR_BYTE: Record<string, string> = {
   '0xdeadbeef': 'CodeIsLawZ95677371()',
   '0x13af4035': 'setOwner(address)',
+  [toFunctionSelector('fixtureWhitelistAlpha()')]: 'fixtureWhitelistAlpha()',
+  [toFunctionSelector('fixtureWhitelistBeta()')]: 'fixtureWhitelistBeta()',
 }
 // A lookup batch holding this selector fails the way an unreachable 4byte does.
 const FOUR_BYTE_UNREACHABLE = '0x0badf00d'
@@ -601,5 +606,162 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
     expect(lines).toContain('setOwner [')
     expect(lines).toContain('[0]: ')
     expect(lines).toContain(FACET)
+  })
+})
+
+describe('buildCalldataEffectLines — whitelist pair names', () => {
+  const ABI_WHITELIST = parseAbi([
+    'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
+  ])
+  // A Tempo pair config/whitelist.json names for this contract on this network.
+  const TEMPO_ROUTER = '0xCfBAa9Cfce952Ca4F4069874fF1Df8c05e37a3c7'
+  const ROUTE_SINGLE = '0xb94c3609'
+  const TRANSFER_OWNERSHIP = toFunctionSelector('transferOwnership(address)')
+  const ALPHA = toFunctionSelector('fixtureWhitelistAlpha()')
+  const BETA = toFunctionSelector('fixtureWhitelistBeta()')
+  const NOBODY = toFunctionSelector('fixtureWhitelistNobody()')
+
+  const whitelist = (
+    contracts: readonly `0x${string}`[],
+    selectors: readonly `0x${string}`[]
+  ): `0x${string}` =>
+    encodeFunctionData({
+      abi: ABI_WHITELIST,
+      functionName: 'batchSetContractSelectorWhitelist',
+      args: [[...contracts], [...selectors], true],
+    })
+
+  const renderOn = async (
+    network: string,
+    data: `0x${string}`
+  ): Promise<string> =>
+    plain(
+      await buildCalldataEffectLines(data, {
+        network,
+        indent: INDENT,
+        target: DIAMOND,
+      })
+    ).join('\n')
+
+  const fourByteUrls = (): string[] =>
+    fetchSpy.mock.calls.map((call) => String(call[0]))
+
+  // The local registry harvests whitelist.json for every network, so it is
+  // silenced for the pair selectors to show that the per-contract lookup alone
+  // names them. It still answers for the call's own selector.
+  async function withoutRegistry<T>(
+    selectors: readonly string[],
+    run: () => Promise<T>
+  ): Promise<T> {
+    const original = selectorRegistry.getLocalSelectorInfo
+    const registry = spyOn(
+      selectorRegistry,
+      'getLocalSelectorInfo'
+    ).mockImplementation((selector) =>
+      selectors.includes(selector) ? undefined : original(selector)
+    )
+    try {
+      return await run()
+    } finally {
+      registry.mockRestore()
+    }
+  }
+
+  it('names a pair from config/whitelist.json, with no 4byte request for it', async () => {
+    fetchSpy.mockClear()
+    const lines = await withoutRegistry([ROUTE_SINGLE], () =>
+      renderOn('tempo', whitelist([TEMPO_ROUTER], [ROUTE_SINGLE]))
+    )
+    expect(lines).toContain(`${ROUTE_SINGLE}  routeSingle((uint8,bytes),bytes)`)
+    for (const url of fourByteUrls()) expect(url).not.toContain(ROUTE_SINGLE)
+  })
+
+  it('finds a Tron pair the file holds in base58 from its decoded hex address', async () => {
+    fetchSpy.mockClear()
+    const forwarder = normalizeAddressForNetwork(
+      'tron',
+      'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
+    )
+    const lines = await withoutRegistry(['0x0e8ae67f'], () =>
+      renderOn('tron', whitelist([forwarder], ['0x0e8ae67f']))
+    )
+    expect(lines).toContain(
+      '0x0e8ae67f  forwardNativeFees((address,uint256)[])'
+    )
+    for (const url of fourByteUrls()) expect(url).not.toContain('0x0e8ae67f')
+  })
+
+  it('does not name a pair from the whitelist for another contract', async () => {
+    const lines = await withoutRegistry([ROUTE_SINGLE], () =>
+      renderOn('tempo', whitelist([FACET], [ROUTE_SINGLE]))
+    )
+    expect(lines).toContain(`${ROUTE_SINGLE}  no name for this selector`)
+  })
+
+  it('names a pair the whitelist does not hold from the local registry', async () => {
+    fetchSpy.mockClear()
+    const lines = await renderOn(
+      NETWORK,
+      whitelist([FACET], [TRANSFER_OWNERSHIP])
+    )
+    expect(lines).toContain(`${TRANSFER_OWNERSHIP}  transferOwnership`)
+    for (const url of fourByteUrls())
+      expect(url).not.toContain(TRANSFER_OWNERSHIP)
+  })
+
+  it('resolves every remaining pair through one batched 4byte request', async () => {
+    fetchSpy.mockClear()
+    const lines = await renderOn(
+      NETWORK,
+      whitelist([FACET, FACET, DIAMOND], [ALPHA, BETA, NOBODY])
+    )
+    expect(lines).toContain(`${ALPHA}  fixtureWhitelistAlpha()`)
+    expect(lines).toContain(`${BETA}  fixtureWhitelistBeta()`)
+    const urls = fourByteUrls()
+    expect(urls).toHaveLength(1)
+    for (const selector of [ALPHA, BETA, NOBODY])
+      expect(urls[0]).toContain(selector)
+  })
+
+  it('says so when nothing names a selector, without failing', async () => {
+    const lines = await renderOn(NETWORK, whitelist([FACET], [NOBODY]))
+    expect(lines).toContain('Whitelist 1 contract/selector pair')
+    expect(lines).toContain(`${NOBODY}  no name for this selector`)
+  })
+
+  it('states each name without grading it', async () => {
+    const lines = await renderOn(
+      'tempo',
+      whitelist(
+        [TEMPO_ROUTER, FACET, FACET],
+        [ROUTE_SINGLE, TRANSFER_OWNERSHIP, NOBODY]
+      )
+    )
+    expect(lines).not.toContain('✓')
+    expect(lines).not.toContain('✗')
+  })
+
+  it('reports arrays that disagree on length', async () => {
+    const lines = await renderOn(
+      NETWORK,
+      whitelist([FACET, DIAMOND], [TRANSFER_OWNERSHIP])
+    )
+    expect(lines).toContain('the two arrays disagree on length')
+    expect(lines).toContain('Whitelist 2 contract/selector pairs')
+  })
+
+  it('counts the pairs it holds back', async () => {
+    const count = 30
+    const lines = await renderOn(
+      NETWORK,
+      whitelist(
+        Array.from({ length: count }, () => FACET),
+        Array.from({ length: count }, () => TRANSFER_OWNERSHIP)
+      )
+    )
+    expect(lines).toContain(`Whitelist ${count} contract/selector pairs`)
+    expect(lines).toContain(
+      `⚠ 6 further pairs not shown (${count} in the calldata)`
+    )
   })
 })
