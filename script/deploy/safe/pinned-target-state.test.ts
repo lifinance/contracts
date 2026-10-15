@@ -33,6 +33,7 @@ import {
   createPinnedAnchor,
   createPinnedBlobReader,
   createPinnedSourceVersionReader,
+  createPinnedStateGit,
   createPinnedTargetStateReader,
   createTargetStateDeps,
   describeTargetStateUnavailable,
@@ -40,6 +41,7 @@ import {
   formatTargetStateLines,
   TARGET_STATE_GATE_HEADING,
   PINNED_FETCH_REFSPEC,
+  PINNED_GIT_TIMEOUT_MS,
   readDeclaredVersion,
   renderTargetStateRefusal,
   resolveExpectedVersion,
@@ -110,11 +112,11 @@ const deps = (options: {
   onRead?: () => void
   sourceVersions?: Record<string, string>
 }): ITargetStateDeps => ({
-  readPinnedState: () => {
+  readPinnedState: async () => {
     options.onRead?.()
     return options.pinned ?? { ok: true, state: STATE }
   },
-  readSourceVersion: (contractName) => {
+  readSourceVersion: async (contractName) => {
     const version = (options.sourceVersions ?? SOURCE_VERSIONS)[contractName]
     return version
       ? { ok: true, version }
@@ -187,8 +189,8 @@ describe('countNetworksDeclaring', () => {
 })
 
 describe('evaluateTargetStateIntent — a network that follows the repo', () => {
-  it('clears a newer version', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('clears a newer version', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.3.0' } })
@@ -198,8 +200,8 @@ describe('evaluateTargetStateIntent — a network that follows the repo', () => 
     expect(verdict.findings[0]?.mainVersion).toBe('1.2.0')
   })
 
-  it('clears the same version', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('clears the same version', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.2.0' } })
@@ -208,8 +210,8 @@ describe('evaluateTargetStateIntent — a network that follows the repo', () => 
     expect(verdict.findings[0]?.status).toBe('matches-main')
   })
 
-  it('refuses a downgrade', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses a downgrade', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
@@ -219,8 +221,8 @@ describe('evaluateTargetStateIntent — a network that follows the repo', () => 
     expect(verdict.findings[0]?.detail).toContain('OLDER')
   })
 
-  it('refuses a version pair it cannot order', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses a version pair it cannot order', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'base',
       deps({
@@ -234,8 +236,8 @@ describe('evaluateTargetStateIntent — a network that follows the repo', () => 
 
   // A network following the repo cannot be graded when the repo's own version is
   // unreadable - a deleted or untagged source must refuse, not clear.
-  it('refuses when the source version cannot be read at the pinned ref', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses when the source version cannot be read at the pinned ref', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'base',
       deps({
@@ -248,8 +250,8 @@ describe('evaluateTargetStateIntent — a network that follows the repo', () => 
     expect(verdict.findings[0]?.detail).toContain('no source for AcrossFacetV3')
   })
 
-  it('refuses when the proposed version cannot be resolved at all', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses when the proposed version cannot be resolved at all', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'AcrossFacetV3', version: null } })
@@ -260,8 +262,8 @@ describe('evaluateTargetStateIntent — a network that follows the repo', () => 
 })
 
 describe('evaluateTargetStateIntent — first-time add', () => {
-  it('labels an add main does not target and does not block it', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('labels an add main does not target and does not block it', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'optimism',
       deps({ deployed: { contractName: 'NewFacet', version: '2.0.0' } })
@@ -271,8 +273,8 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.crossFleetCount).toBe(2)
   })
 
-  it('does not block a first-time add on a network main knows nothing about', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('does not block a first-time add on a network main knows nothing about', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'newchain',
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.2.0' } })
@@ -284,8 +286,8 @@ describe('evaluateTargetStateIntent — first-time add', () => {
 
   // The count is about the contract, not the proposed version, so a record with no
   // version still gets corroboration rather than a blank.
-  it('labels a first-time add whose record carries no version, still with a count', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('labels a first-time add whose record carries no version, still with a count', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'optimism',
       deps({ deployed: { contractName: 'NewFacet', version: null } })
@@ -295,8 +297,8 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.crossFleetCount).toBe(2)
   })
 
-  it('refuses an install whose deployment record contradicts itself', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses an install whose deployment record contradicts itself', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'tron',
       deps({
@@ -312,8 +314,8 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.detail).toContain('2.1.1 / 2.1.2')
   })
 
-  it('refuses an install whose address no deployment record names', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses an install whose address no deployment record names', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'optimism',
       deps({ deployed: null })
@@ -325,9 +327,9 @@ describe('evaluateTargetStateIntent — first-time add', () => {
 })
 
 describe('evaluateTargetStateIntent — removal and non-cuts', () => {
-  it('warns on a removal without blocking, and reads no anchor for it', () => {
+  it('warns on a removal without blocking, and reads no anchor for it', async () => {
     let reads = 0
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: ZERO_ADDRESS as Address, action: 2 }])],
       'optimism',
       deps({ onRead: () => reads++ })
@@ -337,13 +339,13 @@ describe('evaluateTargetStateIntent — removal and non-cuts', () => {
     expect(reads).toBe(0)
   })
 
-  it('clears a proposal that carries no diamondCut', () => {
+  it('clears a proposal that carries no diamondCut', async () => {
     const transferOwnership = encodeFunctionData({
       abi: parseAbi(['function transferOwnership(address newOwner)']),
       functionName: 'transferOwnership',
       args: [FACET],
     })
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [transferOwnership],
       'optimism',
       deps({})
@@ -353,14 +355,14 @@ describe('evaluateTargetStateIntent — removal and non-cuts', () => {
     expect(verdict.findings[0]?.status).toBe('no-diamond-cut')
   })
 
-  it('clears a proposal with no calls at all', () => {
-    const verdict = evaluateTargetStateIntent([], 'optimism', deps({}))
+  it('clears a proposal with no calls at all', async () => {
+    const verdict = await evaluateTargetStateIntent([], 'optimism', deps({}))
     expect(verdict.cleared).toBe(true)
     expect(verdict.findings[0]?.status).toBe('no-diamond-cut')
   })
 
-  it('refuses a cut action that is not Add, Replace or Remove', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses a cut action that is not Add, Replace or Remove', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 3 }])],
       'optimism',
       deps({})
@@ -369,21 +371,25 @@ describe('evaluateTargetStateIntent — removal and non-cuts', () => {
     expect(verdict.findings[0]?.status).toBe('unrecognised-cut-action')
   })
 
-  it('refuses calldata whose cut cannot be read', () => {
+  it('refuses calldata whose cut cannot be read', async () => {
     const hidden = encodeFunctionData({
       abi: parseAbi(['function multiSend(bytes transactions)']),
       functionName: 'multiSend',
       args: [cut([{ facetAddress: FACET, action: 0 }])],
     })
-    const verdict = evaluateTargetStateIntent([hidden], 'optimism', deps({}))
+    const verdict = await evaluateTargetStateIntent(
+      [hidden],
+      'optimism',
+      deps({})
+    )
     expect(verdict.cleared).toBe(false)
     expect(verdict.findings[0]?.status).toBe('calldata-not-readable')
   })
 })
 
 describe('evaluateTargetStateIntent — the anchor itself', () => {
-  it('refuses an install when the pinned state could not be refreshed', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses an install when the pinned state could not be refreshed', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ pinned: { ok: false, reason: 'fetch-failed' } })
@@ -393,7 +399,7 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
     expect(verdict.findings[0]?.detail).toContain('could not refresh')
   })
 
-  it('refuses the whole proposal when one element of a batch refuses', () => {
+  it('refuses the whole proposal when one element of a batch refuses', async () => {
     const versions = new Map<string, DeployedContractLookup>([
       [
         FACET.toLowerCase(),
@@ -412,7 +418,7 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
         },
       ],
     ])
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [
         cut([
           { facetAddress: OTHER_FACET, action: 0 },
@@ -421,8 +427,8 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
       ],
       'optimism',
       {
-        readPinnedState: () => ({ ok: true, state: STATE }),
-        readSourceVersion: (contractName) => {
+        readPinnedState: async () => ({ ok: true, state: STATE }),
+        readSourceVersion: async (contractName) => {
           const version = SOURCE_VERSIONS[contractName]
           return version
             ? { ok: true, version }
@@ -441,24 +447,24 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
 })
 
 describe('resolveExpectedVersion', () => {
-  const source = (versions: Record<string, string>) => (name: string) =>
+  const source = (versions: Record<string, string>) => async (name: string) =>
     versions[name]
       ? ({ ok: true, version: versions[name] } as const)
       : ({ ok: false, detail: 'no source' } as const)
 
-  it('reports a contract the network does not declare as absent', () => {
+  it('reports a contract the network does not declare as absent', async () => {
     expect(
-      resolveExpectedVersion(STATE, 'optimism', 'NoSuchFacet', source({}))
+      await resolveExpectedVersion(STATE, 'optimism', 'NoSuchFacet', source({}))
     ).toEqual({ kind: 'absent' })
   })
 
-  it('returns a declared semver as a pin, without consulting the source', () => {
+  it('returns a declared semver as a pin, without consulting the source', async () => {
     let consulted = false
-    const expected = resolveExpectedVersion(
+    const expected = await resolveExpectedVersion(
       STATE,
       'optimism',
       'PinnedFacet',
-      () => {
+      async () => {
         consulted = true
         return { ok: false, detail: 'should not be reached' }
       }
@@ -467,9 +473,9 @@ describe('resolveExpectedVersion', () => {
     expect(consulted).toBe(false)
   })
 
-  it('resolves latest from the source at the pinned ref', () => {
+  it('resolves latest from the source at the pinned ref', async () => {
     expect(
-      resolveExpectedVersion(
+      await resolveExpectedVersion(
         STATE,
         'optimism',
         'AcrossFacetV3',
@@ -478,8 +484,8 @@ describe('resolveExpectedVersion', () => {
     ).toEqual({ kind: 'latest', version: '9.9.9' })
   })
 
-  it('reports latest as unresolved when the source cannot be read', () => {
-    const expected = resolveExpectedVersion(
+  it('reports latest as unresolved when the source cannot be read', async () => {
+    const expected = await resolveExpectedVersion(
       STATE,
       'optimism',
       'AcrossFacetV3',
@@ -490,8 +496,8 @@ describe('resolveExpectedVersion', () => {
 })
 
 describe('evaluateTargetStateIntent — a pinned network', () => {
-  it('clears a cut installing exactly the pinned version', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('clears a cut installing exactly the pinned version', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'PinnedFacet', version: '1.2.0' } })
@@ -500,8 +506,8 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
     expect(verdict.findings[0]?.status).toBe('matches-pin')
   })
 
-  it('clears a suffixed deployment record whose base matches the pin', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('clears a suffixed deployment record whose base matches the pin', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({
@@ -514,8 +520,8 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
 
   // A pin says "this version, no other". Newer is still not what it asked for,
   // so it is graded as equality rather than as an ordering.
-  it('refuses a cut installing a NEWER version than the pin', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses a cut installing a NEWER version than the pin', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'PinnedFacet', version: '2.0.0' } })
@@ -525,8 +531,8 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
     expect(verdict.findings[0]?.mainVersion).toBe('1.2.0')
   })
 
-  it('refuses a cut installing an older version than the pin', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses a cut installing an older version than the pin', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'PinnedFacet', version: '1.1.0' } })
@@ -537,8 +543,8 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
 
   // The repo moving on is exactly the situation a pin exists for, so it must not
   // turn the pin into a pass.
-  it('does not clear a pinned network just because the repo agrees with the cut', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('does not clear a pinned network just because the repo agrees with the cut', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({
@@ -552,8 +558,8 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
 
   // The blank is in the deployment record, not in a proposal contradicting the pin,
   // and the remedy differs — so it must not be reported as a pin mismatch.
-  it('names a record with no version as unresolved rather than a pin mismatch', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('names a record with no version as unresolved rather than a pin mismatch', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'PinnedFacet', version: null } })
@@ -562,8 +568,8 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
     expect(verdict.findings[0]?.status).toBe('proposed-version-unresolved')
   })
 
-  it('refuses a pin that is not orderable against the proposed version', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('refuses a pin that is not orderable against the proposed version', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'WeirdFacet', version: '1.0.0' } })
@@ -582,8 +588,8 @@ describe('blockedByEvaluationError', () => {
 })
 
 describe('renderTargetStateRefusal', () => {
-  it('names the gate and points at its findings without repeating them', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('names the gate and points at its findings without repeating them', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [
         cut([
           { facetAddress: ZERO_ADDRESS as Address, action: 2 },
@@ -607,8 +613,8 @@ describe('renderTargetStateRefusal', () => {
 })
 
 describe('formatTargetStateLines', () => {
-  it('names the pinned source and puts a refusal before a pass', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('names the pinned source and puts a refusal before a pass', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [
         cut([
           { facetAddress: ZERO_ADDRESS as Address, action: 2 },
@@ -635,8 +641,8 @@ describe('formatTargetStateLines', () => {
   // A cut that replaces the selectors already routed and adds the new ones
   // grades one facet through two elements, and both reach the same sentence.
   // Printed twice, a signer reads two facts and looks for the difference.
-  it('states one facet at one version once, however many elements install it', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('states one facet at one version once, however many elements install it', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [
         cut([
           { facetAddress: FACET, action: 1 },
@@ -654,8 +660,8 @@ describe('formatTargetStateLines', () => {
     expect(named).toHaveLength(1)
   })
 
-  it('prints the cross-fleet count for a first-time add', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('prints the cross-fleet count for a first-time add', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'optimism',
       deps({ deployed: { contractName: 'NewFacet', version: '2.0.0' } })
@@ -669,8 +675,8 @@ describe('formatTargetStateLines', () => {
   // target state had been read from under a proposal that never read one, over
   // a single line repeating the gate's own stand-down — all of it below the
   // gate rows, under no heading naming the gate it belonged to.
-  it('says nothing when no element of the cut was graded against main', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('says nothing when no element of the cut was graded against main', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: ZERO_ADDRESS as Address, action: 2 }])],
       'optimism',
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
@@ -680,10 +686,10 @@ describe('formatTargetStateLines', () => {
     expect(formatTargetStateLines(verdict)).toEqual([])
   })
 
-  it('says nothing when the proposal carries no cut at all', () => {
+  it('says nothing when the proposal carries no cut at all', async () => {
     expect(
       formatTargetStateLines(
-        evaluateTargetStateIntent([], 'optimism', deps({}))
+        await evaluateTargetStateIntent([], 'optimism', deps({}))
       )
     ).toEqual([])
   })
@@ -692,8 +698,8 @@ describe('formatTargetStateLines', () => {
   // installs another did reach main, so the block prints — and it still lists
   // the removal, which on a mixed cut is a fact the signer has not been told
   // anywhere else.
-  it('still lists an ungraded element beside one that was graded', () => {
-    const verdict = evaluateTargetStateIntent(
+  it('still lists an ungraded element beside one that was graded', async () => {
+    const verdict = await evaluateTargetStateIntent(
       [
         cut([
           { facetAddress: ZERO_ADDRESS as Address, action: 2 },
@@ -758,21 +764,24 @@ describe('the committed target state is gradeable', () => {
   // entry is exactly the drift that would make the real gate refuse, and this commit is
   // what becomes `origin/main`. Using the pinned reader here would instead cost a network
   // fetch and ~200 `git show` calls per run.
-  it('resolves every production entry to a comparable expected version', () => {
-    const readSource = (contractName: string) =>
+  it('resolves every production entry to a comparable expected version', async () => {
+    const readSource = async (contractName: string) =>
       workingTreeSourceVersion(contractName)
 
-    const unresolved = entries
-      .filter((entry) => entry.environment === 'production')
-      .map((entry) => ({
-        entry,
-        expected: resolveExpectedVersion(
-          state,
-          entry.network,
-          entry.contract,
-          readSource
-        ),
-      }))
+    const graded = await Promise.all(
+      entries
+        .filter((entry) => entry.environment === 'production')
+        .map(async (entry) => ({
+          entry,
+          expected: await resolveExpectedVersion(
+            state,
+            entry.network,
+            entry.contract,
+            readSource
+          ),
+        }))
+    )
+    const unresolved = graded
       .filter(({ expected }) => expected.kind === 'unresolved')
       .map(({ entry }) => `${entry.network}: ${entry.contract}`)
 
@@ -813,8 +822,9 @@ describe('the gate fires on the committed target state (latest path)', () => {
   )
 
   const realDeps = (proposedVersion: string): ITargetStateDeps => ({
-    readPinnedState: () => ({ ok: true, state }),
-    readSourceVersion: workingTreeSourceVersion,
+    readPinnedState: async () => ({ ok: true, state }),
+    readSourceVersion: async (contractName) =>
+      workingTreeSourceVersion(contractName),
     resolveDeployed: () => ({
       kind: 'resolved',
       contractName: subject?.[0] ?? 'unknown',
@@ -826,11 +836,11 @@ describe('the gate fires on the committed target state (latest path)', () => {
     expect(subject).toBeDefined()
   })
 
-  it('clears the version the repo actually carries', () => {
+  it('clears the version the repo actually carries', async () => {
     if (!subject) throw new Error('no subject')
     const source = workingTreeSourceVersion(subject[0])
     if (!source.ok) throw new Error('no source version')
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'mainnet',
       realDeps(source.version)
@@ -840,9 +850,9 @@ describe('the gate fires on the committed target state (latest path)', () => {
   })
 
   // The falsification: a check that cannot refuse real data is not a check.
-  it('refuses a downgrade of that same contract', () => {
+  it('refuses a downgrade of that same contract', async () => {
     if (!subject) throw new Error('no subject')
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'mainnet',
       realDeps('0.0.1')
@@ -859,8 +869,9 @@ describe('the gate fires on the committed target state (pinned path)', () => {
   ).find(([name, value]) => value !== 'latest' && name.endsWith('Facet'))
 
   const realDeps = (proposedVersion: string): ITargetStateDeps => ({
-    readPinnedState: () => ({ ok: true, state }),
-    readSourceVersion: workingTreeSourceVersion,
+    readPinnedState: async () => ({ ok: true, state }),
+    readSourceVersion: async (contractName) =>
+      workingTreeSourceVersion(contractName),
     resolveDeployed: () => ({
       kind: 'resolved',
       contractName: subject?.[0] ?? 'unknown',
@@ -872,9 +883,9 @@ describe('the gate fires on the committed target state (pinned path)', () => {
     expect(subject).toBeDefined()
   })
 
-  it('clears the pinned version', () => {
+  it('clears the pinned version', async () => {
     if (typeof subject?.[1] !== 'string') throw new Error('no pinned subject')
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'mainnet',
       realDeps(subject[1])
@@ -884,12 +895,12 @@ describe('the gate fires on the committed target state (pinned path)', () => {
   })
 
   // The repo has moved past the pin; the pin must still refuse the repo's version.
-  it('refuses the version the repo carries', () => {
+  it('refuses the version the repo carries', async () => {
     if (!subject) throw new Error('no subject')
     const source = workingTreeSourceVersion(subject[0])
     if (!source.ok) throw new Error('no source version')
     expect(source.version).not.toBe(subject[1])
-    const verdict = evaluateTargetStateIntent(
+    const verdict = await evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 1 }])],
       'mainnet',
       realDeps(source.version)
@@ -914,12 +925,12 @@ describe('createPinnedSourceVersionReader', () => {
 
   const CANONICAL_REMOTE = 'git@github.com:lifinance/contracts.git'
   const realGit = (cwd: string): IPinnedStateGit => ({
-    remoteUrl: () => CANONICAL_REMOTE,
-    fetch: () => {
+    remoteUrl: async () => CANONICAL_REMOTE,
+    fetch: async () => {
       git(cwd, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
     },
-    show: (revSpec) => git(cwd, ['show', revSpec]),
-    revParse: (ref) => git(cwd, ['rev-parse', ref]),
+    show: async (revSpec) => git(cwd, ['show', revSpec]),
+    revParse: async (ref) => git(cwd, ['rev-parse', ref]),
   })
 
   const write = (rel: string, body: string): void => {
@@ -958,35 +969,59 @@ describe('createPinnedSourceVersionReader', () => {
   const read = () =>
     createPinnedSourceVersionReader({ repoRoot: clone, git: realGit(clone) })
 
-  it('reads a facet version', () => {
-    expect(read()('AFacet')).toEqual({ ok: true, version: '1.2.0' })
+  it('reads a facet version', async () => {
+    expect(await read()('AFacet')).toEqual({ ok: true, version: '1.2.0' })
   })
 
-  it('finds a contract under src/Periphery', () => {
-    expect(read()('APeriphery')).toEqual({ ok: true, version: '3.1.0' })
+  it('shares one read of a contract between callers that arrive while it runs', async () => {
+    let shows = 0
+    const base = realGit(clone)
+    const reader = createPinnedSourceVersionReader({
+      repoRoot: clone,
+      git: {
+        ...base,
+        show: async (revSpec) => {
+          shows += 1
+          return base.show(revSpec)
+        },
+      },
+    })
+
+    const reads = await Promise.all([reader('AFacet'), reader('AFacet')])
+
+    expect(reads).toEqual([
+      { ok: true, version: '1.2.0' },
+      { ok: true, version: '1.2.0' },
+    ])
+    // One read: a miss under `src`, then the hit under `src/Facets`.
+    expect(shows).toBe(2)
+  })
+
+  it('finds a contract under src/Periphery', async () => {
+    expect(await read()('APeriphery')).toEqual({ ok: true, version: '3.1.0' })
   })
 
   // Ordering is defined on major.minor.patch, so a suffixed tag grades on its base.
-  it('grades a suffixed version on its base', () => {
-    expect(read()('SuffixFacet')).toEqual({ ok: true, version: '2.1.3' })
+  it('grades a suffixed version on its base', async () => {
+    expect(await read()('SuffixFacet')).toEqual({ ok: true, version: '2.1.3' })
   })
 
-  it('refuses a contract with no source at the pinned ref', () => {
-    const result = read()('DeletedFacet')
+  it('refuses a contract with no source at the pinned ref', async () => {
+    const result = await read()('DeletedFacet')
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.detail).toContain('no source for DeletedFacet')
   })
 
-  it('refuses a source that carries no @custom:version', () => {
-    const result = read()('UntaggedFacet')
+  it('refuses a source that carries no @custom:version', async () => {
+    const result = await read()('UntaggedFacet')
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.detail).toContain('carries no @custom:version')
   })
 
-  it('refuses a name that is not a Solidity identifier', () => {
-    const result = read()('../../etc/passwd')
+  it('refuses a name that is not a Solidity identifier', async () => {
+    const result = await read()('../../etc/passwd')
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.detail).toContain('not a Solidity identifier')
@@ -994,46 +1029,46 @@ describe('createPinnedSourceVersionReader', () => {
 
   // The same property the target-state reader has: the anchor is origin/main, so
   // a version the proposer commits on their own branch cannot decide the verdict.
-  it('reads from origin/main, not from the checked-out branch', () => {
+  it('reads from origin/main, not from the checked-out branch', async () => {
     git(clone, ['checkout', '-q', '-b', 'proposer-branch'])
     write('src/Facets/AFacet.sol', contract('9.9.9'))
     git(clone, ['add', '-A'])
     git(clone, ['commit', '-q', '-m', 'proposer bumps the version'])
 
-    expect(read()('AFacet')).toEqual({ ok: true, version: '1.2.0' })
+    expect(await read()('AFacet')).toEqual({ ok: true, version: '1.2.0' })
     git(clone, ['checkout', '-q', 'main'])
   })
 
   // One fetch per reader, not one per contract: a proposal naming several facets
   // asks this reader once per name.
-  it('fetches once however many contracts it is asked for', () => {
+  it('fetches once however many contracts it is asked for', async () => {
     let fetches = 0
     const counting = createPinnedSourceVersionReader({
       repoRoot: clone,
       git: {
         ...realGit(clone),
-        fetch: () => {
+        fetch: async () => {
           fetches++
           git(clone, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
         },
       },
     })
-    counting('AFacet')
-    counting('APeriphery')
-    counting('SuffixFacet')
-    counting('DeletedFacet')
+    await counting('AFacet')
+    await counting('APeriphery')
+    await counting('SuffixFacet')
+    await counting('DeletedFacet')
     expect(fetches).toBe(1)
   })
 
-  it('refuses when the remote is not lifinance/contracts', () => {
+  it('refuses when the remote is not lifinance/contracts', async () => {
     const forked = createPinnedSourceVersionReader({
       repoRoot: clone,
       git: {
         ...realGit(clone),
-        remoteUrl: () => 'git@github.com:evil/fork.git',
+        remoteUrl: async () => 'git@github.com:evil/fork.git',
       },
     })
-    const result = forked('AFacet')
+    const result = await forked('AFacet')
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.detail).toContain('not github.com/lifinance/contracts')
@@ -1071,15 +1106,15 @@ describe('the production wiring shares one anchor', () => {
 
   // Overriding one reader while the other anchors itself is exactly how the straddle
   // returns, so the option has to exist and be honoured.
-  it('createTargetStateDeps honours an injected anchor for the source read', () => {
+  it('createTargetStateDeps honours an injected anchor for the source read', async () => {
     let anchorCalls = 0
     const deps = createTargetStateDeps('mainnet', {
-      anchor: () => {
+      anchor: async () => {
         anchorCalls++
         return { ok: false, reason: 'remote-unexpected' }
       },
     })
-    deps.readSourceVersion('AnyFacet')
+    await deps.readSourceVersion('AnyFacet')
     expect(anchorCalls).toBeGreaterThan(0)
   })
 })
@@ -1134,14 +1169,14 @@ describe('the anchor is one commit for both reads', () => {
   // merge and combine an old target state with a new source version — a pairing that
   // never existed on main. A shared anchor pins both reads to one commit, so a push
   // landing mid-evaluation cannot be half-seen.
-  it('does not see a merge that lands between the two reads', () => {
+  it('does not see a merge that lands between the two reads', async () => {
     const seam: IPinnedStateGit = {
-      remoteUrl: () => 'git@github.com:lifinance/contracts.git',
-      fetch: () => {
+      remoteUrl: async () => 'git@github.com:lifinance/contracts.git',
+      fetch: async () => {
         git(clone, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
       },
-      show: (revSpec) => git(clone, ['show', revSpec]),
-      revParse: (ref) => git(clone, ['rev-parse', ref]),
+      show: async (revSpec) => git(clone, ['show', revSpec]),
+      revParse: async (ref) => git(clone, ['rev-parse', ref]),
     }
     const anchor = createPinnedAnchor({ repoRoot: clone, git: seam })
     const readState = createPinnedTargetStateReader({
@@ -1156,7 +1191,7 @@ describe('the anchor is one commit for both reads', () => {
     })
 
     // First read establishes the anchor.
-    const before = readState()
+    const before = await readState()
     expect(before.ok).toBe(true)
 
     // A merge lands on main between the two reads.
@@ -1172,10 +1207,10 @@ describe('the anchor is one commit for both reads', () => {
     // Move this clone's own refs/remotes/origin/main forward too. Without it the test
     // cannot tell a stored SHA from a stored ref name — the ref would still resolve to
     // the old commit and the assertion would hold for the wrong reason.
-    seam.fetch()
+    await seam.fetch()
 
     // The source read must still see the commit the anchor pinned, not the new tip.
-    expect(readSource('AFacet')).toEqual({ ok: true, version: '1.0.0' })
+    expect(await readSource('AFacet')).toEqual({ ok: true, version: '1.0.0' })
     fs.rmSync(author, { recursive: true, force: true })
   })
 })
@@ -1194,12 +1229,12 @@ describe('createPinnedTargetStateReader', () => {
   // the assertion cannot check against a fixture; git itself does the rest.
   const CANONICAL_REMOTE = 'git@github.com:lifinance/contracts.git'
   const realGit = (cwd: string): IPinnedStateGit => ({
-    remoteUrl: () => CANONICAL_REMOTE,
-    fetch: () => {
+    remoteUrl: async () => CANONICAL_REMOTE,
+    fetch: async () => {
       git(cwd, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
     },
-    show: (revSpec) => git(cwd, ['show', revSpec]),
-    revParse: (ref) => git(cwd, ['rev-parse', ref]),
+    show: async (revSpec) => git(cwd, ['show', revSpec]),
+    revParse: async (ref) => git(cwd, ['rev-parse', ref]),
   })
 
   beforeAll(() => {
@@ -1229,8 +1264,8 @@ describe('createPinnedTargetStateReader', () => {
     fs.rmSync(path.dirname(origin), { recursive: true, force: true })
   })
 
-  it('reads the anchor from origin/main, not from the checked-out branch', () => {
-    const onMain = createPinnedTargetStateReader({
+  it('reads the anchor from origin/main, not from the checked-out branch', async () => {
+    const onMain = await createPinnedTargetStateReader({
       repoRoot: clone,
       git: realGit(clone),
     })()
@@ -1248,7 +1283,7 @@ describe('createPinnedTargetStateReader', () => {
     git(clone, ['add', '-A'])
     git(clone, ['commit', '-m', 'proposer edits the anchor'])
 
-    const onBranch = createPinnedTargetStateReader({
+    const onBranch = await createPinnedTargetStateReader({
       repoRoot: clone,
       git: realGit(clone),
     })()
@@ -1265,66 +1300,69 @@ describe('createPinnedTargetStateReader', () => {
     expect(onBranch.state).toEqual(onMain.state)
   })
 
-  it('reads once per process', () => {
+  it('reads once per process', async () => {
     let shows = 0
     const reader = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
-        remoteUrl: () => CANONICAL_REMOTE,
-        fetch: () => undefined,
-        show: (revSpec) => {
+        remoteUrl: async () => CANONICAL_REMOTE,
+        fetch: async () => undefined,
+        show: async (revSpec) => {
           shows++
           return git(clone, ['show', revSpec])
         },
-        revParse: (ref) => git(clone, ['rev-parse', ref]),
+        revParse: async (ref) => git(clone, ['rev-parse', ref]),
       },
     })
-    reader()
-    reader()
+    await reader()
+    await reader()
     expect(shows).toBe(1)
   })
 
   // A rev-parse failure is NOT a network fault — the fetch already succeeded — so it gets
   // its own reason and remedy, and it is memoized: retrying a condition the clone cannot
   // resolve would re-fetch once per network per contract on a fleet run.
-  it('reports an unresolvable revision distinctly, and only resolves it once', () => {
+  it('reports an unresolvable revision distinctly, and only resolves it once', async () => {
     let fetches = 0
     const anchor = createPinnedAnchor({
       repoRoot: clone,
       git: {
-        remoteUrl: () => CANONICAL_REMOTE,
-        fetch: () => {
+        remoteUrl: async () => CANONICAL_REMOTE,
+        fetch: async () => {
           fetches++
         },
-        revParse: () => {
+        revParse: async () => {
           throw new Error('bad ref')
         },
-        show: () => {
+        show: async () => {
           throw new Error('must not be reached')
         },
       },
     })
 
     for (let call = 0; call < 5; call++)
-      expect(anchor()).toEqual({ ok: false, reason: 'revision-unresolvable' })
+      expect(await anchor()).toEqual({
+        ok: false,
+        reason: 'revision-unresolvable',
+      })
     expect(fetches).toBe(1)
     expect(describeTargetStateUnavailable('revision-unresolvable')).toContain(
       'rather than the network'
     )
   })
 
-  it('reports a failed fetch rather than reading a stale local ref', () => {
-    const read = createPinnedTargetStateReader({
+  it('reports a failed fetch rather than reading a stale local ref', async () => {
+    const read = await createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
-        remoteUrl: () => CANONICAL_REMOTE,
-        fetch: () => {
+        remoteUrl: async () => CANONICAL_REMOTE,
+        fetch: async () => {
           throw new Error('no route to host')
         },
-        revParse: () => {
+        revParse: async () => {
           throw new Error('must not be reached')
         },
-        show: () => {
+        show: async () => {
           throw new Error('must not be reached')
         },
       },
@@ -1332,58 +1370,58 @@ describe('createPinnedTargetStateReader', () => {
     expect(read).toEqual({ ok: false, reason: 'fetch-failed' })
   })
 
-  it('retries a failed fetch instead of pinning the refusal for the process', () => {
+  it('retries a failed fetch instead of pinning the refusal for the process', async () => {
     let fetches = 0
     const reader = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
-        remoteUrl: () => CANONICAL_REMOTE,
-        fetch: () => {
+        remoteUrl: async () => CANONICAL_REMOTE,
+        fetch: async () => {
           fetches++
           if (fetches === 1) throw new Error('no route to host')
         },
-        show: (revSpec) => git(clone, ['show', revSpec]),
-        revParse: (ref) => git(clone, ['rev-parse', ref]),
+        show: async (revSpec) => git(clone, ['show', revSpec]),
+        revParse: async (ref) => git(clone, ['rev-parse', ref]),
       },
     })
-    expect(reader()).toEqual({ ok: false, reason: 'fetch-failed' })
-    expect(reader().ok).toBe(true)
+    expect(await reader()).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect((await reader()).ok).toBe(true)
     expect(fetches).toBe(2)
   })
 
-  it('reports an unreadable blob', () => {
-    const read = createPinnedTargetStateReader({
+  it('reports an unreadable blob', async () => {
+    const read = await createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
-        remoteUrl: () => CANONICAL_REMOTE,
-        fetch: () => undefined,
-        show: () => {
+        remoteUrl: async () => CANONICAL_REMOTE,
+        fetch: async () => undefined,
+        show: async () => {
           throw new Error('does not exist in origin/main')
         },
-        revParse: (ref) => git(clone, ['rev-parse', ref]),
+        revParse: async (ref) => git(clone, ['rev-parse', ref]),
       },
     })()
     expect(read).toEqual({ ok: false, reason: 'blob-unreadable' })
   })
 
-  it('refuses an anchor read through a remote that is not the canonical repo', () => {
+  it('refuses an anchor read through a remote that is not the canonical repo', async () => {
     for (const url of [
       'git@github.com:0xDEnYO/contracts.git',
       'https://github.com/lifinance/contracts-tron.git',
       origin,
     ])
       expect(
-        createPinnedTargetStateReader({
+        await createPinnedTargetStateReader({
           repoRoot: clone,
           git: {
-            remoteUrl: () => url,
-            fetch: () => {
+            remoteUrl: async () => url,
+            fetch: async () => {
               throw new Error('must not be reached')
             },
-            revParse: () => {
+            revParse: async () => {
               throw new Error('must not be reached')
             },
-            show: () => {
+            show: async () => {
               throw new Error('must not be reached')
             },
           },
@@ -1394,24 +1432,24 @@ describe('createPinnedTargetStateReader', () => {
   // The repository is the right one; the transport is not. A fetch over cleartext
   // is the attacker's to rewrite, and the anchor SHA comes from that same fetch,
   // so nothing downstream can tell the difference.
-  it('refuses the canonical repo over cleartext http', () => {
+  it('refuses the canonical repo over cleartext http', async () => {
     for (const url of [
       'http://github.com/lifinance/contracts.git',
       'http://github.com/lifinance/contracts',
       'http://git@github.com:80/lifinance/contracts.git',
     ])
       expect(
-        createPinnedTargetStateReader({
+        await createPinnedTargetStateReader({
           repoRoot: clone,
           git: {
-            remoteUrl: () => url,
-            fetch: () => {
+            remoteUrl: async () => url,
+            fetch: async () => {
               throw new Error('must not be reached')
             },
-            revParse: () => {
+            revParse: async () => {
               throw new Error('must not be reached')
             },
-            show: () => {
+            show: async () => {
               throw new Error('must not be reached')
             },
           },
@@ -1425,32 +1463,35 @@ describe('createPinnedTargetStateReader', () => {
     expect(remedy).toContain('SSH')
   })
 
-  it('reports a remote it could not read as unreadable, not as the wrong remote', () => {
+  it('reports a remote it could not read as unreadable, not as the wrong remote', async () => {
     let reads = 0
     const reader = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
         ...realGit(clone),
-        remoteUrl: () => {
+        remoteUrl: async () => {
           reads++
           if (reads === 1) throw new Error('git: fork failed')
           return CANONICAL_REMOTE
         },
       },
     })
-    const read = reader()
+    const read = await reader()
     expect(read).toEqual({ ok: false, reason: 'remote-unreadable' })
     if (read.ok) throw new Error('expected a refusal')
     expect(describeTargetStateUnavailable(read.reason)).toContain(
       "could not read this clone's"
     )
-    expect(reader().ok).toBe(true)
+    expect((await reader()).ok).toBe(true)
   })
 
-  it('names the wrong remote rather than a missing one', () => {
-    const read = createPinnedTargetStateReader({
+  it('names the wrong remote rather than a missing one', async () => {
+    const read = await createPinnedTargetStateReader({
       repoRoot: clone,
-      git: { ...realGit(clone), remoteUrl: () => 'git@github.com:evil/x.git' },
+      git: {
+        ...realGit(clone),
+        remoteUrl: async () => 'git@github.com:evil/x.git',
+      },
     })()
     expect(read.ok).toBe(false)
     if (read.ok) throw new Error('expected a refusal')
@@ -1461,7 +1502,7 @@ describe('createPinnedTargetStateReader', () => {
 
   // A clone the proposer supplied can carry a tag named `origin/main`, and git
   // resolves tags before remote-tracking refs.
-  it('reads the remote-tracking ref, not a same-named tag in the clone', () => {
+  it('reads the remote-tracking ref, not a same-named tag in the clone', async () => {
     git(clone, ['checkout', 'main'])
     const shadow = path.join(clone, 'shadow.json')
     fs.writeFileSync(shadow, 'shadow')
@@ -1481,7 +1522,7 @@ describe('createPinnedTargetStateReader', () => {
     git(clone, ['tag', '-f', 'origin/main', shadowCommit])
 
     try {
-      const read = createPinnedTargetStateReader({
+      const read = await createPinnedTargetStateReader({
         repoRoot: clone,
         git: realGit(clone),
       })()
@@ -1495,7 +1536,7 @@ describe('createPinnedTargetStateReader', () => {
     }
   })
 
-  it('accepts every spelling of the canonical remote', () => {
+  it('accepts every spelling of the canonical remote', async () => {
     for (const url of [
       'git@github.com:lifinance/contracts.git',
       'https://github.com/lifinance/contracts.git',
@@ -1504,17 +1545,19 @@ describe('createPinnedTargetStateReader', () => {
       'ssh://git@ssh.github.com:443/lifinance/contracts.git',
     ])
       expect(
-        createPinnedTargetStateReader({
-          repoRoot: clone,
-          git: { ...realGit(clone), remoteUrl: () => url },
-        })().ok
+        (
+          await createPinnedTargetStateReader({
+            repoRoot: clone,
+            git: { ...realGit(clone), remoteUrl: async () => url },
+          })()
+        ).ok
       ).toBe(true)
   })
 
   // Falsifies the refspec rather than asserting the argv: in a clone with no
   // fetch refspec of its own, `git fetch origin main` leaves origin/main where
   // it was, so the anchor would be read stale with no error.
-  it('updates origin/main even where the clone has no fetch refspec', () => {
+  it('updates origin/main even where the clone has no fetch refspec', async () => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-refspec-'))
     try {
       const ownOrigin = path.join(base, 'origin.git')
@@ -1553,7 +1596,7 @@ describe('createPinnedTargetStateReader', () => {
       git(stale, ['fetch', '--quiet', 'origin', 'main'])
       expect(git(stale, ['rev-parse', 'origin/main']).trim()).toBe(before)
 
-      const read = createPinnedTargetStateReader({
+      const read = await createPinnedTargetStateReader({
         repoRoot: stale,
         git: realGit(stale),
       })()
@@ -1567,16 +1610,16 @@ describe('createPinnedTargetStateReader', () => {
     }
   })
 
-  it('reports content that is not a target-state object', () => {
+  it('reports content that is not a target-state object', async () => {
     for (const raw of ['not json', 'null', '[]'])
       expect(
-        createPinnedTargetStateReader({
+        await createPinnedTargetStateReader({
           repoRoot: clone,
           git: {
-            remoteUrl: () => CANONICAL_REMOTE,
-            fetch: () => undefined,
-            show: () => raw,
-            revParse: (ref) => git(clone, ['rev-parse', ref]),
+            remoteUrl: async () => CANONICAL_REMOTE,
+            fetch: async () => undefined,
+            show: async () => raw,
+            revParse: async (ref) => git(clone, ['rev-parse', ref]),
           },
         })()
       ).toEqual({ ok: false, reason: 'invalid-shape' })
@@ -1618,7 +1661,7 @@ describe('createTargetStateDeps', () => {
 
   it('resolves a Tron record recorded in base58 from the hex address a cut carries', () => {
     const resolved = createTargetStateDeps('tron', {
-      readPinnedState: () => ({ ok: true, state: STATE }),
+      readPinnedState: async () => ({ ok: true, state: STATE }),
       cacheRootDir,
     }).resolveDeployed(FACET)
     expect(resolved).toEqual({
@@ -1640,7 +1683,7 @@ describe('createTargetStateDeps', () => {
     )
     expect(
       createTargetStateDeps('optimism', {
-        readPinnedState: () => ({ ok: true, state: STATE }),
+        readPinnedState: async () => ({ ok: true, state: STATE }),
         cacheRootDir,
       }).resolveDeployed(FACET)
     ).toEqual({
@@ -1659,12 +1702,12 @@ describe('createPinnedBlobReader', () => {
     return {
       counts,
       git: {
-        remoteUrl: () => 'git@github.com:lifinance/contracts.git',
-        fetch: () => {
+        remoteUrl: async () => 'git@github.com:lifinance/contracts.git',
+        fetch: async () => {
           counts.fetch += 1
         },
-        revParse: () => 'abc1234\n',
-        show: (revSpec) => {
+        revParse: async () => 'abc1234\n',
+        show: async (revSpec) => {
           counts.show += 1
           const blob = blobs[revSpec.split(':')[1] ?? '']
           if (blob === undefined) throw new Error('no such path')
@@ -1674,78 +1717,166 @@ describe('createPinnedBlobReader', () => {
     }
   }
 
-  it('fetches once however many paths it is asked for', () => {
+  it('fetches once however many paths it is asked for', async () => {
     const { git, counts } = okGit({
       'a.json': '{"a":1}',
       'b.json': '{"b":2}',
     })
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
 
-    expect(read('a.json')).toEqual({ ok: true, value: { a: 1 } })
-    expect(read('b.json')).toEqual({ ok: true, value: { b: 2 } })
+    expect(await read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+    expect(await read('b.json')).toEqual({ ok: true, value: { b: 2 } })
     expect(counts.fetch).toBe(1)
     expect(counts.show).toBe(2)
   })
 
-  it('reads each path once and serves the rest from cache', () => {
+  it('reads each path once and serves the rest from cache', async () => {
     const { git, counts } = okGit({ 'a.json': '{"a":1}' })
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
 
-    read('a.json')
-    read('a.json')
+    await read('a.json')
+    await read('a.json')
     expect(counts.show).toBe(1)
   })
 
-  it('keeps one unreadable path from condemning another', () => {
+  it('shares one read of a path between callers that arrive while it runs', async () => {
+    const { git, counts } = okGit({ 'a.json': '{"a":1}' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    const reads = await Promise.all([read('a.json'), read('a.json')])
+
+    expect(reads).toEqual([
+      { ok: true, value: { a: 1 } },
+      { ok: true, value: { a: 1 } },
+    ])
+    expect(counts.show).toBe(1)
+  })
+
+  it('reads a path again after a fetch failure, which may not recur', async () => {
+    const { git, counts } = okGit({ 'a.json': '{"a":1}' })
+    let fetches = 0
+    const read = createPinnedBlobReader({
+      repoRoot: '/repo',
+      git: {
+        ...git,
+        fetch: async () => {
+          fetches += 1
+          if (fetches === 1) throw new Error('network down')
+        },
+      },
+    })
+
+    expect(await read('a.json')).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(await read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+    expect(counts.show).toBe(1)
+  })
+
+  it('keeps one unreadable path from condemning another', async () => {
     const { git } = okGit({ 'b.json': '{"b":2}' })
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
 
-    expect(read('missing.json')).toEqual({
+    expect(await read('missing.json')).toEqual({
       ok: false,
       reason: 'blob-unreadable',
     })
-    expect(read('b.json')).toEqual({ ok: true, value: { b: 2 } })
+    expect(await read('b.json')).toEqual({ ok: true, value: { b: 2 } })
   })
 
-  it('retries a fetch that failed rather than pinning every later read to it', () => {
+  it('retries a fetch that failed rather than pinning every later read to it', async () => {
     let failing = true
     const git: IPinnedStateGit = {
-      remoteUrl: () => 'git@github.com:lifinance/contracts.git',
-      fetch: () => {
+      remoteUrl: async () => 'git@github.com:lifinance/contracts.git',
+      fetch: async () => {
         if (failing) throw new Error('transient')
       },
-      revParse: () => 'abc1234\n',
-      show: () => '{"a":1}',
+      revParse: async () => 'abc1234\n',
+      show: async () => '{"a":1}',
     }
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
 
-    expect(read('a.json')).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(await read('a.json')).toEqual({ ok: false, reason: 'fetch-failed' })
     failing = false
-    expect(read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+    expect(await read('a.json')).toEqual({ ok: true, value: { a: 1 } })
   })
 
-  it('never fetches from a remote that is not the contracts repo', () => {
+  it('never fetches from a remote that is not the contracts repo', async () => {
     let fetched = 0
     const git: IPinnedStateGit = {
-      remoteUrl: () => 'git@github.com:attacker/contracts.git',
-      fetch: () => {
+      remoteUrl: async () => 'git@github.com:attacker/contracts.git',
+      fetch: async () => {
         fetched += 1
       },
-      revParse: () => 'abc1234\n',
-      show: () => '{"a":1}',
+      revParse: async () => 'abc1234\n',
+      show: async () => '{"a":1}',
     }
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
 
-    expect(read('a.json')).toEqual({ ok: false, reason: 'remote-unexpected' })
-    expect(read('b.json')).toEqual({ ok: false, reason: 'remote-unexpected' })
+    expect(await read('a.json')).toEqual({
+      ok: false,
+      reason: 'remote-unexpected',
+    })
+    expect(await read('b.json')).toEqual({
+      ok: false,
+      reason: 'remote-unexpected',
+    })
     expect(fetched).toBe(0)
   })
 
-  it('refuses a blob that is not a JSON object', () => {
+  it('refuses a blob that is not a JSON object', async () => {
     const { git } = okGit({ 'a.json': '[1,2,3]', 'b.json': 'not json' })
     const read = createPinnedBlobReader({ repoRoot: '/repo', git })
 
-    expect(read('a.json')).toEqual({ ok: false, reason: 'invalid-shape' })
-    expect(read('b.json')).toEqual({ ok: false, reason: 'invalid-shape' })
+    expect(await read('a.json')).toEqual({ ok: false, reason: 'invalid-shape' })
+    expect(await read('b.json')).toEqual({ ok: false, reason: 'invalid-shape' })
+  })
+})
+
+describe('createPinnedStateGit', () => {
+  let bin: string
+  let savedPath: string | undefined
+
+  // A `git` that answers the remote check and then hangs, standing in for a
+  // remote that accepts the connection and never replies.
+  beforeAll(() => {
+    bin = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-hung-git-'))
+    fs.writeFileSync(
+      path.join(bin, 'git'),
+      [
+        '#!/bin/sh',
+        'case "$1" in',
+        '  remote) echo https://github.com/lifinance/contracts.git ;;',
+        '  *) exec sleep 30 ;;',
+        'esac',
+        '',
+      ].join('\n'),
+      { mode: 0o755 }
+    )
+    savedPath = process.env.PATH
+    process.env.PATH = `${bin}${path.delimiter}${savedPath ?? ''}`
+  })
+
+  afterAll(() => {
+    process.env.PATH = savedPath
+    fs.rmSync(bin, { recursive: true, force: true })
+  })
+
+  it('gives each git call sixty seconds', () => {
+    expect(PINNED_GIT_TIMEOUT_MS).toBe(60_000)
+  })
+
+  it('fails a git call that outlives its timeout, without holding the event loop', async () => {
+    let ticked = false
+    setTimeout(() => {
+      ticked = true
+    }, 20)
+    const started = Date.now()
+
+    const anchored = await createPinnedAnchor({
+      git: createPinnedStateGit(os.tmpdir(), 1_500),
+    })()
+
+    expect(anchored).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(Date.now() - started).toBeLessThan(4_500)
+    expect(ticked).toBe(true)
   })
 })

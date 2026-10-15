@@ -26,10 +26,10 @@ export type CommitAvailability =
 
 export interface ICommitAvailabilityDeps {
   /**
-   * Runs git and returns stdout, throwing on a non-zero exit.
+   * Runs git and resolves to stdout, rejecting on a non-zero exit.
    * @param args - argv after `git`
    */
-  git: (args: string[]) => string
+  git: (args: string[]) => Promise<string>
 }
 
 /**
@@ -44,11 +44,11 @@ export interface ICommitAvailabilityDeps {
  * @param options.remote - remote to fetch from; `origin` by default
  * @returns Whether the commit is now readable, and whether a fetch was needed
  */
-export const ensureCommitAvailable = (
+export const ensureCommitAvailable = async (
   sha: string,
   deps: ICommitAvailabilityDeps,
   options?: { remote?: string }
-): CommitAvailability => {
+): Promise<CommitAvailability> => {
   const remote = options?.remote ?? 'origin'
 
   if (!FULL_SHA.test(sha))
@@ -58,19 +58,19 @@ export const ensureCommitAvailable = (
       reason: `Commit lineage: "${sha}" is not a full 40-character commit SHA. A prefix is not accepted: git would resolve it against whatever this checkout happens to contain, and handing it to a fetch is an unbounded request to the remote.`,
     }
 
-  if (hasCommit(sha, deps)) return { ok: true, fetched: false }
+  if (await hasCommit(sha, deps)) return { ok: true, fetched: false }
 
   let lastFailure = 'the remote did not report why'
   for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
     try {
-      deps.git(['fetch', '--quiet', remote, sha])
+      await deps.git(['fetch', '--quiet', remote, sha])
     } catch (error) {
       lastFailure = error instanceof Error ? error.message : String(error)
       continue
     }
     // A fetch that exits zero without producing the object leaves us exactly
     // where we started, so the check is repeated rather than assumed.
-    if (hasCommit(sha, deps)) return { ok: true, fetched: true }
+    if (await hasCommit(sha, deps)) return { ok: true, fetched: true }
     lastFailure = 'the fetch succeeded but the commit is still not readable'
   }
 
@@ -85,10 +85,13 @@ export const ensureCommitAvailable = (
  * @param sha - the commit to look for
  * @param deps - the git runner
  */
-const hasCommit = (sha: string, deps: ICommitAvailabilityDeps): boolean => {
+const hasCommit = async (
+  sha: string,
+  deps: ICommitAvailabilityDeps
+): Promise<boolean> => {
   try {
     // `^{commit}` so a tree or blob sharing the SHA cannot answer for a commit.
-    deps.git(['cat-file', '-e', `${sha}^{commit}`])
+    await deps.git(['cat-file', '-e', `${sha}^{commit}`])
     return true
   } catch {
     return false

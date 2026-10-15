@@ -15,15 +15,10 @@
  * contracts, so falling back to it would report an outage as a clean answer.
  */
 
-import { spawnSync } from 'child_process'
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-} from 'fs'
+import { spawn } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import { cp, mkdir, rename, rm } from 'fs/promises'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -335,7 +330,7 @@ export const createImmutableReferencesResolver = (deps: {
     network: string
   ) => Promise<IDeploymentRecordRef | undefined>
   scopeFor: (network: string) => IToolchainScope
-  build: (request: IRebuildRequest) => IRebuiltArtifact
+  build: (request: IRebuildRequest) => Promise<IRebuiltArtifact>
 }): ((
   address: string,
   network: string
@@ -360,11 +355,13 @@ export const createImmutableReferencesResolver = (deps: {
       )
     const profile = profiles[0]
     if (!profile) return undefined
-    return deps.build({
-      contractName: record.contractName,
-      commit,
-      profile,
-    }).immutableReferences
+    return (
+      await deps.build({
+        contractName: record.contractName,
+        commit,
+        profile,
+      })
+    ).immutableReferences
   }
 }
 
@@ -383,12 +380,13 @@ export interface IForgeRebuildDeps {
   repoRoot: string
   /** Where the per-commit checkouts go. */
   checkoutRoot: string
-  git: (args: string[]) => string
+  /** Resolves to stdout; rejects on a non-zero exit. */
+  git: (args: string[]) => Promise<string>
   run: (
     command: string,
     args: string[],
     options: { cwd: string; env: Record<string, string> }
-  ) => { ok: boolean; output: string }
+  ) => Promise<{ ok: boolean; output: string }>
   exists: (path: string) => boolean
   readFile: (path: string) => string
   /**
@@ -407,10 +405,10 @@ export interface IForgeRebuildDeps {
    * fail is a signing outage.
    */
   artifactCache?: {
-    /** Puts a cached build at `outDir`. Returns false when it holds none. */
-    restore: (key: string, outDir: string) => boolean
+    /** Puts a cached build at `outDir`. Resolves false when it holds none. */
+    restore: (key: string, outDir: string) => Promise<boolean>
     /** Keeps `outDir` for the next run. */
-    save: (key: string, outDir: string) => void
+    save: (key: string, outDir: string) => Promise<void>
   }
 }
 
@@ -498,10 +496,10 @@ const parseFoundryZksyncPin = (toml: string): string | undefined => {
  * @param command - the foundry-zksync forge this build would invoke
  * @throws when the binary is absent, unreadable, or off the pin
  */
-const assertZkToolchainPinned = (
+const assertZkToolchainPinned = async (
   deps: Pick<IForgeRebuildDeps, 'repoRoot' | 'run' | 'exists' | 'readFile'>,
   command: string
-): void => {
+): Promise<void> => {
   const refusal = (why: string): Error =>
     new Error(
       `zkEVM toolchain problem, not a codehash verdict: ${why}. Nothing about the deployment has been established — to make this checkable, ${ZK_INSTALL_HINT}.`
@@ -518,7 +516,7 @@ const assertZkToolchainPinned = (
   if (!deps.exists(command))
     throw refusal(`no foundry-zksync forge at ${command}`)
 
-  const probe = deps.run(command, ['--version'], {
+  const probe = await deps.run(command, ['--version'], {
     cwd: deps.repoRoot,
     env: {},
   })
@@ -547,11 +545,17 @@ const assertZkToolchainPinned = (
  * @param checkout - absolute path of the detached worktree
  * @throws when any submodule row is not cleanly pinned
  */
-const assertSubmodulesPinned = (
-  git: (args: string[]) => string,
+const assertSubmodulesPinned = async (
+  git: IForgeRebuildDeps['git'],
   checkout: string
-): void => {
-  const status = git(['-C', checkout, 'submodule', 'status', '--recursive'])
+): Promise<void> => {
+  const status = await git([
+    '-C',
+    checkout,
+    'submodule',
+    'status',
+    '--recursive',
+  ])
   const drifted = status
     .split('\n')
     .map((line) => line.trimEnd())
@@ -598,11 +602,11 @@ const isBuildOutputName = (name: string): boolean => {
  * @param checkout - absolute path of the detached worktree
  * @throws when any tracked path sits under a build output or cache directory
  */
-const assertNoTrackedBuildOutput = (
-  git: (args: string[]) => string,
+const assertNoTrackedBuildOutput = async (
+  git: IForgeRebuildDeps['git'],
   checkout: string
-): void => {
-  const tracked = git(['-C', checkout, 'ls-files', '-z'])
+): Promise<void> => {
+  const tracked = (await git(['-C', checkout, 'ls-files', '-z']))
     .split('\0')
     .filter(
       (path) => path.length > 0 && isBuildOutputName(path.split('/')[0] ?? '')
@@ -714,13 +718,13 @@ const resolveCheckoutBuildEnv = (
 }
 
 export interface IForgeRebuildRunner {
-  build: (request: IRebuildRequest) => IRebuiltArtifact
-  /** Throws for a non-zk profile, and when the AST build fails. */
+  build: (request: IRebuildRequest) => Promise<IRebuiltArtifact>
+  /** Rejects for a non-zk profile, and when the AST build fails. */
   declarationsAt: (
     commit: string,
     profile: IBuildProfile
-  ) => IDeclaredImmutables
-  cleanup: () => void
+  ) => Promise<IDeclaredImmutables>
+  cleanup: () => Promise<void>
 }
 
 /**
@@ -740,6 +744,11 @@ export interface IForgeRebuildRunner {
  * covering a cancun network and a london one — so a shared directory would hand
  * the second profile the first one's artifact.
  *
+ * Builds and declaration reads run one at a time, in the order they were asked
+ * for: they share checkouts and output directories, so a second request for a
+ * commit still being checked out or compiled would otherwise run
+ * `worktree add`, or forge, into the same directory twice.
+ *
  * @param deps - the checkout locations and the git, process and file primitives
  * @returns The `build` dependency, the zk declarations read from the same
  * checkouts, and a cleanup for the checkouts it made
@@ -753,7 +762,28 @@ export const createForgeRebuildRunner = (
   // into them, so everything they hold since was written by this run.
   const vettedOutDirs = new Set<string>()
 
-  const checkoutAt = (commit: string): string => {
+  // Set by `cleanup`, which runs outside the queue: a turn that starts after
+  // teardown would add a worktree nothing is left to remove.
+  let closed = false
+  const refuseAfterCleanup = (): void => {
+    if (closed)
+      throw new Error(
+        'the rebuild runner was cleaned up, so no further checkout or build may start'
+      )
+  }
+
+  let queue: Promise<unknown> = Promise.resolve()
+  const exclusive = <T>(work: () => Promise<T>): Promise<T> => {
+    const turn = queue.then(() => {
+      refuseAfterCleanup()
+      return work()
+    })
+    // A failed turn is its caller's to handle, never the next caller's.
+    queue = turn.catch(() => undefined)
+    return turn
+  }
+
+  const checkoutAt = async (commit: string): Promise<string> => {
     // The commit comes from a Mongo row and reaches both a path join and git's
     // argv. `ensureCommitAvailable` checks the same shape, but it runs in a
     // different module on a different call, so this does not rely on ordering.
@@ -763,22 +793,54 @@ export const createForgeRebuildRunner = (
       )
     const checkout = join(deps.checkoutRoot, commit)
     if (!deps.exists(checkout)) {
-      deps.git(['worktree', 'add', '--detach', checkout, commit])
+      await deps.git(['worktree', 'add', '--detach', checkout, commit])
+      // A teardown that ran while this add was in flight has already walked
+      // `created`, so the checkout is removed here instead.
+      if (closed) {
+        await deps
+          .git(['worktree', 'remove', '--force', checkout])
+          .catch(() => undefined)
+        refuseAfterCleanup()
+      }
       created.add(checkout)
     }
     return checkout
   }
 
-  const pinSubmodules = (checkout: string): void => {
+  const pinSubmodules = async (checkout: string): Promise<void> => {
     // `worktree add --detach` does not populate `lib/`. Without pinning,
     // forge's auto-install clones at tip revisions and the rebuilt runtime
     // cannot match what was deployed — every cut grades MISMATCH.
-    deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
-    assertSubmodulesPinned(deps.git, checkout)
+    await deps.git([
+      '-C',
+      checkout,
+      'submodule',
+      'update',
+      '--init',
+      '--recursive',
+    ])
+    await assertSubmodulesPinned(deps.git, checkout)
   }
 
-  const build = (request: IRebuildRequest): IRebuiltArtifact => {
-    const checkout = checkoutAt(request.commit)
+  // Every artifact's AST is parsed to read these, and one target asks for the
+  // same output directory up to three times, so the parse is kept until a
+  // restore or build writes into that directory again.
+  const outDeclarations = new Map<string, IDeclaredImmutables>()
+  const declarationsIn = (
+    outPath: string,
+    checkout: string
+  ): IDeclaredImmutables => {
+    const known = outDeclarations.get(outPath)
+    if (known) return known
+    const read = deps.readDeclarations(outPath, checkout)
+    outDeclarations.set(outPath, read)
+    return read
+  }
+
+  const buildNow = async (
+    request: IRebuildRequest
+  ): Promise<IRebuiltArtifact> => {
+    const checkout = await checkoutAt(request.commit)
 
     // The zk toolchain writes to `zkout/` and ignores `--out`, so the path the
     // artifact is read from has to follow the toolchain rather than the flag,
@@ -797,7 +859,7 @@ export const createForgeRebuildRunner = (
     )
 
     if (!vettedCheckouts.has(checkout)) {
-      assertNoTrackedBuildOutput(deps.git, checkout)
+      await assertNoTrackedBuildOutput(deps.git, checkout)
       vettedCheckouts.add(checkout)
     }
     // Catches what the tracked listing cannot: a checkout left behind under
@@ -829,17 +891,20 @@ export const createForgeRebuildRunner = (
     // toolchain sends every profile to `zkout`, so a key spelled from the
     // directory alone would serve one zksolc version's build as another's.
     const cacheKey = `${request.commit}-${request.profile.profile}-${outDir}`
-    if (!usable()) deps.artifactCache?.restore(cacheKey, outPath)
+    if (!usable()) {
+      await deps.artifactCache?.restore(cacheKey, outPath)
+      outDeclarations.delete(outPath)
+    }
 
     if (!usable()) {
-      pinSubmodules(checkout)
+      await pinSubmodules(checkout)
 
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
       // The pin check first: a missing or off-pin zk toolchain names the drift
       // precisely, and a profile refusal in front of it would mask that.
-      if (isZk) assertZkToolchainPinned(deps, command)
+      if (isZk) await assertZkToolchainPinned(deps, command)
       const checkoutEnv = resolveCheckoutBuildEnv(
         deps,
         checkout,
@@ -872,7 +937,8 @@ export const createForgeRebuildRunner = (
           : {}),
       }
 
-      const result = deps.run(command, args, { cwd: checkout, env })
+      const result = await deps.run(command, args, { cwd: checkout, env })
+      outDeclarations.delete(outPath)
       if (!result.ok)
         throw new Error(
           `rebuilding ${request.contractName} at ${request.commit.slice(
@@ -893,7 +959,7 @@ export const createForgeRebuildRunner = (
       // Only a build this run made and can vouch for. Keyed on the commit and
       // the profile, which is what determines the output — a key that named
       // neither would serve one commit's bytecode as another's.
-      if (usable()) deps.artifactCache?.save(cacheKey, outPath)
+      if (usable()) await deps.artifactCache?.save(cacheKey, outPath)
     }
 
     let parsed: {
@@ -929,9 +995,9 @@ export const createForgeRebuildRunner = (
     // Read from the build's own output directory and resolved against its own
     // checkout, so both the ids and the line numbers describe the commit being
     // graded rather than whatever the operator has checked out.
-    const declarations = deps
-      .readDeclarations(outPath, checkout)
-      .declarations.filter((one) => one.contract === request.contractName)
+    const declarations = declarationsIn(outPath, checkout).declarations.filter(
+      (one) => one.contract === request.contractName
+    )
 
     return {
       runtimeHex,
@@ -961,10 +1027,10 @@ export const createForgeRebuildRunner = (
    * these declarations against anything, so a cached set with a declaration
    * stripped would grade `none` on every later run.
    */
-  const declarationsAt = (
+  const declarationsNow = async (
     commit: string,
     profile: IBuildProfile
-  ): IDeclaredImmutables => {
+  ): Promise<IDeclaredImmutables> => {
     if (profile.zksolcVersion === undefined)
       throw new Error(
         `profile ${profile.profile} is not a zk lineage, and an EVM lineage's declarations come from its own rebuild`
@@ -973,7 +1039,7 @@ export const createForgeRebuildRunner = (
     const memoised = zkDeclarations.get(key)
     if (memoised) return memoised
 
-    const checkout = checkoutAt(commit)
+    const checkout = await checkoutAt(commit)
     const buildRoot = join(deps.checkoutRoot, ZK_DECLARATIONS_DIR, key)
     const outPath = join(buildRoot, 'out')
 
@@ -981,12 +1047,12 @@ export const createForgeRebuildRunner = (
     // these declarations, so no artifact this build did not just write — a
     // partial one from a failed attempt included — may be read with them.
     rmSync(buildRoot, { recursive: true, force: true })
-    pinSubmodules(checkout)
+    await pinSubmodules(checkout)
     // The same sources the zksolc build compiles: no path argument, so the
     // commit's own `src` setting applies to both. Naming `src` here while its
     // profile points elsewhere would read declarations from a tree layer 1 never
     // built.
-    const result = deps.run(
+    const result = await deps.run(
       'forge',
       [
         'build',
@@ -1030,12 +1096,16 @@ export const createForgeRebuildRunner = (
   }
 
   return {
-    build,
-    declarationsAt,
-    cleanup: (): void => {
+    build: (request) => exclusive(() => buildNow(request)),
+    declarationsAt: (commit, profile) =>
+      exclusive(() => declarationsNow(commit, profile)),
+    // Outside the queue: a caller that gave up on a rebuild still running —
+    // the watcher's timeout — must be able to tear down without waiting for it.
+    cleanup: async (): Promise<void> => {
+      closed = true
       for (const checkout of created)
         try {
-          deps.git(['worktree', 'remove', '--force', checkout])
+          await deps.git(['worktree', 'remove', '--force', checkout])
         } catch {
           // A checkout left behind costs disk, not correctness, and this runs
           // in a `finally` beside the Ledger teardown.
@@ -1110,31 +1180,33 @@ export const defaultArtifactCacheRoot = (): string =>
 export const createArtifactCache = (
   root: string = defaultArtifactCacheRoot()
 ): NonNullable<IForgeRebuildDeps['artifactCache']> => ({
-  restore: (key, outDir) => {
+  restore: async (key, outDir) => {
     const cached = join(root, key)
     try {
       if (!existsSync(cached)) return false
-      cpSync(cached, outDir, { recursive: true })
+      await cp(cached, outDir, { recursive: true })
       return true
     } catch {
       return false
     }
   },
-  save: (key, outDir) => {
+  save: async (key, outDir) => {
     // Staged under this process and moved into place in one step, so a run that
     // dies mid-copy cannot leave a half-written build where the next run reads
     // a whole one. The rename loses to whichever process got there first, and
     // losing is fine — both copies are builds of the same commit.
-    const staged = join(root, `.staging-${process.pid}-${key}`)
+    // Per save, not per process: two runners in one process can save the same
+    // key while each copy is still in flight.
+    const staged = join(root, `.staging-${process.pid}-${randomUUID()}-${key}`)
     try {
-      mkdirSync(root, { recursive: true })
-      cpSync(outDir, staged, { recursive: true })
-      renameSync(staged, join(root, key))
+      await mkdir(root, { recursive: true })
+      await cp(outDir, staged, { recursive: true })
+      await rename(staged, join(root, key))
     } catch {
       try {
-        rmSync(staged, { recursive: true, force: true })
+        await rm(staged, { recursive: true, force: true })
       } catch {
-        // Disk, not correctness, and the next save overwrites the staging path.
+        // Disk, not correctness.
       }
     }
   },
@@ -1363,8 +1435,8 @@ export const createRecordedImmutableDeclarations = (deps: {
 }): ((
   record: IDeploymentRecordRef,
   network: string
-) => IRecordedImmutableDeclarations) => {
-  return (record, network) => {
+) => Promise<IRecordedImmutableDeclarations>) => {
+  return async (record, network) => {
     const commit = record.gitCommitHash.trim()
     if (commit === '' || commit === UNKNOWN_COMMIT)
       throw new Error(
@@ -1376,7 +1448,7 @@ export const createRecordedImmutableDeclarations = (deps: {
       throw new Error(
         `${network} resolves to ${profiles.length} build profiles, so no single rebuild says which immutables ${record.contractName} declares`
       )
-    const all = deps.declarationsAt(commit, profile)
+    const all = await deps.declarationsAt(commit, profile)
     const files = [...(all.definitions.get(record.contractName) ?? [])]
     const [file] = files
     if (file === undefined) return { covered: false, declarations: [] }
@@ -1430,14 +1502,14 @@ export const createOffCodeImmutablesReader = (deps: {
   declarationsFor: (
     record: IDeploymentRecordRef,
     network: string
-  ) => IRecordedImmutableDeclarations
+  ) => Promise<IRecordedImmutableDeclarations>
   getImmutable: (
     network: string,
     address: string,
     index: number
   ) => Promise<string>
-  loadRequirements: () => DeployRequirements
-  loadConfigFile: (fileName: string) => unknown
+  loadRequirements: IImmutableExpectationSource['loadRequirements']
+  loadConfigFile: IImmutableExpectationSource['loadConfigFile']
 }): ((address: string, network: string) => Promise<IOffCodeImmutables>) => {
   const refused = (reason: string): IOffCodeImmutables => ({
     declared: 'some',
@@ -1457,7 +1529,7 @@ export const createOffCodeImmutablesReader = (deps: {
 
     let recorded: IRecordedImmutableDeclarations
     try {
-      recorded = deps.declarationsFor(record, network)
+      recorded = await deps.declarationsFor(record, network)
     } catch (error) {
       return refused(
         `which immutables ${
@@ -1494,21 +1566,110 @@ export const createOffCodeImmutablesReader = (deps: {
     if (!('ok' in observed))
       return { declared: 'some', pricing: observed, slotByName: {} }
 
+    const requirements = await deps.loadRequirements()
     return {
       declared: 'some',
-      pricing: priceImmutables(
-        {
-          contractName: record.contractName,
-          observed: observed.observed,
-          network,
-          environment: EnvironmentEnum.production,
-          address,
-        },
-        deps.loadRequirements(),
+      pricing: await priceWithLoadedConfig(
+        (loadConfigFile) =>
+          priceImmutables(
+            {
+              contractName: record.contractName,
+              observed: observed.observed,
+              network,
+              environment: EnvironmentEnum.production,
+              address,
+            },
+            requirements,
+            loadConfigFile
+          ),
         deps.loadConfigFile
       ),
       slotByName: numbered.ordinals,
     }
+  }
+}
+
+/**
+ * Runs a process to completion without holding the event loop.
+ *
+ * The gate's evidence is computed while the signer's other requests are in
+ * flight, and a compile takes tens of seconds: run synchronously, it lets a
+ * request's timeout fire before the reply already sitting in its socket is read.
+ *
+ * Never rejects. A process that could not start at all — no such binary, no
+ * such directory — reports a null status.
+ *
+ * @param command - the binary to run
+ * @param args - its argv
+ * @param options.cwd - where it runs
+ * @param options.env - its whole environment
+ * @returns The exit status and everything written to stdout and stderr
+ */
+const collectProcess = (
+  command: string,
+  args: string[],
+  options: { cwd: string; env: NodeJS.ProcessEnv }
+): Promise<{ status: number | null; stdout: string; stderr: string }> =>
+  new Promise((resolve) => {
+    let stdout = ''
+    let stderr = ''
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk
+    })
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk
+    })
+    child.on('error', () => resolve({ status: null, stdout, stderr }))
+    child.on('close', (status) => resolve({ status, stdout, stderr }))
+  })
+
+/**
+ * Runs git in this repository, off the event loop.
+ *
+ * @param args - argv after `git`
+ * @returns stdout
+ * @throws When git exits non-zero, with its output passed through `redactUrls`
+ */
+export const runRepoGit = async (args: string[]): Promise<string> => {
+  const result = await collectProcess('git', args, {
+    cwd: REPO_ROOT,
+    env: process.env,
+  })
+  if (result.status !== 0)
+    throw new Error(
+      redactUrls(`git ${args[0]} failed: ${result.stderr}${result.stdout}`)
+    )
+  return result.stdout
+}
+
+/**
+ * Runs a build command, off the event loop.
+ *
+ * @param command - the binary to run
+ * @param args - its argv
+ * @param options.cwd - where it runs
+ * @param options.env - added to this process's environment
+ * @returns Whether it exited zero, and its stdout followed by its stderr
+ */
+export const runCommand = async (
+  command: string,
+  args: string[],
+  options: { cwd: string; env: Record<string, string> }
+): Promise<{ ok: boolean; output: string }> => {
+  const result = await collectProcess(command, args, {
+    cwd: options.cwd,
+    env: { ...process.env, ...options.env },
+  })
+  return {
+    ok: result.status === 0,
+    output: `${result.stdout}${result.stderr}`,
   }
 }
 
@@ -1520,7 +1681,7 @@ export const createSignTimeCodehashDeps = (overrides: {
    * The caller's pinned reader, so every sign-time gate grades against one
    * commit. Required so that a caller cannot fall back to a second anchor.
    */
-  readPinnedBlob: (repoPath: string) => PinnedJsonRead
+  readPinnedBlob: (repoPath: string) => Promise<PinnedJsonRead>
   rebuild?: IForgeRebuildRunner
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
@@ -1532,35 +1693,13 @@ export const createSignTimeCodehashDeps = (overrides: {
   const checkoutRoot = overrides.checkoutRoot ?? defaultCheckoutRoot()
   mkdirSync(checkoutRoot, { recursive: true })
 
-  const git = (args: string[]): string => {
-    const result = spawnSync('git', args, {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-    })
-    if (result.status !== 0)
-      throw new Error(
-        redactUrls(
-          `git ${args[0]} failed: ${result.stderr ?? ''}${result.stdout ?? ''}`
-        )
-      )
-    return result.stdout ?? ''
-  }
+  const git = runRepoGit
 
   const forgeRebuild = createForgeRebuildRunner({
     repoRoot: REPO_ROOT,
     checkoutRoot,
     git,
-    run: (command, args, options) => {
-      const result = spawnSync(command, args, {
-        cwd: options.cwd,
-        env: { ...process.env, ...options.env },
-        encoding: 'utf8',
-      })
-      return {
-        ok: result.status === 0,
-        output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
-      }
-    },
+    run: runCommand,
     exists: existsSync,
     readFile: (path) => readFileSync(path, 'utf8'),
     readDeclarations: readImmutableDeclarations,
@@ -1622,7 +1761,7 @@ export const createSignTimeCodehashDeps = (overrides: {
     }),
     attestationsFor: attestations.attestationsFor,
     close: async (): Promise<void> => {
-      rebuild.cleanup()
+      await rebuild.cleanup()
       await closeMongoRecordSource()
       try {
         rmSync(checkoutRoot, { recursive: true, force: true })
@@ -1844,8 +1983,42 @@ const REGISTRY_REPO_PATH = 'script/deploy/resources/immutableRegistry.json'
 
 /** What layer 2 prices against: the joined requirements and the config they point into. */
 export interface IImmutableExpectationSource {
-  loadRequirements: () => DeployRequirements
-  loadConfigFile: (fileName: string) => unknown
+  loadRequirements: () => Promise<DeployRequirements>
+  loadConfigFile: (fileName: string) => Promise<unknown>
+}
+
+/**
+ * Runs a pricing whose config reads are synchronous against a loader that is not.
+ *
+ * Which config files a pricing reads depends on the requirements and nothing
+ * else, and the pricing itself is pure, so it is re-run with every file it asked
+ * for loaded until it asks for none it lacks. That reads exactly the files the
+ * pricing reads — no more, so a file it never consults cannot fail the run.
+ *
+ * @param price - the pricing, given a synchronous config reader
+ * @param loadConfigFile - the asynchronous config reader behind it
+ * @returns What the pricing answers once every file it reads is loaded
+ */
+const priceWithLoadedConfig = async <T>(
+  price: (loadConfigFile: (fileName: string) => unknown) => T,
+  loadConfigFile: IImmutableExpectationSource['loadConfigFile']
+): Promise<T> => {
+  const loaded = new Map<string, unknown>()
+  for (;;) {
+    const missing = new Set<string>()
+    const priced = price((fileName) => {
+      if (loaded.has(fileName)) return loaded.get(fileName)
+      missing.add(fileName)
+      return null
+    })
+    if (missing.size === 0) return priced
+    const entries = await Promise.all(
+      [...missing].map(
+        async (fileName) => [fileName, await loadConfigFile(fileName)] as const
+      )
+    )
+    for (const [fileName, value] of entries) loaded.set(fileName, value)
+  }
 }
 
 /**
@@ -1868,32 +2041,34 @@ export interface IImmutableExpectationSource {
  * @returns The `loadRequirements` and `loadConfigFile` layer 2 prices through
  */
 export const createPinnedImmutableExpectations = (
-  readPinnedBlob: (repoPath: string) => PinnedJsonRead
+  readPinnedBlob: (repoPath: string) => Promise<PinnedJsonRead>
 ): IImmutableExpectationSource => {
   const unavailable = (repoPath: string, reason: string): Error =>
     new Error(
       `${repoPath} could not be read at ${PINNED_REF} (${reason}), so no immutable expectation could be established`
     )
 
-  const read = (repoPath: string): Record<string, unknown> => {
-    const blob = readPinnedBlob(repoPath)
+  const read = async (repoPath: string): Promise<Record<string, unknown>> => {
+    const blob = await readPinnedBlob(repoPath)
     if (!blob.ok) throw unavailable(repoPath, blob.reason)
     return blob.value
   }
 
   return {
-    loadRequirements: () =>
-      mergeRequirements(
-        read(REQUIREMENTS_REPO_PATH) as DeployRequirements,
-        read(REGISTRY_REPO_PATH) as Record<
-          string,
-          Record<string, IImmutableEntry>
-        >
-      ),
-    loadConfigFile: (fileName: string): unknown => {
+    loadRequirements: async () => {
+      const [requirements, registry] = await Promise.all([
+        read(REQUIREMENTS_REPO_PATH),
+        read(REGISTRY_REPO_PATH),
+      ])
+      return mergeRequirements(
+        requirements as DeployRequirements,
+        registry as Record<string, Record<string, IImmutableEntry>>
+      )
+    },
+    loadConfigFile: async (fileName: string): Promise<unknown> => {
       if (!isValidConfigFileName(fileName)) return null
       const repoPath = `config/${fileName}`
-      const blob = readPinnedBlob(repoPath)
+      const blob = await readPinnedBlob(repoPath)
       if (blob.ok) return blob.value
       if (blob.reason === 'blob-unreadable' || blob.reason === 'invalid-shape')
         return null
@@ -1931,9 +2106,9 @@ export const createImmutablePricer = (deps: {
     network: string
   ) => Promise<IDeploymentRecordRef | undefined>
   scopeFor: (network: string) => IToolchainScope
-  build: (request: IRebuildRequest) => IRebuiltArtifact
-  loadRequirements: () => DeployRequirements
-  loadConfigFile: (fileName: string) => unknown
+  build: (request: IRebuildRequest) => Promise<IRebuiltArtifact>
+  loadRequirements: IImmutableExpectationSource['loadRequirements']
+  loadConfigFile: IImmutableExpectationSource['loadConfigFile']
 }): ((
   address: string,
   network: string,
@@ -1972,7 +2147,7 @@ export const createImmutablePricer = (deps: {
         reason: `${network} resolves to no build profile, so there is no build to read immutable offsets from`,
       }
 
-    const artifact = deps.build({
+    const artifact = await deps.build({
       contractName: record.contractName,
       commit,
       profile,
@@ -1999,15 +2174,20 @@ export const createImmutablePricer = (deps: {
     // `immutable-expectations` narrows the same union.
     if (!('ok' in observed)) return observed
 
-    return priceImmutables(
-      {
-        contractName: record.contractName,
-        observed: observed.observed,
-        network,
-        environment: EnvironmentEnum.production,
-        address,
-      },
-      deps.loadRequirements(),
+    const requirements = await deps.loadRequirements()
+    return priceWithLoadedConfig(
+      (loadConfigFile) =>
+        priceImmutables(
+          {
+            contractName: record.contractName,
+            observed: observed.observed,
+            network,
+            environment: EnvironmentEnum.production,
+            address,
+          },
+          requirements,
+          loadConfigFile
+        ),
       deps.loadConfigFile
     )
   }

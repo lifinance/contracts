@@ -167,8 +167,8 @@ describe('the shadow runner over the real repository corpus', () => {
   // unreadable" about a checkout that could read none of them. In a full clone
   // the gate genuinely cannot refuse, so nothing over the real corpus can catch
   // that mutation there; the injected-reader plant further down is what does.
-  it('grades commit availability against what this checkout can read', () => {
-    const budget = gradeCommitAvailability(repo)
+  it('grades commit availability against what this checkout can read', async () => {
+    const budget = await gradeCommitAvailability(repo)
     const unreadable = repo.slots
       .filter((s) => !repo.hasCommit(s.commit))
       .map((s) => `${s.network}/${s.contractName}@${s.version}`)
@@ -542,12 +542,12 @@ describe('what the report discloses is derived, not asserted', () => {
     expect(none).toContain('this gate grades 1 rows instead')
   })
 
-  it('says whether commits were unreadable rather than asserting they were not', () => {
-    const clean = gradeCommitAvailability(corpus())
+  it('says whether commits were unreadable rather than asserting they were not', async () => {
+    const clean = await gradeCommitAvailability(corpus())
     expect(clean.coverageNote).toContain('0 of them unreadable')
     expect(clean.coverageNote).toContain('measured on 0')
 
-    const truncated = gradeCommitAvailability(
+    const truncated = await gradeCommitAvailability(
       corpus({ hasCommit: () => false })
     )
     expect(truncated.coverageNote).toContain('1 of them unreadable')
@@ -735,15 +735,15 @@ describe('falsification demo — the runner can report a defect', () => {
     expect(budget.falseRefusalRate).toBe(1)
   })
 
-  it('surfaces an unreadable commit on the commit-availability gate', () => {
-    const withPlant = gradeCommitAvailability(
+  it('surfaces an unreadable commit on the commit-availability gate', async () => {
+    const withPlant = await gradeCommitAvailability(
       corpus({ hasCommit: () => false })
     )
     expect(withPlant.refusals).toBe(1)
     expect(withPlant.unexplained).toBe(1)
     expect(evaluatePromotion(withPlant).mayEnforce).toBe(false)
 
-    const withoutPlant = gradeCommitAvailability(corpus())
+    const withoutPlant = await gradeCommitAvailability(corpus())
     expect(withoutPlant.refusals).toBe(0)
     expect(evaluatePromotion(withoutPlant).mayEnforce).toBe(true)
   })
