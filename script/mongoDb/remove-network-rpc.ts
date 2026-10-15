@@ -112,13 +112,13 @@ const main = defineCommand({
       const environmentMatch =
         environment === 'production'
           ? { $in: ['production', null] }
-          : environment
+          : mongoEq(environment)
       const result = await collection.updateOne(
         { chainName: mongoEq(network) },
         {
           $set: { lastUpdated: new Date() },
           $pull: {
-            rpcs: { url: target.url, environment: environmentMatch },
+            rpcs: { url: mongoEq(target.url), environment: environmentMatch },
           } as never,
         }
       )
