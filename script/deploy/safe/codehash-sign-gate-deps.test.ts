@@ -2262,6 +2262,26 @@ describe('the subprocess primitives the rebuild runs on', () => {
     expect(Date.now() - started).toBeLessThan(5_000)
   })
 
+  it('settles a killed command only once it has exited', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codehash-kill-'))
+    const marker = join(dir, 'exited')
+    const teardown = new AbortController()
+    const running = runCommand(
+      'sh',
+      [
+        '-c',
+        `trap 'sleep 0.3; touch "${marker}"; exit 1' TERM; while :; do sleep 0.05; done`,
+      ],
+      { cwd: dir, env: {}, signal: teardown.signal }
+    )
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    teardown.abort()
+
+    expect((await running).ok).toBe(false)
+    expect(existsSync(marker)).toBe(true)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   it('rejects a git call its signal aborts', async () => {
     const teardown = new AbortController()
     teardown.abort()

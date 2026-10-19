@@ -1636,7 +1636,11 @@ const collectProcess = (
     child.stderr.on('data', (chunk: string) => {
       stderr += chunk
     })
-    child.on('error', () => resolve({ status: null, stdout, stderr }))
+    // An abort emits 'error' as soon as the kill is sent, while the child may
+    // still be running; only a child that never started settles on it.
+    child.on('error', () => {
+      if (child.pid === undefined) resolve({ status: null, stdout, stderr })
+    })
     child.on('close', (status) => resolve({ status, stdout, stderr }))
   })
 
