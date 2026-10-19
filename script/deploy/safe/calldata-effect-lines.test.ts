@@ -33,6 +33,7 @@ import {
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
 import { buildCalldataEffectLines } from './calldata-effect-lines'
+import * as safeDecodeUtils from './safe-decode-utils'
 import * as selectorRegistry from './selector-registry'
 
 // The 4byte answers for the selectors these tests leave to the fallback; any
@@ -44,6 +45,10 @@ const FOUR_BYTE: Record<string, string> = {
   [toFunctionSelector('fixtureWhitelistAlpha()')]: 'fixtureWhitelistAlpha()',
   [toFunctionSelector('fixtureWhitelistBeta()')]: 'fixtureWhitelistBeta()',
 }
+// A 4byte name that hashes to its selector yet carries a terminal escape which
+// clears the screen; `plain()` strips only colour codes, so it survives there.
+const HOSTILE_SIGNATURE = 'fixtureEvil\u001b[2Jx()'
+FOUR_BYTE[toFunctionSelector(HOSTILE_SIGNATURE)] = HOSTILE_SIGNATURE
 // A lookup batch holding this selector fails the way an unreachable 4byte does.
 const FOUR_BYTE_UNREACHABLE = '0x0badf00d'
 
@@ -737,8 +742,39 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
         [ROUTE_SINGLE, TRANSFER_OWNERSHIP, NOBODY]
       )
     )
+    expect(lines).toContain(`${ROUTE_SINGLE}  routeSingle((uint8,bytes),bytes)`)
+    expect(lines).toContain(`${TRANSFER_OWNERSHIP}  transferOwnership(address)`)
+    expect(lines).toContain(`${NOBODY}  no name for this selector`)
     expect(lines).not.toContain('✓')
     expect(lines).not.toContain('✗')
+  })
+
+  it('skips a whitelist signature that does not hash to its selector', async () => {
+    const lookup = spyOn(
+      safeDecodeUtils,
+      'lookupWhitelistMetaForContractSelector'
+    ).mockReturnValue({ signature: 'drainEverything()' })
+    try {
+      const lines = await renderOn(
+        NETWORK,
+        whitelist([FACET, FACET], [TRANSFER_OWNERSHIP, ALPHA])
+      )
+      expect(lines).not.toContain('drainEverything')
+      expect(lines).toContain(
+        `${TRANSFER_OWNERSHIP}  transferOwnership(address)`
+      )
+      expect(lines).toContain(`${ALPHA}  fixtureWhitelistAlpha()`)
+    } finally {
+      lookup.mockRestore()
+    }
+  })
+
+  it('renders a hostile 4byte name inert', async () => {
+    const hostile = toFunctionSelector(HOSTILE_SIGNATURE)
+    const lines = await renderOn(NETWORK, whitelist([FACET], [hostile]))
+    expect(lines).toContain(`${hostile}  fixtureEvil`)
+    expect(lines).not.toContain('\u001b[2J')
+    expect(lines).toContain('sanitised')
   })
 
   it('reports arrays that disagree on length', async () => {
