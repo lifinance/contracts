@@ -997,6 +997,29 @@ describe('createPinnedSourceVersionReader', () => {
     expect(shows).toBe(2)
   })
 
+  it('reads a contract again after an attempt that threw', async () => {
+    let anchors = 0
+    const reader = createPinnedSourceVersionReader({
+      repoRoot: clone,
+      git: realGit(clone),
+      anchor: async () => {
+        anchors += 1
+        if (anchors === 1) throw new Error('anchor exploded')
+        return { ok: true, revision: 'origin/main' }
+      },
+    })
+
+    let thrown = ''
+    try {
+      await reader('AFacet')
+    } catch (error) {
+      thrown = String(error)
+    }
+
+    expect(thrown).toContain('anchor exploded')
+    expect(await reader('AFacet')).toEqual({ ok: true, version: '1.2.0' })
+  })
+
   it('finds a contract under src/Periphery', async () => {
     expect(await read()('APeriphery')).toEqual({ ok: true, version: '3.1.0' })
   })
@@ -1750,6 +1773,30 @@ describe('createPinnedBlobReader', () => {
       { ok: true, value: { a: 1 } },
     ])
     expect(counts.show).toBe(1)
+  })
+
+  it('reads a path again after an attempt that threw', async () => {
+    const { git } = okGit({ 'a.json': '{"a":1}' })
+    let anchors = 0
+    const read = createPinnedBlobReader({
+      repoRoot: '/repo',
+      git,
+      anchor: async () => {
+        anchors += 1
+        if (anchors === 1) throw new Error('anchor exploded')
+        return { ok: true, revision: 'abc1234' }
+      },
+    })
+
+    let thrown = ''
+    try {
+      await read('a.json')
+    } catch (error) {
+      thrown = String(error)
+    }
+
+    expect(thrown).toContain('anchor exploded')
+    expect(await read('a.json')).toEqual({ ok: true, value: { a: 1 } })
   })
 
   it('reads a path again after a fetch failure, which may not recur', async () => {

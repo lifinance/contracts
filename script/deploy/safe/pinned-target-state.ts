@@ -736,10 +736,16 @@ export const createPinnedAnchor = (options?: {
     // Failures are kept only when they cannot change within the process, so a
     // stored one is as final as a success.
     if (memo) return memo
-    const attempt = establish().then(({ read, final }) => {
-      if (!final) memo = undefined
-      return read
-    })
+    const attempt = establish().then(
+      ({ read, final }) => {
+        if (!final) memo = undefined
+        return read
+      },
+      (error: unknown) => {
+        memo = undefined
+        throw error
+      }
+    )
     memo = attempt
     return attempt
   }
@@ -807,10 +813,16 @@ export const createPinnedBlobReader = (options?: {
     // kept afterwards only when final, as the anchor does.
     const known = blobs.get(repoPath)
     if (known) return known
-    const attempt = readBlob(repoPath).then(({ read, final }) => {
-      if (!final) blobs.delete(repoPath)
-      return read
-    })
+    const attempt = readBlob(repoPath).then(
+      ({ read, final }) => {
+        if (!final) blobs.delete(repoPath)
+        return read
+      },
+      (error: unknown) => {
+        blobs.delete(repoPath)
+        throw error
+      }
+    )
     blobs.set(repoPath, attempt)
     return attempt
   }
@@ -924,10 +936,16 @@ export const createPinnedSourceVersionReader = (options?: {
 
     // Shared while in flight. An unreachable remote must not turn the rest of a
     // fleet run into refusals, so a transient failure is dropped once it settles.
-    const attempt = resolve().then(({ read, memoizable }) => {
-      if (!memoizable) memo.delete(contractName)
-      return read
-    })
+    const attempt = resolve().then(
+      ({ read, memoizable }) => {
+        if (!memoizable) memo.delete(contractName)
+        return read
+      },
+      (error: unknown) => {
+        memo.delete(contractName)
+        throw error
+      }
+    )
     memo.set(contractName, attempt)
     return attempt
   }
