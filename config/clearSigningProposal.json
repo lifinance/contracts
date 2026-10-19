@@ -528,12 +528,6 @@
           "visible": "always"
         },
         {
-          "path": "@.value",
-          "label": "Native Value Sent",
-          "format": "amount",
-          "visible": "always"
-        },
-        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -786,7 +780,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Reported Recipient (not checked)",
           "format": "addressName",
           "params": {
             "types": [
@@ -802,7 +796,7 @@
         },
         {
           "path": "_deBridgeData.receiver",
-          "label": "DeBridge Recipient",
+          "label": "Recipient",
           "format": "raw",
           "visible": "always"
         },
@@ -820,7 +814,7 @@
         },
         {
           "path": "_deBridgeData.orderAuthorityDst",
-          "label": "Order Authority (can cancel, picks refund address)",
+          "label": "Order Authority (can cancel; refund goes to sender)",
           "format": "raw",
           "visible": "always"
         },
@@ -919,12 +913,6 @@
             ]
           },
           "visible": "optional"
-        },
-        {
-          "path": "@.value",
-          "label": "Native Value Sent",
-          "format": "amount",
-          "visible": "always"
         },
         {
           "path": "_bridgeData.transactionId",
@@ -1435,12 +1423,6 @@
           "visible": "always"
         },
         {
-          "path": "@.value",
-          "label": "Native Value Sent",
-          "format": "amount",
-          "visible": "always"
-        },
-        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -1816,12 +1798,6 @@
             ]
           },
           "visible": "optional"
-        },
-        {
-          "path": "@.value",
-          "label": "Native Value Sent",
-          "format": "amount",
-          "visible": "always"
         },
         {
           "path": "_bridgeData.transactionId",
@@ -2311,7 +2287,7 @@
     },
     "startBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee, address refundRecipient) _paxosData)": {
       "intent": "Bridge via PaxosTransit",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PaxosTransit to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PaxosTransit, minus fees {_paxosData.quote.protocolFee} and {_paxosData.quote.integratorFee}, to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2325,7 +2301,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported, not checked)",
           "format": "raw",
           "visible": "always"
         },
@@ -2358,8 +2334,44 @@
           "visible": "always"
         },
         {
+          "path": "_paxosData.quote.protocolFee",
+          "label": "Protocol Fee",
+          "format": "tokenAmount",
+          "params": {
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_paxosData.quote.integratorFee",
+          "label": "Integrator Fee",
+          "format": "tokenAmount",
+          "params": {
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_paxosData.quote.integratorFeeReceiver",
+          "label": "Integrator Fee Recipient",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
           "path": "_paxosData.nativeFee",
-          "label": "Paxos Fee",
+          "label": "LayerZero Fee",
           "format": "amount",
           "visible": "always"
         },
@@ -2570,12 +2582,6 @@
           "visible": "optional"
         },
         {
-          "path": "@.value",
-          "label": "Native Value Sent",
-          "format": "amount",
-          "visible": "always"
-        },
-        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -2713,7 +2719,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported, not checked)",
           "format": "raw",
           "visible": "always"
         },
@@ -2747,7 +2753,7 @@
         },
         {
           "path": "_squidData.destinationAddress",
-          "label": "Recipient (routes 0, 2; unused on route 1)",
+          "label": "Destination Contract (routes 0, 2)",
           "format": "raw",
           "visible": "always"
         },
@@ -2811,7 +2817,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported, not checked)",
           "format": "raw",
           "visible": "always"
         },
@@ -4364,7 +4370,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Reported Recipient (not checked)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4380,7 +4386,7 @@
         },
         {
           "path": "_deBridgeData.receiver",
-          "label": "DeBridge Recipient",
+          "label": "Recipient",
           "format": "raw",
           "visible": "always"
         },
@@ -4398,7 +4404,7 @@
         },
         {
           "path": "_deBridgeData.orderAuthorityDst",
-          "label": "Order Authority (can cancel, picks refund address)",
+          "label": "Order Authority (can cancel; refund goes to sender)",
           "format": "raw",
           "visible": "always"
         },
@@ -6339,7 +6345,7 @@
     },
     "swapAndStartBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee, address refundRecipient) _paxosData)": {
       "intent": "Swap & Bridge via PaxosTransit",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PaxosTransit to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PaxosTransit, minus fees {_paxosData.quote.protocolFee} and {_paxosData.quote.integratorFee}, to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6363,7 +6369,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported, not checked)",
           "format": "raw",
           "visible": "always"
         },
@@ -6396,8 +6402,44 @@
           "visible": "always"
         },
         {
+          "path": "_paxosData.quote.protocolFee",
+          "label": "Protocol Fee",
+          "format": "tokenAmount",
+          "params": {
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_paxosData.quote.integratorFee",
+          "label": "Integrator Fee",
+          "format": "tokenAmount",
+          "params": {
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_paxosData.quote.integratorFeeReceiver",
+          "label": "Integrator Fee Recipient",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
           "path": "_paxosData.nativeFee",
-          "label": "Paxos Fee",
+          "label": "LayerZero Fee",
           "format": "amount",
           "visible": "always"
         },
@@ -6871,7 +6913,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported, not checked)",
           "format": "raw",
           "visible": "always"
         },
@@ -6905,7 +6947,7 @@
         },
         {
           "path": "_squidData.destinationAddress",
-          "label": "Recipient (routes 0, 2; unused on route 1)",
+          "label": "Destination Contract (routes 0, 2)",
           "format": "raw",
           "visible": "always"
         },
@@ -6999,7 +7041,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported, not checked)",
           "format": "raw",
           "visible": "always"
         },

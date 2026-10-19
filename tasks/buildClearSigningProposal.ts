@@ -37,6 +37,7 @@ interface IAbiFn {
   type: string
   name: string
   inputs: IAbiParam[]
+  stateMutability?: string
 }
 
 const ROOT = path.resolve(__dirname, '..')
@@ -296,14 +297,18 @@ const RECEIVER_FIELD: IField = {
   visible: 'always',
 }
 
-// Every bridge entrypoint is payable, and several facets take a native fee from
-// `msg.value` on top of an ERC-20 amount, so the native value is always shown.
+// Several facets take a native fee from `msg.value` on top of an ERC-20 amount,
+// so every payable entrypoint shows the native value.
 const NATIVE_VALUE_FIELD: IField = {
   path: '@.value',
   label: 'Native Value Sent',
   format: 'amount',
   visible: 'always',
 }
+
+// For facets that send to a chain set in their own data, not to
+// `_bridgeData.destinationChainId`.
+const REPORTED_CHAIN_LABEL = 'Destination Chain (reported, not checked)'
 
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
@@ -391,6 +396,7 @@ interface IFacetDisplay {
   intent?: Partial<Record<Variant, string>>
   amountLabel?: Partial<Record<Variant, string>>
   receiverLabel?: string
+  chainLabel?: string
   // The facet accepts a destination call, which replaces its recipient check.
   acceptsDestinationCall?: boolean
 }
@@ -589,17 +595,19 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     ],
   },
   DeBridgeDln: {
+    // The order pays receiverDst; `_bridgeData.receiver` is not checked
+    // against it.
+    receiverLabel: 'Reported Recipient (not checked)',
     fields: [
-      // The order pays receiverDst; it is not checked against `_bridgeData`.
-      field('_deBridgeData.receiver', 'bytes', 'DeBridge Recipient'),
+      field('_deBridgeData.receiver', 'bytes', 'Recipient'),
       field('_deBridgeData.minAmountOut', 'uint256', 'Amount Received'),
       field('_deBridgeData.receivingAssetId', 'bytes', 'Token Received'),
-      // allowedCancelBeneficiarySrc is empty, so this address can cancel the
-      // order and choose where the refund goes.
+      // allowedCancelBeneficiarySrc is msg.sender, so a cancelled order
+      // refunds the sender, not this address.
       field(
         '_deBridgeData.orderAuthorityDst',
         'bytes',
-        'Order Authority (can cancel, picks refund address)'
+        'Order Authority (can cancel; refund goes to sender)'
       ),
     ],
     // For a native input the DLN fee comes out of the bridged amount.
@@ -764,6 +772,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     ],
   },
   PaxosTransit: {
+    chainLabel: REPORTED_CHAIN_LABEL,
     fields: [
       // Not cross-checked against `_bridgeData` (PaxosTransitFacet._startBridge).
       field(
@@ -772,14 +781,22 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         'Paxos Destination Endpoint'
       ),
       field('_paxosData.quote.route.wantAsset', 'address', 'Token Received'),
-      nativeFeeField('_paxosData.nativeFee', 'Paxos Fee'),
+      // The station pulls offerAmount (== minAmount) and delivers it minus
+      // both fees.
+      bridgedTokenField('_paxosData.quote.protocolFee', 'Protocol Fee'),
+      bridgedTokenField('_paxosData.quote.integratorFee', 'Integrator Fee'),
+      addressField(
+        '_paxosData.quote.integratorFeeReceiver',
+        'Integrator Fee Recipient'
+      ),
+      nativeFeeField('_paxosData.nativeFee', 'LayerZero Fee'),
       refundField('_paxosData.refundRecipient'),
     ],
-    intent: bridgeIntent(
-      'PaxosTransit',
-      'Paxos endpoint {_paxosData.quote.route.destEID}',
-      '_bridgeData.receiver'
-    ),
+    intent: {
+      start:
+        'Bridge {_bridgeData.minAmount} via PaxosTransit, minus fees {_paxosData.quote.protocolFee} and {_paxosData.quote.integratorFee}, to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}',
+      swap: 'Swap then bridge {_bridgeData.minAmount} via PaxosTransit, minus fees {_paxosData.quote.protocolFee} and {_paxosData.quote.integratorFee}, to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}',
+    },
   },
   PolymerCCTP: {
     fields: [
@@ -816,6 +833,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     // destinationAddress. A descriptor cannot branch on routeType, so the
     // sentence names neither address and the labels say which route uses which.
     receiverLabel: 'Recipient (route 1) / Refund Address (routes 0, 2)',
+    chainLabel: REPORTED_CHAIN_LABEL,
     fields: [
       field(
         '_squidData.routeType',
@@ -826,7 +844,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field(
         '_squidData.destinationAddress',
         'string',
-        'Recipient (routes 0, 2; unused on route 1)'
+        'Destination Contract (routes 0, 2)'
       ),
       nativeFeeField('_squidData.fee', 'Squid Fee'),
     ],
@@ -838,6 +856,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
   },
   Stargate: {
     acceptsDestinationCall: true,
+    chainLabel: REPORTED_CHAIN_LABEL,
     fields: [
       // Neither is checked against destinationChainId; `to` is checked against
       // receiver only without a destination call.
@@ -1013,13 +1032,15 @@ function buildBridgeFormat(fn: IAbiFn, variant: Variant): IFormatEntry {
         params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
-      CHAIN_FIELD,
+      display?.chainLabel
+        ? { ...CHAIN_FIELD, label: display.chainLabel }
+        : CHAIN_FIELD,
       display?.receiverLabel
         ? { ...RECEIVER_FIELD, label: display.receiverLabel }
         : RECEIVER_FIELD,
       ...facetFields(fn, variant).map(toField),
       ...(destinationCall.visible === 'always' ? [destinationCall] : []),
-      NATIVE_VALUE_FIELD,
+      ...(fn.stateMutability === 'payable' ? [NATIVE_VALUE_FIELD] : []),
       ...HIDDEN_BRIDGE_FIELDS,
       ...(destinationCall.visible === 'never' ? [destinationCall] : []),
       ...(isSwap ? HIDDEN_SWAP_FIELDS : []),

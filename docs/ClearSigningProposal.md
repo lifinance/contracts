@@ -55,7 +55,7 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
 }
 ```
 
-`@.value` is on every bridge format: every entrypoint is payable, and several facets take a native fee from `msg.value` on top of an ERC-20 amount (AllBridge, Arbitrum, Centrifuge, DeBridgeDln, Frax, Glacis, Paxos, Squid, Stargate, Superset, Symbiosis).
+`@.value` is on every payable bridge format (non-payable entrypoints such as `startBridgeTokensViaPolymerCCTP` omit it): several facets take a native fee from `msg.value` on top of an ERC-20 amount (AllBridge, Arbitrum, Centrifuge, DeBridgeDln, Frax, Glacis, Paxos, Squid, Stargate, Superset, Symbiosis).
 
 Reads on a hardware wallet as one sentence: _"Bridge 100 USDC via Across to chain 137 for vitalik.eth"_.
 
