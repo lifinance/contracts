@@ -1690,21 +1690,25 @@ describe('createForgeRebuildRunner', () => {
     ).toBe(true)
   })
 
-  it('starts no queued build after cleanup, so no checkout outlives the teardown', async () => {
-    const gitCalls: string[][] = []
-    let releaseCompile: () => void = () => undefined
+  // Settles only when `signal` aborts, as a killed child does.
+  const untilKilled = (signal: AbortSignal | undefined): Promise<void> =>
+    new Promise((resolve) => {
+      signal?.addEventListener('abort', () => resolve())
+    })
+
+  it('kills the running compile and starts no queued build at cleanup', async () => {
+    const events: string[] = []
     const runner = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
       git: async (args) => {
-        gitCalls.push(args)
+        events.push(args.join(' '))
         return ''
       },
-      run: async () => {
-        await new Promise<void>((resolve) => {
-          releaseCompile = resolve
-        })
-        return { ok: false, output: 'abandoned' }
+      run: async (_command, _args, options) => {
+        await untilKilled(options.signal)
+        events.push('compile killed')
+        return { ok: false, output: 'killed' }
       },
       exists: freshOutDirs(() => false),
       readFile: readCheckoutFile,
@@ -1715,27 +1719,28 @@ describe('createForgeRebuildRunner', () => {
     const queued = runner.build({ ...request, commit: 'b'.repeat(40) })
     await new Promise((resolve) => setTimeout(resolve, 10))
     await runner.cleanup()
-    releaseCompile()
 
-    expect(await rejection(running)).toContain('abandoned')
+    expect(await rejection(running)).toContain('killed')
     expect(await rejection(queued)).toContain('cleaned up')
-    expect(
-      gitCalls.some((args) => args.includes(`/tmp/rebuilds/${'b'.repeat(40)}`))
-    ).toBe(false)
+    expect(events.some((e) => e.includes('b'.repeat(40)))).toBe(false)
+    // The checkout goes only once nothing runs in it.
+    expect(events.slice(-2)).toEqual([
+      'compile killed',
+      `worktree remove --force /tmp/rebuilds/${request.commit}`,
+    ])
   })
 
-  it('removes a checkout whose add was still running when cleanup ran', async () => {
+  it('kills a checkout add still running at cleanup, then removes what it wrote', async () => {
     const gitCalls: string[][] = []
-    let releaseAdd: () => void = () => undefined
     const runner = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: async (args) => {
+      git: async (args, signal) => {
         gitCalls.push(args)
-        if (args[1] === 'add')
-          await new Promise<void>((resolve) => {
-            releaseAdd = resolve
-          })
+        if (args[1] === 'add') {
+          await untilKilled(signal)
+          throw new Error('git worktree failed: killed')
+        }
         return ''
       },
       run: async () => ({ ok: true, output: '' }),
@@ -1747,9 +1752,8 @@ describe('createForgeRebuildRunner', () => {
     const building = runner.build(request)
     await new Promise((resolve) => setTimeout(resolve, 10))
     await runner.cleanup()
-    releaseAdd()
 
-    expect(await rejection(building)).toContain('cleaned up')
+    expect(await rejection(building)).toContain('killed')
     expect(gitCalls.at(-1)).toEqual([
       'worktree',
       'remove',
@@ -1799,7 +1803,7 @@ describe('createForgeRebuildRunner', () => {
           (path === `${CHECKOUT}/.env` && over.dotenv === true),
         ...(toml === undefined ? {} : { readFile: () => toml }),
         run: (command, args, options) => {
-          calls.push({ command, args, ...options })
+          calls.push({ command, args, cwd: options.cwd, env: options.env })
           const result = over.run?.(command, args, options) ?? {
             ok: true,
             output: '',
@@ -2242,6 +2246,31 @@ describe('the subprocess primitives the rebuild runs on', () => {
         env: {},
       })
     ).toEqual({ ok: false, output: '' })
+  })
+
+  it('kills a command when its signal aborts', async () => {
+    const teardown = new AbortController()
+    const started = Date.now()
+    const running = runCommand('sleep', ['30'], {
+      cwd: tmpdir(),
+      env: {},
+      signal: teardown.signal,
+    })
+    teardown.abort()
+
+    expect((await running).ok).toBe(false)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  it('rejects a git call its signal aborts', async () => {
+    const teardown = new AbortController()
+    teardown.abort()
+
+    expect(
+      await rejection(
+        runRepoGit(['rev-parse', '--is-inside-work-tree'], teardown.signal)
+      )
+    ).toStartWith('git rev-parse failed')
   })
 })
 

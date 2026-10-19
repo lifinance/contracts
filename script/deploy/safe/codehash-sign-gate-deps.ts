@@ -380,12 +380,13 @@ export interface IForgeRebuildDeps {
   repoRoot: string
   /** Where the per-commit checkouts go. */
   checkoutRoot: string
-  /** Resolves to stdout; rejects on a non-zero exit. */
-  git: (args: string[]) => Promise<string>
+  /** Resolves to stdout; rejects on a non-zero exit, and when `signal` kills it. */
+  git: (args: string[], signal?: AbortSignal) => Promise<string>
+  /** `signal` kills the process, which then reports a failure. */
   run: (
     command: string,
     args: string[],
-    options: { cwd: string; env: Record<string, string> }
+    options: { cwd: string; env: Record<string, string>; signal?: AbortSignal }
   ) => Promise<{ ok: boolean; output: string }>
   exists: (path: string) => boolean
   readFile: (path: string) => string
@@ -749,13 +750,22 @@ export interface IForgeRebuildRunner {
  * commit still being checked out or compiled would otherwise run
  * `worktree add`, or forge, into the same directory twice.
  *
- * @param deps - the checkout locations and the git, process and file primitives
+ * @param base - the checkout locations and the git, process and file primitives
  * @returns The `build` dependency, the zk declarations read from the same
  * checkouts, and a cleanup for the checkouts it made
  */
 export const createForgeRebuildRunner = (
-  deps: IForgeRebuildDeps
+  base: IForgeRebuildDeps
 ): IForgeRebuildRunner => {
+  // Aborted by `cleanup`, so the git or forge child of a rebuild the caller
+  // gave up on is killed instead of compiling into a checkout being removed.
+  const teardown = new AbortController()
+  const deps: IForgeRebuildDeps = {
+    ...base,
+    git: (args) => base.git(args, teardown.signal),
+    run: (command, args, options) =>
+      base.run(command, args, { ...options, signal: teardown.signal }),
+  }
   const created = new Set<string>()
   const vettedCheckouts = new Set<string>()
   // Output directories seen absent before this run's first restore or build
@@ -793,16 +803,10 @@ export const createForgeRebuildRunner = (
       )
     const checkout = join(deps.checkoutRoot, commit)
     if (!deps.exists(checkout)) {
-      await deps.git(['worktree', 'add', '--detach', checkout, commit])
-      // A teardown that ran while this add was in flight has already walked
-      // `created`, so the checkout is removed here instead.
-      if (closed) {
-        await deps
-          .git(['worktree', 'remove', '--force', checkout])
-          .catch(() => undefined)
-        refuseAfterCleanup()
-      }
+      // Recorded before the add, so a teardown that kills it part way still
+      // removes what it wrote.
       created.add(checkout)
+      await deps.git(['worktree', 'add', '--detach', checkout, commit])
     }
     return checkout
   }
@@ -1100,12 +1104,16 @@ export const createForgeRebuildRunner = (
     declarationsAt: (commit, profile) =>
       exclusive(() => declarationsNow(commit, profile)),
     // Outside the queue: a caller that gave up on a rebuild still running —
-    // the watcher's timeout — must be able to tear down without waiting for it.
+    // the watcher's timeout — must be able to tear down without waiting for
+    // it to finish. It kills that rebuild's child instead, and waits only for
+    // the turn to settle, so no worktree is removed while forge still runs in it.
     cleanup: async (): Promise<void> => {
       closed = true
+      teardown.abort()
+      await queue
       for (const checkout of created)
         try {
-          await deps.git(['worktree', 'remove', '--force', checkout])
+          await base.git(['worktree', 'remove', '--force', checkout])
         } catch {
           // A checkout left behind costs disk, not correctness, and this runs
           // in a `finally` beside the Ledger teardown.
@@ -1597,18 +1605,19 @@ export const createOffCodeImmutablesReader = (deps: {
  * request's timeout fire before the reply already sitting in its socket is read.
  *
  * Never rejects. A process that could not start at all — no such binary, no
- * such directory — reports a null status.
+ * such directory — or that `signal` killed reports a null status.
  *
  * @param command - the binary to run
  * @param args - its argv
  * @param options.cwd - where it runs
  * @param options.env - its whole environment
+ * @param options.signal - kills the process when aborted
  * @returns The exit status and everything written to stdout and stderr
  */
 const collectProcess = (
   command: string,
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv }
+  options: { cwd: string; env: NodeJS.ProcessEnv; signal?: AbortSignal }
 ): Promise<{ status: number | null; stdout: string; stderr: string }> =>
   new Promise((resolve) => {
     let stdout = ''
@@ -1617,6 +1626,7 @@ const collectProcess = (
       cwd: options.cwd,
       env: options.env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      ...(options.signal ? { signal: options.signal } : {}),
     })
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
@@ -1634,13 +1644,18 @@ const collectProcess = (
  * Runs git in this repository, off the event loop.
  *
  * @param args - argv after `git`
+ * @param signal - kills git when aborted
  * @returns stdout
- * @throws When git exits non-zero, with its output passed through `redactUrls`
+ * @throws When git exits non-zero or is killed, with its output passed through `redactUrls`
  */
-export const runRepoGit = async (args: string[]): Promise<string> => {
+export const runRepoGit = async (
+  args: string[],
+  signal?: AbortSignal
+): Promise<string> => {
   const result = await collectProcess('git', args, {
     cwd: REPO_ROOT,
     env: process.env,
+    ...(signal ? { signal } : {}),
   })
   if (result.status !== 0)
     throw new Error(
@@ -1656,16 +1671,18 @@ export const runRepoGit = async (args: string[]): Promise<string> => {
  * @param args - its argv
  * @param options.cwd - where it runs
  * @param options.env - added to this process's environment
+ * @param options.signal - kills the process when aborted
  * @returns Whether it exited zero, and its stdout followed by its stderr
  */
 export const runCommand = async (
   command: string,
   args: string[],
-  options: { cwd: string; env: Record<string, string> }
+  options: { cwd: string; env: Record<string, string>; signal?: AbortSignal }
 ): Promise<{ ok: boolean; output: string }> => {
   const result = await collectProcess(command, args, {
     cwd: options.cwd,
     env: { ...process.env, ...options.env },
+    ...(options.signal ? { signal: options.signal } : {}),
   })
   return {
     ok: result.status === 0,
