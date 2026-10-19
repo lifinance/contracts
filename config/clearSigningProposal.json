@@ -1665,6 +1665,12 @@
           "visible": "always"
         },
         {
+          "path": "_bridgeData.hasDestinationCall",
+          "label": "Destination Call",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -1693,11 +1699,6 @@
         {
           "path": "_bridgeData.hasSourceSwaps",
           "label": "Has Source Swaps",
-          "visible": "never"
-        },
-        {
-          "path": "_bridgeData.hasDestinationCall",
-          "label": "Has Destination Call",
           "visible": "never"
         }
       ]
@@ -5462,6 +5463,12 @@
           "visible": "always"
         },
         {
+          "path": "_bridgeData.hasDestinationCall",
+          "label": "Destination Call",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -5490,11 +5497,6 @@
         {
           "path": "_bridgeData.hasSourceSwaps",
           "label": "Has Source Swaps",
-          "visible": "never"
-        },
-        {
-          "path": "_bridgeData.hasDestinationCall",
-          "label": "Has Destination Call",
           "visible": "never"
         },
         {

@@ -635,6 +635,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     intent: depositIntent('LayerSwap', '_layerSwapData.depositoryReceiver'),
   },
   LiFiIntentEscrowV2: {
+    acceptsDestinationCall: true,
     fields: [
       ...bytes32RecipientFields(
         '_lifiIntentData.recipient',

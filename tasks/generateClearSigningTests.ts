@@ -814,34 +814,39 @@ function checkCoverage(
   if (!fs.existsSync(testsPath))
     throw new Error(`--tests ${testsPath} does not exist`)
 
-  const covered = new Map<string, ITestCase>()
+  const covered = new Map<string, ITestCase[]>()
   for (const test of readExistingTests(testsPath)) {
     const selector = selectorOf(test)
-    if (selector) covered.set(selector, test)
+    if (selector)
+      covered.set(selector, [...(covered.get(selector) ?? []), test])
   }
 
   const problems: string[] = []
   for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
-    const test = covered.get(selector)
-    if (!test) {
+    const tests = covered.get(selector)
+    if (!tests) {
       problems.push(`${formatKey} (${selector}) has no test case`)
       continue
     }
 
-    // A PENDING case has no rendered labels yet, so there is nothing to drift.
-    if (test.expected.intent === PENDING_INTENT) continue
-
     const displayed = displayedLabels(format)
-    const asserted = (test.expected.fields ?? []).map((field) => field.label)
-    if (!labelsMatch(format, asserted))
-      problems.push(
-        `${formatKey} (${selector}): fixture asserts [${asserted.join(
-          ', '
-        )}], descriptor displays [${displayed.join(
-          ', '
-        )}] — re-render this case`
-      )
+    for (const test of tests) {
+      // A PENDING case has no rendered labels yet, so there is nothing to drift.
+      if (test.expected.intent === PENDING_INTENT) continue
+
+      const asserted = (test.expected.fields ?? []).map((field) => field.label)
+      if (!labelsMatch(format, asserted))
+        problems.push(
+          `${formatKey} (${selector}) "${
+            test.description
+          }": fixture asserts [${asserted.join(
+            ', '
+          )}], descriptor displays [${displayed.join(
+            ', '
+          )}] — re-render this case`
+        )
+    }
   }
 
   return problems

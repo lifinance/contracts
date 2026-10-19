@@ -807,6 +807,10 @@
             "value": "0x78b59874BF0Fb404D88D9e688fdC56eE3E085e6b"
           },
           {
+            "label": "Destination Call",
+            "value": "false"
+          },
+          {
             "label": "Native Value Sent",
             "value": "0.002098039615199859 ETH"
           }
@@ -2038,6 +2042,10 @@
           {
             "label": "Refund Recipient",
             "value": "0x78b59874BF0Fb404D88D9e688fdC56eE3E085e6b"
+          },
+          {
+            "label": "Destination Call",
+            "value": "false"
           },
           {
             "label": "Native Value Sent",
