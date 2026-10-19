@@ -565,7 +565,7 @@ describe('spawnForgeBuild', () => {
     process.env.PATH = originalPath
   })
 
-  it('builds everything but tests, under the pinned profile, in the repo root', () => {
+  it('builds everything but tests into out/, under the pinned profile, in the repo root', () => {
     const stubDirectory = mkdtempSync(join(tmpdir(), 'tron-forge-build-stub-'))
     const record = join(stubDirectory, 'record')
     const forge = join(stubDirectory, 'forge')
@@ -580,7 +580,7 @@ describe('spawnForgeBuild', () => {
     expect(readFileSync(record, 'utf8').trim()).toBe(
       `cwd=${realpathSync(
         stubDirectory
-      )} args=build --skip test/** profile=[default]`
+      )} args=build --skip test/** --out out profile=[default]`
     )
   })
 
@@ -596,21 +596,34 @@ describe('assertSrcArtifactsMatchProfile', () => {
     solcVersion: '0.8.29',
     evmVersion: 'cancun',
     optimizerRuns: 1000000,
+    optimizer: true,
+    viaIR: false,
+    bytecodeHash: 'ipfs',
   }
-  const DEFAULT = { solc: '0.8.29', evm: 'cancun', runs: 1000000 }
-  const FLOOR = { solc: '0.8.17', evm: 'london', runs: 1000000 }
+  interface ISettings {
+    solc: string
+    evm: string
+    runs: number
+    optimizer?: boolean
+    viaIR?: boolean
+    bytecodeHash?: string
+  }
+  const DEFAULT: ISettings = { solc: '0.8.29', evm: 'cancun', runs: 1000000 }
+  const FLOOR: ISettings = { solc: '0.8.17', evm: 'london', runs: 1000000 }
 
-  const artifact = (
-    source: string,
-    settings: { solc: string; evm: string; runs: number }
-  ): string =>
+  const artifact = (source: string, settings: ISettings): string =>
     JSON.stringify({
       metadata: {
         compiler: { version: `${settings.solc}+commit.ab55807c` },
         settings: {
           compilationTarget: { [source]: 'X' },
           evmVersion: settings.evm,
-          optimizer: { enabled: true, runs: settings.runs },
+          optimizer: {
+            enabled: settings.optimizer ?? true,
+            runs: settings.runs,
+          },
+          ...(settings.viaIR === undefined ? {} : { viaIR: settings.viaIR }),
+          metadata: { bytecodeHash: settings.bytecodeHash ?? 'ipfs' },
         },
       },
     })
@@ -646,7 +659,7 @@ describe('assertSrcArtifactsMatchProfile', () => {
     })
 
     expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
-      /1 artifact\(s\).*not built with \[profile\.default\].*Nothing has been broadcast.*B\.sol\/B\.json: solc 0\.8\.17, evm london/su
+      /1 artifact\(s\).*not built with \[profile\.default\].*Nothing has been broadcast.*B\.sol\/B\.json: solcVersion 0\.8\.17, evmVersion london$/su
     )
   })
 
@@ -656,7 +669,96 @@ describe('assertSrcArtifactsMatchProfile', () => {
     })
 
     expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
-      'A.sol/A.json: solc 0.8.29, evm cancun, optimizer runs 200'
+      'A.sol/A.json: optimizerRuns 200'
+    )
+  })
+
+  it.each([
+    ['the optimizer off', { optimizer: false }, 'optimizer false'],
+    ['viaIR on', { viaIR: true }, 'viaIR true'],
+    ['another bytecode hash', { bytecodeHash: 'none' }, 'bytecodeHash none'],
+  ] as const)(
+    'refuses a src/ artifact built with %s',
+    (_, override, reported) => {
+      const outRoot = outTree({
+        'A.sol/A.json': artifact('src/Facets/A.sol', {
+          ...DEFAULT,
+          ...override,
+        }),
+      })
+
+      expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+        `A.sol/A.json: ${reported}`
+      )
+    }
+  )
+
+  it('passes an artifact that records viaIR off explicitly', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', {
+        ...DEFAULT,
+        viaIR: false,
+      }),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).not.toThrow()
+  })
+
+  const CODE_NO_METADATA = JSON.stringify({
+    abi: [],
+    deployedBytecode: { object: '0x6080' },
+  })
+
+  it('refuses an artifact holding code but no metadata whose source file is in src/', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'B.sol/B.json': CODE_NO_METADATA,
+    })
+    const srcRoot = outTree({ 'Periphery/B.sol': '' })
+
+    expect(() =>
+      assertSrcArtifactsMatchProfile(outRoot, PROFILE, srcRoot)
+    ).toThrow('B.sol/B.json: holds code but records no metadata')
+  })
+
+  it.each([
+    ['no bytecode field', { abi: [] }],
+    ['empty bytecode', { abi: [], deployedBytecode: { object: '0x' } }],
+  ])(
+    'ignores a src/ artifact with no metadata and %s, as forge writes for a contract-less file',
+    (_, contents) => {
+      const outRoot = outTree({
+        'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+        'GenericErrors.sol/GenericErrors.json': JSON.stringify(contents),
+      })
+      const srcRoot = outTree({ 'Errors/GenericErrors.sol': '' })
+
+      expect(() =>
+        assertSrcArtifactsMatchProfile(outRoot, PROFILE, srcRoot)
+      ).not.toThrow()
+    }
+  )
+
+  it('ignores an artifact with no metadata whose source file is not in src/', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'Lib.sol/Lib.json': CODE_NO_METADATA,
+    })
+    const srcRoot = outTree({ 'Facets/A.sol': '' })
+
+    expect(() =>
+      assertSrcArtifactsMatchProfile(outRoot, PROFILE, srcRoot)
+    ).not.toThrow()
+  })
+
+  it('looks for src/ next to out/ by default', () => {
+    const repoRoot = outTree({ 'src/B.sol': '' })
+    const outRoot = join(repoRoot, 'out')
+    mkdirSync(join(outRoot, 'B.sol'), { recursive: true })
+    writeFileSync(join(outRoot, 'B.sol', 'B.json'), CODE_NO_METADATA)
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+      'B.sol/B.json: holds code but records no metadata'
     )
   })
 
@@ -668,7 +770,7 @@ describe('assertSrcArtifactsMatchProfile', () => {
     })
 
     expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
-      'A.sol/A.json: solc undefined'
+      'A.sol/A.json: solcVersion undefined'
     )
   })
 

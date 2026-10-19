@@ -10,9 +10,8 @@
  * The scripts deploy whatever is in `out/` and label it with the source file's
  * `@custom:version`, so a stale `out/` puts old bytecode on chain under the new version.
  * `buildForgeArtifactsOrThrow` therefore runs `forge build` with the checked forge before
- * any artifact is read, then refuses unless every `src/` artifact records the solc version,
- * EVM version and optimizer runs of `[profile.default]`, as the EVM path does after its
- * rebuild.
+ * any artifact is read, then refuses unless every `src/` artifact records the compiler
+ * settings of `[profile.default]`, as the EVM path does after its rebuild.
  *
  * The comparison is delegated to the same `script/utils/verify-foundry-version.sh` the CI
  * foundry setup and the bash deploy seam run, so there is one verdict rather than a second
@@ -22,7 +21,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import {
   getFoundryDefaultEvmVersion,
@@ -76,7 +75,9 @@ const FORGE_BUILD_TIMEOUT_MS = 30 * 60 * 1000
 /**
  * The environment `forge build` runs under: every `FOUNDRY_*` override removed and
  * `FOUNDRY_PROFILE=default` set explicitly. Removing it is not enough, because forge loads
- * the project's `.env` itself and fills in any variable that is unset.
+ * the project's `.env` itself and fills in any variable that is unset. What `.env` can
+ * still change is pinned by {@link FORGE_BUILD_ARGS} or refused by
+ * {@link assertSrcArtifactsMatchProfile}.
  *
  * @param env - Environment to derive from. Defaults to this process's.
  * @returns The child environment.
@@ -91,6 +92,12 @@ export const forgeBuildEnv = (
 })
 
 /**
+ * `--out` is pinned because the post-build check reads `out/`: a `FOUNDRY_OUT` in `.env`
+ * would send the fresh artifacts elsewhere and leave the check reading stale ones.
+ */
+export const FORGE_BUILD_ARGS = ['build', '--skip', 'test/**', '--out', 'out']
+
+/**
  * Runs the real `forge build` of everything but tests, under {@link forgeBuildEnv}. Its
  * output goes straight to the terminal, so a long compile shows progress.
  *
@@ -99,7 +106,7 @@ export const forgeBuildEnv = (
  */
 export const spawnForgeBuild: TForgeBuildRunner = (repoRoot) =>
   toCheckerResult(
-    spawnSync('forge', ['build', '--skip', 'test/**'], {
+    spawnSync('forge', FORGE_BUILD_ARGS, {
       cwd: repoRoot,
       stdio: ['ignore', 'inherit', 'inherit'],
       timeout: FORGE_BUILD_TIMEOUT_MS,
@@ -112,6 +119,9 @@ export interface IBuildProfile {
   solcVersion: string
   evmVersion: string
   optimizerRuns: number
+  optimizer: boolean
+  viaIR: boolean
+  bytecodeHash: string
 }
 
 /**
@@ -124,48 +134,82 @@ export const readDefaultBuildProfile = (): IBuildProfile => ({
   solcVersion: getFoundryDefaultSolcVersion(),
   evmVersion: getFoundryDefaultEvmVersion(),
   optimizerRuns: getFoundryDefaultOptimizerRuns(),
+  // [profile.default] sets optimizer = true and leaves via_ir and bytecode_hash at forge's
+  // defaults; only an override in .env would change them.
+  optimizer: true,
+  viaIR: false,
+  bytecodeHash: 'ipfs',
 })
+
+const describeProfile = (profile: IBuildProfile): string =>
+  `solc ${profile.solcVersion}, evm ${profile.evmVersion}, optimizer ${profile.optimizer} with ${profile.optimizerRuns} runs, viaIR ${profile.viaIR}, bytecodeHash ${profile.bytecodeHash}`
 
 interface IArtifactMetadata {
   compiler?: { version?: string }
   settings?: {
     compilationTarget?: Record<string, string>
     evmVersion?: string
-    optimizer?: { runs?: number }
+    optimizer?: { enabled?: boolean; runs?: number }
+    viaIR?: boolean
+    metadata?: { bytecodeHash?: string }
   }
 }
 
 const describeMismatch = (
-  metadata: IArtifactMetadata | undefined,
+  metadata: IArtifactMetadata,
   expected: IBuildProfile
 ): string | undefined => {
-  // solc records itself as `0.8.29+commit.ab55807c`; foundry.toml pins the version alone.
-  const solc = metadata?.compiler?.version?.split('+')[0]
-  const evm = metadata?.settings?.evmVersion
-  const runs = metadata?.settings?.optimizer?.runs
-  if (
-    solc === expected.solcVersion &&
-    evm === expected.evmVersion &&
-    runs === expected.optimizerRuns
+  const settings = metadata.settings
+  const recorded: Record<keyof IBuildProfile, unknown> = {
+    // solc records itself as `0.8.29+commit.ab55807c`; foundry.toml pins the version alone.
+    solcVersion: metadata.compiler?.version?.split('+')[0],
+    evmVersion: settings?.evmVersion,
+    optimizerRuns: settings?.optimizer?.runs,
+    optimizer: settings?.optimizer?.enabled,
+    // solc omits viaIR from the metadata unless it is on.
+    viaIR: settings?.viaIR ?? false,
+    bytecodeHash: settings?.metadata?.bytecodeHash,
+  }
+  const differing = (Object.keys(recorded) as (keyof IBuildProfile)[]).filter(
+    (key) => recorded[key] !== expected[key]
   )
-    return undefined
-  return `solc ${solc}, evm ${evm}, optimizer runs ${runs}`
+  if (differing.length === 0) return undefined
+  return differing.map((key) => `${key} ${String(recorded[key])}`).join(', ')
 }
 
-const readMetadata = (path: string): IArtifactMetadata | undefined =>
-  (JSON.parse(readFileSync(path, 'utf8')) as { metadata?: IArtifactMetadata })
-    .metadata
+interface IArtifact {
+  metadata?: IArtifactMetadata
+  deployedBytecode?: { object?: string }
+}
+
+const readArtifact = (path: string): IArtifact =>
+  JSON.parse(readFileSync(path, 'utf8')) as IArtifact
+
+// Forge writes a metadata-less artifact for a file that declares no contract, holding no
+// code. One that does hold code has no compilation target to place it, so it is attributed
+// to src/ by its `out/<File>.sol/` directory naming a file still there.
+const hasCode = (artifact: IArtifact): boolean =>
+  (artifact.deployedBytecode?.object ?? '0x').replace(/^0x/u, '').length > 0
+
+const sourceFileIsInSrc = (srcRoot: string, sourceFile: string): boolean =>
+  existsSync(srcRoot) &&
+  readdirSync(srcRoot, { recursive: true, encoding: 'utf8' }).some(
+    (path) => basename(path) === sourceFile
+  )
 
 /**
  * Refuses unless every artifact compiled from `src/` records the expected compiler settings.
  *
  * @param outRoot - Forge output directory.
  * @param expected - Settings every `src/` artifact must record.
- * @throws When an artifact records other settings, or no `src/` artifact is found.
+ * @param srcRoot - Source directory, to attribute an artifact that records no metadata.
+ * Defaults to `src` next to `outRoot`.
+ * @throws When an artifact records other settings or none, or no `src/` artifact is found.
  */
 export function assertSrcArtifactsMatchProfile(
   outRoot: string,
-  expected: IBuildProfile
+  expected: IBuildProfile,
+  srcRoot: string = join(dirname(outRoot), 'src')
 ): void {
   const mismatches: string[] = []
   let checked = 0
@@ -176,17 +220,26 @@ export function assertSrcArtifactsMatchProfile(
     if (!directory.isDirectory()) continue
     for (const file of readdirSync(join(outRoot, directory.name))) {
       if (!file.endsWith('.json')) continue
-      const metadata = readMetadata(join(outRoot, directory.name, file))
-      const targets = Object.keys(metadata?.settings?.compilationTarget ?? {})
+      const name = `${directory.name}/${file}`
+      const artifact = readArtifact(join(outRoot, directory.name, file))
+      const metadata = artifact.metadata
+      if (!metadata?.settings?.compilationTarget) {
+        if (hasCode(artifact) && sourceFileIsInSrc(srcRoot, directory.name)) {
+          checked++
+          mismatches.push(`${name}: holds code but records no metadata`)
+        }
+        continue
+      }
+      const targets = Object.keys(metadata.settings.compilationTarget)
       if (!targets.some((source) => source.startsWith('src/'))) continue
 
       checked++
       const mismatch = describeMismatch(metadata, expected)
-      if (mismatch) mismatches.push(`${directory.name}/${file}: ${mismatch}`)
+      if (mismatch) mismatches.push(`${name}: ${mismatch}`)
     }
   }
 
-  const want = `solc ${expected.solcVersion}, evm ${expected.evmVersion}, optimizer runs ${expected.optimizerRuns}`
+  const want = describeProfile(expected)
   if (checked === 0)
     throw new Error(
       `forge build left no src/ artifact in ${outRoot}, so nothing confirms it was built with ${want}. Refusing to deploy to Tron. Nothing has been broadcast.`
