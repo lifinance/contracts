@@ -509,12 +509,13 @@ signer sees:
    **to-be-added facet version** from the deployment record
    (`facet-version-utils.ts`). Each `batchSetContractSelectorWhitelist` pair
    in THE CALLDATA DOES (`calldata-effect-lines.ts`) shows the function
-   signature beside the selector, taken from the first source that has it:
+   name beside the selector, taken from the first source that has it:
    `config/whitelist.json` for that contract on that network (used only when
-   the signature hashes to the selector), then the local selector registry
+   its signature hashes to the selector), then the local selector registry
    (`selector-registry.ts`), then one batched `api.4byte.sourcify.dev` lookup
-   for the rest. A selector none of them names reads "no name for this
-   selector". The signature is stated, not graded.
+   for the rest, which supplies the full signature instead. A selector none
+   of them names reads "no name for this selector". The name is stated, not
+   graded.
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present, and the

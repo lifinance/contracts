@@ -29,7 +29,7 @@
 
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import type { Address, Hex } from 'viem'
-import { decodeFunctionData, parseAbi, toFunctionSelector } from 'viem'
+import { decodeFunctionData, parseAbi } from 'viem'
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
@@ -61,6 +61,7 @@ import {
   getArtifactSelectorInfo,
   getLocalSelectorInfo,
   type ISelectorInfo,
+  isVerifiedSelectorSignature,
   resolveSelectorsViaFourByte,
 } from './selector-registry'
 
@@ -805,11 +806,19 @@ async function whitelistLines(
   const shownSelectors = selectors
     .slice(0, shown)
     .map((selector: unknown) => String(selector ?? '').toLowerCase())
-  const localNames = shownSelectors.map(
-    (selector, i) =>
-      whitelistSignature(context.network, contracts[i], selector) ??
-      getLocalSelectorInfo(selector)?.signature
-  )
+  // The name, not the signature, for the reason diamondCutLines gives: router
+  // signatures in whitelist.json run past the view's width. 4byte supplies only
+  // a signature, so that arm still renders one.
+  const localNames = shownSelectors.map((selector, i) => {
+    const signature = whitelistSignature(
+      context.network,
+      contracts[i],
+      selector
+    )
+    return signature === undefined
+      ? getLocalSelectorInfo(selector)?.name
+      : bareName(signature)
+  })
 
   // One batched, disk-cached lookup for every selector no local source knows,
   // so rendering below stays synchronous per row.
@@ -852,8 +861,7 @@ async function whitelistLines(
  *
  * The file pairs selector and signature by hand, so one that does not hash back
  * is left for the registry and 4byte rather than shown as a plausible wrong
- * name. The lookup takes the address in the network's display form because
- * Tron entries are filed in base58 while the decoded address is hex.
+ * name.
  */
 function whitelistSignature(
   network: string,
@@ -861,19 +869,17 @@ function whitelistSignature(
   selector: string
 ): string | undefined {
   try {
-    const address = formatAddressForNetworkCliDisplay(
-      network,
-      normalizeAddressForNetwork(network, String(contract ?? '').trim())
-    )
     const signature = lookupWhitelistMetaForContractSelector(
       network,
-      address,
+      String(contract ?? '').trim(),
       selector
     ).signature?.trim()
-    return signature && toFunctionSelector(signature) === selector
+    return signature && isVerifiedSelectorSignature(selector, signature)
       ? signature
       : undefined
   } catch {
+    // An unreadable whitelist.json leaves the pair to the registry and 4byte,
+    // which skip that file the same way, rather than losing the whole block.
     return undefined
   }
 }

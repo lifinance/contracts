@@ -677,7 +677,8 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
     const lines = await withoutRegistry([ROUTE_SINGLE], () =>
       renderOn('tempo', whitelist([TEMPO_ROUTER], [ROUTE_SINGLE]))
     )
-    expect(lines).toContain(`${ROUTE_SINGLE}  routeSingle((uint8,bytes),bytes)`)
+    expect(lines).toContain(`${ROUTE_SINGLE}  routeSingle`)
+    expect(lines).not.toContain('routeSingle(')
     for (const url of fourByteUrls()) expect(url).not.toContain(ROUTE_SINGLE)
   })
 
@@ -690,9 +691,7 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
     const lines = await withoutRegistry(['0x0e8ae67f'], () =>
       renderOn('tron', whitelist([forwarder], ['0x0e8ae67f']))
     )
-    expect(lines).toContain(
-      '0x0e8ae67f  forwardNativeFees((address,uint256)[])'
-    )
+    expect(lines).toContain('0x0e8ae67f  forwardNativeFees')
     for (const url of fourByteUrls()) expect(url).not.toContain('0x0e8ae67f')
   })
 
@@ -742,8 +741,10 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
         [ROUTE_SINGLE, TRANSFER_OWNERSHIP, NOBODY]
       )
     )
-    expect(lines).toContain(`${ROUTE_SINGLE}  routeSingle((uint8,bytes),bytes)`)
-    expect(lines).toContain(`${TRANSFER_OWNERSHIP}  transferOwnership(address)`)
+    expect(lines).toContain(`${ROUTE_SINGLE}  routeSingle`)
+    expect(lines).toContain(`${TRANSFER_OWNERSHIP}  transferOwnership`)
+    expect(lines).not.toContain('routeSingle(')
+    expect(lines).not.toContain('transferOwnership(')
     expect(lines).toContain(`${NOBODY}  no name for this selector`)
     expect(lines).not.toContain('✓')
     expect(lines).not.toContain('✗')
@@ -760,9 +761,7 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
         whitelist([FACET, FACET], [TRANSFER_OWNERSHIP, ALPHA])
       )
       expect(lines).not.toContain('drainEverything')
-      expect(lines).toContain(
-        `${TRANSFER_OWNERSHIP}  transferOwnership(address)`
-      )
+      expect(lines).toContain(`${TRANSFER_OWNERSHIP}  transferOwnership`)
       expect(lines).toContain(`${ALPHA}  fixtureWhitelistAlpha()`)
     } finally {
       lookup.mockRestore()
