@@ -296,7 +296,7 @@ const RECEIVER_FIELD: IField = {
   visible: 'always',
 }
 
-// Every bridge entrypoint is payable, and nine facets take a native fee from
+// Every bridge entrypoint is payable, and several facets take a native fee from
 // `msg.value` on top of an ERC-20 amount, so the native value is always shown.
 const NATIVE_VALUE_FIELD: IField = {
   path: '@.value',
@@ -462,7 +462,22 @@ function nonEvmRecipientField(path: string, type = 'bytes32'): IFacetField {
   return field(path, type, 'Non-EVM Recipient')
 }
 
-const OUTPUT_RATIO_PARAMS = { base: '%', decimals: 16 }
+// A 1e18-scaled fraction (1e18 = 100%) shown as a percentage.
+const PERCENT_1E18_PARAMS = { base: '%', decimals: 16 }
+
+// For facets whose real destination or recipient lives in the facet data rather
+// than in `_bridgeData`, which the facet does not check against it.
+function bridgeIntent(
+  facet: string,
+  destination: string,
+  recipientPath: string
+): Record<Variant, string> {
+  const tail = `via ${facet} to ${destination} for {${recipientPath}}`
+  return {
+    start: `Bridge {_bridgeData.minAmount} ${tail}`,
+    swap: `Swap then bridge {_bridgeData.minAmount} ${tail}`,
+  }
+}
 
 // Facets that hand the funds to a deposit address or an off-chain order: the
 // recipient and chain in `_bridgeData` are what the order promises, not where
@@ -488,11 +503,14 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field('_acrossData.outputAmount', 'uint256', 'Amount Received', {
         only: 'start',
       }),
-      field('_acrossData.outputAmountMultiplier', 'uint128', 'Output Ratio', {
-        format: 'unit',
-        params: OUTPUT_RATIO_PARAMS,
-        only: 'swap',
-      }),
+      // Folds the price ratio and the token decimal difference into one
+      // factor, so it is not a percentage unless both tokens share decimals.
+      field(
+        '_acrossData.outputAmountMultiplier',
+        'uint128',
+        'Output Multiplier (1e18 base)',
+        { only: 'swap' }
+      ),
       field('_acrossData.receivingAssetId', 'bytes32', 'Token Received'),
       ...bytes32RecipientFields(
         '_acrossData.receiverAddress',
@@ -507,13 +525,27 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         'Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}, receiving {_acrossData.outputAmount}',
     },
   },
+  Across: {
+    fields: [
+      field('_acrossData.relayerFeePct', 'int64', 'Relayer Fee', {
+        format: 'unit',
+        params: PERCENT_1E18_PARAMS,
+      }),
+    ],
+  },
   AllBridge: {
     fields: [
       ...bytes32RecipientFields(
         '_allBridgeData.recipient',
         'AllBridge Recipient'
       ),
-      field('_allBridgeData.fees', 'uint256', 'AllBridge Fee'),
+      // Native wei, or sending-token units when payFeeWithSendingAsset is set;
+      // a descriptor cannot pick the format from that flag.
+      field(
+        '_allBridgeData.fees',
+        'uint256',
+        'AllBridge Fee (raw; native unless taken from bridged amount)'
+      ),
       field(
         '_allBridgeData.payFeeWithSendingAsset',
         'bool',
@@ -558,15 +590,28 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
   },
   DeBridgeDln: {
     fields: [
+      // The order pays receiverDst; it is not checked against `_bridgeData`.
       field('_deBridgeData.receiver', 'bytes', 'DeBridge Recipient'),
       field('_deBridgeData.minAmountOut', 'uint256', 'Amount Received'),
       field('_deBridgeData.receivingAssetId', 'bytes', 'Token Received'),
+      // allowedCancelBeneficiarySrc is empty, so this address can cancel the
+      // order and choose where the refund goes.
+      field(
+        '_deBridgeData.orderAuthorityDst',
+        'bytes',
+        'Order Authority (can cancel, picks refund address)'
+      ),
     ],
     // For a native input the DLN fee comes out of the bridged amount.
     amountLabel: {
       start: 'Amount to Bridge (native: minus DLN fee)',
       swap: 'Minimum to Bridge (native: minus DLN fee)',
     },
+    intent: bridgeIntent(
+      'DeBridgeDln',
+      'chain {_bridgeData.destinationChainId}',
+      '_deBridgeData.receiver'
+    ),
   },
   Eco: {
     fields: [
@@ -641,14 +686,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         '_lifiIntentData.recipient',
         'Intent Recipient'
       ),
+      // Includes the token decimal difference, like AcrossV4's multiplier.
       field(
         '_lifiIntentData.outputAmountMultiplier',
         'uint128',
-        'Output Ratio',
-        {
-          format: 'unit',
-          params: OUTPUT_RATIO_PARAMS,
-        }
+        'Output Multiplier (1e18 base)'
       ),
       field('_lifiIntentData.outputToken', 'bytes32', 'Token Received'),
       // Becomes the recipient when dstCallSwapData is not empty.
@@ -700,6 +742,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       swap: 'Swap then bridge {_mayanData.mayanAmountIn} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}',
     },
   },
+  MegaETHBridge: {
+    fields: [
+      field('_megaETHData.assetIdOnL2', 'address', 'Token Received (L2)'),
+    ],
+  },
   NEARIntents: {
     fields: [
       addressField('_nearData.depositAddress', 'NEAR Deposit Address'),
@@ -710,6 +757,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       refundField('_nearData.refundRecipient'),
     ],
     intent: depositIntent('NEARIntents', '_nearData.depositAddress'),
+  },
+  OptimismBridge: {
+    fields: [
+      field('_optimismData.assetIdOnL2', 'address', 'Token Received (L2)'),
+    ],
   },
   PaxosTransit: {
     fields: [
@@ -723,6 +775,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       nativeFeeField('_paxosData.nativeFee', 'Paxos Fee'),
       refundField('_paxosData.refundRecipient'),
     ],
+    intent: bridgeIntent(
+      'PaxosTransit',
+      'Paxos endpoint {_paxosData.quote.route.destEID}',
+      '_bridgeData.receiver'
+    ),
   },
   PolymerCCTP: {
     fields: [
@@ -744,26 +801,39 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     fields: [
       addressField('_relayDepositoryData.depositorAddress', 'Relay Depositor'),
     ],
+    // The funds go to the Relay Depository; the order id, matched off-chain,
+    // decides the recipient and chain.
+    intent: {
+      start:
+        'Send {_bridgeData.minAmount} via RelayDepository, filled off-chain for {_bridgeData.receiver} on chain {_bridgeData.destinationChainId}',
+      swap: 'Swap then send {_bridgeData.minAmount} via RelayDepository, filled off-chain for {_bridgeData.receiver} on chain {_bridgeData.destinationChainId}',
+    },
   },
   Squid: {
-    // BridgeCall and CallBridgeCall deliver to destinationAddress and use
-    // `_bridgeData.receiver` as the Axelar refund address; CallBridge delivers
-    // to `_bridgeData.receiver`.
-    receiverLabel: 'Recipient or Refund Address',
+    // Route 0 (BridgeCall) and 2 (CallBridgeCall) deliver to destinationAddress
+    // and use `_bridgeData.receiver` as the Axelar refund address; route 1
+    // (CallBridge) delivers to `_bridgeData.receiver` and ignores
+    // destinationAddress. A descriptor cannot branch on routeType, so the
+    // sentence names neither address and the labels say which route uses which.
+    receiverLabel: 'Recipient (route 1) / Refund Address (routes 0, 2)',
     fields: [
-      field('_squidData.routeType', 'uint8', 'Squid Route Type'),
+      field(
+        '_squidData.routeType',
+        'uint8',
+        'Squid Route (0 BridgeCall, 1 CallBridge, 2 CallBridgeCall)'
+      ),
       field('_squidData.destinationChain', 'string', 'Squid Destination Chain'),
       field(
         '_squidData.destinationAddress',
         'string',
-        'Squid Destination Address'
+        'Recipient (routes 0, 2; unused on route 1)'
       ),
       nativeFeeField('_squidData.fee', 'Squid Fee'),
     ],
     intent: {
       start:
-        'Bridge {_bridgeData.minAmount} via Squid to {_squidData.destinationChain}, address {_squidData.destinationAddress}',
-      swap: 'Swap then bridge {_bridgeData.minAmount} via Squid to {_squidData.destinationChain}, address {_squidData.destinationAddress}',
+        'Bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} to {_squidData.destinationChain}',
+      swap: 'Swap then bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} to {_squidData.destinationChain}',
     },
   },
   Stargate: {
@@ -789,6 +859,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         visible: 'optional',
       }),
     ],
+    intent: bridgeIntent(
+      'Stargate',
+      'LayerZero endpoint {_stargateData.sendParams.dstEid}',
+      '_stargateData.sendParams.to.[12:32]'
+    ),
   },
   Superset: {
     fields: [

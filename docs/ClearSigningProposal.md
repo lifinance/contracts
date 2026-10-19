@@ -55,7 +55,7 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
 }
 ```
 
-`@.value` is on every bridge format: every entrypoint is payable, and nine facets take a native fee from `msg.value` on top of an ERC-20 amount (AllBridge, Stargate, Glacis, Frax, Paxos, Squid, Arbitrum, DeBridgeDln, Symbiosis).
+`@.value` is on every bridge format: every entrypoint is payable, and several facets take a native fee from `msg.value` on top of an ERC-20 amount (AllBridge, Arbitrum, Centrifuge, DeBridgeDln, Frax, Glacis, Paxos, Squid, Stargate, Superset, Symbiosis).
 
 Reads on a hardware wallet as one sentence: _"Bridge 100 USDC via Across to chain 137 for vitalik.eth"_.
 
@@ -67,15 +67,15 @@ Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generat
 
 `BRIDGE_FACET_DISPLAY` in the generator lists these fields per bridge, keyed by `bridgeFacetName()`. Each entry names the component path, its exact ABI type, label, format and visibility, and can restrict a field to the `start` or `swap` entrypoint when the other one ignores or rewrites it. The classes:
 
-- **Amount actually bridged or delivered** — Mayan bridges `mayanAmountIn`, not the swap output; PolymerCCTP cuts `polymerTokenFee` from the amount; Across, LiFiIntentEscrowV2, DeBridgeDln, Stargate and M0 deliver an output amount or ratio from their own struct.
-- **Token received** — Across, AllBridge, DeBridgeDln, Glacis, LiFiIntentEscrowV2, M0, Paxos, NEARIntents, Chainflip.
-- **Where the funds go** — Stargate's `dstEid` and `sendParams.to`; Squid's `destinationChain` and `destinationAddress` (and its route type, which decides whether `_bridgeData.receiver` is the recipient or the refund address); ThorSwap's vault and memo; GasZip's `destinationChains`; Symbiosis' `callTo`; Paxos' `destEID`.
-- **Deposit addresses and off-chain orders** — Unit, NEARIntents, LayerSwap and Garden send the funds to a deposit address or solver; for those the sentence names it and says the recipient is filled off-chain. RelayDepository deposits into the Relay Depository contract and shows the depositor the deposit is recorded under.
+- **Amount actually bridged or delivered** — Mayan bridges `mayanAmountIn`, not the swap output; PolymerCCTP cuts `polymerTokenFee` from the amount; AcrossV4, LiFiIntentEscrowV2, DeBridgeDln, Stargate and M0 deliver an output amount or multiplier from their own struct; Across v1 takes `relayerFeePct` from the amount. The output multipliers are raw: they fold the token decimal difference into the ratio, so a percentage would be wrong whenever the decimals differ.
+- **Token received** — Across, AllBridge, OptimismBridge and MegaETHBridge (`assetIdOnL2`), DeBridgeDln, Glacis, LiFiIntentEscrowV2, M0, Paxos, NEARIntents, Chainflip.
+- **Where the funds go** — Stargate's `dstEid` and `sendParams.to`; Squid's `destinationChain`, `destinationAddress` and route type: route 1 (CallBridge) delivers to `_bridgeData.receiver` and ignores `destinationAddress`, routes 0 and 2 deliver to `destinationAddress` and refund to `_bridgeData.receiver`, so the sentence names neither address and the labels say which route uses which; DeBridgeDln's `receiver` and `orderAuthorityDst` (the order authority can cancel the order and choose the refund address); ThorSwap's vault and memo; GasZip's `destinationChains`; Symbiosis' `callTo`; Paxos' `destEID`.
+- **Deposit addresses and off-chain orders** — Unit, NEARIntents, LayerSwap and Garden send the funds to a deposit address or solver; for those the sentence names it and says the recipient is filled off-chain. RelayDepository deposits into the Relay Depository contract, so its sentence says the order is filled off-chain, and it shows the depositor the deposit is recorded under.
 - **Destination calls** — on AcrossV4, Chainflip, LiFiIntentEscrowV2 and Stargate a destination call replaces the recipient check, so `Destination Call` and the call receiver are shown.
 - **Native fees** — shown as `amount`, alongside `@.value`.
 - **Refund recipients** — shown as `addressName` with `visible: optional`, except Mayan's swap entrypoint and LiFiIntentEscrowV2, where the refund recipient receives part of the swap output on the normal path.
 
-A `bytes32` recipient may hold a non-EVM address, so it keeps a `raw` field; its address bytes are shown a second time as `addressName` through a `[12:32]` slice (`[0:20]` for GasZip, whose `bytes32` is right-padded). Where `_bridgeData` misstates the transfer, the entry also replaces the sentence (`interpolatedIntent`) or the amount label.
+A `bytes32` recipient may hold a non-EVM address, so it keeps a `raw` field; its address bytes are shown a second time as `addressName` through a `[12:32]` slice (`[0:20]` for GasZip, whose `bytes32` is right-padded). Where `_bridgeData` misstates the transfer, the entry also replaces the sentence (`interpolatedIntent`) or the amount label: DeBridgeDln names `_deBridgeData.receiver`, Stargate names `dstEid` and `sendParams.to`, PaxosTransit names `destEID`.
 
 The mapping is **strict-by-default**: a renamed or retyped component, or a token path that does not resolve, fails the generator and blocks CI rather than emitting a dead display path. Every `{placeholder}` in a sentence must name a field the format displays.
 

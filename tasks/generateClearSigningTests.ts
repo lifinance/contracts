@@ -33,6 +33,7 @@ const RECEIVER = '0x78b59874BF0Fb404D88D9e688fdC56eE3E085e6b'
 const DEPOSIT_ADDRESS = '0x5e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b'
 const DESTINATION_CALL_RECEIVER = '0x9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b'
 const SOLVER = '0x3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c'
+const L2_TOKEN = '0x4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a1b'
 
 // A non-EVM recipient (a Solana pubkey, say) has no address form.
 const NON_EVM_RECEIVER =
@@ -54,6 +55,7 @@ const PADDED_USDC = leftPadded(USDC)
 // displayed component missing here falls back to the type default — a zero —
 // and fails --check the moment a field displays it.
 const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
+  '_acrossData.relayerFeePct': 2_500_000_000_000_000n,
   '_acrossData.outputAmount': 995_000_000n,
   '_acrossData.outputAmountMultiplier': 995_000_000_000_000_000n,
   '_acrossData.receivingAssetId': PADDED_USDC,
@@ -74,6 +76,9 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_deBridgeData.receiver': RECEIVER.toLowerCase(),
   '_deBridgeData.minAmountOut': 998_000_000n,
   '_deBridgeData.receivingAssetId': USDC.toLowerCase(),
+  '_deBridgeData.orderAuthorityDst': RECEIVER.toLowerCase(),
+  '_megaETHData.assetIdOnL2': L2_TOKEN,
+  '_optimismData.assetIdOnL2': L2_TOKEN,
   '_ecoData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_ecoData.refundRecipient': RECEIVER,
   '_fraxData.nonEVMReceiver': NON_EVM_RECEIVER,
@@ -123,7 +128,9 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   // RouteType.CallBridge: the one route that delivers to `_bridgeData.receiver`.
   '_squidData.routeType': 1,
   '_squidData.destinationChain': 'optimism',
-  '_squidData.destinationAddress': RECEIVER,
+  // Differs from `_bridgeData.receiver`, so the fixture shows which is which:
+  // route 1 (CallBridge) delivers to the receiver and ignores this.
+  '_squidData.destinationAddress': DESTINATION_CALL_RECEIVER,
   '_squidData.fee': NATIVE_VALUE,
   '_stargateData.sendParams.dstEid': 30_111,
   '_stargateData.sendParams.to': PADDED_RECEIVER,
@@ -755,8 +762,7 @@ function checkVisibleFields(
         problems.push(
           `${abiItem.name}: "${field.label}" (${field.path}) does not resolve against the generated arguments`
         )
-      // A bool has no unset state: `false` asserts as much as `true` does.
-      else if (typeof value !== 'boolean' && isZeroish(value))
+      else if (isZeroish(value))
         problems.push(
           `${abiItem.name}: "${field.label}" (${field.path}) would render as ${value}`
         )

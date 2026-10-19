@@ -39,6 +39,16 @@
           "visible": "always"
         },
         {
+          "path": "_acrossData.relayerFeePct",
+          "label": "Relayer Fee",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -325,7 +335,7 @@
         },
         {
           "path": "_allBridgeData.fees",
-          "label": "AllBridge Fee",
+          "label": "AllBridge Fee (raw; native unless taken from bridged amount)",
           "format": "raw",
           "visible": "always"
         },
@@ -756,7 +766,7 @@
     },
     "startBridgeTokensViaDeBridgeDln((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes receivingAssetId, bytes receiver, bytes orderAuthorityDst, uint256 minAmountOut) _deBridgeData)": {
       "intent": "Bridge via DeBridgeDln",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_deBridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -805,6 +815,12 @@
         {
           "path": "_deBridgeData.receivingAssetId",
           "label": "Token Received",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_deBridgeData.orderAuthorityDst",
+          "label": "Order Authority (can cancel, picks refund address)",
           "format": "raw",
           "visible": "always"
         },
@@ -1628,12 +1644,8 @@
         },
         {
           "path": "_lifiIntentData.outputAmountMultiplier",
-          "label": "Output Ratio",
-          "format": "unit",
-          "params": {
-            "base": "%",
-            "decimals": 16
-          },
+          "label": "Output Multiplier (1e18 base)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -1976,6 +1988,12 @@
           "visible": "always"
         },
         {
+          "path": "_megaETHData.assetIdOnL2",
+          "label": "Token Received (L2)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -2248,6 +2266,12 @@
           "visible": "always"
         },
         {
+          "path": "_optimismData.assetIdOnL2",
+          "label": "Token Received (L2)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -2287,7 +2311,7 @@
     },
     "startBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee, address refundRecipient) _paxosData)": {
       "intent": "Bridge via PaxosTransit",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PaxosTransit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PaxosTransit to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2585,7 +2609,7 @@
     },
     "startBridgeTokensViaRelayDepository((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 orderId, address depositorAddress) _relayDepositoryData)": {
       "intent": "Bridge via RelayDepository",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via RelayDepository to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Send {_bridgeData.minAmount} via RelayDepository, filled off-chain for {_bridgeData.receiver} on chain {_bridgeData.destinationChainId}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2675,7 +2699,7 @@
     },
     "startBridgeTokensViaSquid((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (uint8 routeType, string destinationChain, string destinationAddress, string bridgedTokenSymbol, address depositAssetId, (uint8 callType, address target, uint256 value, bytes callData, bytes payload)[] sourceCalls, bytes payload, uint256 fee, bool enableExpress) _squidData)": {
       "intent": "Bridge via Squid",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Squid to {_squidData.destinationChain}, address {_squidData.destinationAddress}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} to {_squidData.destinationChain}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2695,7 +2719,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient or Refund Address",
+          "label": "Recipient (route 1) / Refund Address (routes 0, 2)",
           "format": "addressName",
           "params": {
             "types": [
@@ -2711,7 +2735,7 @@
         },
         {
           "path": "_squidData.routeType",
-          "label": "Squid Route Type",
+          "label": "Squid Route (0 BridgeCall, 1 CallBridge, 2 CallBridgeCall)",
           "format": "raw",
           "visible": "always"
         },
@@ -2723,7 +2747,7 @@
         },
         {
           "path": "_squidData.destinationAddress",
-          "label": "Squid Destination Address",
+          "label": "Recipient (routes 0, 2; unused on route 1)",
           "format": "raw",
           "visible": "always"
         },
@@ -2773,7 +2797,7 @@
     },
     "startBridgeTokensViaStargate((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (uint16 assetId, (uint32 dstEid, bytes32 to, uint256 amountLD, uint256 minAmountLD, bytes extraOptions, bytes composeMsg, bytes oftCmd) sendParams, (uint256 nativeFee, uint256 lzTokenFee) fee, address refundAddress) _stargateData)": {
       "intent": "Bridge via Stargate",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Stargate to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Stargate to LayerZero endpoint {_stargateData.sendParams.dstEid} for {_stargateData.sendParams.to.[12:32]}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -3353,6 +3377,16 @@
           "visible": "always"
         },
         {
+          "path": "_acrossData.relayerFeePct",
+          "label": "Relayer Fee",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -3458,12 +3492,8 @@
         },
         {
           "path": "_acrossData.outputAmountMultiplier",
-          "label": "Output Ratio",
-          "format": "unit",
-          "params": {
-            "base": "%",
-            "decimals": 16
-          },
+          "label": "Output Multiplier (1e18 base)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3733,7 +3763,7 @@
         },
         {
           "path": "_allBridgeData.fees",
-          "label": "AllBridge Fee",
+          "label": "AllBridge Fee (raw; native unless taken from bridged amount)",
           "format": "raw",
           "visible": "always"
         },
@@ -4304,7 +4334,7 @@
     },
     "swapAndStartBridgeTokensViaDeBridgeDln((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (bytes receivingAssetId, bytes receiver, bytes orderAuthorityDst, uint256 minAmountOut) _deBridgeData)": {
       "intent": "Swap & Bridge via DeBridgeDln",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_deBridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -4363,6 +4393,12 @@
         {
           "path": "_deBridgeData.receivingAssetId",
           "label": "Token Received",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_deBridgeData.orderAuthorityDst",
+          "label": "Order Authority (can cancel, picks refund address)",
           "format": "raw",
           "visible": "always"
         },
@@ -5426,12 +5462,8 @@
         },
         {
           "path": "_lifiIntentData.outputAmountMultiplier",
-          "label": "Output Ratio",
-          "format": "unit",
-          "params": {
-            "base": "%",
-            "decimals": 16
-          },
+          "label": "Output Multiplier (1e18 base)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5874,6 +5906,12 @@
           "visible": "always"
         },
         {
+          "path": "_megaETHData.assetIdOnL2",
+          "label": "Token Received (L2)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -6236,6 +6274,12 @@
           "visible": "always"
         },
         {
+          "path": "_optimismData.assetIdOnL2",
+          "label": "Token Received (L2)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -6295,7 +6339,7 @@
     },
     "swapAndStartBridgeTokensViaPaxosTransit((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (((uint32 destEID, address offerAsset, address wantAsset) route, uint256 offerAmount, address receiver, uint256 protocolFee, uint256 integratorFee, address integratorFeeReceiver, bytes32 distributorCode, uint256 deadline, bytes32 salt) quote, bytes signature, uint256 nativeFee, address refundRecipient) _paxosData)": {
       "intent": "Swap & Bridge via PaxosTransit",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PaxosTransit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PaxosTransit to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6683,7 +6727,7 @@
     },
     "swapAndStartBridgeTokensViaRelayDepository((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (bytes32 orderId, address depositorAddress) _relayDepositoryData)": {
       "intent": "Swap & Bridge via RelayDepository",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via RelayDepository to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then send {_bridgeData.minAmount} via RelayDepository, filled off-chain for {_bridgeData.receiver} on chain {_bridgeData.destinationChainId}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6803,7 +6847,7 @@
     },
     "swapAndStartBridgeTokensViaSquid((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (uint8 routeType, string destinationChain, string destinationAddress, string bridgedTokenSymbol, address depositAssetId, (uint8 callType, address target, uint256 value, bytes callData, bytes payload)[] sourceCalls, bytes payload, uint256 fee, bool enableExpress) _squidData)": {
       "intent": "Swap & Bridge via Squid",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Squid to {_squidData.destinationChain}, address {_squidData.destinationAddress}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} to {_squidData.destinationChain}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6833,7 +6877,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient or Refund Address",
+          "label": "Recipient (route 1) / Refund Address (routes 0, 2)",
           "format": "addressName",
           "params": {
             "types": [
@@ -6849,7 +6893,7 @@
         },
         {
           "path": "_squidData.routeType",
-          "label": "Squid Route Type",
+          "label": "Squid Route (0 BridgeCall, 1 CallBridge, 2 CallBridgeCall)",
           "format": "raw",
           "visible": "always"
         },
@@ -6861,7 +6905,7 @@
         },
         {
           "path": "_squidData.destinationAddress",
-          "label": "Squid Destination Address",
+          "label": "Recipient (routes 0, 2; unused on route 1)",
           "format": "raw",
           "visible": "always"
         },
@@ -6931,7 +6975,7 @@
     },
     "swapAndStartBridgeTokensViaStargate((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (uint16 assetId, (uint32 dstEid, bytes32 to, uint256 amountLD, uint256 minAmountLD, bytes extraOptions, bytes composeMsg, bytes oftCmd) sendParams, (uint256 nativeFee, uint256 lzTokenFee) fee, address refundAddress) _stargateData)": {
       "intent": "Swap & Bridge via Stargate",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Stargate to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Stargate to LayerZero endpoint {_stargateData.sendParams.dstEid} for {_stargateData.sendParams.to.[12:32]}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
