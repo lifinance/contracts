@@ -858,6 +858,33 @@ function checkCoverage(
   return problems
 }
 
+/**
+ * Fails on a test case whose selector no format matches, as the registry does.
+ *
+ * Only meaningful against the merged registry descriptor: the registry keeps a
+ * format after we drop it from the proposal, and its case has to stay with it.
+ */
+function checkUnmatchedCases(
+  formats: Record<string, IDescriptorFormat>,
+  testsPath: string
+): string[] {
+  const formatSelectors = new Set(
+    Object.keys(formats).map((formatKey) =>
+      toFunctionSelector(`function ${formatKey}`).toLowerCase()
+    )
+  )
+
+  const problems: string[] = []
+  for (const test of readExistingTests(testsPath)) {
+    const selector = selectorOf(test)
+    if (selector && !formatSelectors.has(selector))
+      problems.push(
+        `"${test.description}" calls ${selector}, which no format matches`
+      )
+  }
+  return problems
+}
+
 function readFormats(sourcePath: string): Record<string, IDescriptorFormat> {
   const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'))
 
@@ -913,6 +940,11 @@ const main = defineCommand({
       description:
         'With --check: also verify this fixture has a test case for every format',
     },
+    rejectUnmatched: {
+      type: 'boolean',
+      description:
+        'With --check --tests: also fail on a case no format matches. Use only on the merged registry descriptor',
+    },
   },
   run({ args }) {
     if (args.check) {
@@ -921,8 +953,16 @@ const main = defineCommand({
       const coverageProblems = args.tests
         ? checkCoverage(formats, args.tests)
         : []
+      const unmatchedProblems =
+        args.tests && args.rejectUnmatched
+          ? checkUnmatchedCases(formats, args.tests)
+          : []
 
-      for (const problem of [...fieldProblems, ...coverageProblems])
+      for (const problem of [
+        ...fieldProblems,
+        ...coverageProblems,
+        ...unmatchedProblems,
+      ])
         console.error(`  ✗ ${problem}`)
 
       if (fieldProblems.length)
@@ -945,13 +985,27 @@ const main = defineCommand({
             '("Test fixtures") and commit the result.'
         )
 
-      if (fieldProblems.length || coverageProblems.length) process.exit(1)
+      if (unmatchedProblems.length)
+        console.error(
+          `\n${unmatchedProblems.length} case(s) in ${args.tests} call a function this ` +
+            'descriptor has no format for, which the registry rejects. Remove them from ' +
+            'config/clearSigningTests.json in a PR to this repo.'
+        )
+
+      if (
+        fieldProblems.length ||
+        coverageProblems.length ||
+        unmatchedProblems.length
+      )
+        process.exit(1)
 
       console.info('✓ every displayed field renders a real value')
       if (args.tests)
         console.info(
           `✓ every format has a test case in ${args.tests}, asserting current labels`
         )
+      if (args.tests && args.rejectUnmatched)
+        console.info(`✓ every case in ${args.tests} matches a format`)
       return
     }
 

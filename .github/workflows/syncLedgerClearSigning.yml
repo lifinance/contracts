@@ -234,10 +234,14 @@ jobs:
           # `config/clearSigningProposal.json`. The merged descriptor also carries
           # formats the registry preserves and we never proposed, whose displayed
           # fields our templates may have no value for; this is the only place
-          # they can be checked, because PR CI cannot see upstream.
-          echo -e "\033[32mChecking displayed fields of the merged descriptor...\033[0m"
+          # they can be checked, because PR CI cannot see upstream. For the same
+          # reason a case whose function the merged descriptor has no format for
+          # is caught here: the registry rejects it, and PR CI cannot tell it from
+          # a case for a format the registry kept after we dropped it.
+          echo -e "\033[32mChecking displayed fields and test cases of the merged descriptor...\033[0m"
           bunx tsx tasks/generateClearSigningTests.ts \
-            --descriptor "ledger-registry/${LEDGER_FILE_PATH}" --check
+            --descriptor "ledger-registry/${LEDGER_FILE_PATH}" --check \
+            --tests "${LOCAL_TESTS_PATH}" --rejectUnmatched
 
           echo -e "\033[32mGenerating ${LEDGER_TESTS_PATH} from ${LOCAL_TESTS_PATH}...\033[0m"
           bunx tsx tasks/generateClearSigningTests.ts \
