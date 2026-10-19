@@ -74,11 +74,13 @@ function getWhitelistJson(): unknown {
   return whitelistCache
 }
 
-function safeNormalizeAddress(address: string): string {
+// Compared as hex so a Tron entry filed in base58 matches the decoded address,
+// and base58 is never case-folded.
+function safeNormalizeAddress(network: string, address: string): string {
   try {
-    return getAddress(address as Address).toLowerCase()
+    return normalizeAddressForNetwork(network, address).toLowerCase()
   } catch {
-    return address.toLowerCase()
+    return address
   }
 }
 
@@ -93,7 +95,7 @@ function computeSelectorFromSignature(signature: string): string {
  * The signature is returned as the file stores it; nothing here checks that it
  * hashes to `selector`.
  * @param network - `networks.json` key the whitelist entry is filed under
- * @param contractAddress - The contract, in the form the file stores it for this network
+ * @param contractAddress - The contract, hex or (on Tron) base58
  * @param selector - The 4-byte selector
  * @returns The entry's label and signature; empty when the contract is not listed
  * @throws When `config/whitelist.json` cannot be read or parsed
@@ -107,7 +109,8 @@ export function lookupWhitelistMetaForContractSelector(
   if (!isRecord(whitelist)) return {}
 
   const networkKey = network.toLowerCase()
-  const addr = safeNormalizeAddress(contractAddress)
+  const addr = safeNormalizeAddress(network, contractAddress)
+  if (addr === '') return {}
   const sel = selector.toLowerCase()
 
   const peripheryRoot = whitelist['PERIPHERY']
@@ -117,7 +120,7 @@ export function lookupWhitelistMetaForContractSelector(
       const entry = peripheryNetwork.find((e) => {
         if (!isRecord(e)) return false
         const address = typeof e.address === 'string' ? e.address : ''
-        return safeNormalizeAddress(address) === addr
+        return safeNormalizeAddress(network, address) === addr
       })
       if (isRecord(entry)) {
         const entryName =
@@ -154,7 +157,7 @@ export function lookupWhitelistMetaForContractSelector(
       const contractEntry = contractsByNetwork.find((c) => {
         if (!isRecord(c)) return false
         const address = typeof c.address === 'string' ? c.address : ''
-        return safeNormalizeAddress(address) === addr
+        return safeNormalizeAddress(network, address) === addr
       })
       if (!isRecord(contractEntry)) continue
       let signature: string | undefined
