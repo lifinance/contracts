@@ -192,12 +192,12 @@ export const REHEARSED_CHECK_IDS: readonly string[] = [TARGET_STATE_CHECK_ID]
  * @param readPinnedState - the pinned target-state reader to grade against
  * @returns the ledger, registering exactly {@link REHEARSED_CHECK_IDS}
  */
-export function runGateChain(
+export async function runGateChain(
   doc: ISafeTxDocument,
   network: string,
   corrupt: boolean,
   readPinnedState: ReturnType<typeof createPinnedTargetStateReader>
-): ICheckLedger {
+): Promise<ICheckLedger> {
   const ledger = createCheckLedger({
     expectedNetworks: [network],
     checks: CONFIRM_CHECK_DEFINITIONS.filter((check) =>
@@ -208,7 +208,7 @@ export function runGateChain(
   const raw = doc.safeTx?.data?.data as Hex | undefined
   const calldata = raw ? (corrupt ? corruptCalldata(raw) : raw) : undefined
 
-  const verdict = evaluateTargetStateIntent(
+  const verdict = await evaluateTargetStateIntent(
     calldata ? [calldata] : [],
     network,
     createTargetStateDeps(network, { readPinnedState })
@@ -335,16 +335,24 @@ const main = defineCommand({
       // `origin/main` read, so sharing it across both passes would replay the
       // first pass's answer into the second — and the remote anchor is the one
       // genuinely moving input the determinism check exists to catch.
-      const pass = (corrupt: boolean): IRehearsalPassEntry[] => {
+      const pass = async (corrupt: boolean): Promise<IRehearsalPassEntry[]> => {
         const readPinnedState = createPinnedTargetStateReader()
-        return docs.map((doc) => ({
-          proposal: doc.safeTxHash,
-          ledger: runGateChain(doc, doc.network, corrupt, readPinnedState),
-        }))
+        const entries: IRehearsalPassEntry[] = []
+        for (const doc of docs)
+          entries.push({
+            proposal: doc.safeTxHash,
+            ledger: await runGateChain(
+              doc,
+              doc.network,
+              corrupt,
+              readPinnedState
+            ),
+          })
+        return entries
       }
 
-      const first = pass(false)
-      const second = pass(false)
+      const first = await pass(false)
+      const second = await pass(false)
 
       const summary = summariseRehearsal({ first, second })
       // Tracked so the process can exit non-zero. consola sets no exit code, so
@@ -434,7 +442,7 @@ const main = defineCommand({
       )
 
       if (args.corrupt) {
-        const corrupted = pass(true)
+        const corrupted = await pass(true)
         const outcome = gradeCorruptionProbe(first, corrupted)
         if (outcome === 'refused')
           consola.success(
