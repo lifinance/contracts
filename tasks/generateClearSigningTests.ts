@@ -42,6 +42,20 @@ const NON_EVM_RECEIVER =
 // LI.FI's sentinel receiver and chain id for a Solana destination (LiFiData.sol).
 const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
 const SOLANA_CHAIN_ID = 1_151_111_081_099_710n
+const STELLAR_CHAIN_ID = 1_201_081_091_099_710n
+const HYPERCORE_CHAIN_ID = 1_337n
+
+// A Solana USDC token account (the CCTP mint recipient), as bytes32.
+const SOLANA_TOKEN_ACCOUNT =
+  '0x3b4d5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c'
+// CctpForwarder hook: magic (24) + version (4) + length (4) + strkey (ASCII).
+const STELLAR_STRKEY =
+  'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H'
+const STELLAR_HOOK_DATA = `0x${Buffer.from('cctp-forward', 'ascii')
+  .toString('hex')
+  .padEnd(48, '0')}00000000${STELLAR_STRKEY.length
+  .toString(16)
+  .padStart(8, '0')}${Buffer.from(STELLAR_STRKEY, 'ascii').toString('hex')}`
 
 function leftPadded(address: string): string {
   return `0x${address.slice(2).toLowerCase().padStart(64, '0')}`
@@ -50,11 +64,58 @@ function leftPadded(address: string): string {
 const PADDED_RECEIVER = leftPadded(RECEIVER)
 const PADDED_USDC = leftPadded(USDC)
 
+// 1inch v6, deployed at this address on Ethereum and Base: swap and
+// multicall targets must hold code, so the fixtures name a real router.
+const DEX_ROUTER = '0x111111125421cA6dc452d289314280a0f8842A65'
+const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+// 2026-10-19; quotes and deadlines are checked against block.timestamp.
+const QUOTE_TIMESTAMP = 1_792_400_000
+
+const MAYAN_PROTOCOL = '0x2d9f3c4b5a6e7f8091a2b3c4d5e6f708192a3b4c'
+// Mayan Swift v2 createOrderWithToken: USDC to Optimism (Wormhole chain 24),
+// for RECEIVER, at least 998 USDC (Mayan normalises to 8 decimals).
+const MAYAN_ORDER = encodeFunctionData({
+  abi: [
+    parseAbiItem(
+      'function createOrderWithToken(address tokenIn, uint256 amountIn, (uint8 payloadType, bytes32 trader, bytes32 destAddr, uint16 destChainId, bytes32 referrerAddr, bytes32 tokenOut, uint64 minAmountOut, uint64 gasDrop, uint64 cancelFee, uint64 refundFee, uint64 deadline, uint8 referrerBps, uint8 auctionMode, bytes32 random) params, bytes customPayload)'
+    ),
+  ],
+  args: [
+    USDC,
+    1_000_000_000n,
+    {
+      payloadType: 1,
+      trader: PADDED_RECEIVER as `0x${string}`,
+      destAddr: PADDED_RECEIVER as `0x${string}`,
+      destChainId: 24,
+      referrerAddr: `0x${'00'.repeat(32)}`,
+      tokenOut: leftPadded(
+        '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
+      ) as `0x${string}`,
+      minAmountOut: 99_800_000_000n,
+      gasDrop: 0n,
+      cancelFee: 0n,
+      refundFee: 0n,
+      deadline: BigInt(QUOTE_TIMESTAMP + 3_600),
+      referrerBps: 0,
+      auctionMode: 2,
+      random: `0x${'5a'.repeat(32)}`,
+    },
+    '0x',
+  ],
+})
+
 // Displayed facet struct components and the value each renders with, keyed by
 // path because the same component name has different types across facets. A
 // displayed component missing here falls back to the type default — a zero —
 // and fails --check the moment a field displays it.
 const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
+  '_acrossData.sendingAssetId': PADDED_USDC,
+  '_acrossData.quoteTimestamp': QUOTE_TIMESTAMP,
+  '_acrossData.fillDeadline': QUOTE_TIMESTAMP + 3_600,
+  // Sponsored OFT: checks the Across recipient against `_bridgeData.receiver`.
+  '_acrossV4SwapFacetData.swapApiTarget': 2,
   '_acrossData.relayerFeePct': 2_500_000_000_000_000n,
   '_acrossData.outputAmount': 995_000_000n,
   '_acrossData.outputAmountMultiplier': 995_000_000_000_000_000n,
@@ -70,22 +131,17 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_celerCircleData.maxFee': 500_000n,
   '_centrifugeData.nativeFee': NATIVE_VALUE,
   '_centrifugeData.refundRecipient': RECEIVER,
-  '_chainflipData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_chainflipData.dstToken': 3,
-  '_chainflipData.dstCallReceiver': DESTINATION_CALL_RECEIVER,
   '_deBridgeData.receiver': RECEIVER.toLowerCase(),
   '_deBridgeData.minAmountOut': 998_000_000n,
   '_deBridgeData.receivingAssetId': USDC.toLowerCase(),
   '_deBridgeData.orderAuthorityDst': RECEIVER.toLowerCase(),
   '_megaETHData.assetIdOnL2': L2_TOKEN,
   '_optimismData.assetIdOnL2': L2_TOKEN,
-  '_ecoData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_ecoData.refundRecipient': RECEIVER,
-  '_fraxData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_fraxData.nativeFee': NATIVE_VALUE,
   '_fraxData.refundRecipient': RECEIVER,
   '_gardenData.redeemer': SOLVER,
-  '_gardenData.nonEvmReceiver': NON_EVM_RECEIVER,
   '_gardenData.refundAddress': RECEIVER,
   // Right-padded, unlike every other bytes32 recipient (GasZipFacet).
   '_gasZipData.receiverAddress': `${RECEIVER.toLowerCase()}${'00'.repeat(12)}`,
@@ -95,7 +151,6 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_glacisData.outputToken': PADDED_USDC,
   '_glacisData.refundAddress': RECEIVER,
   '_layerSwapData.depositoryReceiver': DEPOSIT_ADDRESS,
-  '_layerSwapData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_layerSwapData.refundRecipient': RECEIVER,
   '_lifiIntentData.recipient': PADDED_RECEIVER,
   '_lifiIntentData.outputAmountMultiplier': 995_000_000_000_000_000n,
@@ -107,23 +162,26 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_m0Data.tokenOut': PADDED_USDC,
   '_m0Data.orderOwner': RECEIVER,
   '_m0Data.refundRecipient': RECEIVER,
-  '_mayanData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_mayanData.mayanAmountIn': 1_000_000_000n,
+  '_mayanData.mayanProtocol': MAYAN_PROTOCOL,
+  '_mayanData.protocolData': MAYAN_ORDER,
   '_mayanData.refundRecipient': RECEIVER,
   '_nearData.depositAddress': DEPOSIT_ADDRESS,
-  '_nearData.nonEVMReceiver': NON_EVM_RECEIVER,
   // Left-padded USDC, matching TEST_DESTINATION_ASSET in the facet tests.
   '_nearData.destinationAsset': PADDED_USDC,
   '_nearData.minAmountOut': 998_000_000n,
   '_nearData.refundRecipient': RECEIVER,
   '_paxosData.quote.route.destEID': 30_111,
   '_paxosData.quote.route.wantAsset': USDC,
+  '_paxosData.quote.route.offerAsset': USDC,
+  '_paxosData.quote.offerAmount': 1_000_000_000n,
+  '_paxosData.quote.receiver': RECEIVER,
+  '_paxosData.quote.deadline': BigInt(QUOTE_TIMESTAMP + 3_600),
   '_paxosData.quote.protocolFee': 20_000n,
   '_paxosData.quote.integratorFee': 10_000n,
   '_paxosData.quote.integratorFeeReceiver': RECEIVER,
   '_paxosData.nativeFee': NATIVE_VALUE,
   '_paxosData.refundRecipient': RECEIVER,
-  '_polymerData.nonEVMReceiver': NON_EVM_RECEIVER,
   '_polymerData.polymerTokenFee': 2_000_000n,
   '_polymerData.maxCCTPFee': 1_000_000n,
   '_polymerData.refundRecipient': RECEIVER,
@@ -135,6 +193,19 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   // route 1 (CallBridge) delivers to the receiver and ignores this.
   '_squidData.destinationAddress': DESTINATION_CALL_RECEIVER,
   '_squidData.fee': NATIVE_VALUE,
+  '_squidData.bridgedTokenSymbol': 'USDC',
+  '_squidData.depositAssetId': USDC,
+  '_squidData.sourceCalls': [
+    {
+      callType: 0,
+      target: DEX_ROUTER,
+      value: 0n,
+      callData: '0x',
+      payload: '0x',
+    },
+  ],
+  // Pool id 1 is USDC on Stargate V2.
+  '_stargateData.assetId': 1,
   '_stargateData.sendParams.dstEid': 30_111,
   '_stargateData.sendParams.to': PADDED_RECEIVER,
   '_stargateData.sendParams.minAmountLD': 998_000_000n,
@@ -142,9 +213,13 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_stargateData.refundAddress': RECEIVER,
   '_supersetData.lzFee': NATIVE_VALUE,
   '_supersetData.refundAddress': RECEIVER,
+  '_supersetData.amountOutMin': 998_000_000n,
+  '_supersetData.fallbackEoA': RECEIVER,
+  '_supersetData.deadline': BigInt(QUOTE_TIMESTAMP + 3_600),
+  // omniTokenId (32) || fee (3) || omniTokenId (32)
+  '_supersetData.path': `0x${'11'.repeat(32)}0001f4${'22'.repeat(32)}`,
+  '_supersetData.toEid': 30_111,
   '_symbiosisData.callTo': DEPOSIT_ADDRESS,
-  '_symbiosisData.nonEvmReceiver': NON_EVM_RECEIVER,
-  '_symbiosisData.fee': NATIVE_VALUE,
   '_symbiosisData.refundRecipient': RECEIVER,
   '_thorSwapData.vault': DEPOSIT_ADDRESS,
   '_thorSwapData.memo': `=:OP.USDC:${RECEIVER}`,
@@ -176,6 +251,8 @@ interface IVariantCase {
 const DATA_PROVIDER_TOKENS = {
   [USDC.toLowerCase()]: { decimals: 6, name: 'USD Coin', symbol: 'USDC' },
   [WETH.toLowerCase()]: { decimals: 18, name: 'Wrapped Ether', symbol: 'WETH' },
+  [DAI.toLowerCase()]: { decimals: 18, name: 'Dai Stablecoin', symbol: 'DAI' },
+  [BASE_USDC.toLowerCase()]: { decimals: 6, name: 'USD Coin', symbol: 'USDC' },
 }
 
 // `_bridgeData` and every `_swapData` entry always reach a screen; of the
@@ -196,8 +273,8 @@ const BRIDGE_DATA: Record<string, unknown> = {
 }
 
 const SWAP_DATA: Record<string, unknown> = {
-  callTo: ZERO_ADDRESS,
-  approveTo: ZERO_ADDRESS,
+  callTo: DEX_ROUTER,
+  approveTo: DEX_ROUTER,
   sendingAssetId: WETH,
   receivingAssetId: USDC,
   fromAmount: 500_000_000_000_000_000n,
@@ -250,9 +327,125 @@ const VARIANT_CASES: IVariantCase[] = [
         receiver: NON_EVM_ADDRESS,
         destinationChainId: SOLANA_CHAIN_ID,
       },
+      components: { '_mayanData.nonEVMReceiver': NON_EVM_RECEIVER },
+    },
+  },
+  {
+    // CCTP mints to the token account; the owner wallet is only reported.
+    functionName: 'startBridgeTokensViaPolymerCCTP',
+    label: 'Solana destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: SOLANA_CHAIN_ID,
+      },
+      components: {
+        '_polymerData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_polymerData.solanaReceiverATA': SOLANA_TOKEN_ACCOUNT,
+      },
+    },
+  },
+  {
+    // The forwarder pays the strkey in hookData; nonEVMReceiver is tracking.
+    functionName: 'startBridgeTokensViaPolymerCCTP',
+    label: 'Stellar destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: STELLAR_CHAIN_ID,
+      },
+      components: {
+        '_polymerData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_polymerData.hookData': STELLAR_HOOK_DATA,
+      },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaChainflip',
+    label: 'destination call',
+    overrides: {
+      bridgeData: { destinationChainId: 42_161n, hasDestinationCall: true },
+      components: {
+        '_chainflipData.dstCallReceiver': DESTINATION_CALL_RECEIVER,
+      },
     },
   },
 ]
+
+// The bridge has one destination chain or accepts only some tokens; the base
+// case of these functions uses inputs the facet accepts.
+const NATIVE_SWAP_OUTPUT = [{ ...SWAP_DATA, receivingAssetId: ZERO_ADDRESS }]
+const NATIVE_BRIDGE = { sendingAssetId: ZERO_ADDRESS, minAmount: 10n ** 17n }
+const GNOSIS_DAI = {
+  sendingAssetId: DAI,
+  minAmount: 1_000n * 10n ** 18n,
+  destinationChainId: 100n,
+}
+const BASE_CASE_OVERRIDES: Record<string, ICaseOverrides> = {
+  startBridgeTokensViaArbitrumBridge: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  swapAndStartBridgeTokensViaArbitrumBridge: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  startBridgeTokensViaMegaETHBridge: {
+    bridgeData: { destinationChainId: 4_326n },
+  },
+  swapAndStartBridgeTokensViaMegaETHBridge: {
+    bridgeData: { destinationChainId: 4_326n },
+  },
+  startBridgeTokensViaPolygonBridge: {
+    bridgeData: { destinationChainId: 137n },
+  },
+  swapAndStartBridgeTokensViaPolygonBridge: {
+    bridgeData: { destinationChainId: 137n },
+  },
+  startBridgeTokensViaOmniBridge: {
+    bridgeData: { destinationChainId: 100n },
+  },
+  swapAndStartBridgeTokensViaOmniBridge: {
+    bridgeData: { destinationChainId: 100n },
+  },
+  startBridgeTokensViaGnosisBridge: {
+    bridgeData: GNOSIS_DAI,
+  },
+  swapAndStartBridgeTokensViaGnosisBridge: {
+    bridgeData: GNOSIS_DAI,
+    swapData: [{ ...SWAP_DATA, receivingAssetId: DAI }],
+  },
+  startBridgeTokensViaChainflip: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  swapAndStartBridgeTokensViaChainflip: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  startBridgeTokensViaUnit: {
+    bridgeData: { ...NATIVE_BRIDGE, destinationChainId: HYPERCORE_CHAIN_ID },
+    value: NATIVE_BRIDGE.minAmount,
+  },
+  swapAndStartBridgeTokensViaUnit: {
+    bridgeData: { ...NATIVE_BRIDGE, destinationChainId: HYPERCORE_CHAIN_ID },
+    swapData: NATIVE_SWAP_OUTPUT,
+  },
+  startBridgeTokensViaGasZip: {
+    bridgeData: NATIVE_BRIDGE,
+    value: NATIVE_BRIDGE.minAmount,
+  },
+  swapAndStartBridgeTokensViaGasZip: {
+    bridgeData: NATIVE_BRIDGE,
+    swapData: NATIVE_SWAP_OUTPUT,
+  },
+  startBridgeTokensViaAcross: { bridgeData: { sendingAssetId: BASE_USDC } },
+  swapAndStartBridgeTokensViaAcross: {
+    bridgeData: { sendingAssetId: BASE_USDC },
+    swapData: [{ ...SWAP_DATA, receivingAssetId: BASE_USDC }],
+  },
+  startBridgeTokensViaSuperset: { bridgeData: { sendingAssetId: BASE_USDC } },
+  swapAndStartBridgeTokensViaSuperset: {
+    bridgeData: { sendingAssetId: BASE_USDC },
+    swapData: [{ ...SWAP_DATA, receivingAssetId: BASE_USDC }],
+  },
+}
 
 // The swapTokens* family displays top-level parameters rather than struct
 // components, so those need values too — `--check` reports any that are missed.
@@ -268,7 +461,13 @@ const TOP_LEVEL_ARGS: Record<string, unknown> = {
 interface IDescriptorField {
   path: string
   label: string
-  visible?: string
+  // A string, or a rule such as `{ ifNotIn: [0] }` that hides the field for
+  // the listed values.
+  visible?: string | Record<string, unknown>
+}
+
+function isConditional(field: IDescriptorField): boolean {
+  return typeof field.visible === 'object'
 }
 
 interface IDescriptorFormat {
@@ -596,7 +795,7 @@ function buildFixture(
     // function share a description but not a selector.
     if (variant && descriptions.has(description)) return
 
-    const overrides = variant?.overrides ?? {}
+    const overrides = variant?.overrides ?? BASE_CASE_OVERRIDES[abiItem.name]
     let rawTx: string
     try {
       rawTx = buildRawTx(
@@ -740,10 +939,15 @@ function checkVisibleFields(
   for (const [formatKey, format] of Object.entries(formats)) {
     const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
     const isSwapVariant = abiItem.name.startsWith('swapAndStart')
-    const args = abiItem.inputs.map((input) => buildArg(input, isSwapVariant))
+    const args = abiItem.inputs.map((input) =>
+      buildArg(input, isSwapVariant, BASE_CASE_OVERRIDES[abiItem.name])
+    )
 
     for (const field of format.fields ?? []) {
-      if ((field.visible ?? 'always') === 'never') continue
+      // A conditional field is hidden at its zero value by design; a variant
+      // case asserts it where it shows.
+      if ((field.visible ?? 'always') === 'never' || isConditional(field))
+        continue
 
       // `@.` paths read the transaction envelope, not calldata. A visible
       // `@.value` is what makes nativeValueFor() encode NATIVE_VALUE, so it is
@@ -793,7 +997,10 @@ function labelsMatch(format: IDescriptorFormat, asserted: string[]): boolean {
   )
   let index = 0
   for (const field of displayed) {
-    if (asserted[index] !== field.label) return false
+    if (asserted[index] !== field.label) {
+      if (isConditional(field)) continue
+      return false
+    }
     index++
     if (field.path.includes('.[]'))
       while (asserted[index] === field.label) index++

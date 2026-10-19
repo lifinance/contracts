@@ -108,7 +108,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (not checked when Destination Call is true)",
           "format": "addressName",
           "params": {
             "types": [
@@ -118,6 +118,20 @@
             "sources": [
               "local",
               "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_acrossData.sendingAssetId.[12:32]",
+          "label": "Token Bridged",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "token"
+            ],
+            "sources": [
+              "local"
             ]
           },
           "visible": "always"
@@ -223,7 +237,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (checked on routes 2, 3; backend-signed on 0, 1)",
           "format": "addressName",
           "params": {
             "types": [
@@ -235,6 +249,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_acrossV4SwapFacetData.swapApiTarget",
+          "label": "Across Route (0 SpokePool, 1 Periphery, 2 Sponsored OFT, 3 Sponsored CCTP)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -391,7 +411,7 @@
     },
     "startBridgeTokensViaArbitrumBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (uint256 maxSubmissionCost, uint256 maxGas, uint256 maxGasPrice) _arbitrumData)": {
       "intent": "Bridge via ArbitrumBridge",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via ArbitrumBridge to Arbitrum One for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -405,7 +425,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -440,7 +460,11 @@
         {
           "path": "_arbitrumData.maxGasPrice",
           "label": "Max Gas Price",
-          "format": "amount",
+          "format": "unit",
+          "params": {
+            "base": "gwei",
+            "decimals": 9
+          },
           "visible": "always"
         },
         {
@@ -695,11 +719,15 @@
           "path": "_chainflipData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_chainflipData.dstToken",
-          "label": "Chainflip Token Received",
+          "label": "Token Received (Chainflip asset id)",
           "format": "raw",
           "visible": "always"
         },
@@ -717,7 +745,11 @@
               "ens"
             ]
           },
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              "0x0000000000000000000000000000000000000000"
+            ]
+          }
         },
         {
           "path": "_bridgeData.hasDestinationCall",
@@ -896,7 +928,21 @@
           "path": "_ecoData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
+        },
+        {
+          "path": "_ecoData.solanaATA",
+          "label": "Solana Token Account",
+          "format": "raw",
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_ecoData.refundRecipient",
@@ -986,7 +1032,11 @@
           "path": "_fraxData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_fraxData.nativeFee",
@@ -1104,7 +1154,11 @@
           "path": "_gardenData.nonEvmReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_gardenData.refundAddress",
@@ -1510,7 +1564,11 @@
           "path": "_layerSwapData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_layerSwapData.refundRecipient",
@@ -1833,7 +1891,7 @@
     },
     "startBridgeTokensViaMayan((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 nonEVMReceiver, address mayanProtocol, bytes protocolData, address swapProtocol, bytes swapData, address middleToken, uint256 minMiddleAmount, address refundRecipient, uint256 mayanAmountIn) _mayanData)": {
       "intent": "Bridge via Mayan",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Mayan for {_bridgeData.receiver}; chain and output set by the Mayan order",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -1847,7 +1905,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the Mayan order decides)",
           "format": "raw",
           "visible": "always"
         },
@@ -1871,7 +1929,11 @@
           "path": "_mayanData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_mayanData.refundRecipient",
@@ -1888,6 +1950,62 @@
             ]
           },
           "visible": "optional"
+        },
+        {
+          "path": "_mayanData.protocolData",
+          "label": "Mayan Order (sets token received, minimum, chain)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_mayanData.mayanProtocol",
+          "label": "Mayan Protocol Contract",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_mayanData.middleToken",
+          "label": "Middle Token (native swap)",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": {
+            "ifNotIn": [
+              "0x0000000000000000000000000000000000000000"
+            ]
+          }
+        },
+        {
+          "path": "_mayanData.minMiddleAmount",
+          "label": "Minimum Middle Amount",
+          "format": "tokenAmount",
+          "params": {
+            "tokenPath": "_mayanData.middleToken",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
+          },
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "@.value",
@@ -1929,7 +2047,7 @@
     },
     "startBridgeTokensViaMegaETHBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address assetIdOnL2, uint32 l2Gas, bool requiresDepositTo) _megaETHData)": {
       "intent": "Bridge via MegaETHBridge",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via MegaETHBridge to MegaETH for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -1943,7 +2061,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -1965,7 +2083,13 @@
         },
         {
           "path": "_megaETHData.assetIdOnL2",
-          "label": "Token Received (L2)",
+          "label": "Token Received (unused for ETH or custom bridge)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_megaETHData.requiresDepositTo",
+          "label": "Custom Bridge (sets the token received)",
           "format": "raw",
           "visible": "always"
         },
@@ -2063,7 +2187,11 @@
           "path": "_nearData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_nearData.destinationAsset",
@@ -2133,7 +2261,7 @@
     },
     "startBridgeTokensViaOmniBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData)": {
       "intent": "Bridge via OmniBridge",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via OmniBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via OmniBridge to Gnosis (Ethereum when sent from Gnosis) for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2147,7 +2275,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -2207,7 +2335,7 @@
     },
     "startBridgeTokensViaOptimismBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address assetIdOnL2, uint32 l2Gas, bool isSynthetix) _optimismData)": {
       "intent": "Bridge via OptimismBridge",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via OptimismBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via OptimismBridge to OP Mainnet for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2221,7 +2349,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -2243,7 +2371,13 @@
         },
         {
           "path": "_optimismData.assetIdOnL2",
-          "label": "Token Received (L2)",
+          "label": "Token Received (unused for ETH or custom bridge)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_optimismData.isSynthetix",
+          "label": "Custom Bridge (sets the token received)",
           "format": "raw",
           "visible": "always"
         },
@@ -2431,7 +2565,7 @@
     },
     "startBridgeTokensViaPolygonBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData)": {
       "intent": "Bridge via PolygonBridge",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PolygonBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via PolygonBridge to Polygon PoS for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -2445,7 +2579,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -2541,9 +2675,33 @@
         },
         {
           "path": "_polymerData.nonEVMReceiver",
-          "label": "Non-EVM Recipient",
+          "label": "Non-EVM Recipient (reported)",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
+        },
+        {
+          "path": "_polymerData.solanaReceiverATA",
+          "label": "Solana Token Account (receives USDC)",
+          "format": "raw",
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
+        },
+        {
+          "path": "_polymerData.hookData",
+          "label": "Forwarder Hook (Stellar recipient strkey from byte 32)",
+          "format": "raw",
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_polymerData.polymerTokenFee",
@@ -2557,7 +2715,7 @@
         },
         {
           "path": "_polymerData.maxCCTPFee",
-          "label": "Max Destination Fee (0 = no limit)",
+          "label": "Max Destination Fee",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -2705,14 +2863,14 @@
     },
     "startBridgeTokensViaSquid((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (uint8 routeType, string destinationChain, string destinationAddress, string bridgedTokenSymbol, address depositAssetId, (uint8 callType, address target, uint256 value, bytes callData, bytes payload)[] sourceCalls, bytes payload, uint256 fee, bool enableExpress) _squidData)": {
       "intent": "Bridge via Squid",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} to {_squidData.destinationChain}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} as {_squidData.bridgedTokenSymbol} to {_squidData.destinationChain}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId",
+            "tokenPath": "_squidData.depositAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
@@ -2749,6 +2907,28 @@
           "path": "_squidData.destinationChain",
           "label": "Squid Destination Chain",
           "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_squidData.bridgedTokenSymbol",
+          "label": "Token Bridged (Axelar)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_squidData.sourceCalls.[].target",
+          "label": "Source Call Target",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
           "visible": "always"
         },
         {
@@ -2973,6 +3153,12 @@
           "visible": "always"
         },
         {
+          "path": "_supersetData.amountOutMin",
+          "label": "Minimum Received (destination units)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_supersetData.lzFee",
           "label": "LayerZero Fee",
           "format": "amount",
@@ -2981,6 +3167,22 @@
         {
           "path": "_supersetData.refundAddress",
           "label": "Refund Address",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "optional"
+        },
+        {
+          "path": "_supersetData.fallbackEoA",
+          "label": "Fallback Recipient (on delivery failure)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3034,7 +3236,7 @@
     },
     "startBridgeTokensViaSymbiosis((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address refundRecipient, bytes32 nonEvmReceiver, bytes firstSwapCalldata, bytes secondSwapCalldata, address firstDexRouter, address secondDexRouter, address[] approvedTokens, address callTo, bytes callData, bool viaOnchainSwapV3, address dex, address dexgateway, bytes onchainSwapData, uint256 fee, uint256 deadline, bytes signature) _symbiosisData)": {
       "intent": "Bridge via Symbiosis",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via Symbiosis contract {_symbiosisData.callTo}; recipient and chain set by Symbiosis calldata",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -3048,13 +3250,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (not enforced; Symbiosis calldata decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (not enforced; Symbiosis calldata decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3088,13 +3290,21 @@
           "path": "_symbiosisData.nonEvmReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_symbiosisData.fee",
-          "label": "Symbiosis Fee",
+          "label": "Symbiosis Fee (Bitcoin route)",
           "format": "amount",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_symbiosisData.refundRecipient",
@@ -3166,13 +3376,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the memo decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (reported; the memo decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3482,7 +3692,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (not checked when Destination Call is true)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3492,6 +3702,20 @@
             "sources": [
               "local",
               "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_acrossData.sendingAssetId.[12:32]",
+          "label": "Token Bridged",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "token"
+            ],
+            "sources": [
+              "local"
             ]
           },
           "visible": "always"
@@ -3611,7 +3835,7 @@
         },
         {
           "path": "_bridgeData.minAmount",
-          "label": "Minimum to Bridge",
+          "label": "Minimum to Bridge (surplus to Across refund address)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -3627,7 +3851,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (checked on routes 2, 3; backend-signed on 0, 1)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3639,6 +3863,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_acrossV4SwapFacetData.swapApiTarget",
+          "label": "Across Route (0 SpokePool, 1 Periphery, 2 Sponsored OFT, 3 Sponsored CCTP)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3845,7 +4075,7 @@
     },
     "swapAndStartBridgeTokensViaArbitrumBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (uint256 maxSubmissionCost, uint256 maxGas, uint256 maxGasPrice) _arbitrumData)": {
       "intent": "Swap & Bridge via ArbitrumBridge",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to Arbitrum One for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -3869,7 +4099,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -3904,7 +4134,11 @@
         {
           "path": "_arbitrumData.maxGasPrice",
           "label": "Max Gas Price",
-          "format": "amount",
+          "format": "unit",
+          "params": {
+            "base": "gwei",
+            "decimals": 9
+          },
           "visible": "always"
         },
         {
@@ -4255,11 +4489,15 @@
           "path": "_chainflipData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_chainflipData.dstToken",
-          "label": "Chainflip Token Received",
+          "label": "Token Received (Chainflip asset id)",
           "format": "raw",
           "visible": "always"
         },
@@ -4277,7 +4515,11 @@
               "ens"
             ]
           },
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              "0x0000000000000000000000000000000000000000"
+            ]
+          }
         },
         {
           "path": "_bridgeData.hasDestinationCall",
@@ -4516,7 +4758,21 @@
           "path": "_ecoData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
+        },
+        {
+          "path": "_ecoData.solanaATA",
+          "label": "Solana Token Account",
+          "format": "raw",
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_ecoData.refundRecipient",
@@ -4642,7 +4898,11 @@
           "path": "_fraxData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_fraxData.nativeFee",
@@ -4790,7 +5050,11 @@
           "path": "_gardenData.nonEvmReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_gardenData.refundAddress",
@@ -4885,7 +5149,7 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId",
+            "tokenPath": "_swapData.[-1].receivingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
@@ -5322,7 +5586,11 @@
           "path": "_layerSwapData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_layerSwapData.refundRecipient",
@@ -5731,7 +5999,7 @@
     },
     "swapAndStartBridgeTokensViaMayan((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (bytes32 nonEVMReceiver, address mayanProtocol, bytes protocolData, address swapProtocol, bytes swapData, address middleToken, uint256 minMiddleAmount, address refundRecipient, uint256 mayanAmountIn) _mayanData)": {
       "intent": "Swap & Bridge via Mayan",
-      "interpolatedIntent": "Swap then bridge {_mayanData.mayanAmountIn} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_mayanData.mayanAmountIn} via Mayan for {_bridgeData.receiver}; chain and output set by the Mayan order",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -5755,7 +6023,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the Mayan order decides)",
           "format": "raw",
           "visible": "always"
         },
@@ -5779,11 +6047,15 @@
           "path": "_mayanData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_mayanData.mayanAmountIn",
-          "label": "Amount to Bridge",
+          "label": "Amount to Bridge (rounded down to 8 decimals)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -5794,6 +6066,28 @@
         {
           "path": "_mayanData.refundRecipient",
           "label": "Refund Recipient",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
+          "path": "_mayanData.protocolData",
+          "label": "Mayan Order (sets token received, minimum, chain)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_mayanData.mayanProtocol",
+          "label": "Mayan Protocol Contract",
           "format": "addressName",
           "params": {
             "types": [
@@ -5867,7 +6161,7 @@
     },
     "swapAndStartBridgeTokensViaMegaETHBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address assetIdOnL2, uint32 l2Gas, bool requiresDepositTo) _megaETHData)": {
       "intent": "Swap & Bridge via MegaETHBridge",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to MegaETH for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -5891,7 +6185,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -5913,7 +6207,13 @@
         },
         {
           "path": "_megaETHData.assetIdOnL2",
-          "label": "Token Received (L2)",
+          "label": "Token Received (unused for ETH or custom bridge)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_megaETHData.requiresDepositTo",
+          "label": "Custom Bridge (sets the token received)",
           "format": "raw",
           "visible": "always"
         },
@@ -6041,7 +6341,11 @@
           "path": "_nearData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_nearData.destinationAsset",
@@ -6131,7 +6435,7 @@
     },
     "swapAndStartBridgeTokensViaOmniBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData)": {
       "intent": "Swap & Bridge via OmniBridge",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via OmniBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via OmniBridge to Gnosis (Ethereum when sent from Gnosis) for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6155,7 +6459,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -6235,7 +6539,7 @@
     },
     "swapAndStartBridgeTokensViaOptimismBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address assetIdOnL2, uint32 l2Gas, bool isSynthetix) _optimismData)": {
       "intent": "Swap & Bridge via OptimismBridge",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via OptimismBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via OptimismBridge to OP Mainnet for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6259,7 +6563,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -6281,7 +6585,13 @@
         },
         {
           "path": "_optimismData.assetIdOnL2",
-          "label": "Token Received (L2)",
+          "label": "Token Received (unused for ETH or custom bridge)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_optimismData.isSynthetix",
+          "label": "Custom Bridge (sets the token received)",
           "format": "raw",
           "visible": "always"
         },
@@ -6359,7 +6669,7 @@
         },
         {
           "path": "_bridgeData.minAmount",
-          "label": "Minimum to Bridge",
+          "label": "Amount to Bridge (swap excess to refund)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -6457,7 +6767,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -6519,7 +6829,7 @@
     },
     "swapAndStartBridgeTokensViaPolygonBridge((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData)": {
       "intent": "Swap & Bridge via PolygonBridge",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PolygonBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via PolygonBridge to Polygon PoS for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6543,7 +6853,7 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (ignored; set by the bridge)",
           "format": "raw",
           "visible": "always"
         },
@@ -6669,9 +6979,33 @@
         },
         {
           "path": "_polymerData.nonEVMReceiver",
-          "label": "Non-EVM Recipient",
+          "label": "Non-EVM Recipient (reported)",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
+        },
+        {
+          "path": "_polymerData.solanaReceiverATA",
+          "label": "Solana Token Account (receives USDC)",
+          "format": "raw",
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
+        },
+        {
+          "path": "_polymerData.hookData",
+          "label": "Forwarder Hook (Stellar recipient strkey from byte 32)",
+          "format": "raw",
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_polymerData.polymerTokenFee",
@@ -6685,7 +7019,7 @@
         },
         {
           "path": "_polymerData.maxCCTPFee",
-          "label": "Max Destination Fee (0 = no limit)",
+          "label": "Max Destination Fee",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -6889,7 +7223,7 @@
     },
     "swapAndStartBridgeTokensViaSquid((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (uint8 routeType, string destinationChain, string destinationAddress, string bridgedTokenSymbol, address depositAssetId, (uint8 callType, address target, uint256 value, bytes callData, bytes payload)[] sourceCalls, bytes payload, uint256 fee, bool enableExpress) _squidData)": {
       "intent": "Swap & Bridge via Squid",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} to {_squidData.destinationChain}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Squid route {_squidData.routeType} as {_squidData.bridgedTokenSymbol} to {_squidData.destinationChain}",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -6943,6 +7277,28 @@
           "path": "_squidData.destinationChain",
           "label": "Squid Destination Chain",
           "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_squidData.bridgedTokenSymbol",
+          "label": "Token Bridged (Axelar)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_squidData.sourceCalls.[].target",
+          "label": "Source Call Target",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
           "visible": "always"
         },
         {
@@ -7227,6 +7583,12 @@
           "visible": "always"
         },
         {
+          "path": "_supersetData.amountOutMin",
+          "label": "Quoted Minimum Received (destination units)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_supersetData.lzFee",
           "label": "LayerZero Fee",
           "format": "amount",
@@ -7235,6 +7597,22 @@
         {
           "path": "_supersetData.refundAddress",
           "label": "Refund Address",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "optional"
+        },
+        {
+          "path": "_supersetData.fallbackEoA",
+          "label": "Fallback Recipient (on delivery failure)",
           "format": "addressName",
           "params": {
             "types": [
@@ -7308,7 +7686,7 @@
     },
     "swapAndStartBridgeTokensViaSymbiosis((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData, (address refundRecipient, bytes32 nonEvmReceiver, bytes firstSwapCalldata, bytes secondSwapCalldata, address firstDexRouter, address secondDexRouter, address[] approvedTokens, address callTo, bytes callData, bool viaOnchainSwapV3, address dex, address dexgateway, bytes onchainSwapData, uint256 fee, uint256 deadline, bytes signature) _symbiosisData)": {
       "intent": "Swap & Bridge via Symbiosis",
-      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
+      "interpolatedIntent": "Swap then bridge {_bridgeData.minAmount} via Symbiosis contract {_symbiosisData.callTo}; recipient and chain set by Symbiosis calldata",
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
@@ -7332,13 +7710,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (not enforced; Symbiosis calldata decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (not enforced; Symbiosis calldata decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -7372,13 +7750,21 @@
           "path": "_symbiosisData.nonEvmReceiver",
           "label": "Non-EVM Recipient",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_symbiosisData.fee",
-          "label": "Symbiosis Fee",
+          "label": "Symbiosis Fee (Bitcoin route)",
           "format": "amount",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_symbiosisData.refundRecipient",
@@ -7480,13 +7866,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the memo decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (reported; the memo decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -7706,7 +8092,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Send",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
@@ -7783,7 +8169,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Send",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
