@@ -253,6 +253,13 @@
         ],
         "pharos": [
           {
+            "address": "0xf7177baf6442fb76b0833aeca3de8d4dc8ffd695",
+            "functions": {
+              "0x2fa11647": "externalSwap(address,address,address,address,uint256,uint256,uint256,bytes,bytes,uint256)",
+              "0xff84aafa": "mixSwap(address,address,uint256,uint256,uint256,address[],address[],address[],uint256,bytes[],bytes,uint256)"
+            }
+          },
+          {
             "address": "0xa5ca5fbe34e444f366b373170541ec6902b0f75c",
             "functions": {
               "0x2fa11647": "externalSwap(address,address,address,address,uint256,uint256,uint256,bytes,bytes,uint256)",
