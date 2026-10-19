@@ -20,6 +20,8 @@ import {
 import { consola } from 'consola'
 import { encodeFunctionData, parseAbi, toFunctionSelector } from 'viem'
 
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+
 import {
   getRoleName,
   formatRoleChange,
@@ -274,6 +276,29 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
     expect(output).toContain(tronB)
     // One "Contract:" line per address — a merged group would print only one.
     expect(output.match(/Contract:/g)?.length).toBe(2)
+  })
+
+  it('matches a decoded hex Tron contract to its base58 whitelist entry', async () => {
+    stubFourByte({})
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    await formatBatchSetContractSelectorWhitelist(
+      [
+        [
+          normalizeAddressForNetwork(
+            'tron',
+            'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
+          ),
+        ],
+        ['0x0e8ae67f'],
+        true,
+      ],
+      'tron'
+    )
+    const output = infoSpy.mock.calls.map((call) => String(call[0])).join('\n')
+    expect(output).toContain('PERIPHERY/FeeForwarder')
+    expect(output).toContain('forwardNativeFees((address,uint256)[])')
   })
 
   it('resolves a selector missing from whitelist.json via the 4byte lookup', async () => {

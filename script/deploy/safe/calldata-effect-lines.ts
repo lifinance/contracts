@@ -49,6 +49,7 @@ import {
   getDiamondAbiItemForSelector,
   getRoleName,
   getTargetName,
+  lookupWhitelistMetaForContractSelector,
 } from './safe-decode-utils'
 import {
   createSelectorMap,
@@ -60,6 +61,7 @@ import {
   getArtifactSelectorInfo,
   getLocalSelectorInfo,
   type ISelectorInfo,
+  isVerifiedSelectorSignature,
   resolveSelectorsViaFourByte,
 } from './selector-registry'
 
@@ -801,15 +803,85 @@ async function whitelistLines(
   )
 
   const shown = Math.min(count, MAX_WHITELIST_ROWS_SHOWN)
+  const shownSelectors = selectors
+    .slice(0, shown)
+    .map((selector: unknown) => String(selector ?? '').toLowerCase())
+  // The name, not the signature, for the reason diamondCutLines gives: router
+  // signatures in whitelist.json run past the view's width. 4byte supplies only
+  // a signature, so that arm still renders one.
+  const localNames = shownSelectors.map((selector, i) => {
+    const signature = whitelistSignature(
+      context.network,
+      contracts[i],
+      selector
+    )
+    return signature === undefined
+      ? getLocalSelectorInfo(selector)?.name
+      : bareName(signature)
+  })
+
+  // One batched, disk-cached lookup for every selector no local source knows,
+  // so rendering below stays synchronous per row.
+  const unknown = shownSelectors.filter(
+    (selector, i) => selector !== '' && localNames[i] === undefined
+  )
+  const fourByte =
+    unknown.length > 0
+      ? await resolveSelectorsViaFourByte(unknown)
+      : new Map<string, string>()
+
   for (let i = 0; i < shown; i++) {
     const contract = await renderAddress(context.network, contracts[i])
     lines.push(...addressLines(`${pre}  `, EMPTY, contract))
+    const selector = shownSelectors[i] ?? ''
+    const named = localNames[i] ?? fourByte.get(selector)
+    const name =
+      selector === ''
+        ? EMPTY
+        : concatPrintable(
+            trustedMarkup('  '),
+            named
+              ? storedField(named, BLUE)
+              : color(GREY, trustedMarkup('no name for this selector'))
+          )
     lines.push(
-      `${pre}    ${color(CYAN, asPrintable(String(selectors[i] ?? '')).text)}`
+      `${pre}    ${color(
+        CYAN,
+        asPrintable(String(selectors[i] ?? '')).text
+      )}${name}`
     )
   }
   lines.push(...withheldLine(`${pre}  `, count - shown, count, 'pair'))
   return lines
+}
+
+/**
+ * The signature `config/whitelist.json` files under this contract on this
+ * network, when it hashes to the selector.
+ *
+ * The file pairs selector and signature by hand, so one that does not hash back
+ * is left for the registry and 4byte rather than shown as a plausible wrong
+ * name.
+ */
+function whitelistSignature(
+  network: string,
+  contract: unknown,
+  selector: string
+): string | undefined {
+  try {
+    const signature = lookupWhitelistMetaForContractSelector(
+      network,
+      String(contract ?? '').trim(),
+      selector
+    ).signature?.trim()
+    return signature && isVerifiedSelectorSignature(selector, signature)
+      ? signature
+      : undefined
+  } catch {
+    // An unreadable whitelist.json leaves the pair to the registry and 4byte,
+    // which skip that file the same way, rather than losing the whole block.
+    return undefined
+  }
 }
 
 async function registerPeripheryLines(
