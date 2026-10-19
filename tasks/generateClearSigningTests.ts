@@ -3,8 +3,10 @@ import fs from 'fs'
 import { defineCommand, runMain } from 'citty'
 import type { AbiFunction, AbiParameter } from 'viem'
 import {
+  encodeAbiParameters,
   encodeFunctionData,
   parseAbiItem,
+  parseAbiParameters,
   parseTransaction,
   serializeTransaction,
   toFunctionSelector,
@@ -48,14 +50,19 @@ const HYPERCORE_CHAIN_ID = 1_337n
 // A Solana USDC token account (the CCTP mint recipient), as bytes32.
 const SOLANA_TOKEN_ACCOUNT =
   '0x3b4d5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c'
-// CctpForwarder hook: magic (24) + version (4) + length (4) + strkey (ASCII).
+// CctpForwarder hook: magic (24) + version (4) + length (4) + payload.
+function forwarderHook(payloadHex: string): string {
+  return `0x${Buffer.from('cctp-forward', 'ascii')
+    .toString('hex')
+    .padEnd(48, '0')}00000000${(payloadHex.length / 2)
+    .toString(16)
+    .padStart(8, '0')}${payloadHex}`
+}
 const STELLAR_STRKEY =
   'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H'
-const STELLAR_HOOK_DATA = `0x${Buffer.from('cctp-forward', 'ascii')
-  .toString('hex')
-  .padEnd(48, '0')}00000000${STELLAR_STRKEY.length
-  .toString(16)
-  .padStart(8, '0')}${Buffer.from(STELLAR_STRKEY, 'ascii').toString('hex')}`
+const STELLAR_HOOK_DATA = forwarderHook(
+  Buffer.from(STELLAR_STRKEY, 'ascii').toString('hex')
+)
 
 function leftPadded(address: string): string {
   return `0x${address.slice(2).toLowerCase().padStart(64, '0')}`
@@ -69,42 +76,93 @@ const PADDED_USDC = leftPadded(USDC)
 const DEX_ROUTER = '0x111111125421cA6dc452d289314280a0f8842A65'
 const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
 const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+// The OP Stack predeploy, so the same address on Base and Optimism.
+const BASE_WETH = '0x4200000000000000000000000000000000000006'
+const OPTIMISM_WETH = BASE_WETH
+const OPTIMISM_USDC = '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
 // 2026-10-19; quotes and deadlines are checked against block.timestamp.
 const QUOTE_TIMESTAMP = 1_792_400_000
 
 const MAYAN_PROTOCOL = '0x2d9f3c4b5a6e7f8091a2b3c4d5e6f708192a3b4c'
-// Mayan Swift v2 createOrderWithToken: USDC to Optimism (Wormhole chain 24),
-// for RECEIVER, at least 998 USDC (Mayan normalises to 8 decimals).
-const MAYAN_ORDER = encodeFunctionData({
-  abi: [
-    parseAbiItem(
-      'function createOrderWithToken(address tokenIn, uint256 amountIn, (uint8 payloadType, bytes32 trader, bytes32 destAddr, uint16 destChainId, bytes32 referrerAddr, bytes32 tokenOut, uint64 minAmountOut, uint64 gasDrop, uint64 cancelFee, uint64 refundFee, uint64 deadline, uint8 referrerBps, uint8 auctionMode, bytes32 random) params, bytes customPayload)'
-    ),
-  ],
-  args: [
-    USDC,
-    1_000_000_000n,
+// Mayan Swift v2 createOrderWithToken of 1000 USDC for at least 998 USDC
+// (Mayan normalises to 8 decimals); destChainId is a Wormhole chain id.
+function mayanOrder(
+  destAddr: string,
+  destChainId: number,
+  tokenOut: string
+): string {
+  return encodeFunctionData({
+    abi: [
+      parseAbiItem(
+        'function createOrderWithToken(address tokenIn, uint256 amountIn, (uint8 payloadType, bytes32 trader, bytes32 destAddr, uint16 destChainId, bytes32 referrerAddr, bytes32 tokenOut, uint64 minAmountOut, uint64 gasDrop, uint64 cancelFee, uint64 refundFee, uint64 deadline, uint8 referrerBps, uint8 auctionMode, bytes32 random) params, bytes customPayload)'
+      ),
+    ],
+    args: [
+      USDC,
+      1_000_000_000n,
+      {
+        payloadType: 1,
+        trader: PADDED_RECEIVER as `0x${string}`,
+        destAddr: destAddr as `0x${string}`,
+        destChainId,
+        referrerAddr: `0x${'00'.repeat(32)}`,
+        tokenOut: tokenOut as `0x${string}`,
+        minAmountOut: 99_800_000_000n,
+        gasDrop: 0n,
+        cancelFee: 0n,
+        refundFee: 0n,
+        deadline: BigInt(QUOTE_TIMESTAMP + 3_600),
+        referrerBps: 0,
+        auctionMode: 2,
+        random: `0x${'5a'.repeat(32)}`,
+      },
+      '0x',
+    ],
+  })
+}
+// To RECEIVER in USDC on Optimism (Wormhole chain 24).
+const MAYAN_ORDER = mayanOrder(PADDED_RECEIVER, 24, leftPadded(OPTIMISM_USDC))
+// To NON_EVM_RECEIVER in USDC on Solana (Wormhole chain 1; the USDC mint).
+const MAYAN_SOLANA_ORDER = mayanOrder(
+  NON_EVM_RECEIVER,
+  1,
+  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61'
+)
+
+// Sponsored OFT deposit (route 2): (Quote, signature) for 1000 USDC from
+// Ethereum (eid 30101) to RECEIVER on Optimism (eid 30111).
+const ACROSS_SPONSORED_OFT_CALLDATA = encodeAbiParameters(
+  parseAbiParameters(
+    '((uint32 srcEid, uint32 dstEid, bytes32 destinationHandler, uint256 amountLD, bytes32 nonce, uint256 deadline, uint256 maxBpsToSponsor, uint256 maxUserSlippageBps, bytes32 finalRecipient, bytes32 finalToken, uint32 destinationDex, uint256 lzReceiveGasLimit, uint256 lzComposeGasLimit, uint256 maxOftFeeBps, uint8 accountCreationMode, uint8 executionMode, bytes actionData) signedParams, (address refundRecipient) unsignedParams) quote, bytes signature'
+  ),
+  [
     {
-      payloadType: 1,
-      trader: PADDED_RECEIVER as `0x${string}`,
-      destAddr: PADDED_RECEIVER as `0x${string}`,
-      destChainId: 24,
-      referrerAddr: `0x${'00'.repeat(32)}`,
-      tokenOut: leftPadded(
-        '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
-      ) as `0x${string}`,
-      minAmountOut: 99_800_000_000n,
-      gasDrop: 0n,
-      cancelFee: 0n,
-      refundFee: 0n,
-      deadline: BigInt(QUOTE_TIMESTAMP + 3_600),
-      referrerBps: 0,
-      auctionMode: 2,
-      random: `0x${'5a'.repeat(32)}`,
+      signedParams: {
+        srcEid: 30_101,
+        dstEid: 30_111,
+        destinationHandler: leftPadded(
+          DESTINATION_CALL_RECEIVER
+        ) as `0x${string}`,
+        amountLD: 1_000_000_000n,
+        nonce: `0x${'6b'.repeat(32)}`,
+        deadline: BigInt(QUOTE_TIMESTAMP + 3_600),
+        maxBpsToSponsor: 10n,
+        maxUserSlippageBps: 50n,
+        finalRecipient: PADDED_RECEIVER as `0x${string}`,
+        finalToken: leftPadded(OPTIMISM_USDC) as `0x${string}`,
+        destinationDex: 0,
+        lzReceiveGasLimit: 200_000n,
+        lzComposeGasLimit: 300_000n,
+        maxOftFeeBps: 10n,
+        accountCreationMode: 0,
+        executionMode: 0,
+        actionData: '0x',
+      },
+      unsignedParams: { refundRecipient: RECEIVER },
     },
     '0x',
-  ],
-})
+  ]
+)
 
 // Displayed facet struct components and the value each renders with, keyed by
 // path because the same component name has different types across facets. A
@@ -116,6 +174,7 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_acrossData.fillDeadline': QUOTE_TIMESTAMP + 3_600,
   // Sponsored OFT: checks the Across recipient against `_bridgeData.receiver`.
   '_acrossV4SwapFacetData.swapApiTarget': 2,
+  '_acrossV4SwapFacetData.callData': ACROSS_SPONSORED_OFT_CALLDATA,
   '_acrossData.relayerFeePct': 2_500_000_000_000_000n,
   '_acrossData.outputAmount': 995_000_000n,
   '_acrossData.outputAmountMultiplier': 995_000_000_000_000_000n,
@@ -131,7 +190,8 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_celerCircleData.maxFee': 500_000n,
   '_centrifugeData.nativeFee': NATIVE_VALUE,
   '_centrifugeData.refundRecipient': RECEIVER,
-  '_chainflipData.dstToken': 3,
+  // Chainflip asset 7 is USDC on Arbitrum, the base case's destination.
+  '_chainflipData.dstToken': 7,
   '_deBridgeData.receiver': RECEIVER.toLowerCase(),
   '_deBridgeData.minAmountOut': 998_000_000n,
   '_deBridgeData.receivingAssetId': USDC.toLowerCase(),
@@ -172,7 +232,7 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_nearData.minAmountOut': 998_000_000n,
   '_nearData.refundRecipient': RECEIVER,
   '_paxosData.quote.route.destEID': 30_111,
-  '_paxosData.quote.route.wantAsset': USDC,
+  '_paxosData.quote.route.wantAsset': OPTIMISM_USDC,
   '_paxosData.quote.route.offerAsset': USDC,
   '_paxosData.quote.offerAmount': 1_000_000_000n,
   '_paxosData.quote.receiver': RECEIVER,
@@ -195,12 +255,16 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_squidData.fee': NATIVE_VALUE,
   '_squidData.bridgedTokenSymbol': 'USDC',
   '_squidData.depositAssetId': USDC,
+  // A source call as Squid's multicall runs it: approve a DEX router.
   '_squidData.sourceCalls': [
     {
       callType: 0,
-      target: DEX_ROUTER,
+      target: USDC,
       value: 0n,
-      callData: '0x',
+      callData: encodeFunctionData({
+        abi: [parseAbiItem('function approve(address, uint256)')],
+        args: [DEX_ROUTER, 1_000_000_000n],
+      }),
       payload: '0x',
     },
   ],
@@ -253,6 +317,7 @@ const DATA_PROVIDER_TOKENS = {
   [WETH.toLowerCase()]: { decimals: 18, name: 'Wrapped Ether', symbol: 'WETH' },
   [DAI.toLowerCase()]: { decimals: 18, name: 'Dai Stablecoin', symbol: 'DAI' },
   [BASE_USDC.toLowerCase()]: { decimals: 6, name: 'USD Coin', symbol: 'USDC' },
+  [BASE_WETH]: { decimals: 18, name: 'Wrapped Ether', symbol: 'WETH' },
 }
 
 // `_bridgeData` and every `_swapData` entry always reach a screen; of the
@@ -281,6 +346,8 @@ const SWAP_DATA: Record<string, unknown> = {
   callData: '0x',
   requiresDeposit: true,
 }
+
+const NATIVE_BRIDGE = { sendingAssetId: ZERO_ADDRESS, minAmount: 10n ** 17n }
 
 // One case per format is a single happy path. These add the paths whose fields
 // only matter off it, so their renderings are asserted too.
@@ -327,7 +394,10 @@ const VARIANT_CASES: IVariantCase[] = [
         receiver: NON_EVM_ADDRESS,
         destinationChainId: SOLANA_CHAIN_ID,
       },
-      components: { '_mayanData.nonEVMReceiver': NON_EVM_RECEIVER },
+      components: {
+        '_mayanData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_mayanData.protocolData': MAYAN_SOLANA_ORDER,
+      },
     },
   },
   {
@@ -361,6 +431,65 @@ const VARIANT_CASES: IVariantCase[] = [
     },
   },
   {
+    // The forwarder credits the address at hookData[32:52], checked against
+    // `_bridgeData.receiver`.
+    functionName: 'startBridgeTokensViaPolymerCCTP',
+    label: 'HyperCore destination',
+    overrides: {
+      bridgeData: { destinationChainId: HYPERCORE_CHAIN_ID },
+      components: {
+        '_polymerData.hookData': forwarderHook(RECEIVER.slice(2).toLowerCase()),
+      },
+    },
+  },
+  {
+    // The spoke pool wraps the native value; `_acrossData.sendingAssetId` is
+    // not read.
+    functionName: 'startBridgeTokensViaAcrossV4',
+    label: 'native asset',
+    overrides: {
+      bridgeData: NATIVE_BRIDGE,
+      value: NATIVE_BRIDGE.minAmount,
+      components: {
+        '_acrossData.sendingAssetId': leftPadded(WETH),
+        '_acrossData.receivingAssetId': leftPadded(OPTIMISM_WETH),
+        '_acrossData.outputAmount': 99_500_000_000_000_000n,
+      },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaOptimismBridge',
+    label: 'native asset',
+    overrides: {
+      bridgeData: { ...NATIVE_BRIDGE, destinationChainId: 10n },
+      value: NATIVE_BRIDGE.minAmount,
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaOptimismBridge',
+    label: 'custom bridge',
+    overrides: {
+      bridgeData: { destinationChainId: 10n },
+      components: { '_optimismData.isSynthetix': true },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaMegaETHBridge',
+    label: 'native asset',
+    overrides: {
+      bridgeData: { ...NATIVE_BRIDGE, destinationChainId: 4_326n },
+      value: NATIVE_BRIDGE.minAmount,
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaMegaETHBridge',
+    label: 'custom bridge',
+    overrides: {
+      bridgeData: { destinationChainId: 4_326n },
+      components: { '_megaETHData.requiresDepositTo': true },
+    },
+  },
+  {
     functionName: 'startBridgeTokensViaChainflip',
     label: 'destination call',
     overrides: {
@@ -375,7 +504,9 @@ const VARIANT_CASES: IVariantCase[] = [
 // The bridge has one destination chain or accepts only some tokens; the base
 // case of these functions uses inputs the facet accepts.
 const NATIVE_SWAP_OUTPUT = [{ ...SWAP_DATA, receivingAssetId: ZERO_ADDRESS }]
-const NATIVE_BRIDGE = { sendingAssetId: ZERO_ADDRESS, minAmount: 10n ** 17n }
+const BASE_SWAP = [
+  { ...SWAP_DATA, sendingAssetId: BASE_WETH, receivingAssetId: BASE_USDC },
+]
 const GNOSIS_DAI = {
   sendingAssetId: DAI,
   minAmount: 1_000n * 10n ** 18n,
@@ -438,12 +569,12 @@ const BASE_CASE_OVERRIDES: Record<string, ICaseOverrides> = {
   startBridgeTokensViaAcross: { bridgeData: { sendingAssetId: BASE_USDC } },
   swapAndStartBridgeTokensViaAcross: {
     bridgeData: { sendingAssetId: BASE_USDC },
-    swapData: [{ ...SWAP_DATA, receivingAssetId: BASE_USDC }],
+    swapData: BASE_SWAP,
   },
   startBridgeTokensViaSuperset: { bridgeData: { sendingAssetId: BASE_USDC } },
   swapAndStartBridgeTokensViaSuperset: {
     bridgeData: { sendingAssetId: BASE_USDC },
-    swapData: [{ ...SWAP_DATA, receivingAssetId: BASE_USDC }],
+    swapData: BASE_SWAP,
   },
 }
 
@@ -909,10 +1040,19 @@ function resolvePath(
 
   let value: unknown = args[index]
   for (const segment of rest) {
-    const slice = segment.match(/^\[(\d+):(\d+)\]$/u)
+    // A byte slice; either bound may be omitted or negative, as in `[-32:]`.
+    const slice = segment.match(/^\[(-?\d*):(-?\d*)\]$/u)
     if (slice && typeof value === 'string') {
-      const [, start, end] = slice
-      value = `0x${value.slice(2 + Number(start) * 2, 2 + Number(end) * 2)}`
+      const hex = value.slice(2)
+      const length = hex.length / 2
+      const toOffset = (bound: string | undefined, fallback: number) => {
+        const n = bound ? Number(bound) : fallback
+        return (n < 0 ? length + n : n) * 2
+      }
+      value = `0x${hex.slice(
+        toOffset(slice[1], 0),
+        toOffset(slice[2], length)
+      )}`
       continue
     }
     if (segment.startsWith('[')) {
@@ -1087,7 +1227,11 @@ function checkUnmatchedCases(
   const problems: string[] = []
   for (const test of readExistingTests(testsPath)) {
     const selector = selectorOf(test)
-    if (selector && !formatSelectors.has(selector))
+    if (!selector)
+      problems.push(
+        `"${test.description}" has no calldata selector, so no format matches`
+      )
+    else if (!formatSelectors.has(selector))
       problems.push(
         `"${test.description}" calls ${selector}, which no format matches`
       )

@@ -88,7 +88,7 @@
     },
     "startBridgeTokensViaAcrossV4((bytes32 transactionId, string bridge, string integrator, address referrer, address sendingAssetId, address receiver, uint256 minAmount, uint256 destinationChainId, bool hasSourceSwaps, bool hasDestinationCall) _bridgeData, (bytes32 receiverAddress, bytes32 refundAddress, bytes32 sendingAssetId, bytes32 receivingAssetId, uint256 outputAmount, uint128 outputAmountMultiplier, bytes32 exclusiveRelayer, uint32 quoteTimestamp, uint32 fillDeadline, uint32 exclusivityParameter, bytes message) _acrossData)": {
       "intent": "Bridge via AcrossV4",
-      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}, receiving {_acrossData.outputAmount}",
+      "interpolatedIntent": "Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
       "fields": [
         {
           "path": "_bridgeData.minAmount",
@@ -124,7 +124,7 @@
         },
         {
           "path": "_acrossData.sendingAssetId.[12:32]",
-          "label": "Token Bridged",
+          "label": "Token Bridged (ERC-20 only)",
           "format": "addressName",
           "params": {
             "types": [
@@ -258,6 +258,12 @@
           "visible": "always"
         },
         {
+          "path": "_acrossV4SwapFacetData.callData",
+          "label": "Across Call Data",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "@.value",
           "label": "Native Value Sent",
           "format": "amount",
@@ -317,7 +323,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -605,7 +611,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -701,7 +707,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -733,7 +739,7 @@
         },
         {
           "path": "_chainflipData.dstCallReceiver",
-          "label": "Destination Call Receiver",
+          "label": "Destination Call Receiver (paid when Destination Call is true)",
           "format": "addressName",
           "params": {
             "types": [
@@ -846,7 +852,7 @@
         },
         {
           "path": "_deBridgeData.orderAuthorityDst",
-          "label": "Order Authority (can cancel; refund goes to sender)",
+          "label": "Order Authority (can cancel and choose the refund address)",
           "format": "raw",
           "visible": "always"
         },
@@ -910,7 +916,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1014,7 +1020,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1058,7 +1064,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -1114,13 +1120,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the order decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (reported; the order decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1230,13 +1236,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; GasZip Destination Chains decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1254,22 +1260,6 @@
           "path": "_gasZipData.receiverAddress",
           "label": "GasZip Recipient",
           "format": "raw",
-          "visible": "always"
-        },
-        {
-          "path": "_gasZipData.receiverAddress.[0:20]",
-          "label": "GasZip Recipient (EVM)",
-          "format": "addressName",
-          "params": {
-            "types": [
-              "eoa",
-              "contract"
-            ],
-            "sources": [
-              "local",
-              "ens"
-            ]
-          },
           "visible": "always"
         },
         {
@@ -1338,7 +1328,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1530,7 +1520,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1646,7 +1636,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1777,7 +1767,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1911,7 +1901,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -1949,7 +1939,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "_mayanData.protocolData",
@@ -2153,7 +2143,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -2659,7 +2649,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -2675,7 +2665,7 @@
         },
         {
           "path": "_polymerData.nonEVMReceiver",
-          "label": "Non-EVM Recipient (reported)",
+          "label": "Reported Recipient (not checked; payee below)",
           "format": "raw",
           "visible": {
             "ifNotIn": [
@@ -2695,7 +2685,7 @@
         },
         {
           "path": "_polymerData.hookData",
-          "label": "Forwarder Hook (Stellar recipient strkey from byte 32)",
+          "label": "Forwarder Hook (recipient from byte 32: Stellar strkey, HyperCore address)",
           "format": "raw",
           "visible": {
             "ifNotIn": [
@@ -2787,13 +2777,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the order decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (reported; the order decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -2932,6 +2922,12 @@
           "visible": "always"
         },
         {
+          "path": "_squidData.sourceCalls.[].callData",
+          "label": "Source Call Data",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_squidData.destinationAddress",
           "label": "Destination Contract (routes 0, 2)",
           "format": "raw",
@@ -3003,7 +2999,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (not checked when Destination Call is true)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3150,6 +3146,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_supersetData.path.[-32:]",
+          "label": "Token Received (Superset omni-token id)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3552,12 +3554,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3652,11 +3660,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -3666,12 +3669,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3708,7 +3717,7 @@
         },
         {
           "path": "_acrossData.sendingAssetId.[12:32]",
-          "label": "Token Bridged",
+          "label": "Token Bridged (ERC-20 only)",
           "format": "addressName",
           "params": {
             "types": [
@@ -3811,11 +3820,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -3825,7 +3829,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
@@ -3834,8 +3838,14 @@
           "visible": "always"
         },
         {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.minAmount",
-          "label": "Minimum to Bridge (surplus to Across refund address)",
+          "label": "Minimum to Bridge (surplus: bridged on route 0, refunded on 1-3)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -3868,6 +3878,12 @@
         {
           "path": "_acrossV4SwapFacetData.swapApiTarget",
           "label": "Across Route (0 SpokePool, 1 Periphery, 2 Sponsored OFT, 3 Sponsored CCTP)",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_acrossV4SwapFacetData.callData",
+          "label": "Across Call Data",
           "format": "raw",
           "visible": "always"
         },
@@ -3921,11 +3937,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -3935,12 +3946,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -3961,7 +3978,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4065,11 +4082,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4079,12 +4091,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4191,11 +4209,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4205,12 +4218,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4305,11 +4324,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4319,12 +4333,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4345,7 +4365,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4431,11 +4451,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4445,12 +4460,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4471,7 +4492,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4503,7 +4524,7 @@
         },
         {
           "path": "_chainflipData.dstCallReceiver",
-          "label": "Destination Call Receiver",
+          "label": "Destination Call Receiver (paid when Destination Call is true)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4572,11 +4593,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4586,12 +4602,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4646,7 +4668,7 @@
         },
         {
           "path": "_deBridgeData.orderAuthorityDst",
-          "label": "Order Authority (can cancel; refund goes to sender)",
+          "label": "Order Authority (can cancel and choose the refund address)",
           "format": "raw",
           "visible": "always"
         },
@@ -4700,11 +4722,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4714,7 +4731,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
@@ -4723,8 +4740,14 @@
           "visible": "always"
         },
         {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.minAmount",
-          "label": "Minimum to Bridge",
+          "label": "Amount to Bridge (swap excess to refund)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -4740,7 +4763,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4788,7 +4811,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -4840,11 +4863,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4854,12 +4872,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -4880,7 +4904,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -4924,7 +4948,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -4976,11 +5000,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -4990,12 +5009,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5010,13 +5035,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the order decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (reported; the order decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -5122,11 +5147,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -5136,12 +5156,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5156,13 +5182,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; GasZip Destination Chains decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -5180,22 +5206,6 @@
           "path": "_gasZipData.receiverAddress",
           "label": "GasZip Recipient",
           "format": "raw",
-          "visible": "always"
-        },
-        {
-          "path": "_gasZipData.receiverAddress.[0:20]",
-          "label": "GasZip Recipient (EVM)",
-          "format": "addressName",
-          "params": {
-            "types": [
-              "eoa",
-              "contract"
-            ],
-            "sources": [
-              "local",
-              "ens"
-            ]
-          },
           "visible": "always"
         },
         {
@@ -5254,11 +5264,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -5268,12 +5273,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5294,7 +5305,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -5408,11 +5419,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -5422,12 +5428,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5512,11 +5524,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -5526,12 +5533,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5552,7 +5565,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -5658,11 +5671,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -5672,12 +5680,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5698,7 +5712,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -5819,11 +5833,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -5833,12 +5842,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -5859,7 +5874,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -5989,11 +6004,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6003,12 +6013,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6029,7 +6045,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -6055,7 +6071,7 @@
         },
         {
           "path": "_mayanData.mayanAmountIn",
-          "label": "Amount to Bridge (rounded down to 8 decimals)",
+          "label": "Amount to Bridge (rounded down to 8 decimals; remainder stays in LI.FI contract)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -6100,6 +6116,40 @@
             ]
           },
           "visible": "always"
+        },
+        {
+          "path": "_mayanData.middleToken",
+          "label": "Middle Token (native swap)",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": {
+            "ifNotIn": [
+              "0x0000000000000000000000000000000000000000"
+            ]
+          }
+        },
+        {
+          "path": "_mayanData.minMiddleAmount",
+          "label": "Minimum Middle Amount",
+          "format": "tokenAmount",
+          "params": {
+            "tokenPath": "_mayanData.middleToken",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
+          },
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "@.value",
@@ -6151,11 +6201,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6165,12 +6210,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6267,11 +6318,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6281,7 +6327,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
@@ -6290,8 +6336,14 @@
           "visible": "always"
         },
         {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.minAmount",
-          "label": "Minimum to Bridge",
+          "label": "Amount to Bridge (swap excess to refund)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -6307,7 +6359,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -6373,7 +6425,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -6425,11 +6477,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6439,12 +6486,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6529,11 +6582,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6543,12 +6591,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6645,11 +6699,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6659,12 +6708,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6819,11 +6874,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6833,12 +6883,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6923,11 +6979,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -6937,12 +6988,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -6963,7 +7020,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
           "format": "addressName",
           "params": {
             "types": [
@@ -6979,7 +7036,7 @@
         },
         {
           "path": "_polymerData.nonEVMReceiver",
-          "label": "Non-EVM Recipient (reported)",
+          "label": "Reported Recipient (not checked; payee below)",
           "format": "raw",
           "visible": {
             "ifNotIn": [
@@ -6999,7 +7056,7 @@
         },
         {
           "path": "_polymerData.hookData",
-          "label": "Forwarder Hook (Stellar recipient strkey from byte 32)",
+          "label": "Forwarder Hook (recipient from byte 32: Stellar strkey, HyperCore address)",
           "format": "raw",
           "visible": {
             "ifNotIn": [
@@ -7093,11 +7150,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7107,12 +7159,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -7127,13 +7185,13 @@
         },
         {
           "path": "_bridgeData.destinationChainId",
-          "label": "Destination Chain",
+          "label": "Destination Chain (reported; the order decides)",
           "format": "raw",
           "visible": "always"
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (reported; the order decides)",
           "format": "addressName",
           "params": {
             "types": [
@@ -7213,11 +7271,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7227,7 +7280,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
@@ -7236,11 +7289,17 @@
           "visible": "always"
         },
         {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.minAmount",
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId",
+            "tokenPath": "_squidData.depositAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
@@ -7299,6 +7358,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_squidData.sourceCalls.[].callData",
+          "label": "Source Call Data",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -7363,11 +7428,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7377,12 +7437,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -7403,7 +7469,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient",
+          "label": "Recipient (not checked when Destination Call is true)",
           "format": "addressName",
           "params": {
             "types": [
@@ -7528,11 +7594,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7542,12 +7603,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -7580,6 +7647,12 @@
               "ens"
             ]
           },
+          "visible": "always"
+        },
+        {
+          "path": "_supersetData.path.[-32:]",
+          "label": "Token Received (Superset omni-token id)",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -7676,11 +7749,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7690,7 +7758,7 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
@@ -7699,8 +7767,14 @@
           "visible": "always"
         },
         {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.minAmount",
-          "label": "Minimum to Bridge",
+          "label": "Minimum to Bridge (Bitcoin route: exact, swap excess to refund)",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
@@ -7780,7 +7854,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -7832,11 +7906,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7846,12 +7915,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -7958,11 +8033,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -7972,12 +8042,18 @@
       "fields": [
         {
           "path": "_swapData.[].fromAmount",
-          "label": "Amount to Swap",
+          "label": "Swap Step Input",
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -8078,11 +8154,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -8098,6 +8169,12 @@
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -8155,11 +8232,6 @@
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
           "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
-          "visible": "never"
         }
       ]
     },
@@ -8175,6 +8247,12 @@
             "tokenPath": "_swapData.[].sendingAssetId",
             "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
+          "visible": "always"
+        },
+        {
+          "path": "_swapData.[].requiresDeposit",
+          "label": "Swap Step Taken From Wallet",
+          "format": "raw",
           "visible": "always"
         },
         {
@@ -8227,11 +8305,6 @@
         {
           "path": "_swapData.[].approveTo",
           "label": "Swap Data Approve To",
-          "visible": "never"
-        },
-        {
-          "path": "_swapData.[].requiresDeposit",
-          "label": "Swap Data Requires Deposit",
           "visible": "never"
         }
       ]

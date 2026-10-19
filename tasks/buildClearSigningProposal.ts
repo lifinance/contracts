@@ -301,6 +301,30 @@ const RECEIVER_FIELD: IField = {
   visible: 'always',
 }
 
+// Facets that take `LiFiData.NON_EVM_ADDRESS` as `_bridgeData.receiver` for a
+// non-EVM destination; the real recipient is then in the facet data.
+const NON_EVM_FACETS = new Set([
+  'AcrossV4',
+  'AcrossV4Swap',
+  'AllBridge',
+  'Centrifuge',
+  'Chainflip',
+  'DeBridgeDln',
+  'Eco',
+  'Frax',
+  'Garden',
+  'GasZip',
+  'Glacis',
+  'LayerSwap',
+  'LiFiIntentEscrowV2',
+  'M0',
+  'Mayan',
+  'NEARIntents',
+  'PolymerCCTP',
+  'Symbiosis',
+])
+const NON_EVM_RECEIVER_LABEL = 'Recipient (0x11f1…11F1 = non-EVM, see below)'
+
 // Several facets take a native fee from `msg.value` on top of an ERC-20 amount,
 // so every payable entrypoint shows the native value.
 const NATIVE_VALUE_FIELD: IField = {
@@ -313,6 +337,11 @@ const NATIVE_VALUE_FIELD: IField = {
 // For facets that send to a chain set in their own data, not to
 // `_bridgeData.destinationChainId`.
 const REPORTED_CHAIN_LABEL = 'Destination Chain (reported, not checked)'
+
+// For facets that hand the funds to an off-chain order: nothing on-chain binds
+// the recipient or chain to it.
+const ORDER_RECEIVER_LABEL = 'Recipient (reported; the order decides)'
+const ORDER_CHAIN_LABEL = 'Destination Chain (reported; the order decides)'
 
 // For facets whose bridge contract fixes the destination: the value is only
 // compared with the source chain.
@@ -445,6 +474,17 @@ function refundField(
   })
 }
 
+// For facets whose swap entrypoint bridges a fixed amount and sends the swap
+// surplus to the refund recipient: there it is part of the normal output.
+const SURPLUS_AMOUNT_LABEL = 'Amount to Bridge (swap excess to refund)'
+
+function surplusRefundFields(path: string): IFacetField[] {
+  return [
+    refundField(path, { visible: 'always', only: 'swap' }),
+    refundField(path, { only: 'start' }),
+  ]
+}
+
 function nativeFeeField(path: string, label: string): IFacetField {
   return field(path, 'uint256', label, { format: 'amount' })
 }
@@ -531,11 +571,16 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     fields: [
       // The spoke pool takes this token; nothing compares it with
       // `_bridgeData.sendingAssetId`. The native path ignores it.
-      field('_acrossData.sendingAssetId', 'bytes32', 'Token Bridged', {
-        format: 'addressName',
-        params: { types: ['token'], sources: ['local'] },
-        slice: '[12:32]',
-      }),
+      field(
+        '_acrossData.sendingAssetId',
+        'bytes32',
+        'Token Bridged (ERC-20 only)',
+        {
+          format: 'addressName',
+          params: { types: ['token'], sources: ['local'] },
+          slice: '[12:32]',
+        }
+      ),
       // The swap entrypoint recomputes outputAmount from outputAmountMultiplier.
       field('_acrossData.outputAmount', 'uint256', 'Amount Received', {
         only: 'start',
@@ -557,10 +602,6 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         visible: 'optional',
       }),
     ],
-    intent: {
-      start:
-        'Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}, receiving {_acrossData.outputAmount}',
-    },
   },
   AcrossV4Swap: {
     // Routes 2 and 3 check the Across recipient against `_bridgeData.receiver`;
@@ -573,9 +614,12 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         'uint8',
         'Across Route (0 SpokePool, 1 Periphery, 2 Sponsored OFT, 3 Sponsored CCTP)'
       ),
+      // Encodes the Across deposit: token and amount received, and on routes
+      // 0 and 1 the recipient. Its hash is backend-signed.
+      field('_acrossV4SwapFacetData.callData', 'bytes', 'Across Call Data'),
     ],
     amountLabel: {
-      swap: 'Minimum to Bridge (surplus to Across refund address)',
+      swap: 'Minimum to Bridge (surplus: bridged on route 0, refunded on 1-3)',
     },
   },
   Across: {
@@ -644,10 +688,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         'uint32',
         'Token Received (Chainflip asset id)'
       ),
-      // Read only with a destination call.
+      // Read only with a destination call, and then paid instead of
+      // `_bridgeData.receiver`.
       addressField(
         '_chainflipData.dstCallReceiver',
-        'Destination Call Receiver',
+        'Destination Call Receiver (paid when Destination Call is true)',
         { visible: unlessZero('address') }
       ),
     ],
@@ -660,12 +705,12 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field('_deBridgeData.receiver', 'bytes', 'Recipient'),
       field('_deBridgeData.minAmountOut', 'uint256', 'Amount Received'),
       field('_deBridgeData.receivingAssetId', 'bytes', 'Token Received'),
-      // allowedCancelBeneficiarySrc is msg.sender, so a cancelled order
-      // refunds the sender, not this address.
+      // allowedCancelBeneficiarySrc is empty, so this authority picks the
+      // refund address when it cancels the order.
       field(
         '_deBridgeData.orderAuthorityDst',
         'bytes',
-        'Order Authority (can cancel; refund goes to sender)'
+        'Order Authority (can cancel and choose the refund address)'
       ),
     ],
     // For a native input the DLN fee comes out of the bridged amount.
@@ -686,17 +731,21 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field('_ecoData.solanaATA', 'bytes32', 'Solana Token Account', {
         visible: unlessZero('bytes32'),
       }),
-      refundField('_ecoData.refundRecipient'),
+      ...surplusRefundFields('_ecoData.refundRecipient'),
     ],
+    amountLabel: { swap: SURPLUS_AMOUNT_LABEL },
   },
   Frax: {
     fields: [
       nonEvmRecipientField('_fraxData.nonEVMReceiver'),
       nativeFeeField('_fraxData.nativeFee', 'LayerZero Fee'),
-      refundField('_fraxData.refundRecipient'),
+      // Receives the dust HopV2 does not bridge on every transfer.
+      refundField('_fraxData.refundRecipient', { visible: 'always' }),
     ],
   },
   Garden: {
+    receiverLabel: ORDER_RECEIVER_LABEL,
+    chainLabel: ORDER_CHAIN_LABEL,
     fields: [
       addressField('_gardenData.redeemer', 'Garden Redeemer (solver)'),
       nonEvmRecipientField('_gardenData.nonEvmReceiver'),
@@ -710,13 +759,13 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     // Always bridges native: the swap must end in the native asset, and
     // `_bridgeData.sendingAssetId` is never read.
     amountTokenPath: { swap: '_swapData.[-1].receivingAssetId' },
+    // GasZip delivers to the chains packed in destinationChains.
+    chainLabel:
+      'Destination Chain (reported; GasZip Destination Chains decides)',
     fields: [
-      // Right-padded: bytes32(bytes20(addr)), unlike the other recipients.
-      ...bytes32RecipientFields(
-        '_gasZipData.receiverAddress',
-        'GasZip Recipient',
-        '[0:20]'
-      ),
+      // Equal to `_bridgeData.receiver` on EVM targets (right-padded), so only
+      // the raw value is shown; it carries the non-EVM recipient.
+      field('_gasZipData.receiverAddress', 'bytes32', 'GasZip Recipient'),
       field(
         '_gasZipData.destinationChains',
         'uint256',
@@ -805,14 +854,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       // diamond.
       bridgedTokenField(
         '_mayanData.mayanAmountIn',
-        'Amount to Bridge (rounded down to 8 decimals)',
+        'Amount to Bridge (rounded down to 8 decimals; remainder stays in LI.FI contract)',
         { only: 'swap' }
       ),
-      refundField('_mayanData.refundRecipient', {
-        visible: 'always',
-        only: 'swap',
-      }),
-      refundField('_mayanData.refundRecipient', { only: 'start' }),
+      // Gets the swap surplus and any unused native on both entrypoints.
+      refundField('_mayanData.refundRecipient', { visible: 'always' }),
       // Only the receiver and the input amount are read out of the order; its
       // output token, minimum and destination chain sit at offsets that differ
       // per Mayan protocol, so no slice can name them. Shown raw.
@@ -825,13 +871,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       // The native path swaps into middleToken first when swapProtocol is set.
       addressField('_mayanData.middleToken', 'Middle Token (native swap)', {
         visible: unlessZero('address'),
-        only: 'start',
       }),
       field('_mayanData.minMiddleAmount', 'uint256', 'Minimum Middle Amount', {
         format: 'tokenAmount',
         params: tokenAmountParams('_mayanData.middleToken'),
         visible: unlessZero('uint256'),
-        only: 'start',
       }),
     ],
     chainLabel: 'Destination Chain (reported; the Mayan order decides)',
@@ -864,8 +908,9 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       // Signed into the backend payload; a swapped quote is only visible here.
       field('_nearData.destinationAsset', 'bytes32', 'Destination Asset'),
       field('_nearData.minAmountOut', 'uint256', 'Minimum Received'),
-      refundField('_nearData.refundRecipient'),
+      ...surplusRefundFields('_nearData.refundRecipient'),
     ],
+    amountLabel: { swap: SURPLUS_AMOUNT_LABEL },
     intent: depositIntent('NEARIntents', '_nearData.depositAddress'),
   },
   OmniBridge: {
@@ -908,15 +953,9 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         'Integrator Fee Recipient'
       ),
       nativeFeeField('_paxosData.nativeFee', 'LayerZero Fee'),
-      // The swap entrypoint bridges exactly offerAmount and sends the rest of
-      // the swap output here.
-      refundField('_paxosData.refundRecipient', {
-        visible: 'always',
-        only: 'swap',
-      }),
-      refundField('_paxosData.refundRecipient', { only: 'start' }),
+      ...surplusRefundFields('_paxosData.refundRecipient'),
     ],
-    amountLabel: { swap: 'Amount to Bridge (swap excess to refund)' },
+    amountLabel: { swap: SURPLUS_AMOUNT_LABEL },
     intent: {
       start:
         'Bridge {_bridgeData.minAmount} via PaxosTransit, minus fees {_paxosData.quote.protocolFee} and {_paxosData.quote.integratorFee}, to Paxos endpoint {_paxosData.quote.route.destEID} for {_bridgeData.receiver}',
@@ -934,7 +973,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field(
         '_polymerData.nonEVMReceiver',
         'bytes32',
-        'Non-EVM Recipient (reported)',
+        'Reported Recipient (not checked; payee below)',
         { visible: unlessZero('bytes32') }
       ),
       // CCTP mints here on Solana.
@@ -949,7 +988,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field(
         '_polymerData.hookData',
         'bytes',
-        'Forwarder Hook (Stellar recipient strkey from byte 32)',
+        'Forwarder Hook (recipient from byte 32: Stellar strkey, HyperCore address)',
         { visible: unlessZero('bytes') }
       ),
       bridgedTokenField('_polymerData.polymerTokenFee', 'Polymer Fee'),
@@ -964,6 +1003,8 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     },
   },
   RelayDepository: {
+    receiverLabel: ORDER_RECEIVER_LABEL,
+    chainLabel: ORDER_CHAIN_LABEL,
     fields: [
       addressField('_relayDepositoryData.depositorAddress', 'Relay Depositor'),
     ],
@@ -983,9 +1024,12 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     // sentence names neither address and the labels say which route uses which.
     receiverLabel: 'Recipient (route 1) / Refund Address (routes 0, 2)',
     chainLabel: REPORTED_CHAIN_LABEL,
-    // The start entrypoint deposits and approves depositAssetId; nothing
+    // Both entrypoints approve and send depositAssetId to the router; nothing
     // compares it with `_bridgeData.sendingAssetId`.
-    amountTokenPath: { start: '_squidData.depositAssetId' },
+    amountTokenPath: {
+      start: '_squidData.depositAssetId',
+      swap: '_squidData.depositAssetId',
+    },
     fields: [
       field(
         '_squidData.routeType',
@@ -1002,6 +1046,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       // The source calls run in Squid's multicall before bridging; their
       // callData decides what is swapped into the bridged token.
       addressField('_squidData.sourceCalls.[].target', 'Source Call Target'),
+      field('_squidData.sourceCalls.[].callData', 'bytes', 'Source Call Data'),
       field(
         '_squidData.destinationAddress',
         'string',
@@ -1017,6 +1062,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
   },
   Stargate: {
     acceptsDestinationCall: true,
+    receiverLabel: 'Recipient (not checked when Destination Call is true)',
     chainLabel: REPORTED_CHAIN_LABEL,
     fields: [
       // Neither is checked against destinationChainId; `to` is checked against
@@ -1047,6 +1093,13 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
   },
   Superset: {
     fields: [
+      // The path ends in the destination omni-token id.
+      field(
+        '_supersetData.path',
+        'bytes',
+        'Token Received (Superset omni-token id)',
+        { slice: '[-32:]' }
+      ),
       // In destination-token units; the output token is a Superset omni-token
       // id at the end of `path`.
       field(
@@ -1086,8 +1139,11 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         format: 'amount',
         visible: unlessZero('uint256'),
       }),
-      refundField('_symbiosisData.refundRecipient'),
+      ...surplusRefundFields('_symbiosisData.refundRecipient'),
     ],
+    amountLabel: {
+      swap: 'Minimum to Bridge (Bitcoin route: exact, swap excess to refund)',
+    },
     intent: {
       start:
         'Bridge {_bridgeData.minAmount} via Symbiosis contract {_symbiosisData.callTo}; recipient and chain set by Symbiosis calldata',
@@ -1174,14 +1230,23 @@ function toField(spec: IFacetField): IField {
 }
 
 // `LibAsset.depositAssets` pulls `fromAmount` of `sendingAssetId` from the
-// signer for every entry with `requiresDeposit`, not only the first one.
-const SWAP_INPUT_FIELD: IField = {
-  path: '_swapData.[].fromAmount',
-  label: 'Amount to Swap',
-  format: 'tokenAmount',
-  params: tokenAmountParams('_swapData.[].sendingAssetId'),
-  visible: 'always',
-}
+// signer for every entry with `requiresDeposit`, not only the first one; a step
+// without it spends what the diamond already holds (an earlier step's output).
+const SWAP_INPUT_FIELDS: IField[] = [
+  {
+    path: '_swapData.[].fromAmount',
+    label: 'Swap Step Input',
+    format: 'tokenAmount',
+    params: tokenAmountParams('_swapData.[].sendingAssetId'),
+    visible: 'always',
+  },
+  {
+    path: '_swapData.[].requiresDeposit',
+    label: 'Swap Step Taken From Wallet',
+    format: 'raw',
+    visible: 'always',
+  },
+]
 
 const HIDDEN_SWAP_FIELDS: IField[] = [
   {
@@ -1197,11 +1262,6 @@ const HIDDEN_SWAP_FIELDS: IField[] = [
   {
     path: '_swapData.[].approveTo',
     label: 'Swap Data Approve To',
-    visible: 'never',
-  },
-  {
-    path: '_swapData.[].requiresDeposit',
-    label: 'Swap Data Requires Deposit',
     visible: 'never',
   },
 ]
@@ -1223,6 +1283,9 @@ function buildBridgeFormat(fn: IAbiFn, variant: Variant): IFormatEntry {
   const chainLabel =
     display?.chainLabel ??
     (display?.fixedDestination ? IGNORED_CHAIN_LABEL : undefined)
+  const receiverLabel =
+    display?.receiverLabel ??
+    (NON_EVM_FACETS.has(facet) ? NON_EVM_RECEIVER_LABEL : undefined)
   const destinationCall = display?.acceptsDestinationCall
     ? DESTINATION_CALL_FIELD
     : HIDDEN_DESTINATION_CALL_FIELD
@@ -1231,7 +1294,7 @@ function buildBridgeFormat(fn: IAbiFn, variant: Variant): IFormatEntry {
     intent: isSwap ? `Swap & Bridge via ${facet}` : `Bridge via ${facet}`,
     interpolatedIntent: display?.intent?.[variant] ?? defaultIntent,
     fields: [
-      ...(isSwap ? [SWAP_INPUT_FIELD] : []),
+      ...(isSwap ? SWAP_INPUT_FIELDS : []),
       {
         path: '_bridgeData.minAmount',
         label:
@@ -1244,8 +1307,8 @@ function buildBridgeFormat(fn: IAbiFn, variant: Variant): IFormatEntry {
         visible: 'always',
       },
       chainLabel ? { ...CHAIN_FIELD, label: chainLabel } : CHAIN_FIELD,
-      display?.receiverLabel
-        ? { ...RECEIVER_FIELD, label: display.receiverLabel }
+      receiverLabel
+        ? { ...RECEIVER_FIELD, label: receiverLabel }
         : RECEIVER_FIELD,
       ...facetFields(fn, variant).map(toField),
       ...(destinationCall.visible === 'always' ? [destinationCall] : []),
@@ -1405,13 +1468,7 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
   fields: [
     // One line per step; a step without requiresDeposit swaps the previous
     // step's output, so only the first steps' amounts leave the wallet.
-    {
-      path: '_swapData.[].fromAmount',
-      label: 'Swap Step Input',
-      format: 'tokenAmount',
-      params: tokenAmountParams('_swapData.[].sendingAssetId'),
-      visible: 'always',
-    },
+    ...SWAP_INPUT_FIELDS,
     {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
@@ -1442,11 +1499,6 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
     {
       path: '_swapData.[].approveTo',
       label: 'Swap Data Approve To',
-      visible: 'never',
-    },
-    {
-      path: '_swapData.[].requiresDeposit',
-      label: 'Swap Data Requires Deposit',
       visible: 'never',
     },
   ],
