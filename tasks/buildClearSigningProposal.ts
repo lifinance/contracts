@@ -164,10 +164,9 @@ interface IField {
   label: string
   format?: string
   params?: Record<string, unknown>
-  visible?: 'always' | 'never'
+  visible?: 'always' | 'optional' | 'never'
 }
 interface IFormatEntry {
-  $id?: string
   intent: string
   interpolatedIntent?: string
   fields: IField[]
@@ -266,18 +265,43 @@ const HIDDEN_BRIDGE_FIELDS: IField[] = [
     label: 'Has Source Swaps',
     visible: 'never',
   },
-  {
-    path: '_bridgeData.hasDestinationCall',
-    label: 'Has Destination Call',
-    visible: 'never',
-  },
 ]
+
+const HIDDEN_DESTINATION_CALL_FIELD: IField = {
+  path: '_bridgeData.hasDestinationCall',
+  label: 'Has Destination Call',
+  visible: 'never',
+}
+
+// On the facets that accept a destination call, the call replaces the check
+// that the bridge's own recipient equals `_bridgeData.receiver` (the funds go
+// to the call's receiver contract instead), so the signer has to see the flag.
+const DESTINATION_CALL_FIELD: IField = {
+  path: '_bridgeData.hasDestinationCall',
+  label: 'Destination Call',
+  format: 'raw',
+  visible: 'always',
+}
+
+const ADDRESS_NAME_PARAMS = {
+  types: ['eoa', 'contract'],
+  sources: ['local', 'ens'],
+}
 
 const RECEIVER_FIELD: IField = {
   path: '_bridgeData.receiver',
   label: 'Recipient',
   format: 'addressName',
-  params: { types: ['eoa', 'contract'], sources: ['local', 'ens'] },
+  params: ADDRESS_NAME_PARAMS,
+  visible: 'always',
+}
+
+// Every bridge entrypoint is payable, and nine facets take a native fee from
+// `msg.value` on top of an ERC-20 amount, so the native value is always shown.
+const NATIVE_VALUE_FIELD: IField = {
+  path: '@.value',
+  label: 'Native Value Sent',
+  format: 'amount',
   visible: 'always',
 }
 
@@ -323,283 +347,626 @@ function bridgeFacetName(fnName: string): string {
   )
 }
 
-// ---------- bridge-specific "true recipient" fields ----------
+// ---------- bridge-specific display fields ----------
 //
-// For most bridges the on-chain recipient is `_bridgeData.receiver`, so
-// RECEIVER_FIELD is the whole story. A number of bridges instead credit funds on
-// the destination chain to a *bridge-specific* struct field, and
-// `_bridgeData.receiver` is then a sentinel or an intermediary contract. We
-// surface that field as an extra always-visible entry so the clear-signing text
-// reflects where the bridge actually sends the funds.
+// `_bridgeData` is what the transfer claims to do. In many facets the facet's
+// own struct decides part of it instead — the amount actually bridged, a fee
+// cut from that amount, the token and amount delivered, the chain or address
+// the funds go to, where refunds land — without being checked against
+// `_bridgeData`. Every such component is listed here, so the signer sees what
+// the call commits to rather than what `_bridgeData` claims.
 //
-// The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a
-// Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is
-// no bytes32→EVM-address formatter — so the honest rendering is `raw` (hex).
-// `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the
-// dominant EVM path it resolves to a trusted name/ENS, and the raw field carries
-// the ground truth for the rest.
+// Paths are validated against the facet ABI by validateFacetFields(): a renamed
+// or retyped component fails the generator rather than emitting a path that
+// resolves to nothing in wallets.
 //
-// Two shapes (both handled identically here; the difference is only in what the
-// field holds on an EVM transfer):
-//
-//   TYPE-A — the field is the on-chain recipient in *every* branch, so it is
-//   always populated. AcrossV4/DeBridgeDln can even differ from
-//   `_bridgeData.receiver` on EVM (destination call → our Receiver contract;
-//   DeBridgeDln never cross-checks), so the field adds signal on EVM too. Glacis/
-//   AllBridge/LiFiIntentEscrowV2/GasZip enforce equality on plain EVM transfers, so
-//   there the field just re-shows the recipient and carries the real value on
-//   non-EVM.
-//
-//   TYPE-B — a `nonEVMReceiver`-style field that is only set on non-EVM transfers
-//   and is `0x0` on EVM (where `_bridgeData.receiver` is the faithful recipient).
-//   Labelled "Non-EVM Recipient" so the `0x0` on an EVM transfer reads as "N/A".
-//
-// Keyed by bridge identity from bridgeFacetName(). Deliberately excluded:
-//   - AcrossV4Swap / other opaque, EIP-712-gated flows — the receiver lives in
-//     opaque calldata and is not on-chain-verifiable by design.
-//   - Squid — the recipient is route-type-dependent (destinationAddress for some
-//     routes, _bridgeData.receiver for others); no single field is always right.
-// (See docs/ClearSigningProposal.md for the full audit + follow-up scope.)
-interface IExtraFieldSpec {
-  paramName: string
-  component: string
+// A `bytes32` recipient may hold a non-EVM address (a Solana pubkey), so it
+// always keeps a `raw` field; on an EVM transfer its address bytes are shown a
+// second time as `addressName` through a slice. Destination-chain token ids and
+// amounts in destination decimals stay `raw`: the calldata encoding has no tag
+// for `tokenAmount.chainIdPath`, so a device would look the destination token
+// up on the source chain.
+
+type Variant = 'start' | 'swap'
+
+interface IFacetField {
+  // Rooted at the function parameter and without a slice, e.g.
+  // `_stargateData.sendParams.dstEid`.
+  path: string
+  // Exact ABI type of the component the path ends at.
   type: string
   label: string
+  format: 'raw' | 'addressName' | 'amount' | 'tokenAmount' | 'unit'
+  params?: Record<string, unknown>
+  // Byte slice appended to the path: `[12:32]` for a left-padded address.
+  slice?: string
+  visible?: 'always' | 'optional'
+  // Restricts the field to the entrypoint where it means what the label says.
+  only?: Variant
 }
 
-const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraFieldSpec> = {
-  // TYPE-A: field is the bridge's on-chain recipient in every branch.
-  AcrossV4: {
-    paramName: '_acrossData',
-    component: 'receiverAddress',
-    type: 'bytes32',
-    label: 'Across Recipient',
-  },
-  DeBridgeDln: {
-    paramName: '_deBridgeData',
-    component: 'receiver',
-    type: 'bytes',
-    label: 'DeBridge Recipient',
-  },
-  Glacis: {
-    paramName: '_glacisData',
-    component: 'receiverAddress',
-    type: 'bytes32',
-    label: 'Glacis Recipient',
-  },
-  AllBridge: {
-    paramName: '_allBridgeData',
-    component: 'recipient',
-    type: 'bytes32',
-    label: 'AllBridge Recipient',
-  },
-  LiFiIntentEscrowV2: {
-    paramName: '_lifiIntentData',
-    component: 'recipient',
-    type: 'bytes32',
-    label: 'Intent Recipient',
-  },
-  GasZip: {
-    // NOTE: this bytes32 is RIGHT-padded (bytes32(bytes20(addr))), unlike the
-    // left-padded convention elsewhere; `raw` shows the address in the high bytes.
-    paramName: '_gasZipData',
-    component: 'receiverAddress',
-    type: 'bytes32',
-    label: 'GasZip Recipient',
-  },
-  M0: {
-    // The OrderBook only ever sees this field; M0Facet enforces equality with
-    // `_bridgeData.receiver` on EVM destinations and requires it non-zero on
-    // non-EVM ones, so it is populated in every branch.
-    paramName: '_m0Data',
-    component: 'receiverAddress',
-    type: 'bytes32',
-    label: 'M0 Recipient',
-  },
-  // TYPE-B: nonEVMReceiver-style field, only set on non-EVM transfers (0x0 on EVM).
-  Mayan: {
-    paramName: '_mayanData',
-    component: 'nonEVMReceiver',
-    type: 'bytes32',
-    label: 'Non-EVM Recipient',
-  },
-  LayerSwap: {
-    paramName: '_layerSwapData',
-    component: 'nonEVMReceiver',
-    type: 'bytes32',
-    label: 'Non-EVM Recipient',
-  },
-  Chainflip: {
-    paramName: '_chainflipData',
-    component: 'nonEVMReceiver',
-    type: 'bytes',
-    label: 'Non-EVM Recipient',
-  },
-  Eco: {
-    paramName: '_ecoData',
-    component: 'nonEVMReceiver',
-    type: 'bytes',
-    label: 'Non-EVM Recipient',
-  },
-  NEARIntents: {
-    paramName: '_nearData',
-    component: 'nonEVMReceiver',
-    type: 'bytes32',
-    label: 'Non-EVM Recipient',
-  },
-  PolymerCCTP: {
-    paramName: '_polymerData',
-    component: 'nonEVMReceiver',
-    type: 'bytes32',
-    label: 'Non-EVM Recipient',
-  },
-  Frax: {
-    // FraxFacet additionally *enforces* bytes32(0) on EVM destinations (reverting
-    // InvalidCallData otherwise), so the "0x0 reads as N/A" property is guaranteed,
-    // not just conventional.
-    paramName: '_fraxData',
-    component: 'nonEVMReceiver',
-    type: 'bytes32',
-    label: 'Non-EVM Recipient',
-  },
+interface IFacetDisplay {
+  fields: IFacetField[]
+  // Replaces the default sentence where `_bridgeData` misstates the transfer.
+  intent?: Partial<Record<Variant, string>>
+  amountLabel?: Partial<Record<Variant, string>>
+  receiverLabel?: string
+  // The facet accepts a destination call, which replaces its recipient check.
+  acceptsDestinationCall?: boolean
 }
 
-// Signed fields that are not recipients but must reach a screen for the same
-// reason: the signer has to see what the call commits to. Validated as
-// strictly as BRIDGE_EXTRA_RECEIVERS.
-const BRIDGE_EXTRA_FIELDS: Record<string, IExtraFieldSpec[]> = {
-  // NEARIntents v2.0.0 binds the quote's destination asset into the backend's
-  // EIP-712 signature; a signer who cannot see it cannot spot a swapped quote.
-  NEARIntents: [
-    {
-      paramName: '_nearData',
-      component: 'destinationAsset',
-      type: 'bytes32',
-      label: 'Destination Asset',
-    },
-  ],
+function field(
+  path: string,
+  type: string,
+  label: string,
+  extra: Partial<IFacetField> = {}
+): IFacetField {
+  return { path, type, label, format: 'raw', ...extra }
 }
 
-function extraFieldSpecs(fn: IAbiFn): IExtraFieldSpec[] {
-  const facet = bridgeFacetName(fn.name)
-  const receiver = BRIDGE_EXTRA_RECEIVERS[facet]
+function addressField(
+  path: string,
+  label: string,
+  extra: Partial<IFacetField> = {}
+): IFacetField {
+  return field(path, 'address', label, {
+    format: 'addressName',
+    params: ADDRESS_NAME_PARAMS,
+    ...extra,
+  })
+}
+
+function refundField(
+  path: string,
+  extra: Partial<IFacetField> = {}
+): IFacetField {
+  return addressField(path, 'Refund Recipient', {
+    visible: 'optional',
+    ...extra,
+  })
+}
+
+function nativeFeeField(path: string, label: string): IFacetField {
+  return field(path, 'uint256', label, { format: 'amount' })
+}
+
+function bridgedTokenField(
+  path: string,
+  label: string,
+  extra: Partial<IFacetField> = {}
+): IFacetField {
+  return field(path, 'uint256', label, {
+    format: 'tokenAmount',
+    params: tokenAmountParams('_bridgeData.sendingAssetId'),
+    ...extra,
+  })
+}
+
+// The raw value carries a non-EVM recipient; the slice names an EVM one.
+function bytes32RecipientFields(
+  path: string,
+  label: string,
+  slice = '[12:32]'
+): IFacetField[] {
   return [
-    ...(receiver ? [receiver] : []),
-    ...(BRIDGE_EXTRA_FIELDS[facet] ?? []),
+    field(path, 'bytes32', label),
+    field(path, 'bytes32', `${label} (EVM)`, {
+      format: 'addressName',
+      params: ADDRESS_NAME_PARAMS,
+      slice,
+    }),
   ]
 }
 
-// Strict-by-default: if a bridge declares an extra display field above, the
-// referenced tuple component must exist in the ABI with the expected type. A
-// struct rename must fail the generator (and CI) loudly rather than emit a dead
-// display path that silently resolves to nothing in wallets.
-function validateExtraFields(fn: IAbiFn): string | null {
-  for (const spec of extraFieldSpecs(fn)) {
-    const param = fn.inputs.find((p) => p.name === spec.paramName)
-    // Exact `tuple`, not `startsWith('tuple')`: a `tuple[]` param would need an
-    // index in the path and must not silently satisfy a single-struct lookup.
-    if (!param || param.type !== 'tuple')
-      return `expected param "${spec.paramName}" of tuple type for bridge-specific display field; got name="${param?.name}" type="${param?.type}"`
-    const comp = (
-      param.components as { name: string; type: string }[] | undefined
-    )?.find((c) => c.name === spec.component)
-    if (!comp)
-      return `${spec.paramName}: missing component "${spec.component}" (bridge-specific display field)`
-    // Exact type match, not a prefix: `startsWith('bytes')` would wrongly accept
-    // `bytes32[]`/`bytes16`, and `startsWith('bytes32')` would accept `bytes32[]`
-    // — incompatible shapes that would pass CI but render the wrong value.
-    if (comp.type !== spec.type)
-      return `${spec.paramName}: component "${spec.component}" has type "${comp.type}", expected exactly "${spec.type}"`
+function nonEvmRecipientField(path: string, type = 'bytes32'): IFacetField {
+  return field(path, type, 'Non-EVM Recipient')
+}
+
+const OUTPUT_RATIO_PARAMS = { base: '%', decimals: 16 }
+
+// Facets that hand the funds to a deposit address or an off-chain order: the
+// recipient and chain in `_bridgeData` are what the order promises, not where
+// this transaction sends the funds.
+function depositIntent(
+  facet: string,
+  depositPath: string
+): Record<Variant, string> {
+  const tail = `via ${facet} to {${depositPath}}, filled off-chain for {_bridgeData.receiver} on chain {_bridgeData.destinationChainId}`
+  return {
+    start: `Send {_bridgeData.minAmount} ${tail}`,
+    swap: `Swap then send {_bridgeData.minAmount} ${tail}`,
+  }
+}
+
+// Keyed by bridge identity from bridgeFacetName(). A bridge with no entry
+// takes its recipient, amount and chain from `_bridgeData` alone.
+const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
+  AcrossV4: {
+    acceptsDestinationCall: true,
+    fields: [
+      // The swap entrypoint recomputes outputAmount from outputAmountMultiplier.
+      field('_acrossData.outputAmount', 'uint256', 'Amount Received', {
+        only: 'start',
+      }),
+      field('_acrossData.outputAmountMultiplier', 'uint128', 'Output Ratio', {
+        format: 'unit',
+        params: OUTPUT_RATIO_PARAMS,
+        only: 'swap',
+      }),
+      field('_acrossData.receivingAssetId', 'bytes32', 'Token Received'),
+      ...bytes32RecipientFields(
+        '_acrossData.receiverAddress',
+        'Across Recipient'
+      ),
+      field('_acrossData.refundAddress', 'bytes32', 'Refund Address', {
+        visible: 'optional',
+      }),
+    ],
+    intent: {
+      start:
+        'Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}, receiving {_acrossData.outputAmount}',
+    },
+  },
+  AllBridge: {
+    fields: [
+      ...bytes32RecipientFields(
+        '_allBridgeData.recipient',
+        'AllBridge Recipient'
+      ),
+      field('_allBridgeData.fees', 'uint256', 'AllBridge Fee'),
+      field(
+        '_allBridgeData.payFeeWithSendingAsset',
+        'bool',
+        'Fee Taken From Bridged Amount'
+      ),
+      field('_allBridgeData.receiveToken', 'bytes32', 'Token Received'),
+    ],
+  },
+  ArbitrumBridge: {
+    fields: [
+      nativeFeeField('_arbitrumData.maxSubmissionCost', 'Max Submission Cost'),
+      field('_arbitrumData.maxGas', 'uint256', 'Max Gas', {
+        visible: 'optional',
+      }),
+      nativeFeeField('_arbitrumData.maxGasPrice', 'Max Gas Price'),
+    ],
+  },
+  CelerCircleBridge: {
+    fields: [
+      bridgedTokenField(
+        '_celerCircleData.maxFee',
+        'Max Destination Fee (0 = no limit)'
+      ),
+    ],
+  },
+  Centrifuge: {
+    fields: [
+      nativeFeeField('_centrifugeData.nativeFee', 'Centrifuge Fee'),
+      refundField('_centrifugeData.refundRecipient'),
+    ],
+  },
+  Chainflip: {
+    acceptsDestinationCall: true,
+    fields: [
+      nonEvmRecipientField('_chainflipData.nonEVMReceiver', 'bytes'),
+      field('_chainflipData.dstToken', 'uint32', 'Chainflip Token Received'),
+      addressField(
+        '_chainflipData.dstCallReceiver',
+        'Destination Call Receiver'
+      ),
+    ],
+  },
+  DeBridgeDln: {
+    fields: [
+      field('_deBridgeData.receiver', 'bytes', 'DeBridge Recipient'),
+      field('_deBridgeData.minAmountOut', 'uint256', 'Amount Received'),
+      field('_deBridgeData.receivingAssetId', 'bytes', 'Token Received'),
+    ],
+    // For a native input the DLN fee comes out of the bridged amount.
+    amountLabel: {
+      start: 'Amount to Bridge (native: minus DLN fee)',
+      swap: 'Minimum to Bridge (native: minus DLN fee)',
+    },
+  },
+  Eco: {
+    fields: [
+      nonEvmRecipientField('_ecoData.nonEVMReceiver', 'bytes'),
+      refundField('_ecoData.refundRecipient'),
+    ],
+  },
+  Frax: {
+    fields: [
+      nonEvmRecipientField('_fraxData.nonEVMReceiver'),
+      nativeFeeField('_fraxData.nativeFee', 'LayerZero Fee'),
+      refundField('_fraxData.refundRecipient'),
+    ],
+  },
+  Garden: {
+    fields: [
+      addressField('_gardenData.redeemer', 'Garden Redeemer (solver)'),
+      nonEvmRecipientField('_gardenData.nonEvmReceiver'),
+      addressField('_gardenData.refundAddress', 'Refund Address', {
+        visible: 'optional',
+      }),
+    ],
+    intent: depositIntent('Garden', '_gardenData.redeemer'),
+  },
+  GasZip: {
+    fields: [
+      // Right-padded: bytes32(bytes20(addr)), unlike the other recipients.
+      ...bytes32RecipientFields(
+        '_gasZipData.receiverAddress',
+        'GasZip Recipient',
+        '[0:20]'
+      ),
+      field(
+        '_gasZipData.destinationChains',
+        'uint256',
+        'GasZip Destination Chains'
+      ),
+    ],
+  },
+  Glacis: {
+    fields: [
+      ...bytes32RecipientFields(
+        '_glacisData.receiverAddress',
+        'Glacis Recipient'
+      ),
+      nativeFeeField('_glacisData.nativeFee', 'Glacis Fee'),
+      field(
+        '_glacisData.outputToken',
+        'bytes32',
+        'Token Received (0 = default)'
+      ),
+      addressField('_glacisData.refundAddress', 'Refund Address', {
+        visible: 'optional',
+      }),
+    ],
+  },
+  LayerSwap: {
+    fields: [
+      addressField(
+        '_layerSwapData.depositoryReceiver',
+        'LayerSwap Deposit Address'
+      ),
+      nonEvmRecipientField('_layerSwapData.nonEVMReceiver'),
+      refundField('_layerSwapData.refundRecipient'),
+    ],
+    intent: depositIntent('LayerSwap', '_layerSwapData.depositoryReceiver'),
+  },
+  LiFiIntentEscrowV2: {
+    fields: [
+      ...bytes32RecipientFields(
+        '_lifiIntentData.recipient',
+        'Intent Recipient'
+      ),
+      field(
+        '_lifiIntentData.outputAmountMultiplier',
+        'uint128',
+        'Output Ratio',
+        {
+          format: 'unit',
+          params: OUTPUT_RATIO_PARAMS,
+        }
+      ),
+      field('_lifiIntentData.outputToken', 'bytes32', 'Token Received'),
+      // Becomes the recipient when dstCallSwapData is not empty.
+      field(
+        '_lifiIntentData.dstCallReceiver',
+        'bytes32',
+        'Destination Call Receiver'
+      ),
+      addressField(
+        '_lifiIntentData.depositAndRefundAddress',
+        'Refund Recipient'
+      ),
+    ],
+  },
+  M0: {
+    fields: [
+      ...bytes32RecipientFields('_m0Data.receiverAddress', 'M0 Recipient'),
+      field('_m0Data.amountOut', 'uint128', 'Amount Received', {
+        only: 'start',
+      }),
+      // Scaled by the realized swap output on this entrypoint.
+      field('_m0Data.amountOut', 'uint128', 'Quoted Amount Received', {
+        only: 'swap',
+      }),
+      field('_m0Data.tokenOut', 'bytes32', 'Token Received'),
+      // Receives the OrderBook refund when the order is cancelled.
+      addressField('_m0Data.orderOwner', 'Order Owner (refunds)', {
+        visible: 'optional',
+      }),
+      refundField('_m0Data.refundRecipient'),
+    ],
+  },
+  Mayan: {
+    fields: [
+      nonEvmRecipientField('_mayanData.nonEVMReceiver'),
+      // The swap entrypoint bridges exactly mayanAmountIn and sends the rest of
+      // the swap output to refundRecipient.
+      bridgedTokenField('_mayanData.mayanAmountIn', 'Amount to Bridge', {
+        only: 'swap',
+      }),
+      refundField('_mayanData.refundRecipient', {
+        visible: 'always',
+        only: 'swap',
+      }),
+      refundField('_mayanData.refundRecipient', { only: 'start' }),
+    ],
+    amountLabel: { swap: 'Minimum Swap Output' },
+    intent: {
+      swap: 'Swap then bridge {_mayanData.mayanAmountIn} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}',
+    },
+  },
+  NEARIntents: {
+    fields: [
+      addressField('_nearData.depositAddress', 'NEAR Deposit Address'),
+      nonEvmRecipientField('_nearData.nonEVMReceiver'),
+      // Signed into the backend payload; a swapped quote is only visible here.
+      field('_nearData.destinationAsset', 'bytes32', 'Destination Asset'),
+      field('_nearData.minAmountOut', 'uint256', 'Minimum Received'),
+      refundField('_nearData.refundRecipient'),
+    ],
+    intent: depositIntent('NEARIntents', '_nearData.depositAddress'),
+  },
+  PaxosTransit: {
+    fields: [
+      // Not cross-checked against `_bridgeData` (PaxosTransitFacet._startBridge).
+      field(
+        '_paxosData.quote.route.destEID',
+        'uint32',
+        'Paxos Destination Endpoint'
+      ),
+      field('_paxosData.quote.route.wantAsset', 'address', 'Token Received'),
+      nativeFeeField('_paxosData.nativeFee', 'Paxos Fee'),
+      refundField('_paxosData.refundRecipient'),
+    ],
+  },
+  PolymerCCTP: {
+    fields: [
+      nonEvmRecipientField('_polymerData.nonEVMReceiver'),
+      bridgedTokenField('_polymerData.polymerTokenFee', 'Polymer Fee'),
+      bridgedTokenField(
+        '_polymerData.maxCCTPFee',
+        'Max Destination Fee (0 = no limit)'
+      ),
+      refundField('_polymerData.refundRecipient'),
+    ],
+    intent: {
+      start:
+        'Bridge {_bridgeData.minAmount} via PolymerCCTP, minus fee {_polymerData.polymerTokenFee}, to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}',
+      swap: 'Swap then bridge {_bridgeData.minAmount} via PolymerCCTP, minus fee {_polymerData.polymerTokenFee}, to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}',
+    },
+  },
+  RelayDepository: {
+    fields: [
+      addressField('_relayDepositoryData.depositorAddress', 'Relay Depositor'),
+    ],
+  },
+  Squid: {
+    // BridgeCall and CallBridgeCall deliver to destinationAddress and use
+    // `_bridgeData.receiver` as the Axelar refund address; CallBridge delivers
+    // to `_bridgeData.receiver`.
+    receiverLabel: 'Recipient or Refund Address',
+    fields: [
+      field('_squidData.routeType', 'uint8', 'Squid Route Type'),
+      field('_squidData.destinationChain', 'string', 'Squid Destination Chain'),
+      field(
+        '_squidData.destinationAddress',
+        'string',
+        'Squid Destination Address'
+      ),
+      nativeFeeField('_squidData.fee', 'Squid Fee'),
+    ],
+    intent: {
+      start:
+        'Bridge {_bridgeData.minAmount} via Squid to {_squidData.destinationChain}, address {_squidData.destinationAddress}',
+      swap: 'Swap then bridge {_bridgeData.minAmount} via Squid to {_squidData.destinationChain}, address {_squidData.destinationAddress}',
+    },
+  },
+  Stargate: {
+    acceptsDestinationCall: true,
+    fields: [
+      // Neither is checked against destinationChainId; `to` is checked against
+      // receiver only without a destination call.
+      field(
+        '_stargateData.sendParams.dstEid',
+        'uint32',
+        'LayerZero Destination Endpoint'
+      ),
+      ...bytes32RecipientFields(
+        '_stargateData.sendParams.to',
+        'Bridge Recipient'
+      ),
+      bridgedTokenField(
+        '_stargateData.sendParams.minAmountLD',
+        'Minimum Amount Received'
+      ),
+      nativeFeeField('_stargateData.fee.nativeFee', 'LayerZero Fee'),
+      addressField('_stargateData.refundAddress', 'Refund Address', {
+        visible: 'optional',
+      }),
+    ],
+  },
+  Superset: {
+    fields: [
+      nativeFeeField('_supersetData.lzFee', 'LayerZero Fee'),
+      addressField('_supersetData.refundAddress', 'Refund Address', {
+        visible: 'optional',
+      }),
+    ],
+  },
+  Symbiosis: {
+    fields: [
+      // Runs the bridging call; the facet never reads `_bridgeData.receiver`.
+      addressField('_symbiosisData.callTo', 'Symbiosis Bridge Contract'),
+      nonEvmRecipientField('_symbiosisData.nonEvmReceiver'),
+      nativeFeeField('_symbiosisData.fee', 'Symbiosis Fee'),
+      refundField('_symbiosisData.refundRecipient'),
+    ],
+  },
+  ThorSwap: {
+    // The memo, not `_bridgeData`, tells THORChain where to send the funds.
+    fields: [
+      addressField('_thorSwapData.vault', 'THORChain Vault'),
+      field('_thorSwapData.memo', 'string', 'THORChain Memo'),
+    ],
+    intent: {
+      start:
+        'Send {_bridgeData.minAmount} via ThorSwap to vault {_thorSwapData.vault} with memo {_thorSwapData.memo}',
+      swap: 'Swap then send {_bridgeData.minAmount} via ThorSwap to vault {_thorSwapData.vault} with memo {_thorSwapData.memo}',
+    },
+  },
+  Unit: {
+    fields: [addressField('_unitData.depositAddress', 'Unit Deposit Address')],
+    intent: depositIntent('Unit', '_unitData.depositAddress'),
+  },
+}
+
+function facetFields(fn: IAbiFn, variant: Variant): IFacetField[] {
+  const display = BRIDGE_FACET_DISPLAY[bridgeFacetName(fn.name)]
+  return (display?.fields ?? []).filter(
+    (spec) => !spec.only || spec.only === variant
+  )
+}
+
+// Walks a parameter-rooted path through nested tuples and returns the ABI type
+// it ends at, or null when a segment does not exist.
+function componentType(fn: IAbiFn, path: string): string | null {
+  const [head, ...rest] = path.split('.')
+  let current: IAbiParam | undefined = fn.inputs.find((p) => p.name === head)
+  for (const segment of rest) {
+    // Exact `tuple`: a `tuple[]` would need an index in the path.
+    if (!current || current.type !== 'tuple') return null
+    current = current.components?.find((c) => c.name === segment)
+  }
+  return current?.type ?? null
+}
+
+// Strict-by-default: every path a facet field displays, and every token path it
+// formats an amount with, must exist in the ABI with the expected type.
+function validateFacetFields(fn: IAbiFn, variant: Variant): string | null {
+  for (const spec of facetFields(fn, variant)) {
+    const type = componentType(fn, spec.path)
+    if (type === null)
+      return `missing component "${spec.path}" (BRIDGE_FACET_DISPLAY field "${spec.label}")`
+    // Exact match: `startsWith('bytes')` would accept `bytes32[]` or `bytes16`.
+    if (type !== spec.type)
+      return `component "${spec.path}" has type "${type}", expected exactly "${spec.type}"`
+    const tokenPath = spec.params?.tokenPath
+    if (
+      typeof tokenPath === 'string' &&
+      componentType(fn, tokenPath.replace(/\.\[[^\]]*\]$/u, '')) === null
+    )
+      return `token path "${tokenPath}" of "${spec.path}" does not resolve`
   }
   return null
 }
 
-function extraFields(fn: IAbiFn): IField[] {
-  return extraFieldSpecs(fn).map((spec) => ({
-    path: `${spec.paramName}.${spec.component}`,
+function toField(spec: IFacetField): IField {
+  return {
+    path: spec.slice ? `${spec.path}.${spec.slice}` : spec.path,
     label: spec.label,
-    // bytes32 recipient/asset (may be non-EVM); addressName takes `address` only.
-    format: 'raw',
-    visible: 'always',
-  }))
+    format: spec.format,
+    ...(spec.params ? { params: spec.params } : {}),
+    visible: spec.visible ?? 'always',
+  }
 }
 
-function buildStartFormat(fn: IAbiFn): IFormatEntry {
+// `LibAsset.depositAssets` pulls `fromAmount` of `sendingAssetId` from the
+// signer for every entry with `requiresDeposit`, not only the first one.
+const SWAP_INPUT_FIELD: IField = {
+  path: '_swapData.[].fromAmount',
+  label: 'Amount to Swap',
+  format: 'tokenAmount',
+  params: tokenAmountParams('_swapData.[].sendingAssetId'),
+  visible: 'always',
+}
+
+const HIDDEN_SWAP_FIELDS: IField[] = [
+  {
+    path: '_swapData.[].callData',
+    label: 'Swap Data Call Data',
+    visible: 'never',
+  },
+  {
+    path: '_swapData.[].callTo',
+    label: 'Swap Data Call To',
+    visible: 'never',
+  },
+  {
+    path: '_swapData.[].approveTo',
+    label: 'Swap Data Approve To',
+    visible: 'never',
+  },
+  {
+    path: '_swapData.[].requiresDeposit',
+    label: 'Swap Data Requires Deposit',
+    visible: 'never',
+  },
+]
+
+function buildBridgeFormat(fn: IAbiFn, variant: Variant): IFormatEntry {
   const facet = bridgeFacetName(fn.name)
+  const display = BRIDGE_FACET_DISPLAY[facet]
+  const isSwap = variant === 'swap'
+  // Bridge identity is the most important security signal in a bridge tx —
+  // different bridges have very different trust + finality models. Wallets
+  // prefer `interpolatedIntent` over `intent`, so if we only put the bridge
+  // name in `intent` it never reaches the user. Hardcode it into the
+  // template (constant per selector; no extra wallet-side work).
+  const defaultIntent = `${
+    isSwap ? 'Swap then bridge' : 'Bridge'
+  } {_bridgeData.minAmount} via ${facet} to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}`
+  const destinationCall = display?.acceptsDestinationCall
+    ? DESTINATION_CALL_FIELD
+    : HIDDEN_DESTINATION_CALL_FIELD
+
   return {
-    intent: `Bridge via ${facet}`,
-    // Bridge identity is the most important security signal in a bridge tx —
-    // different bridges have very different trust + finality models. Wallets
-    // prefer `interpolatedIntent` over `intent`, so if we only put the bridge
-    // name in `intent` it never reaches the user. Hardcode it into the
-    // template (constant per selector; no extra wallet-side work).
-    interpolatedIntent: `Bridge {_bridgeData.minAmount} via ${facet} to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}`,
+    intent: isSwap ? `Swap & Bridge via ${facet}` : `Bridge via ${facet}`,
+    interpolatedIntent: display?.intent?.[variant] ?? defaultIntent,
     fields: [
+      ...(isSwap ? [SWAP_INPUT_FIELD] : []),
       {
         path: '_bridgeData.minAmount',
-        label: 'Amount to Bridge',
+        label:
+          display?.amountLabel?.[variant] ??
+          (isSwap ? 'Minimum to Bridge' : 'Amount to Bridge'),
         format: 'tokenAmount',
         params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
-      RECEIVER_FIELD,
-      ...extraFields(fn),
+      display?.receiverLabel
+        ? { ...RECEIVER_FIELD, label: display.receiverLabel }
+        : RECEIVER_FIELD,
+      ...facetFields(fn, variant).map(toField),
+      ...(destinationCall.visible === 'always' ? [destinationCall] : []),
+      NATIVE_VALUE_FIELD,
       ...HIDDEN_BRIDGE_FIELDS,
+      ...(destinationCall.visible === 'never' ? [destinationCall] : []),
+      ...(isSwap ? HIDDEN_SWAP_FIELDS : []),
     ],
   }
 }
 
-function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
-  const facet = bridgeFacetName(fn.name)
-  return {
-    intent: `Swap & Bridge via ${facet}`,
-    // Same rationale as buildStartFormat: surface the bridge identity in the
-    // template, not just in the fallback `intent`.
-    interpolatedIntent: `Swap then bridge {_bridgeData.minAmount} via ${facet} to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}`,
-    fields: [
-      {
-        path: '_swapData.[0].fromAmount',
-        label: 'Amount to Swap',
-        format: 'tokenAmount',
-        params: tokenAmountParams('_swapData.[0].sendingAssetId'),
-        visible: 'always',
-      },
-      {
-        path: '_bridgeData.minAmount',
-        label: 'Minimum to Bridge',
-        format: 'tokenAmount',
-        params: tokenAmountParams('_bridgeData.sendingAssetId'),
-        visible: 'always',
-      },
-      CHAIN_FIELD,
-      RECEIVER_FIELD,
-      ...extraFields(fn),
-      ...HIDDEN_BRIDGE_FIELDS,
-      {
-        path: '_swapData.[].callData',
-        label: 'Swap Data Call Data',
-        visible: 'never',
-      },
-      {
-        path: '_swapData.[].callTo',
-        label: 'Swap Data Call To',
-        visible: 'never',
-      },
-      {
-        path: '_swapData.[].approveTo',
-        label: 'Swap Data Approve To',
-        visible: 'never',
-      },
-      {
-        path: '_swapData.[].requiresDeposit',
-        label: 'Swap Data Requires Deposit',
-        visible: 'never',
-      },
-    ],
+// A placeholder that names no displayed field renders as nothing, or as a value
+// the signer cannot check against a labelled line.
+function validateIntentPlaceholders(entry: IFormatEntry): string | null {
+  const displayed = new Set(
+    entry.fields
+      .filter((f) => (f.visible ?? 'always') !== 'never')
+      .map((f) => f.path)
+  )
+  for (const match of entry.interpolatedIntent?.matchAll(/\{([^}]+)\}/gu) ??
+    []) {
+    const placeholder = match[1]
+    if (placeholder && !displayed.has(placeholder))
+      return `interpolatedIntent placeholder "{${placeholder}}" is not a displayed field path`
   }
+  return null
 }
-
 // Existing 7 swap entries: re-author them with `interpolatedIntent` added.
 // Paths must match the actual function signatures from the ABI.
 const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
@@ -649,7 +1016,6 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
   swapTokensMultipleV3ERC20ToERC20: undefined as unknown as IFormatEntry,
   swapTokensMultipleV3ERC20ToNative: undefined as unknown as IFormatEntry,
   swapTokensMultipleV3NativeToERC20: undefined as unknown as IFormatEntry,
-  swapTokensGeneric: undefined as unknown as IFormatEntry,
 }
 // Derivation: same as ERC20ToERC20 but for Native variants the `fromAmount`
 // (or the @.value for the legacy descriptor) is replaced. We just reproduce
@@ -725,16 +1091,17 @@ SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
     },
   ],
 }
+// `GenericSwapFacetV3._depositMultipleERC20Tokens` pulls every entry with
+// `requiresDeposit`, so the sentence cannot name one input amount.
 SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
   intent: 'Swap',
-  interpolatedIntent:
-    'Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver}',
+  interpolatedIntent: 'Swap for at least {_minAmountOut} to {_receiver}',
   fields: [
     {
-      path: '_swapData.[0].fromAmount',
+      path: '_swapData.[].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
+      params: tokenAmountParams('_swapData.[].sendingAssetId'),
       visible: 'always',
     },
     {
@@ -820,58 +1187,6 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
     },
     {
       path: '_swapData.[0].requiresDeposit',
-      label: 'Swap Data Requires Deposit',
-      visible: 'never',
-    },
-  ],
-}
-SWAP_TEMPLATES.swapTokensGeneric = {
-  $id: 'swapTokensGeneric',
-  intent: 'Swap',
-  interpolatedIntent:
-    'Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver}',
-  fields: [
-    {
-      path: '_swapData.[0].fromAmount',
-      label: 'Amount to Send',
-      format: 'tokenAmount',
-      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
-      visible: 'always',
-    },
-    {
-      path: '_minAmount',
-      label: 'Minimum to Receive',
-      format: 'tokenAmount',
-      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
-      visible: 'always',
-    },
-    {
-      path: '_receiver',
-      label: 'Recipient',
-      format: 'addressName',
-      params: { types: ['eoa', 'contract'], sources: ['local', 'ens'] },
-      visible: 'always',
-    },
-    { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
-    { path: '_integrator', label: 'Integrator', visible: 'never' },
-    { path: '_referrer', label: 'Referrer', visible: 'never' },
-    {
-      path: '_swapData.[].callData',
-      label: 'Swap Data Call Data',
-      visible: 'never',
-    },
-    {
-      path: '_swapData.[].callTo',
-      label: 'Swap Data Call To',
-      visible: 'never',
-    },
-    {
-      path: '_swapData.[].approveTo',
-      label: 'Swap Data Approve To',
-      visible: 'never',
-    },
-    {
-      path: '_swapData.[].requiresDeposit',
       label: 'Swap Data Requires Deposit',
       visible: 'never',
     },
@@ -982,43 +1297,39 @@ function main() {
         continue
       }
       out[sig] = tpl
-    } else if (fn.name.startsWith('swapAndStartBridgeTokensVia')) {
-      const err = validateSwapAndStartFn(fn)
+    } else if (/^(swapAndStart|start)BridgeTokensVia/u.test(fn.name)) {
+      const variant: Variant = fn.name.startsWith('swapAndStart')
+        ? 'swap'
+        : 'start'
+      const err =
+        variant === 'swap' ? validateSwapAndStartFn(fn) : validateStartFn(fn)
       if (err) {
         failures.push(
           `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData/_swapData struct with LiFi.BridgeData / LibSwap.SwapData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
         )
         continue
       }
-      const extraErr = validateExtraFields(fn)
-      if (extraErr) {
+      const fieldErr = validateFacetFields(fn, variant)
+      if (fieldErr) {
         failures.push(
-          `${sig}\n      reason: bridge-specific display field mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS / BRIDGE_EXTRA_FIELDS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
+          `${sig}\n      reason: bridge-specific display field mismatch — ${fieldErr}\n      fix:    update the BRIDGE_FACET_DISPLAY entry in buildClearSigningProposal.ts to match the facet's current struct.`
         )
         continue
       }
-      out[sig] = buildSwapAndStartFormat(fn)
-    } else if (fn.name.startsWith('startBridgeTokensVia')) {
-      const err = validateStartFn(fn)
-      if (err) {
-        failures.push(
-          `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData struct with LiFi.BridgeData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
-        )
-        continue
-      }
-      const extraErr = validateExtraFields(fn)
-      if (extraErr) {
-        failures.push(
-          `${sig}\n      reason: bridge-specific display field mismatch — ${extraErr}\n      fix:    update the BRIDGE_EXTRA_RECEIVERS / BRIDGE_EXTRA_FIELDS entry in buildClearSigningProposal.ts to match the facet's current struct field.`
-        )
-        continue
-      }
-      out[sig] = buildStartFormat(fn)
+      out[sig] = buildBridgeFormat(fn, variant)
     } else {
       failures.push(
         `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min) and isn't in the explicit non-user-facing skip-list.\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts main(). If not, add it to NON_USER_FACING_NAMES / NON_USER_FACING_PREFIXES at the top of main() with a one-line justification.`
       )
     }
+  }
+
+  for (const [sig, entry] of Object.entries(out)) {
+    const intentErr = validateIntentPlaceholders(entry)
+    if (intentErr)
+      failures.push(
+        `${sig}\n      reason: ${intentErr}\n      fix:    reference a field the format displays, or add that field.`
+      )
   }
 
   if (failures.length > 0) {
