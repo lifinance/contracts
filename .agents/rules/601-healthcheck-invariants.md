@@ -104,7 +104,9 @@ acting on it the two legitimately disagree, and the remediation is "wait", not "
 These invariants read only the keys. A target-state value is `latest` (follow the repo) or a
 deliberate version pin; the one invariant that consults it is
 `facet-versions-match-target-state`, which warns when a registered facet is behind or ahead of
-that version and never fails the run ([docs/TargetState.md](../../docs/TargetState.md)).
+that version and never fails the run ([docs/TargetState.md](../../docs/TargetState.md)). A
+behind facet is reported as expected-pending instead when a `queued` `diamondCut` on that
+network's diamond registers the facet's deploy-log address, matched as for additions below.
 
 Invariants may consult operator intent to resolve that window and report the finding as
 **expected-pending** instead of a failure:
