@@ -1303,7 +1303,8 @@
         "TokenWrapper": "latest",
         "LayerSwapFacet": "latest",
         "NEARIntentsFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "SymbiosisFacet": "latest"
       }
     }
   },
