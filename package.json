@@ -29,7 +29,7 @@
     "ethers": "^5.7.0",
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
-    "markdownlint-cli2": "0.23.2",
+    "markdownlint-cli2": "0.23.3",
     "node-gyp": "^10.2.0",
     "oxlint": "1.86.0",
     "oxlint-tsgolint": "7.0.2003",
