@@ -2596,26 +2596,28 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // A rollout PR moves the target before its cut executes, so a behind facet whose target
       // build a queued diamondCut already registers is waiting, not drifting. Resolved once, and
       // only when something is behind, so a network at target never touches the queue.
-      const queue: {
-        scheduled?:
-          | Map<string, IPendingRegistration[]>
-          | { unreachable: string }
-      } = {}
+      let scheduled:
+        | Map<string, IPendingRegistration[]>
+        | { unreachable: string }
+        | undefined
+      let unreachableReason: string | undefined
       const isUpgradeQueued = async (
         contractName: string,
         liveAddress: string
       ): Promise<boolean> => {
-        queue.scheduled ??= await resolvePendingRegistrations(ctx)
-        const { scheduled } = queue
+        scheduled ??= await resolvePendingRegistrations(ctx)
+        if (!(scheduled instanceof Map)) {
+          unreachableReason = scheduled.unreachable
+          return false
+        }
         const deployed = ctx.deployedContracts[contractName]
-        if (!deployed || !(scheduled instanceof Map)) return false
-        const address = String(deployed).toLowerCase()
+        if (!deployed) return false
         // A deploy log still naming the live build never logged the target one, so a queued cut
         // of that address would re-register the build that is behind.
-        if (address === liveAddress.toLowerCase()) return false
+        if (addressesMatch(String(deployed), liveAddress)) return false
         return (
           scheduled
-            .get(address)
+            .get(String(deployed).toLowerCase())
             ?.some((record) => record.kind === 'facet-cut') ?? false
         )
       }
@@ -2660,10 +2662,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       // As in facets-registered, an unreachable queue suppresses nothing: every behind facet
       // still warns, and this names the reduced coverage.
-      const { scheduled } = queue
-      if (scheduled && !(scheduled instanceof Map))
+      if (unreachableReason !== undefined)
         ctx.logWarn(
-          `Timelock queue unreachable — expected-pending downgrade skipped, behind facets reported as behind: ${scheduled.unreachable}`
+          `Timelock queue unreachable — expected-pending downgrade skipped, behind facets reported as behind: ${unreachableReason}`
         )
 
       if (matching > 0)

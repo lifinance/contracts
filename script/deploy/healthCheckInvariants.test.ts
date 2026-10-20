@@ -4172,5 +4172,25 @@ describe('facet-versions-match-target-state', () => {
       )
       expect(consulted).toBe(false)
     })
+
+    it('never consults the queue for a network at target', async () => {
+      let consulted = false
+      const ctx = makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: UPGRADE },
+      })
+      Object.defineProperty(ctx, 'pendingRegistrations', {
+        get() {
+          consulted = true
+          return queued()
+        },
+      })
+      await invariant.run(ctx)
+      expect(ctx.warnings).toEqual([])
+      expect(consulted).toBe(false)
+    })
   })
 })
