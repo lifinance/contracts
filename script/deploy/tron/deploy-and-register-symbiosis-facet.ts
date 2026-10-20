@@ -34,6 +34,7 @@ import { flagIsOn } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 /**
@@ -41,6 +42,7 @@ import { deployContractWithLogging, validateBalance } from './tronUtils'
  */
 async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
   consola.start('TRON SymbiosisFacet Deployment & Registration')
+  buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 
