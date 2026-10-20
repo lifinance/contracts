@@ -41,9 +41,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
+      "0x92Dfe694cDf25cA03E1beB25DC8cec058eD6746a": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0xf6439B22f35102A136c65e33AA2baAB3A3DB2127": {
         "Name": "LiFiIntentEscrowFacetV2",

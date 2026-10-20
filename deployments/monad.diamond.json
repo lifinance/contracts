@@ -13,9 +13,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x86D55f2223b96a0076c4A8a256d6fFb65478096B": {
+      "0xA418201c9D772994b34428C1948d318B992251E3": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
       "0xf581A8BFEAd9dD999298Cc0ea0f7D11c3cB92A56": {
         "Name": "PolymerCCTPFacet",

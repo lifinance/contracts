@@ -33,9 +33,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0xbf6A78E2E457F377a281394f0d117F61300b14e7": {
+      "0xff94B9B77CEA96c8742ae6B4580EBF21156fc956": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.2.0"
+        "Version": "2.0.0"
       },
       "0x95a05b09d2c84d8a37c03536A0BAd75876F8F8e9": {
         "Name": "DiamondLoupeFacet",

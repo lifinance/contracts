@@ -73,9 +73,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803": {
         "Name": "DeBridgeDlnFacet",

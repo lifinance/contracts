@@ -45,9 +45,9 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x1feB868BF64AdC552E051fB7387681F78b988a81": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.2"
+        "Version": "2.0.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
@@ -76,8 +76,8 @@
       "FeeCollector": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LiFiDEXAggregator": "0x7347996d9c81035E3EA667Bf4240bB134a969B56",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x7347996d9c81035E3EA667Bf4240bB134a969B56",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

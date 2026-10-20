@@ -49,9 +49,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xA66abf226CC230eDBDeFf85C1874Ac7A9A637072": {
-        "Name": "SymbiosisFacet",
-        "Version": "1.0.0"
+      "0x012216212F954Edf5743be30959A421e7e2820FA": {
+        "Name": "CalldataVerificationFacet",
+        "Version": "2.0.0"
       },
       "0x25B14BB3C349cc8B4076B5D75bfF2Ddebc7daE6D": {
         "Name": "DeBridgeDlnFacet",
@@ -60,10 +60,6 @@
       "0xECb6035CD0393ebE016821EAE28bA9c57efBd5c6": {
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
-      },
-      "0x7865919678265435472756b59D5141D0F76312E1": {
-        "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
       }
     },
     "Periphery": {
@@ -72,8 +68,8 @@
       "FeeCollector": "0x27f0e36dE6B1BA8232f6c2e87E00A50731048C6B",
       "FeeForwarder": "0xF46B6684DF5D121D5FDD6cA76Ef4919c65887083",
       "GasZipPeriphery": "0x3515c6544f95Ef17a2c5d2666a43ce3d6b1C9553",
-      "LiFiDEXAggregator": "0x9E4c63c9a0EDE2Ca2e772ee48C819Ca5CB4529AC",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x9E4c63c9a0EDE2Ca2e772ee48C819Ca5CB4529AC",
       "OutputValidator": "0x93BA2c19bF542b389E3C6654F6031cE6e58d3cd9",
       "Patcher": "",
       "Permit2Proxy": "0x82D7dD86603A6344b82a3914Fe02fEF7b6CDe2E2",

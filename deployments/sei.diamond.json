@@ -41,9 +41,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x0687F1B49E7d536adb8ab7EfC80E934175dF4dA9": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
@@ -80,8 +80,8 @@
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

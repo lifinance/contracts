@@ -53,9 +53,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315": {
+      "0x4d71A113Ed3BF6e0c0576cd0e179917c93cd3EDc": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x0FD79C81f1edA84b7fb8878C0795F63566312787": {
         "Name": "AcrossFacetPackedV4",
@@ -112,8 +112,8 @@
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
       "FeeForwarder": "0x72015d314542457cBB6BF14318d82464E4D413ec",
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
-      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "OutputValidator": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
       "Patcher": "",
       "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
