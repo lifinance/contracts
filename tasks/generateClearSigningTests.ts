@@ -215,7 +215,6 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_lifiIntentData.recipient': PADDED_RECEIVER,
   '_lifiIntentData.outputAmountMultiplier': 995_000_000_000_000_000n,
   '_lifiIntentData.outputToken': PADDED_USDC,
-  '_lifiIntentData.dstCallReceiver': leftPadded(DESTINATION_CALL_RECEIVER),
   '_lifiIntentData.depositAndRefundAddress': RECEIVER,
   '_m0Data.receiverAddress': PADDED_RECEIVER,
   '_m0Data.amountOut': 998_000_000n,
@@ -487,6 +486,20 @@ const VARIANT_CASES: IVariantCase[] = [
     overrides: {
       bridgeData: { destinationChainId: 4_326n },
       components: { '_megaETHData.requiresDepositTo': true },
+    },
+  },
+  {
+    // The receiver replaces the intent recipient only with a destination call.
+    functionName: 'startBridgeTokensViaLiFiIntentEscrowV2',
+    label: 'destination call',
+    overrides: {
+      bridgeData: { hasDestinationCall: true },
+      components: {
+        '_lifiIntentData.dstCallReceiver': leftPadded(
+          DESTINATION_CALL_RECEIVER
+        ),
+        '_lifiIntentData.dstCallSwapData': [SWAP_DATA],
+      },
     },
   },
   {

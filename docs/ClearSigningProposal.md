@@ -240,7 +240,7 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
     - strips the deprecated context.contract.abi (the v2 registry infers
       the ABI from the display.formats keys)
     - regenerates context.contract.deployments from deployments/* (active
-      mainnets, zkEVM chains excluded)
+      mainnets; zkEVM chains and chains without a native currency excluded)
     - merges display.formats from config/clearSigningProposal.json,
       scrubbing our own title-only Packed/Min residue and entries for
       retired LI.FI functions (RETIRED_LIFI_FUNCTIONS)

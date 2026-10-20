@@ -611,7 +611,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
+          "label": "Recipient",
           "format": "addressName",
           "params": {
             "types": [
@@ -1263,6 +1263,22 @@
           "visible": "always"
         },
         {
+          "path": "_gasZipData.receiverAddress.[0:20]",
+          "label": "GasZip Recipient (EVM)",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
           "path": "_gasZipData.destinationChains",
           "label": "GasZip Destination Chains",
           "format": "raw",
@@ -1674,8 +1690,12 @@
         },
         {
           "path": "_lifiIntentData.outputAmountMultiplier",
-          "label": "Output Multiplier (1e18 base)",
-          "format": "raw",
+          "label": "Output Ratio (raw units)",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
           "visible": "always"
         },
         {
@@ -1688,7 +1708,11 @@
           "path": "_lifiIntentData.dstCallReceiver",
           "label": "Destination Call Receiver",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_lifiIntentData.depositAndRefundAddress",
@@ -3180,7 +3204,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "_supersetData.fallbackEoA",
@@ -3196,7 +3220,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",
@@ -3731,8 +3755,12 @@
         },
         {
           "path": "_acrossData.outputAmountMultiplier",
-          "label": "Output Multiplier (1e18 base)",
-          "format": "raw",
+          "label": "Output Ratio (raw units)",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
           "visible": "always"
         },
         {
@@ -4365,7 +4393,7 @@
         },
         {
           "path": "_bridgeData.receiver",
-          "label": "Recipient (0x11f1…11F1 = non-EVM, see below)",
+          "label": "Recipient",
           "format": "addressName",
           "params": {
             "types": [
@@ -5209,6 +5237,22 @@
           "visible": "always"
         },
         {
+          "path": "_gasZipData.receiverAddress.[0:20]",
+          "label": "GasZip Recipient (EVM)",
+          "format": "addressName",
+          "params": {
+            "types": [
+              "eoa",
+              "contract"
+            ],
+            "sources": [
+              "local",
+              "ens"
+            ]
+          },
+          "visible": "always"
+        },
+        {
           "path": "_gasZipData.destinationChains",
           "label": "GasZip Destination Chains",
           "format": "raw",
@@ -5750,8 +5794,12 @@
         },
         {
           "path": "_lifiIntentData.outputAmountMultiplier",
-          "label": "Output Multiplier (1e18 base)",
-          "format": "raw",
+          "label": "Output Ratio (raw units)",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
           "visible": "always"
         },
         {
@@ -5764,7 +5812,11 @@
           "path": "_lifiIntentData.dstCallReceiver",
           "label": "Destination Call Receiver",
           "format": "raw",
-          "visible": "always"
+          "visible": {
+            "ifNotIn": [
+              0
+            ]
+          }
         },
         {
           "path": "_lifiIntentData.depositAndRefundAddress",
@@ -7681,7 +7733,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "_supersetData.fallbackEoA",
@@ -7697,7 +7749,7 @@
               "ens"
             ]
           },
-          "visible": "optional"
+          "visible": "always"
         },
         {
           "path": "@.value",

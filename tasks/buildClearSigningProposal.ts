@@ -307,7 +307,6 @@ const NON_EVM_FACETS = new Set([
   'AcrossV4',
   'AcrossV4Swap',
   'AllBridge',
-  'Centrifuge',
   'Chainflip',
   'DeBridgeDln',
   'Eco',
@@ -533,6 +532,7 @@ function nonEvmRecipientField(path: string, type = 'bytes32'): IFacetField {
 
 // A 1e18-scaled fraction (1e18 = 100%) shown as a percentage.
 const PERCENT_1E18_PARAMS = { base: '%', decimals: 16 }
+const OUTPUT_RATIO_LABEL = 'Output Ratio (raw units)'
 
 // For facets whose real destination or recipient lives in the facet data rather
 // than in `_bridgeData`, which the facet does not check against it.
@@ -586,12 +586,13 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         only: 'start',
       }),
       // Folds the price ratio and the token decimal difference into one
-      // factor, so it is not a percentage unless both tokens share decimals.
+      // factor: the ratio is of raw units, a price only when both tokens
+      // share decimals.
       field(
         '_acrossData.outputAmountMultiplier',
         'uint128',
-        'Output Multiplier (1e18 base)',
-        { only: 'swap' }
+        OUTPUT_RATIO_LABEL,
+        { format: 'unit', params: PERCENT_1E18_PARAMS, only: 'swap' }
       ),
       field('_acrossData.receivingAssetId', 'bytes32', 'Token Received'),
       ...bytes32RecipientFields(
@@ -763,9 +764,12 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     chainLabel:
       'Destination Chain (reported; GasZip Destination Chains decides)',
     fields: [
-      // Equal to `_bridgeData.receiver` on EVM targets (right-padded), so only
-      // the raw value is shown; it carries the non-EVM recipient.
-      field('_gasZipData.receiverAddress', 'bytes32', 'GasZip Recipient'),
+      // Right-padded, unlike the other bytes32 recipients.
+      ...bytes32RecipientFields(
+        '_gasZipData.receiverAddress',
+        'GasZip Recipient',
+        '[0:20]'
+      ),
       field(
         '_gasZipData.destinationChains',
         'uint256',
@@ -812,14 +816,16 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field(
         '_lifiIntentData.outputAmountMultiplier',
         'uint128',
-        'Output Multiplier (1e18 base)'
+        OUTPUT_RATIO_LABEL,
+        { format: 'unit', params: PERCENT_1E18_PARAMS }
       ),
       field('_lifiIntentData.outputToken', 'bytes32', 'Token Received'),
       // Becomes the recipient when dstCallSwapData is not empty.
       field(
         '_lifiIntentData.dstCallReceiver',
         'bytes32',
-        'Destination Call Receiver'
+        'Destination Call Receiver',
+        { visible: unlessZero('bytes32') }
       ),
       addressField(
         '_lifiIntentData.depositAndRefundAddress',
@@ -1117,12 +1123,12 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       ),
       nativeFeeField('_supersetData.lzFee', 'LayerZero Fee'),
       addressField('_supersetData.refundAddress', 'Refund Address', {
-        visible: 'optional',
+        visible: 'always',
       }),
       addressField(
         '_supersetData.fallbackEoA',
         'Fallback Recipient (on delivery failure)',
-        { visible: 'optional' }
+        { visible: 'always' }
       ),
     ],
   },
