@@ -13,9 +13,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x5071e157c060cf47Ce6BE898a1136B51Dc589a6A": {
+      "0x525A7cFA02a7A6F6A74b1D1Ed78A3c89c8D1659E": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
       "0xe4600ABa2F8A488166a9Ac6CfdD898263c58e111": {
         "Name": "EmergencyPauseFacet",
@@ -49,10 +49,6 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x9d0F7f10933B4564A071919D66cab20497f638CA": {
-        "Name": "SymbiosisFacet",
-        "Version": "1.0.0"
-      },
       "0x972b6ACdb7b29E27df309a36faB1c4153a8ab0ff": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
@@ -64,8 +60,8 @@
       "FeeCollector": "0x28F597dCAB2dcEEb8B38474550C947E38cFace61",
       "FeeForwarder": "0xf09DA6d62eA81E6ed5B38d2358B0d61E64f94b15",
       "GasZipPeriphery": "0x808828ED6633bb52e95a77D82fff1cF5991624e7",
-      "LiFiDEXAggregator": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xEfD58f4D96e21c7e2F7f07CdCD21fe131b11254b",
       "OutputValidator": "0x361C9203a357242734791faD2D8C4DCec028a9Db",
       "Patcher": "",
       "Permit2Proxy": "0xF59bE2B25A183951BDE57D4ADdBb2f38A8A95f4D",

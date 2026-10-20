@@ -37,9 +37,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0x9dd3d4261f6783ec930b99a20b76b92d37149E7F": {
+      "0x36c28c4fCbf400481e83885cbb883F8C1033D546": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x14AC4a87EE6F675106ED03324E29c7C9FcA2C000": {
         "Name": "EmergencyPauseFacet",
@@ -76,8 +76,8 @@
       "FeeCollector": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
       "FeeForwarder": "0xaaa55A0157670Ff2b4CF82F5cd2C754FE54BA574",
       "GasZipPeriphery": "0xA3cB8Ac8c250612FdA331F134EB60492b0d3bB10",
-      "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",
       "OutputValidator": "0x70DF6cF7943416c76A7a10d47bf0901cFA28B418",
       "Patcher": "",
       "Permit2Proxy": "0x628d684D57c73A5D8cA77F455Fdf2CC8Bd503c16",

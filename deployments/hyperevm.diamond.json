@@ -37,9 +37,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0xB2Cc198b18Eda93e4ac90F446EE499b7f4935F8a": {
+      "0xC08149811177390b796CEcaB70DaD0538C9e01E0": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0x319573826D2787ebEb0196cd53Df44Dd971779d5": {
         "Name": "EmergencyPauseFacet",

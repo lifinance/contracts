@@ -11,7 +11,7 @@
   "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
   "ServiceFeeCollector": "0xA8Fe73F7b3a825fF51f2200af12c16B3BA95394d",
   "Receiver": "0xdcBEcDE898c067cA58ABD01a7de51660bBD5A897",
-  "CalldataVerificationFacet": "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315",
+  "CalldataVerificationFacet": "0x4d71A113Ed3BF6e0c0576cd0e179917c93cd3EDc",
   "LiFuelFeeCollector": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
   "SymbiosisFacet": "0xdDD06Fc81cbDd2eAd260Dfb6670bEaE5B2c0B2DF",
   "TokenWrapper": "0xf6C9605c6E231C1547b7a6545d93e7233f97322a",

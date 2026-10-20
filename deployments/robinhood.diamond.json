@@ -13,9 +13,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xa5498A7a05A0C71b05e27B8558ccE13120B01387": {
+      "0xc6910cD9066CfD0b5F237B1447ba064ca07F76c2": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
       "0xe85C0289e2f2Ff98f1Ccd0a58E643263b68Abf97": {
         "Name": "EmergencyPauseFacet",

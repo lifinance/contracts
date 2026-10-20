@@ -45,9 +45,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x88174029c74B247657FEB4d1F552436407826afC": {
+      "0xC9c939012a8d8FcC3D315790E19626cA247011aa": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0xaFC4b6A093F2066c314922E92Fe2118d569C73aB": {
         "Name": "StargateFacetV2",
@@ -60,8 +60,8 @@
       "FeeCollector": "0x5e6525c873D6FD3D6BE0D9845018F6298583981d",
       "FeeForwarder": "0x5161370f81b3054f43361644Ad332625f5E0804F",
       "GasZipPeriphery": "0x90Db26204afD5e127DDFe377462C1Fec1D22eef8",
-      "LiFiDEXAggregator": "0xE275759e85e5497A1B07EA65529187FD7E987509",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xE275759e85e5497A1B07EA65529187FD7E987509",
       "OutputValidator": "0xFbb5BDeCDA4916bEe4B8aB6Ab2F7B89E2aDA4E8d",
       "Patcher": "",
       "Permit2Proxy": "0x56E3B9Cf704991cc554902b16610255568A58B12",

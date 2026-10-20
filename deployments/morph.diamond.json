@@ -41,16 +41,16 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.2"
       },
-      "0xC2B440c209890caA45952F6143c116204994c0D2": {
+      "0xC13646De7881ed8aB36cF9E010C9d992e0eC3B2D": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
       "0x8819A12ec23a97201d9Fb231Fc7e3B389673f707": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0xCDA650d97F35928f740544E9854f03a1e1c2b81E": {
-        "Name": "SymbiosisFacet",
+      "0x455B71D20a8b51E9757FeD649833f71355cFCe44": {
+        "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
       "0xcFDe3d0c9d2Ced6cC5731439Ac8944De0E029Ce4": {
@@ -60,10 +60,6 @@
       "0x778A74B0A93C933021648a260110214A9FffAff8": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.1.0"
-      },
-      "0x455B71D20a8b51E9757FeD649833f71355cFCe44": {
-        "Name": "LayerSwapFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -72,8 +68,8 @@
       "FeeCollector": "0x24Ff5343CaA5cd6B56e0AcBcEbeD4e739627404c",
       "FeeForwarder": "0xb3AB05AC1e5f7761eC997fde5990E420E501Fe13",
       "GasZipPeriphery": "0xFD661279E1e5210B56972F6Fe27D87bfB16E2e3F",
-      "LiFiDEXAggregator": "0x6B1C713894D51196fF7a54536B96559de9Bc433C",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x6B1C713894D51196fF7a54536B96559de9Bc433C",
       "OutputValidator": "0x0B1f03b79367CFB04245E6999943C05F441fFfEF",
       "Patcher": "",
       "Permit2Proxy": "0xAC0baB151c21A430145184Dd9124f9480c03717c",

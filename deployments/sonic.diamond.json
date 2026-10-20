@@ -45,9 +45,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x70A18260Be23D9E154cad53e049A55B95221EA82": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.2"
+        "Version": "2.0.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",

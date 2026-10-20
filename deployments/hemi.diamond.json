@@ -13,9 +13,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x86D55f2223b96a0076c4A8a256d6fFb65478096B": {
+      "0xA418201c9D772994b34428C1948d318B992251E3": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
       "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
         "Name": "WhitelistManagerFacet",
@@ -56,8 +56,8 @@
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
       "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
       "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",

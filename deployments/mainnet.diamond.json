@@ -117,9 +117,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x8f00E690a45e75D7A1A765163829Ad33244a1C33": {
         "Name": "NEARIntentsFacet",

@@ -45,9 +45,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x7c2003Db4a3E2a9b8D03Fd72b2BF4A9ceC53A625": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
