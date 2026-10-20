@@ -1848,7 +1848,8 @@ async function resolveTargetFacetVersion(
  * @param liveVersion - the version the diamond log records at the registered address, if any
  * @param target - the resolved target version
  * @param isUpgradeQueued - consulted only for a behind facet: true when a queued timelock
- *   operation already registers the target build, which turns the warning into expected-pending
+ *   diamondCut already registers the facet's deploy-log address, which turns the warning into
+ *   expected-pending; that build's version is not compared with the target
  * @returns true when the live version equals the target
  */
 async function reportFacetVersionDrift(
@@ -1880,7 +1881,7 @@ async function reportFacetVersionDrift(
   else if (order < 0) {
     if (await isUpgradeQueued())
       consola.info(
-        `${contractName} is behind the target state (${versions}) — expected-pending: a queued timelock operation registers the target build`
+        `${contractName} is behind the target state (${versions}) — expected-pending: an upgrade is queued in the timelock`
       )
     else ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
   } else if (order > 0)

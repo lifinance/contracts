@@ -81,7 +81,8 @@ checkout's `@custom:version`) and warns when the facet is behind, ahead, or cann
 It is a warning, so a network that has not caught up stays green. A behind facet is reported as
 expected-pending instead, with no warning, while a `queued` timelock `diamondCut` on that network's
 diamond registers the facet's deploy-log address ([CONV:HEALTHCHECK-INTENT] in
-`.agents/rules/601-healthcheck-invariants.md`). Because `latest` is read from
+`.agents/rules/601-healthcheck-invariants.md`). The queued build's version is not compared with
+the target, so a queued cut of an older build also silences the warning. Because `latest` is read from
 the checkout the check runs in, the expected version is `main`'s only when the run is on `main`,
 as the daily run is; a run on another branch compares against that branch's source. The warning
 labels the target `(latest)` or `(pinned)`, since the fix for a facet ahead of each differs. The
