@@ -1847,14 +1847,17 @@ async function resolveTargetFacetVersion(
  * @param contractName - facet name as the target state spells it
  * @param liveVersion - the version the diamond log records at the registered address, if any
  * @param target - the resolved target version
+ * @param isUpgradeQueued - consulted only for a behind facet: true when a queued timelock
+ *   operation already registers the target build, which turns the warning into expected-pending
  * @returns true when the live version equals the target
  */
-function reportFacetVersionDrift(
+async function reportFacetVersionDrift(
   ctx: IHealthCheckContext,
   contractName: string,
   liveVersion: string | null,
-  target: { version: string; label: string }
-): boolean {
+  target: { version: string; label: string },
+  isUpgradeQueued: () => Promise<boolean>
+): Promise<boolean> {
   if (liveVersion === null) {
     ctx.logWarn(
       `${contractName} is registered but the diamond log records no version for it — cannot compare against target ${target.label}`
@@ -1874,9 +1877,13 @@ function reportFacetVersionDrift(
     ctx.logWarn(
       `${contractName} version cannot be compared against the target state: ${versions}`
     )
-  else if (order < 0)
-    ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
-  else if (order > 0)
+  else if (order < 0) {
+    if (await isUpgradeQueued())
+      consola.info(
+        `${contractName} is behind the target state (${versions}) — expected-pending: a queued timelock operation registers the target build`
+      )
+    else ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
+  } else if (order > 0)
     ctx.logWarn(`${contractName} is ahead of the target state: ${versions}`)
   return order === 0
 }
@@ -2586,6 +2593,33 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
+      // A rollout PR moves the target before its cut executes, so a behind facet whose target
+      // build a queued diamondCut already registers is waiting, not drifting. Resolved once, and
+      // only when something is behind, so a network at target never touches the queue.
+      const queue: {
+        scheduled?:
+          | Map<string, IPendingRegistration[]>
+          | { unreachable: string }
+      } = {}
+      const isUpgradeQueued = async (
+        contractName: string,
+        liveAddress: string
+      ): Promise<boolean> => {
+        queue.scheduled ??= await resolvePendingRegistrations(ctx)
+        const { scheduled } = queue
+        const deployed = ctx.deployedContracts[contractName]
+        if (!deployed || !(scheduled instanceof Map)) return false
+        const address = String(deployed).toLowerCase()
+        // A deploy log still naming the live build never logged the target one, so a queued cut
+        // of that address would re-register the build that is behind.
+        if (address === liveAddress.toLowerCase()) return false
+        return (
+          scheduled
+            .get(address)
+            ?.some((record) => record.kind === 'facet-cut') ?? false
+        )
+      }
+
       let matching = 0
       for (const [contractName, declared] of targets) {
         // An unregistered target-state facet is facets-registered's finding, not this one's.
@@ -2611,10 +2645,26 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             address,
             log
           )
-          if (reportFacetVersionDrift(ctx, contractName, liveVersion, target))
+          if (
+            await reportFacetVersionDrift(
+              ctx,
+              contractName,
+              liveVersion,
+              target,
+              () => isUpgradeQueued(contractName, address)
+            )
+          )
             matching++
         }
       }
+
+      // As in facets-registered, an unreachable queue suppresses nothing: every behind facet
+      // still warns, and this names the reduced coverage.
+      const { scheduled } = queue
+      if (scheduled && !(scheduled instanceof Map))
+        ctx.logWarn(
+          `Timelock queue unreachable — expected-pending downgrade skipped, behind facets reported as behind: ${scheduled.unreachable}`
+        )
 
       if (matching > 0)
         consola.success(
