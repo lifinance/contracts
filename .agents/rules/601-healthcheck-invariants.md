@@ -107,6 +107,8 @@ deliberate version pin; the one invariant that consults it is
 that version and never fails the run ([docs/TargetState.md](../../docs/TargetState.md)). A
 behind facet is reported as expected-pending instead when a `queued` `diamondCut` on that
 network's diamond registers the facet's deploy-log address, matched as for additions below.
+A deploy-log address equal to the live, behind address never qualifies: the target build was
+never logged, so that cut re-registers the build that is behind.
 
 Invariants may consult operator intent to resolve that window and report the finding as
 **expected-pending** instead of a failure:
@@ -154,10 +156,12 @@ Two boundaries are not negotiable:
   compensating write. Deploy logs stay a pure function of the loupe
   ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
 - **An unreachable queue must never suppress a finding.** What decides the degradation is
-  what the check is *for*, not its severity — all five are error-severity.
+  what the check is *for*, not its severity.
   `no-stale-registered-facets` exists _only_ to police queue coverage, so without the queue
   every finding it could make is noise: it skips and reports the reduced coverage.
   `facets-registered`, `periphery-registered`, `whitelist-integrity` and
   `registered-periphery-allowlisted` stand on an independent on-chain signal, so they keep
   every error and add a warning naming the degraded coverage — a MongoDB blip turning
   genuinely missing registrations green is far worse than a false alert during a rollout.
+  `facet-versions-match-target-state` is warning-severity but degrades the same way: it keeps
+  every behind warning and adds one warning naming the unreachable queue.
