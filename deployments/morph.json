@@ -4,7 +4,7 @@
   "DiamondCutFacet": "0x24601F729cFce5288764Eff6C237033236DFd843",
   "DiamondLoupeFacet": "0x12d5427De38bf6e754a21EA7Eaf8c1eE8cd7Aa5c",
   "EmergencyPauseFacet": "0x3F52301B7028D80427D47A5a7Fa9b70ed768A39B",
-  "GenericSwapFacetV3": "0xb1e9A4b09e2b8c35D21Ede99Fa60276fe0647551",
+  "GenericSwapFacetV3": "0x65bE4db5A9d3AaF3B08291df31110A89defC795b",
   "OwnershipFacet": "0xf8bd3B0c644183FcDf04D9e2DCE8F12AfD5aD004",
   "PeripheryRegistryFacet": "0x49ee202b84be232126a308F20b7AD42162184A45",
   "WhitelistManagerFacet": "0x99E1a2E574100e07EA059FA5c010cC86Df26a046",
