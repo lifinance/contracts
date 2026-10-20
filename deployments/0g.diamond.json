@@ -29,9 +29,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0xFDAE19e236380BF01B48272508Ed08fDd84bBccD": {
+      "0x65bE4db5A9d3AaF3B08291df31110A89defC795b": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x0ead0f146F587169443D83F67F25A1b8c0748772": {
         "Name": "OwnershipFacet",

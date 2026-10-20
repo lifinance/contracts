@@ -25,9 +25,9 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0xc2029A96C95AC48dA05778B41B965CfC4640317D": {
+      "0xEf4D1C860DF16697FC15f930ED4caDE935826e01": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0xFE5Aa21A6681ff2E76195c53Eb5F12214F29fd1A": {
         "Name": "OwnershipFacet",
