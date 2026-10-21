@@ -1106,6 +1106,9 @@ function saveDiamondFacets() {
         # Version may be empty for legacy rows; never infer from @custom:version or other deployments
         BATCH_VERSION=$(echo "$BATCH_ENTRY" | jq -r '.version // empty')
         if [[ -n "$BATCH_NAME" ]]; then
+          if [[ -z "$BATCH_VERSION" && -f "$DIAMOND_FILE" ]]; then
+            BATCH_VERSION=$(jq -r --arg addr "$FACET_ADDRESS" --arg dn "$DIAMOND_NAME" '.[$dn].Facets[$addr].Version // ""' "$DIAMOND_FILE" 2>/dev/null || true)
+          fi
           if [[ "$ENV_TRY" != "$ENVIRONMENT" ]]; then
             echoDebug "saveDiamondFacets: resolved $FACET_ADDRESS ($BATCH_NAME) from ${ENV_TRY} deployment log (requested ${ENVIRONMENT})"
           fi
@@ -1596,14 +1599,16 @@ function getContractNamesInFolder() {
     # Create an empty ARRAY to store the FILE names
     local CONTRACTS=()
 
-    # Loop through all the .sol files in the directory
-    for FILE in "$FILEPATH"/*.sol; do
+    # glob order follows the caller's collation locale; sort bytewise so callers that write
+    # JSON keys in this order (saveDiamondPeriphery) produce the same file under any locale
+    local FILE
+    while IFS= read -r FILE; do
       # Extract the FILE name without the extension
       local name="$(basename "${FILE%.*}")"
 
       # Add the name to the ARRAY
       CONTRACTS+=("$name")
-    done
+    done < <(printf '%s\n' "$FILEPATH"/*.sol | LC_ALL=C sort)
 
     # Return the ARRAY
     echo "${CONTRACTS[@]}"
