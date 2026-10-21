@@ -56,8 +56,11 @@ Run it from the repo root as a plain command (no `&&`, pipes, heredocs or `sourc
 worktree-isolated session refuses those):
 
 ```bash
-./script/tasks/verifyNetworkContracts.sh <network>
+./script/tasks/verifyNetworkContracts.sh <network> [<env>]
 ```
+
+`<env>` defaults to `production`; pass `staging` for a staging deploy so it reads
+`deployments/<network>.staging.json`.
 
 | Exit | Meaning | Next |
 |---|---|---|

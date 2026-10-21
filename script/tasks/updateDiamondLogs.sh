@@ -35,14 +35,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # shellcheck disable=SC1091
   source script/helperFunctions.sh
 
-  if [[ $# -eq 0 ]]; then
-    updateDiamondLogs "$ENVIRONMENT"
-    exit $?
-  fi
-
-  FAILED=0
-  for NETWORK in "$@"; do
-    updateDiamondLogs "$ENVIRONMENT" "$NETWORK" || FAILED=1
-  done
-  exit "$FAILED"
+  # updateDiamondLogs word-splits its NETWORK argument and runs the networks in parallel;
+  # an empty list means every included network
+  updateDiamondLogs "$ENVIRONMENT" "$*"
 fi
