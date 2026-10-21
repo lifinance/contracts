@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xfB48b4001512a613037832924d33Bf33cDf35c89": {
+      "0x492D9A4A4cC7f79900FfDC81a464A7dB4b6c5219": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x6BC529A247af67735A7c0a2459d7df0b6A49AA0C": {
         "Name": "AccessManagerFacet",
@@ -57,9 +57,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.0"
       },
-      "0xECb6035CD0393ebE016821EAE28bA9c57efBd5c6": {
+      "0x85dDF3655BaF8c2C747aBA179BE3C16D8300b4aD": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

@@ -17,9 +17,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "2.0.0"
       },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+      "0xa44919b475455DC88fAC8ab7Cf5f1C9018651294": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xdE3EF12A5a1aFf3B3eE0bcC9362cbAb7CDba0715": {
         "Name": "GlacisFacet",
@@ -37,9 +37,9 @@
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "2.0.0"
       },
-      "0x17A1a3a8f4D77F330a53D852497d65ddcf065898": {
+      "0x83E8F744b5034D75b1C1D70C393db6220Da3a2BB": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x2fdF34490a969F1D040b937ce551325F679ef6b8": {
         "Name": "OwnershipFacet",

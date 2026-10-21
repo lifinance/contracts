@@ -29,9 +29,9 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0xe850dad9b442b1A7DF8FbbD397dbb7466379A9E8": {
+      "0x83E8F744b5034D75b1C1D70C393db6220Da3a2BB": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x6CeAde381Ac275E96cE52987AFD517114aBecBE5": {
         "Name": "OwnershipFacet",
@@ -53,9 +53,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+      "0xa44919b475455DC88fAC8ab7Cf5f1C9018651294": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x7AFB92A206d1774AE015D620fcb3328b253a3E5d": {
         "Name": "MayanFacet",

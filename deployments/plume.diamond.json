@@ -29,13 +29,13 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x3485E2f26BBEc71a8Ed64eDDFcC5deFd4E96f1d2": {
+      "0x834795B85b8F594A8aBa9d0cF2488646347bF697": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
-      "0x74eF1eD21C988373Cc1E42620E5febB0a680ec97": {
+      "0x69b1C6C339bDA7D3BA7Ddc1c02Df4D30eAfa2F77": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0xC9C97119174deeD9518e9Fa241776628D2ca8FA5": {
         "Name": "CalldataVerificationFacet",

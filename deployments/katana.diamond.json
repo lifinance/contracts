@@ -33,9 +33,9 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0xF3FA0BEaC43108B1C164d4D7aCb039F61B79cCC3": {
+      "0xa47F4Da9F4dfa21d3454Ec48949632f2Ca8c47b1": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x36c28c4fCbf400481e83885cbb883F8C1033D546": {
         "Name": "CalldataVerificationFacet",
@@ -45,9 +45,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x36d7709C1AC38365cBE04374C929DC9173d84A83": {
+      "0xD90688C64102ef47c1D7FFdBD84a28e4a2a14EA4": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x828Cc8Dc04e22B63DFB7764cFb58Ddbc4C2A07c7": {
         "Name": "LayerSwapFacet",

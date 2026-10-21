@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x0A28554Eed38F37cB62EB0503957262aA930cA1D": {
+      "0x3458347021f7fF7734D6708332Cf09c8E3F4fd2c": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x7953BF679A052FBeD11C414afBDdD46fF4D71B3a": {
         "Name": "AccessManagerFacet",
@@ -37,9 +37,9 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0x7c26a462c1499EB87259B51474197AF241f60FFA": {
+      "0x8c1C546188DF377782F763bbEA579C8da99324f4": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0x43F0F8929e50B792694184552828aD85d2241B0f": {
         "Name": "EmergencyPauseFacet",

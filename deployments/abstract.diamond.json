@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+      "0x1C267DbFe85Fc317569C9c0dCD5c9c62E52A6438": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xe24756bC0f197AB82660Ec4312987FBB9a8420f5": {
         "Name": "AccessManagerFacet",
@@ -37,9 +37,9 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0x8A942C47151Ee6209c5De84Aa033678eE9663787": {
+      "0xCFA468C89c138264509702215Db9d98DC93595cd": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0x9BacA4D8aB4328D167C4503a6c2951c70175CaA9": {
         "Name": "GlacisFacet",

@@ -29,9 +29,9 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0x0263A66912E06cCcbd5dC1Aa870f7271E24a7F72": {
+      "0x83E8F744b5034D75b1C1D70C393db6220Da3a2BB": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x6CeAde381Ac275E96cE52987AFD517114aBecBE5": {
         "Name": "OwnershipFacet",
@@ -81,9 +81,9 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+      "0xa44919b475455DC88fAC8ab7Cf5f1C9018651294": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
