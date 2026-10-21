@@ -183,8 +183,10 @@ bun troncast code <address> --env testnet
 **Preferred:**
 
 ```bash
-bash -lc 'source script/helperFunctions.sh && source script/playgroundHelpers.sh && analyzeFailingTx "<NETWORK>" "<TX_HASH>"'
+./script/tasks/analyzeFailingTx.sh <NETWORK> <TX_HASH>
 ```
+
+Run it as a plain command from the repo root — a worktree-isolated session refuses inline `source`.
 
 **Fallback:** Ask user for premium RPC URL, use for:
 
