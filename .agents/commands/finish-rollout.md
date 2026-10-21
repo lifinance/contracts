@@ -117,14 +117,13 @@ that's now. Regenerate it from on-chain state:
 
 ```bash
 gh pr checkout <N>
-# once per impacted network
-bash -c 'source script/helperFunctions.sh && updateDiamondLogs "production" "<network>"'
+./script/tasks/updateDiamondLogs.sh production <network> [<network>...]
 ```
 
-`script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion, `read -ra`), so
-sourcing it from the zsh this session runs dies on bashisms and ends in
-`[error] [<network>] Failed to generate valid diamond JSON` — a false failure that reads
-exactly like the contradiction case below. Run it through `bash -c` from the repo root.
+Run each as its own plain command from the repo root — no `&&`, pipes, `bash -c` or `source`.
+In a worktree-isolated session Claude Code refuses any command whose git behavior it can't
+read from the command text, and sourcing `script/helperFunctions.sh` inline is one of them.
+The script sources the helpers itself (under bash, so zsh bashism failures don't apply).
 
 The diff MUST show the new contract/version in each impacted `<net>.diamond.json` — this is a
 second, independent execution proof. If it doesn't, that contradicts Phase 2: stop, flag,
