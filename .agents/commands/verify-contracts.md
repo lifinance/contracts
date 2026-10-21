@@ -100,7 +100,7 @@ bunx tsx script/deploy/query-deployment-logs.ts list \
   --env <env> --network <network> --limit 200 --no-use-cache --format json
 ```
 
-Compare each record's `contractName` / `version` / `verified` against the deployment map.
+Match each record to the deployment map by address (case-insensitive), then check its `verified` flag.
 
 Report any record still `false` and why (e.g. superseded version intentionally left, or a verifier that genuinely failed). Don't claim "all verified" unless both the explorer and this re-query agree.
 

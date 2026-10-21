@@ -23,6 +23,11 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
   fi
 
+  if [[ ! "$2" =~ ^0x[[:xdigit:]]{64}$ ]]; then
+    echo "[error] invalid transaction hash '$2' - expected 0x followed by 64 hex characters" >&2
+    exit 1
+  fi
+
   # shellcheck disable=SC1091
   source script/playgroundHelpers.sh
 
