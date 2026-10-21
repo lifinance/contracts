@@ -1548,6 +1548,58 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         assertEq(usdc.balanceOf(address(genericSwapFacetV3)), 0);
     }
 
+    function test_SwapToERC20ThenForwardBpsShareIncludesPreExistingBalance()
+        public
+    {
+        // the facet pays its full balance to the receiver, so a balance it already held is
+        // part of the fee base and of the receiver's payout alike
+        uint256 preExistingBalance = 10 * 10 ** usdc.decimals();
+        deal(ADDRESS_USDC, address(genericSwapFacetV3), preExistingBalance);
+
+        vm.startPrank(DAI_HOLDER);
+
+        dai.approve(address(genericSwapFacetV3), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            ,
+            uint256 integratorFeeOnOutput,
+            uint256 amountToReceiverFromOutput
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeBps();
+
+        uint256 swapOutput = integratorFeeOnOutput +
+            amountToReceiverFromOutput;
+        uint256 integratorFee = ((swapOutput + preExistingBalance) * 30) /
+            10_000;
+        uint256 amountToReceiver = swapOutput +
+            preExistingBalance -
+            integratorFee;
+
+        uint256 integratorBalanceBefore = usdc.balanceOf(INTEGRATOR_WALLET);
+        uint256 receiverBalanceBefore = usdc.balanceOf(SOME_WALLET);
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountToReceiver,
+            swapData
+        );
+
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(INTEGRATOR_WALLET),
+            integratorBalanceBefore + integratorFee
+        );
+        assertEq(
+            usdc.balanceOf(SOME_WALLET),
+            receiverBalanceBefore + amountToReceiver
+        );
+        assertEq(usdc.balanceOf(address(genericSwapFacetV3)), 0);
+    }
+
     function testRevert_SwapToERC20ThenForwardBpsShareWithGrossMinAmountOut()
         public
     {

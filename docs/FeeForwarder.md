@@ -60,16 +60,18 @@ Each share is `balanceOf(caller) * bps / 10_000`, rounded down. The balance is r
 
 - The caller must have approved this contract to spend the tokens
 - Put **all** fees for `token` into a single call. A second call computes its shares from the balance the first one already reduced, so the fees compound
-- The fee base is the caller's full balance of `token`, including any balance it held before the swap (same full-balance pattern as [OutputValidator](OutputValidator.md))
-- Reverts with `InvalidTotalBps(totalBps)` if the shares add up to more than 10_000 bps
-- A share that rounds to zero (or a 0 bps entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0, and it is not checked for being the zero address
+- The fee base is the caller's full balance of `token`, including any balance it held before the swap (same full-balance pattern as [OutputValidator](OutputValidator.md)). `GenericSwapFacetV3` pays that full balance to the receiver. The `SwapperV2` bridge flows credit only the balance increase, so there the fee on a pre-existing balance is borne by the user
+- Reverts with `InvalidTotalBps(totalBps)` once the running total of the shares passes 10_000 bps; `totalBps` is the running total at that share
+- Reverts with `InvalidReceiver` for a zero-address recipient, whatever its share
+- A share that rounds to zero (or a 0 bps entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
 - The `FeesForwarded` event carries the computed amounts, in input order
 - ERC20 only: `address(0)` reverts with `NullAddrIsNotAnERC20Token`
 
 **Using it in `GenericSwapFacetV3`:**
 
 - Set `sendingAssetId` and `receivingAssetId` of the fee step to `token`, so the facet does not refund the step's sending asset as positive slippage
-- `fromAmount` must be non-zero but is otherwise unused: it only decides whether the facet renews its max approval to this contract
+- Set `requiresDeposit` to `false`: with it set, the facet pulls `fromAmount` from the user
+- `fromAmount` must be non-zero, and it does not affect the fee: the facet uses it to decide whether to renew its max approval to this contract, and reports it as the step's input amount in `AssetSwapped`. The fee step's `AssetSwapped` shows the facet's full balance as `toAmount`; the forwarded amounts are in `FeesForwarded`
 - The facet checks `minAmountOut` against its balance **after** all steps, so pass the amount net of fees
 
 ### Forwarding Native Fees
@@ -129,9 +131,9 @@ event FeesForwarded(address indexed token, FeeDistribution[] distributions);
 The contract uses minimal error checking for gas optimization:
 
 - **InvalidConfig**: Thrown when constructor receives zero address as owner
-- **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset)
+- **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset; checked up front in `forwardERC20FeesBps`)
 - **Natural Failures**: Insufficient balance or approvals will cause natural reverts
-- **InvalidTotalBps(totalBps)**: Thrown by `forwardERC20FeesBps` when the shares add up to more than 10_000 bps
+- **InvalidTotalBps(totalBps)**: Thrown by `forwardERC20FeesBps` when the shares add up to more than 10_000 bps; carries the running total at the first share past the limit
 - **NullAddrIsNotAnERC20Token**: Thrown by `forwardERC20FeesBps` when `address(0)` is passed as the token
 - **InsufficientBalance(required, balance)**: Thrown by `forwardNativeFees` when the distributions sum to more than `msg.value` **and** the contract's own balance was able to cover the shortfall — the invocation is refusing to spend funds its caller did not provide. Without such a balance the failing transfer reverts first with `ETHTransferFailed`, so under-funding surfaces as one of these two errors depending on whether a stray balance is present
 

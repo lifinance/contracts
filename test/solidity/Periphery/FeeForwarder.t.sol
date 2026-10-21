@@ -999,6 +999,29 @@ contract FeeForwarderTest is TestBase {
         vm.stopPrank();
     }
 
+    function testRevert_ForwardERC20FeesBpsWithZeroRecipientAndZeroShare()
+        public
+    {
+        // Arrange - 1 bps of 10 base units rounds to 0, so no transfer would catch it
+        deal(address(usdc), USER_SENDER, 10);
+
+        FeeForwarder.FeeBpsDistribution[]
+            memory distributions = new FeeForwarder.FeeBpsDistribution[](1);
+        distributions[0] = FeeForwarder.FeeBpsDistribution({
+            recipient: address(0),
+            bps: 1
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // Act & Assert
+        vm.expectRevert(InvalidReceiver.selector);
+
+        feeForwarder.forwardERC20FeesBps(address(usdc), distributions);
+
+        vm.stopPrank();
+    }
+
     function testRevert_ForwardERC20FeesBpsWhenNativeTokenProvided() public {
         // Arrange
         FeeForwarder.FeeBpsDistribution[]

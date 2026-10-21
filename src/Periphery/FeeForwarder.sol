@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { InvalidConfig, InsufficientBalance, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InsufficientBalance, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
@@ -39,7 +39,7 @@ contract FeeForwarder is WithdrawablePeriphery {
     /// Errors ///
 
     /// @notice Thrown when the bps shares of a call add up to more than 10_000
-    /// @param totalBps The sum of all bps shares passed to the call
+    /// @param totalBps The running total at the first share that pushes it past 10_000
     error InvalidTotalBps(uint256 totalBps);
 
     /// Events ///
@@ -100,9 +100,12 @@ contract FeeForwarder is WithdrawablePeriphery {
     ///      transfer, so every fee for `_token` must go in a single call: a second call would
     ///      compute its shares from the balance the first one already reduced.
     ///      The caller's full balance is the fee base, including any balance it held before the
-    ///      swap (same full-balance pattern as OutputValidator).
+    ///      swap (same full-balance pattern as OutputValidator). GenericSwapFacetV3 pays that
+    ///      full balance to the receiver; the SwapperV2 bridge flows credit only the balance
+    ///      increase, so there the fee on a pre-existing balance is borne by the user.
     ///      Shares are rounded down and a share of zero is skipped (some tokens revert on
-    ///      zero-value transfers); the event still lists it with amount 0.
+    ///      zero-value transfers); the event still lists it with amount 0. A zero-address
+    ///      recipient reverts regardless of its share.
     ///      The caller must have approved this contract to spend the tokens.
     /// @param _token The address of the ERC20 token to forward
     /// @param _distributions Array of recipients and their shares in basis points
@@ -120,6 +123,9 @@ contract FeeForwarder is WithdrawablePeriphery {
         FeeBpsDistribution calldata distribution;
         for (uint256 i; i < length; ++i) {
             distribution = _distributions[i];
+
+            // checked up front: the transfer also rejects it, but only for a non-zero share
+            if (distribution.recipient == address(0)) revert InvalidReceiver();
 
             uint256 bps = distribution.bps;
             // cannot overflow: the check below keeps totalBps <= 10_000 before each addition
