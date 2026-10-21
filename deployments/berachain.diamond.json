@@ -29,9 +29,9 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0x74FD5F9d0E816fA4134BAb0d348c3eF9E62CEe4A": {
+      "0xbE8CC8D0b35Db2a56Cb2a96498Ba83690Aae4f61": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0xff94B9B77CEA96c8742ae6B4580EBF21156fc956": {
         "Name": "CalldataVerificationFacet",
@@ -61,9 +61,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xF2a21389D7025e1C02e9C06f838C0189aFB7dAE4": {
+      "0x52777D1B049442F3133E4E2aCc1255e7e351a950": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xEa4B4a6b5CC829f636A40C67DBE1e300E6d918FC": {
         "Name": "RelayDepositoryFacet",

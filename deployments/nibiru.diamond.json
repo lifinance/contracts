@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x05AB10ae838235D68Ba0ae4D4120De94982a1e9e": {
+      "0xe787807431A82d3e9460B4F7F5004e65c15fA0FD": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xEdFCAb7871a773aB1a4829Da11bBA4c21E864938": {
         "Name": "AccessManagerFacet",
@@ -33,9 +33,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xf6Cc4ca0Ff4bea26554A8090f2cE4088A3A7EeC4": {
+      "0x8C3a475f88f047984De3f982792118d1Da497313": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0x2BB8caC20145C2644a595B565B7C78d19aBb5421": {
         "Name": "CalldataVerificationFacet",

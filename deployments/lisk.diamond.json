@@ -37,9 +37,9 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0xBa713B18c806EcdEEE49FAec623dE2D872192872": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd": {
         "Name": "AcrossFacetV4",
@@ -57,9 +57,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
         "Name": "GasZipFacet",

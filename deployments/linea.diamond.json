@@ -77,9 +77,9 @@
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
       },
-      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
+      "0x8AE8416Ac8126a2A6b56eAdbae6373D0597aC8d0": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xD0559AC5e6A5F20b3c3af7fbA02E5d671b9e47ba": {
         "Name": "FraxFacet",
@@ -97,9 +97,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xf4E73E2A9cDF1F94579cda3da07aD04031359CB5": {
+      "0x6FC60C42ba4B11f93034d5FEc025Ef1d0c200491": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x113E97921874646413572F2C43562463c378b6f5": {
         "Name": "StargateFacetV2",

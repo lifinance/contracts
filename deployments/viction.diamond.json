@@ -33,9 +33,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xD1317DA862AC5C145519E60D24372dc186EF7426": {
+      "0x4ee5Cef91c774F10BC760393EAC52b7ac5b2D3B0": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0x5e5551ef32416fABD6D56F1470BF363D0A9824af": {
         "Name": "CalldataVerificationFacet",
@@ -45,9 +45,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5": {
+      "0x4f86347504C9Fb5F37B14E3C862992f0A6642753": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
