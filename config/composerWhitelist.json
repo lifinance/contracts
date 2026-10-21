@@ -75,6 +75,17 @@
       ]
     }
   ],
+  "arbitrumsepolia": [
+    {
+      "address": "0x6b6e628696F796b9f94C6a00Bc0CC885C00E1438",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "arc": [
     {
       "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
@@ -87,6 +98,17 @@
     },
     {
       "address": "0xc6b1e8C63ecbE8DaB7994411902C65315b7Af0Cd",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "arctestnet": [
+    {
+      "address": "0x57056AD584719BB9bf3ed81aB87D60B8d00F6E92",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -163,6 +185,17 @@
     },
     {
       "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "basesepolia": [
+    {
+      "address": "0x6b6e628696F796b9f94C6a00Bc0CC885C00E1438",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",
@@ -671,6 +704,17 @@
       ]
     }
   ],
+  "optimismsepolia": [
+    {
+      "address": "0xb2b914B5409e62b200aADcFe9d9eE0673BB9D4F9",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "pharos": [
     {
       "address": "0x48eCDAA6aDA921f61357c1104829E9b1f4D1F75E",
@@ -828,6 +872,17 @@
     },
     {
       "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "sepolia": [
+    {
+      "address": "0x029786840E2e8CdECe2f8b44F6Ed0fC6a29f88C1",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",

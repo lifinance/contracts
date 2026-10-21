@@ -5546,6 +5546,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x6b6e628696F796b9f94C6a00Bc0CC885C00E1438",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "arc": [
@@ -5638,6 +5648,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x57056AD584719BB9bf3ed81aB87D60B8d00F6E92",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -5922,6 +5942,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x6b6e628696F796b9f94C6a00Bc0CC885C00E1438",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -8216,6 +8246,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xb2b914B5409e62b200aADcFe9d9eE0673BB9D4F9",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "pharos": [
@@ -8972,6 +9012,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x029786840E2e8CdECe2f8b44F6Ed0fC6a29f88C1",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
