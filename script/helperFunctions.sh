@@ -1356,6 +1356,18 @@ function saveDiamondPeriphery() {
   EXISTING_PERIPHERY=$(jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' "$DIAMOND_FILE" 2>/dev/null) || EXISTING_PERIPHERY='{}'
   local EXISTING_COUNT
   EXISTING_COUNT=$(echo "$EXISTING_PERIPHERY" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || EXISTING_COUNT=0
+
+  # PERIPHERY_CONTRACTS follows glob order, which depends on the caller's collation locale.
+  # Keep the order the diamond file already has and add new names in byte order (jq `keys`),
+  # so a sync never moves an entry the file already holds.
+  PERIPHERY_JSON=$(jq -n --argjson new "$PERIPHERY_JSON" --argjson old "$EXISTING_PERIPHERY" '
+      ([$old | keys_unsorted[] | select(. as $k | $new | has($k))]
+        + (($new | keys) - ($old | keys_unsorted))) as $order
+      | reduce $order[] as $k ({}; .[$k] = $new[$k])
+    ' 2>/dev/null) || {
+    warning "[$NETWORK] Failed to order periphery entries, keeping existing Periphery section"
+    PERIPHERY_JSON="$EXISTING_PERIPHERY"
+  }
   local NEW_COUNT
   NEW_COUNT=$(echo "$PERIPHERY_JSON" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || NEW_COUNT=0
 
@@ -1600,16 +1612,14 @@ function getContractNamesInFolder() {
     # Create an empty ARRAY to store the FILE names
     local CONTRACTS=()
 
-    # glob order follows the caller's collation locale; sort bytewise so callers that write
-    # JSON keys in this order (saveDiamondPeriphery) produce the same file under any locale
-    local FILE
-    while IFS= read -r FILE; do
+    # Loop through all the .sol files in the directory
+    for FILE in "$FILEPATH"/*.sol; do
       # Extract the FILE name without the extension
       local name="$(basename "${FILE%.*}")"
 
       # Add the name to the ARRAY
       CONTRACTS+=("$name")
-    done < <(printf '%s\n' "$FILEPATH"/*.sol | LC_ALL=C sort)
+    done
 
     # Return the ARRAY
     echo "${CONTRACTS[@]}"

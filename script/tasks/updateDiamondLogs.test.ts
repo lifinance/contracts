@@ -1,10 +1,10 @@
 /**
  * What `updateDiamondLogs` writes back for entries it did not change.
  *
- * Drives the real `saveDiamondFacets` and `getContractNamesInFolder` from
- * `script/helperFunctions.sh` with MongoDB stubbed and a temp diamond file, so
- * these cases pin which version a regenerated facet entry carries and that the
- * periphery name order does not depend on the caller's locale.
+ * Drives the real `saveDiamondFacets` and `saveDiamondPeriphery` from
+ * `script/helperFunctions.sh` with MongoDB and RPC stubbed and a temp diamond
+ * file, so these cases pin which version a regenerated facet entry carries and
+ * that a periphery sync keeps the key order the diamond file already has.
  */
 import { spawnSync } from 'child_process'
 import {
@@ -188,27 +188,107 @@ describe('saveDiamondFacets from the batch deployment-log query', () => {
   )
 })
 
-describe('getContractNamesInFolder', () => {
+type PeripheryLog = Record<string, string>
+
+/**
+ * Regenerates the periphery of `fuse.diamond.json` from stubbed on-chain lookups.
+ * @param existing - Periphery the diamond file holds before the run
+ * @param folderOrder - Names in the order the `src/Periphery` glob yields them
+ * @param onChain - Address `getPeripheryContract` returns for each name
+ * @returns The Periphery keys and values written back, in file order
+ */
+const regeneratePeriphery = (
+  existing: PeripheryLog,
+  folderOrder: string[],
+  onChain: PeripheryLog
+): [string, string][] => {
+  const diamondFile = join(sandbox, 'deployments', 'fuse.diamond.json')
+  writeFileSync(
+    diamondFile,
+    JSON.stringify({ LiFiDiamond: { Facets: {}, Periphery: existing } })
+  )
+  const result = runHarness(
+    `
+    ${LOAD_HELPERS}
+    echoDebug() { :; }
+    warning() { echo "[warning] $*"; }
+    error() { echo "[error] $*"; }
+    isTronNetwork() { return 1; }
+    getRPCUrl() { echo "http://stub"; }
+    getContractAddressFromDeploymentLogs() { echo "${DIAMOND_CUT}"; }
+    getContractNamesInFolder() { echo "$FOLDER_ORDER"; }
+    universalCast() { echo "$ON_CHAIN" | jq -r --arg n "$5" '.[$n]'; }
+    saveDiamondPeriphery fuse production true
+    echo "rc=$?"
+  `,
+    { FOLDER_ORDER: folderOrder.join(' '), ON_CHAIN: JSON.stringify(onChain) }
+  )
+  const out = `${result.stdout}${result.stderr}`
+  expect(out).toContain('rc=0')
+  expect(out).not.toContain('[warning]')
+  return Object.entries(
+    JSON.parse(readFileSync(diamondFile, 'utf8')).LiFiDiamond
+      .Periphery as PeripheryLog
+  )
+}
+
+const EXECUTOR = '0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D'
+const DEX_AGGREGATOR = '0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc'
+const LIDO_WRAPPER = '0x462A9B6879770050021823D63aE62470E65Af8D8'
+const ON_CHAIN = {
+  Executor: EXECUTOR,
+  LiFiDEXAggregator: DEX_AGGREGATOR,
+  LidoWrapper: LIDO_WRAPPER,
+}
+
+describe('saveDiamondPeriphery key order', () => {
   it(
-    'returns the same byte-sorted order whatever the caller locale',
+    'keeps the order the diamond file has whatever order the folder yields',
     () => {
-      const folder = join(sandbox, 'periphery')
-      mkdirSync(folder)
-      for (const name of ['LidoWrapper', 'LiFiDEXAggregator', 'Executor'])
-        writeFileSync(join(folder, `${name}.sol`), '')
-      const names = (locale: string) =>
-        runHarness(
-          `
-          ${LOAD_HELPERS}
-          getContractNamesInFolder "${folder}"
-        `,
-          { LC_ALL: locale }
-        ).stdout.trim()
-      expect(names('C')).toBe('Executor LiFiDEXAggregator LidoWrapper')
-      expect(names('en_US.UTF-8')).toBe(
-        'Executor LiFiDEXAggregator LidoWrapper'
+      const entries = regeneratePeriphery(
+        { LidoWrapper: '', LiFiDEXAggregator: '', Executor: '' },
+        ['Executor', 'LiFiDEXAggregator', 'LidoWrapper'],
+        ON_CHAIN
       )
+      expect(entries).toEqual([
+        ['LidoWrapper', LIDO_WRAPPER],
+        ['LiFiDEXAggregator', DEX_AGGREGATOR],
+        ['Executor', EXECUTOR],
+      ])
     },
-    2 * TIMEOUT_MS
+    TIMEOUT_MS
+  )
+
+  it(
+    'adds names the diamond file lacks after the existing ones, in byte order',
+    () => {
+      const entries = regeneratePeriphery(
+        { LidoWrapper: LIDO_WRAPPER },
+        ['LidoWrapper', 'LiFiDEXAggregator', 'Executor'],
+        ON_CHAIN
+      )
+      expect(entries.map(([name]) => name)).toEqual([
+        'LidoWrapper',
+        'Executor',
+        'LiFiDEXAggregator',
+      ])
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'drops names no longer in the folder and byte-orders a fresh file',
+    () => {
+      const entries = regeneratePeriphery(
+        { Deprecated: EXECUTOR },
+        ['LidoWrapper', 'LiFiDEXAggregator'],
+        ON_CHAIN
+      )
+      expect(entries.map(([name]) => name)).toEqual([
+        'LiFiDEXAggregator',
+        'LidoWrapper',
+      ])
+    },
+    TIMEOUT_MS
   )
 })
