@@ -89,7 +89,7 @@ Each script reads the network config, deploys via `TronContractDeployer` (CREATE
 
 ## Phase 4 — Verify on Tronscan
 
-`forge verify-contract` cannot target Tron. Run `verify-tron-contracts.ts` from the fork checkout, as in Phase 3: it reads `deployments/<network>.json` from the working directory, which is where Phase 3 wrote the new address, and `--repo-root .` flattens sources from the code that was deployed:
+`forge verify-contract` cannot target Tron. This phase covers production deploys only: a `PRODUCTION=false` run logs to `deployments/<network>.staging.json`, while `verify-tron-contracts.ts` reads `deployments/<network>.json` and flags production records, so for a staging deploy it fails or verifies a stale production address. Skip it there and report the staging deploy as unverified. Run `verify-tron-contracts.ts` from the fork checkout, as in Phase 3: it reads `deployments/<network>.json` from the working directory, which is where Phase 3 wrote the new address, and `--repo-root .` flattens sources from the code that was deployed:
 
 ```bash
 bunx tsx script/deploy/tron/verify-tron-contracts.ts --network <tron|tronshasta> --repo-root . --only <Contract>

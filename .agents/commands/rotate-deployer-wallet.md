@@ -96,6 +96,12 @@ bunx tsx script/troncast/index.ts call --env mainnet <LiFiDiamond from deploymen
 
 If it is the `LiFiTimelockController` from `deployments/tron.json`, there is no ownership to move and `transfer-ownership-to-timelock.ts` has nothing to do; if it is the old deployer, run that script (`--dryRun`, then `--step 1`, then `--step 2`, with `PRODUCTION=true`). The Tron Safe owner swap has no helper — `manageSafeOwner` proposes through the EVM `propose-to-safe.ts` — so report it as a manual follow-up rather than marking Tron done.
 
+The Tron `LiFiTimelockController` also grants `CANCELLER_ROLE` to `tronWallets.deployerWallet` (set at deploy by `deploy-and-register-periphery.ts`). `manageTimelockCanceller` proposes through the EVM `propose-to-safe.ts` too, so it cannot move this role: report the Tron revoke-old / grant-new as a second manual follow-up. Read it for both the old and the new deployer:
+
+```bash
+bunx tsx script/troncast/index.ts call --env mainnet <LiFiTimelockController from deployments/tron.json> "hasRole(bytes32,address) returns (bool)" "$(cast keccak CANCELLER_ROLE),<deployer 0x…>"
+```
+
 Then re-point the Tron staked-resource delegation from the old deployer Tron address to the new one:
 
 ```text
@@ -126,7 +132,7 @@ Run the read-only completeness gate scoped to the deployer rotation:
 /check-rotation-status --old-address <old deployer 0x…> --new-address <NEW> --role deployer --production
 ```
 
-For the deployer role the relevant checks are: Safe-owner membership (old removed / new added) on every production Safe, Timelock `CANCELLER_ROLE` (old removed / new granted), and the CI wallet-funding check. `check-rotation-status` covers EVM only; Tron counts as done only on Phase 3's owner read and Tronscan delegation evidence. Only declare complete when every network passes.
+For the deployer role the relevant checks are: Safe-owner membership (old removed / new added) on every production Safe, Timelock `CANCELLER_ROLE` (old removed / new granted), and the CI wallet-funding check. `check-rotation-status` covers EVM only; Tron counts as done only on Phase 3's owner read, the Tron timelock `CANCELLER_ROLE` read (old revoked / new granted) and Tronscan delegation evidence. Only declare complete when every network passes.
 
 ### Phase 7 — Report
 

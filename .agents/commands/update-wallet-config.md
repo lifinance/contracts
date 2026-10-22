@@ -42,7 +42,7 @@ If either required input is missing or the role is not one of the three SC-owned
 - **Derive the Tron address, never trust config.** Compute `tronWallets.<role>` from the **new EVM address** with `troncast address to-base58`, then round-trip it back with `troncast address to-hex` and assert it equals the new EVM address (checksum-insensitive). Known trap: `config/global.json` can be **mid-rotation-inconsistent** (EVM field already rotated, Tron twin not, or vice versa) — so derive both fields from `--new-address`, do not copy an existing base58 or assume the current pair is coherent.
 - **Config-structure rule (004-config-structure `[CONV:CONFIG-STRUCTURE]`).** These are single top-level scalar fields plus a `tronWallets` object — edit the values in place; do not restructure, reorder, or change key names. No `deployRequirements.json` path change is implied (these are not per-network deploy params).
 - **Never bypass Safe/timelock.** A config edit is not the authority for the role change — the governed on-chain move in the calling `rotate-*` skill is. Landing this PR before/independently of the on-chain change is expected during a rotation; the config records intent, the chain enforces it.
-- **Secrets hygiene.** `troncast address` conversion is offline and needs no RPC env; never print an RPC URL or any key.
+- **Secrets hygiene.** `troncast address` conversion is offline but the CLI aborts without `ETH_NODE_URI_TRON` — prefix a dummy URL (below); never print a real RPC URL or any key.
 - **Exit-code convention.** `0` success (config edited, PR handed to `/create-pr`); `1` real error (Tron round-trip mismatch, jq write failure — report, stop, no retry); `2` recoverable misconfig (missing `--role`/`--new-address`, `troncast` not found — name what to fix).
 
 ## Workflow
@@ -53,13 +53,13 @@ Run from the worktree root. `troncast` is not a binary on `PATH` — it is `scri
 
 ### Phase 1 — Derive + verify the Tron base58 from the new EVM address
 
-Run the script directly rather than `bun troncast`, whose echoed command line would pollute a captured value. Flags on `troncast address` are **kebab-case** — verify at write time with `bunx tsx script/troncast/index.ts address --help`.
+Run the script directly rather than `bun troncast`, whose echoed command line would pollute a captured value, and prefix a dummy `ETH_NODE_URI_TRON`: `address` calls `initTronWeb('mainnet')`, which throws when that variable is unset. Flags on `troncast address` are **kebab-case** — verify at write time with `bunx tsx script/troncast/index.ts address --help`.
 
 ```bash
 NEW_EVM="<0xNEW>"
-NEW_TRON=$(bunx tsx script/troncast/index.ts address to-base58 "$NEW_EVM")
+NEW_TRON=$(ETH_NODE_URI_TRON="https://dummy" bunx tsx script/troncast/index.ts address to-base58 "$NEW_EVM")
 # Round-trip guard: the base58 must convert back to the same EVM address.
-ROUNDTRIP=$(bunx tsx script/troncast/index.ts address to-hex "$NEW_TRON")
+ROUNDTRIP=$(ETH_NODE_URI_TRON="https://dummy" bunx tsx script/troncast/index.ts address to-hex "$NEW_TRON")
 ```
 
 Assert `ROUNDTRIP` equals `NEW_EVM` (case-insensitive compare). On mismatch, stop with exit `1` and show both — do not write a base58 you could not round-trip. Do not read the base58 from the existing `tronWallets` entry (may be mid-rotation stale).
@@ -99,7 +99,7 @@ The team's Notion wallet registry is the human-facing record and is **not** in t
 
 ## Reuse map
 
-- `troncast address to-base58` / `to-hex` — EVM↔Tron address conversion + the round-trip guard (`bunx tsx script/troncast/index.ts`; kebab-case flags).
+- `troncast address to-base58` / `to-hex` — EVM↔Tron address conversion + the round-trip guard (`bunx tsx script/troncast/index.ts`; needs a dummy `ETH_NODE_URI_TRON`; kebab-case flags).
 - `/create-pr` — owns branch / commit / PR-template / push / create; this skill only supplies the staged file and PR body.
 - The calling `rotate-*` skill — performs the on-chain role change this config edit records; run in the same rotation, not by this skill.
 - `move-tron-delegation` — moves staked Tron resources (separate from the config base58 update).
