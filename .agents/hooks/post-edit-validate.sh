@@ -14,6 +14,9 @@ FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 
 # Scratch files outside a checkout have no repo tooling or tsconfig to check against.
 ROOT=$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null) || exit 0
+# A file inside a lib/ submodule resolves to the submodule's own root, where REL would read as
+# src/... and the repo's checks (and its check-spdx-headers.sh) do not exist.
+[[ -n "$(git -C "$ROOT" rev-parse --show-superproject-working-tree 2>/dev/null)" ]] && exit 0
 cd "$ROOT" || exit 0
 
 echo "$INPUT" | bash "$HOOK_DIR/post-edit-format.sh"

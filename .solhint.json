@@ -20,6 +20,7 @@
     "func-visibility": ["error", { "ignoreConstructors": true }],
     "gas-custom-errors": "error",
     "immutable-vars-naming": ["error", { "immutablesAsConstants": true }],
+    "import-path-check": "off",
     "imports-on-top": "error",
     "interface-starts-with-i": "off",
     "max-states-count": ["error", 15],

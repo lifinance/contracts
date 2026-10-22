@@ -105,7 +105,7 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
          • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
        ```
 
-       - `e` (default) — show the proposed title and estimate (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
+       - `e` (default) — show the proposed title and estimate (and the new branch pattern; the ID is only allocated in step 9) and let the user adjust before either action runs.
        - `y` — create the ticket with the proposed title as-is **and** rename the branch.
        - `s` — explicit opt-out; proceed without a ticket and leave the branch as-is. If the change genuinely qualifies (typo / doc-only / dep-bump / single-line fix), suggest adding the `trivial` label so the ticket-linkage metric counts the PR as linked.
      - If running unattended (no user available to answer), plan the ticket with the derived title — do **not** proceed without one.
@@ -149,7 +149,7 @@ Before pushing or opening a PR, display a summary and wait for explicit approval
 
 ```
 About to create PR on branch `<branch-name>`:
-  (renamed from `<old-branch>` in step 5)        ← show only if step 5 renamed it
+  (renamed to `<new-branch>` in step 9)          ← show only if step 5 planned a rename
 
 Commits (<N>) since main (from `git log main..HEAD --oneline`):
   • <sha>  <subject>                          ← step 4
