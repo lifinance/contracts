@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x607fb33A9fED5fd6C91EfAdE89cDbb3f8d9E4AD2": {
         "Name": "AccessManagerFacet",
@@ -49,9 +49,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x83037e2fF2B3Ea09fED5A6e8150bf9899673f33A": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",

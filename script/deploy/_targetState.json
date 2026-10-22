@@ -1609,7 +1609,7 @@
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
+        "CalldataVerificationFacet": "1.3.1",
         "DiamondCutFacet": "latest",
         "DiamondLoupeFacet": "latest",
         "EmergencyPauseFacet": "latest",

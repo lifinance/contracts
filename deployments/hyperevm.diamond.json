@@ -33,9 +33,9 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0xa12D48dBf4248d702D5b41e271742914D7d8A321": {
+      "0x7C2A0d960dEb04b60E2F3259e3B5086Fc10F818B": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0xC08149811177390b796CEcaB70DaD0538C9e01E0": {
         "Name": "CalldataVerificationFacet",
@@ -81,9 +81,9 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x34cf9a698734528A1c2f178744DEd7F15b5324D4": {
+      "0xFf98B75B6EC83DD2a3243B4FAdcEE10c85A49F11": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x6496DB316c9aB67C80baF5e2a592e8087d7C8023": {
         "Name": "GardenFacet",

@@ -9,9 +9,9 @@
         "Name": "DiamondLoupeFacet",
         "Version": "1.0.0"
       },
-      "0xf514e1aE22AeD26341509bFcE3fA1251f5C4040F": {
+      "0x1C267DbFe85Fc317569C9c0dCD5c9c62E52A6438": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x862FB4813657A40D1828Cac1e28a600625D78fC0": {
         "Name": "PeripheryRegistryFacet",
@@ -77,9 +77,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xeeDb1De1455911ED49C9C28A8a2Df22401079Ea4": {
+      "0xCFA468C89c138264509702215Db9d98DC93595cd": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
