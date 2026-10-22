@@ -1103,7 +1103,8 @@ function saveDiamondFacets() {
         BATCH_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "${FACET_ADDRESS}::${ENV_TRY}" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
         [[ -z "$BATCH_ENTRY" || "$BATCH_ENTRY" == "null" ]] && continue
         BATCH_NAME=$(echo "$BATCH_ENTRY" | jq -r '.contractName // empty')
-        # Version may be empty for legacy rows; never infer from @custom:version or other deployments
+        # Legacy rows may lack a version: keep the diamond file's, never infer from
+        # @custom:version or other deployments
         BATCH_VERSION=$(echo "$BATCH_ENTRY" | jq -r '.version // empty')
         if [[ -n "$BATCH_NAME" ]]; then
           if [[ -z "$BATCH_VERSION" && -f "$DIAMOND_FILE" ]]; then

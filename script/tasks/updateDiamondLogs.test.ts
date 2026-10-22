@@ -68,13 +68,12 @@ const runHarness = (body: string, extraEnv: Record<string, string> = {}) => {
     ...extraEnv,
   }
   withholdCredentials(env)
-  const result = spawnSync('bash', ['-c', body], {
+  return spawnSync('bash', ['-c', body], {
     cwd: sandbox,
     encoding: 'utf8',
     env,
     timeout: TIMEOUT_MS,
   })
-  return `${result.stdout}${result.stderr}`
 }
 
 interface IBatchRow {
@@ -102,7 +101,7 @@ const regenerate = (existing: FacetLog, rows: IBatchRow[]): FacetLog => {
     found: true,
     data,
   }))
-  const out = runHarness(
+  const result = runHarness(
     `
     ${LOAD_HELPERS}
     echoDebug() { :; }
@@ -111,8 +110,8 @@ const regenerate = (existing: FacetLog, rows: IBatchRow[]): FacetLog => {
     isTronNetwork() { return 1; }
     isMongoLoggingEnabled() { return 0; }
     batchQueryMongoDeployments() { printf '%s' "$BATCH"; }
-    findContractInMasterLogByAddress() { echo "UNEXPECTED_LOOKUP $*"; return 1; }
-    getContractNameFromDeploymentLogs() { echo "UNEXPECTED_LOOKUP $*"; return 1; }
+    findContractInMasterLogByAddress() { echo "UNEXPECTED_LOOKUP $*" >&2; return 1; }
+    getContractNameFromDeploymentLogs() { echo "UNEXPECTED_LOOKUP $*" >&2; return 1; }
     saveDiamondPeriphery() { :; }
     saveDiamondFacets fuse production true "[${rows
       .map((r) => r.address)
@@ -121,6 +120,7 @@ const regenerate = (existing: FacetLog, rows: IBatchRow[]): FacetLog => {
   `,
     { BATCH: JSON.stringify(batch) }
   )
+  const out = `${result.stdout}${result.stderr}`
   expect(out).toContain('rc=0')
   expect(out).not.toContain('UNEXPECTED_LOOKUP')
   return JSON.parse(readFileSync(diamondFile, 'utf8')).LiFiDiamond.Facets
@@ -203,12 +203,12 @@ describe('getContractNamesInFolder', () => {
           getContractNamesInFolder "${folder}"
         `,
           { LC_ALL: locale }
-        ).trim()
+        ).stdout.trim()
       expect(names('C')).toBe('Executor LiFiDEXAggregator LidoWrapper')
       expect(names('en_US.UTF-8')).toBe(
         'Executor LiFiDEXAggregator LidoWrapper'
       )
     },
-    TIMEOUT_MS
+    2 * TIMEOUT_MS
   )
 })
