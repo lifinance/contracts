@@ -66,7 +66,7 @@ This command processes a PDF audit report and automatically:
 - **Note**: Commit hash may be a clickable link in the PDF (especially if short hash)
 - **Short hash resolution** (if < 40 characters):
   1. **Try local git**: `git rev-parse <short-hash>` in contracts repository
-  2. **Try GitHub API**: `curl -s "https://api.github.com/repos/<repo>/commits/<short-hash>" | python3 -c "import sys, json; data = json.load(sys.stdin); print(data.get('sha', ''))"`
+  2. **Try GitHub API**: `gh api repos/<repo>/commits/<short-hash> --jq .sha`
      - Extract repository name from PDF (default: "lifinance/contracts")
   3. **If both fail**: Ask user for full hash or GitHub commit URL
 - **If not found**: Search for "n/a" with explanation:

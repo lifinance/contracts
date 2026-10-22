@@ -57,7 +57,7 @@ order:
 2. PR title — same `EXSC-\d+` pattern.
 3. `headRefName` — branch like `feat/exsc-1234-…` (case-insensitive).
 
-If found, fetch with `mcp__claude_ai_Linear__get_issue` (id = `EXSC-1234`). Treat the
+If found, fetch with `mcp__linear__get_issue` (id = `EXSC-1234`). Treat the
 description and comments as another input source for the context paragraph (Step 3). If the
 ticket links a Slack thread, read it for context (Step 1b).
 
@@ -324,7 +324,7 @@ auditors; advance the ticket into it once the request is actually delivered.
 - **At least one channel posted successfully** (Step 6 exit `0`) — move it now:
 
   ```
-  mcp__claude_ai_Linear__save_issue  id = EXSC-1234  state = "In Audit"
+  mcp__linear__save_issue  id = EXSC-1234  state = "In Audit"
   ```
 
   Linear resolves the state by name. Report `✅ Moved EXSC-1234 to In Audit`.

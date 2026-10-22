@@ -1,6 +1,6 @@
 ---
 name: interact-tron
-description: Reads or writes Tron contract state outside of a deploy — the TronWeb/`troncast` analog of using `cast` on EVM chains. Covers view calls, transactions (transfer, approve, admin calls), address checks and base58↔hex conversion, and bytecode fetches on `tron`/`tronshasta`. Also the routing target when `manage-wallet-funds` or another EVM-flavored skill detects a Tron network and cannot proceed with `cast`. Runs entirely from the `contracts` checkout (`troncast` lives at `script/troncast/`) — unlike `deploy-contract-tron`, no `contracts-tron` fork checkout is needed, since reading/writing on-chain state doesn't touch the fork's `-tron` source delta. Does NOT cover deploying new contracts (`deploy-contract-tron`) or production governance proposals through the Tron Safe+Timelock (`propose-to-safe-tron.ts` — flag and hand off, don't improvise call data through this skill). Background on the fork/repo split: `docs/TronFork.md`.
+description: "Reads or writes Tron contract state outside of a deploy — the TronWeb/`troncast` analog of using `cast` on EVM chains. Covers view calls, transactions (transfer, approve, admin calls), address checks and base58↔hex conversion, and bytecode fetches on `tron`/`tronshasta`. Also the routing target when `manage-wallet-funds` or another EVM-flavored skill detects a Tron network and cannot proceed with `cast`. Runs entirely from the `contracts` checkout (`troncast` lives at `script/troncast/`) — unlike `deploy-contract-tron`, no `contracts-tron` fork checkout is needed, since reading/writing on-chain state doesn't touch the fork's `-tron` source delta. Does NOT cover deploying new contracts (`deploy-contract-tron`) or production governance proposals through the Tron Safe+Timelock (`propose-to-safe-tron.ts` — flag and hand off, don't improvise call data through this skill). Background on the fork/repo split: `docs/TronFork.md`."
 usage: /interact-tron <call|send|address|code> ...
 ---
 
@@ -55,19 +55,19 @@ bun troncast code <address> --env mainnet   # analog of `cast code`
 ## Sending transactions — `troncast send`
 
 ```bash
-bun troncast send <address> "<functionSignature>" [params...] --private-key <KEY> --env <mainnet|testnet>
+bun troncast send <address> "<functionSignature>" [params...] --private-key-env <ENV_VAR> --env <mainnet|testnet>
 
 # transfer tokens
-bun troncast send <TOKEN> "transfer(address,uint256)" <RECEIVER>,1000000 --private-key "$KEY"
+bun troncast send <TOKEN> "transfer(address,uint256)" <RECEIVER>,1000000 --private-key-env PRIVATE_KEY_PRODUCTION
 
-# send TRX (native)
-bun troncast send <address> "deposit()" --value 0.1tron --private-key "$KEY"
+# send TRX (native): --value with no signature
+bun troncast send <RECIPIENT> --value 0.1tron --private-key-env PRIVATE_KEY_PRODUCTION
 
 # dry run first for anything non-trivial
 bun troncast send <TOKEN> "approve(address,uint256)" <SPENDER>,1000000 --dry-run
 ```
 
-Key flags: `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap, default 1000), `--energy-limit`, `--dry-run` (simulate, no broadcast), `--no-confirm`, `--json`.
+Key flags: `--private-key-env` (name of the env var holding the key; prefer it over `--private-key`, which puts the key in shell history), `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap, default 1000), `--energy-limit`, `--dry-run` (simulate, no broadcast), `--no-confirm`, `--json`.
 
 **One broadcast per tool call.** Same rule as `manage-wallet-funds`: never loop `troncast send` inside a single tool call — one signed transaction per invocation, confirm the result before sending the next.
 

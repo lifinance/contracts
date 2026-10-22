@@ -42,8 +42,8 @@ Prefer the helpers. They're consistent with the rest of `script/playgroundHelper
 
 ### 2. Resolve RPC
 
-- **Preferred**: `getRpcUrlFromNetworksJson "$NETWORK"` (reads `config/networks.json`).
-- **Alternative**: `getRPCUrl "$NETWORK"` (reads `ETH_NODE_URI_<NETWORK>` from env).
+- **Preferred**: `getRPCUrl "$NETWORK"` (reads `ETH_NODE_URI_<NETWORK>` from env — the team's private endpoint).
+- **Alternative**: `getRpcUrlFromNetworksJson "$NETWORK"` (the public `rpcUrl` in `config/networks.json`; use it only when the env var is unset).
 - **Fallback**: if neither resolves, ask the user. Do not pick a random public RPC — it leaks the investigation to a third party and may rate-limit during Heimdall's bytecode fetch.
 
 ### 3. Detect proxies and set TARGET

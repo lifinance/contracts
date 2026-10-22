@@ -1,6 +1,6 @@
 ---
 name: rotate-dev-wallet
-description: Rotates the shared SC-owned **Dev** wallet (the staging LiFiDiamond owner) end-to-end — funds the new wallet, transfers staging diamond ownership old→new, moves the Tron energy delegation, updates config, and gates on a completeness check. Thin orchestrator: it CALLS the L1 skills (`sweep-wallet-funds`, `move-tron-delegation`, `update-wallet-config`, `check-rotation-status`) and existing skills, never reimplements them. Use when the user says "rotate the dev wallet", "replace the staging owner wallet", "swap the shared dev EOA", or "/rotate-dev-wallet". This is the lowest-stakes (staging-only) rotation and the reference for the heavier siblings — NOT for the production Safe-owner deployer (that is `rotate-deployer-wallet`), NOT for the emergency pauser (that is `rotate-pauser-wallet`), and NOT for a full person offboarding (that is `offboard-sc-dev`). Requires Foundry, gh, and a securely generated new wallet (a human step). Secure key generation and any Ledger signing are human steps — never self-sign.
+description: "Rotates the shared SC-owned **Dev** wallet (the staging LiFiDiamond owner) end-to-end — funds the new wallet, transfers staging diamond ownership old→new, moves the Tron energy delegation, updates config, and gates on a completeness check. Thin orchestrator: it CALLS the L1 skills (`sweep-wallet-funds`, `move-tron-delegation`, `update-wallet-config`, `check-rotation-status`) and existing skills, never reimplements them. Use when the user says \"rotate the dev wallet\", \"replace the staging owner wallet\", \"swap the shared dev EOA\", or \"/rotate-dev-wallet\". This is the lowest-stakes (staging-only) rotation and the reference for the heavier siblings — NOT for the production Safe-owner deployer (that is `rotate-deployer-wallet`), NOT for the emergency pauser (that is `rotate-pauser-wallet`), and NOT for a full person offboarding (that is `offboard-sc-dev`). Requires Foundry, gh, and a securely generated new wallet (a human step). Secure key generation and any Ledger signing are human steps — never self-sign."
 usage: /rotate-dev-wallet [--new-address 0xNEW] [--check]
 ---
 
@@ -41,7 +41,7 @@ The **old** dev address is derived from `config/global.json.devWallet` for refer
 ## Guardrails
 
 - **Custody guard.** Rotate only SC-owned wallets (**deployer, dev, pauser**); this skill rotates **dev** only. NEVER touch the CTO-owned refund / feeCollector / withdraw — if the request drifts there, stop and say so.
-- **Never self-sign.** New-key generation is a human step; any Ledger signing (e.g. the Tron ownership-to-Timelock step) is handed off via the owning skill — this orchestrator never signs.
+- **Never self-sign.** New-key generation is a human step; any Ledger signing is handed off via the owning skill — this orchestrator never signs.
 - **Never bypass Safe/timelock** (rule 002-architecture). Staging diamonds are EOA-owned so the staging transfer is a direct owner tx, but any governed change routes through `multisig-rollout` — never an owner shortcut.
 - **Secrets hygiene.** Never print a private key or full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
 - **Dry-run first.** Run each L1 step's preview/`--check` and confirm the plan with the user before broadcasting anything.
@@ -56,9 +56,15 @@ Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
 - Report old → new for both the EVM field and the derived Tron base58 (the derivation itself is done inside `update-wallet-config` / `move-tron-delegation`).
 - Present the ordered plan (Phases 1–6) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for the human key-generation confirmation and, on Tron, for any Ledger signing.
 
-### Phase 1 — Fund the new wallet (`sweep-wallet-funds`)
+### Phase 1 — Start the staging diamond ownership transfers (old key)
 
-Sweep native gas from the old dev wallet to the new one across all active EVM chains, so the new wallet can pay for its own ownership-acceptance / delegation txs.
+Staging diamonds are EOA-owned by the dev wallet, and `OwnershipFacet` hands over in two steps: the current owner calls `transferOwnership(<NEW>)`, then the new owner calls `confirmOwnershipTransfer()`. Send every `transferOwnership` from the old dev key **now**, while it still has gas — Phase 2 sweeps it. Preview first, confirm, then go one network at a time.
+
+Tron staging is out of scope: there is no `deployments/tron.staging.json`, so `transfer-ownership-to-timelock.ts` throws when run with `PRODUCTION` unset. Report it as not applicable rather than running it.
+
+### Phase 2 — Fund the new wallet (`sweep-wallet-funds`)
+
+Only after every old-key transaction from Phase 1 has landed, sweep native gas from the old dev wallet to the new one across all active EVM chains, so the new wallet can pay for `confirmOwnershipTransfer()` and its delegation txs.
 
 ```text
 /sweep-wallet-funds --new-address <NEW> --old-key-env PRIVATE_KEY   # staging dev key
@@ -68,18 +74,7 @@ Sweep native gas from the old dev wallet to the new one across all active EVM ch
 
 > **HyperEVM big blocks (manual, per-address).** The new dev EOA cannot deploy on `hyperevm` until big blocks are enabled for it — an L1 setting that does **not** carry over on rotation (register the address as a HyperCore Core user, then toggle big blocks ON). Follow the runbook: `docs/HyperEVMBigBlocks.md`.
 
-### Phase 2 — Transfer staging diamond ownership (old → new)
-
-Staging diamonds are EOA-owned by the dev wallet, so this is a direct owner transfer per EVM network (the old dev key sets the new dev address as owner; the new wallet accepts if the diamond uses a two-step handover). Run the preview/dry-run first, confirm, then execute one network at a time.
-
-On **Tron staging** (`tronshasta`) ownership does not go to an EOA — hand the diamond to the Timelock via the existing script (env-derived network: staging → `tronshasta`, NOT a flag):
-
-```bash
-bunx tsx script/deploy/tron/transfer-ownership-to-timelock.ts --dryRun            # preview
-bunx tsx script/deploy/tron/transfer-ownership-to-timelock.ts --step 1            # then --step 2
-```
-
-This script may prompt for `--currentOwnerPrivateKey`; supply the old dev key via env, never inline. If any step needs Ledger signing, it is a human step — never self-sign.
+Then, from the new key, call `confirmOwnershipTransfer()` on every staging diamond from Phase 1 and read `owner()` back.
 
 ### Phase 3 — Move Tron energy delegation (`move-tron-delegation`)
 
@@ -109,7 +104,7 @@ Run the read-only completeness gate scoped to the dev rotation:
 /check-rotation-status --old-address <old dev 0x…> --new-address <NEW> --role dev
 ```
 
-For the dev role the relevant checks are: staging-diamond `owner()` = new (old no longer owner) on every EVM network, the Tron staging owner/delegation state, and the CI wallet-funding check. Only declare the rotation complete when every network passes.
+For the dev role the relevant checks are: staging-diamond `owner()` = new (old no longer owner) on every EVM network, and the CI wallet-funding check. `check-rotation-status` covers EVM only; the Tron delegation counts as done only on the Tronscan evidence from Phase 3. Only declare the rotation complete when every network passes.
 
 ### Phase 6 — Report
 
@@ -117,14 +112,13 @@ Summarize per network: swept (moved/skipped), staging ownership transferred, Tro
 
 ## Verification
 
-The rotation is complete only when `check-rotation-status` (Phase 5) passes for every active network: new dev owns each staging diamond, old dev owns none, Tron staging + delegation reflect the new address, and funding passes. Re-run `/rotate-dev-wallet --check` any time to re-confirm without changing state.
+The rotation is complete only when `check-rotation-status` (Phase 5) passes for every active network: new dev owns each staging diamond, old dev owns none, and funding passes — plus Phase 3's Tronscan evidence that the delegation moved. Re-run `/rotate-dev-wallet --check` any time to re-confirm without changing state.
 
 ## Reuse map
 
 | Step | Delegates to | Owns |
 |---|---|---|
 | Fund new wallet | `sweep-wallet-funds` | native sweep across EVM chains, pre-send report, secrets hygiene |
-| Tron ownership → Timelock | `script/deploy/tron/transfer-ownership-to-timelock.ts` | env-derived Tron network handover (staging → tronshasta) |
 | Tron delegation | `move-tron-delegation` | undelegate→re-delegate request + Tronscan verify |
 | Config PR | `update-wallet-config` | `global.json` devWallet + `tronWallets.devWallet`, `/create-pr` |
 | Completeness gate | `check-rotation-status` | read-only cross-network verification |

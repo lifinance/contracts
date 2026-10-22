@@ -1,6 +1,6 @@
 ---
 name: deploy-contract-tron
-description: Deploys a facet/periphery contract to Tron (mainnet or Shasta testnet) from the `contracts-tron` fork — the two-repo, TronWeb-based round trip that Foundry's `deployContractToNetworks.sh` cannot run. Use whenever the target network is `tron`/`tronshasta`, whenever `deploy-contract` detects a Tron target and routes here, or when the user says "deploy <Contract> to tron", "redeploy on tron shasta", or "push the Tron USDT bypass fix". Locates or clones the `contracts-tron` checkout, checks the fork is synced with upstream `main` for the contract being deployed, verifies the `-tron` delta (LibAsset bypass + WithdrawablePeriphery re-route) is intact, enforces `-tron`/`-tron-rN` versioning, runs the TronWeb deploy scripts in order, verifies on Tronscan, and opens the deploy-log PR against **upstream** `lifinance/contracts` (never the fork). Requires `gh`, `bun`, and TRX in the deployer wallet (see Prerequisites). Background on why the fork exists and how sync works: `docs/TronFork.md`.
+description: "Deploys a facet/periphery contract to Tron (mainnet or Shasta testnet) from the `contracts-tron` fork — the two-repo, TronWeb-based round trip that Foundry's `deployContractToNetworks.sh` cannot run. Use whenever the target network is `tron`/`tronshasta`, whenever `deploy-contract` detects a Tron target and routes here, or when the user says \"deploy <Contract> to tron\", \"redeploy on tron shasta\", or \"push the Tron USDT bypass fix\". Locates or clones the `contracts-tron` checkout, checks the fork is synced with upstream `main` for the contract being deployed, verifies the `-tron` delta (LibAsset bypass + WithdrawablePeriphery re-route) is intact, enforces `-tron`/`-tron-rN` versioning, runs the TronWeb deploy scripts in order, verifies on Tronscan, and opens the deploy-log PR against **upstream** `lifinance/contracts` (never the fork). Requires `gh`, `bun`, and TRX in the deployer wallet. Background on why the fork exists and how sync works: `docs/TronFork.md`."
 usage: /deploy-contract-tron <ContractName> <tron|tronshasta...>
 ---
 
@@ -62,9 +62,10 @@ Present: contract + version, target network(s) (`tron` and/or `tronshasta`), and
 
 ## Phase 3 — Run the deploy scripts (in order)
 
+**`PRODUCTION` alone picks the network and the key.** The scripts ignore `NETWORK`: `getEnvironment()` (`script/utils/utils.ts`) reads `PRODUCTION`, and `PRODUCTION=true` means `tron` with `PRIVATE_KEY_PRODUCTION` (deployerWallet), anything else means `tronshasta` with `PRIVATE_KEY` (devWallet). Both keys come from `.env`; an exported `PRODUCTION` wins over the `.env` value. Set it explicitly for every run, and check the network the script logs before it broadcasts:
+
 ```bash
-export NETWORK=tron            # or tron-shasta for testnet
-export PRIVATE_KEY=<64-char hex, no 0x>   # deployerWallet — see config/global.json tronWallets
+export PRODUCTION=true    # tron (mainnet); PRODUCTION=false (tronshasta) only for scripts that support it
 
 bunx tsx script/deploy/tron/deploy-core-facets.ts
 bunx tsx script/deploy/tron/register-facets-to-diamond.ts
@@ -74,6 +75,8 @@ bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-allbridge-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-near-intents-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-eco-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-layerswap-facet.ts   # tron only: exits unless PRODUCTION=true
+bunx tsx script/deploy/tron/deploy-and-register-lifi-intent-escrow-facet-v2.ts
 ```
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with a safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.
@@ -82,17 +85,17 @@ Each script reads the network config, deploys via `TronContractDeployer` (CREATE
 
 **Keep the fork's `deployments/` across runs.** The scripts write `deployments/tron.json` / `tron.diamond.json` at deploy time and again at propose time. Resetting the fork's `deployments/` between runs of the same rollout (e.g. `git checkout -- deployments/`) drops those writes, so a later `deploy-and-register-periphery.ts --registerOnly` run reads the old address and reports "already correctly registered" without proposing the new one.
 
-**Deployer wallet, not devWallet.** Deploys run from `deployerWallet` (`config/global.json` → `tronWallets`); deployment Energy is rented from a rental service, not funded by delegation — see Prerequisites. Never hard-code the address; always read it from `global.json`.
+**Deployer wallet, not devWallet, on mainnet.** Production deploys run from `deployerWallet` (`config/global.json` → `tronWallets`); deployment Energy is rented from a rental service, not funded by delegation. Never hard-code the address; always read it from `global.json`, and check its TRX balance before Phase 3.
 
 ## Phase 4 — Verify on Tronscan
 
-Foundry's `forge verify` does not support Tron. Verify manually:
+`forge verify-contract` cannot target Tron. This phase covers production deploys only: a `PRODUCTION=false` run logs to `deployments/<network>.staging.json`, while `verify-tron-contracts.ts` reads `deployments/<network>.json` and flags production records, so for a staging deploy it fails or verifies a stale production address. Skip it there and report the staging deploy as unverified. Run `verify-tron-contracts.ts` from the fork checkout, as in Phase 3: it reads `deployments/<network>.json` from the working directory, which is where Phase 3 wrote the new address, and `--repo-root .` flattens sources from the code that was deployed:
 
-1. `forge flatten src/<Facets|Periphery>/<Contract>.sol > /tmp/<Contract>-flat.sol`
-2. On the relevant explorer (mainnet `https://tronscan.org`, testnet `https://shasta.tronscan.org`), open the deployed address → **Contract** tab → **Verify and Publish**.
-3. Select the compiler version from `foundry.toml`, paste the flattened source, and supply ABI-encoded constructor args.
+```bash
+bunx tsx script/deploy/tron/verify-tron-contracts.ts --network <tron|tronshasta> --repo-root . --only <Contract>
+```
 
-Tronscan API (for scripted checks): mainnet `https://apilist.tronscan.org/api`, testnet `https://api.shasta.tronscan.org/api`.
+It is the only Tron path that sets the MongoDB `verified` flag, so a manual Tronscan upload leaves the record unverified. A record that fails to flag ends the run non-zero; re-run that contract. Flags and the browser fallback: `docs/TronFork.md` → "Contract verification (Tronscan)".
 
 ## Phase 5 — PR the deploy logs to *upstream*, never the fork
 
@@ -127,7 +130,8 @@ Report: contract + version, network(s), deployed address(es), Tronscan verificat
 - Wrong repo (`contracts` instead of `contracts-tron`) → abort immediately; nothing in this skill's Phase 0b–4 runs against upstream. Only Phase 5 runs from `contracts`.
 - No `contracts-tron` checkout found and no `gh` access to clone one → stop and ask; do not attempt the TronWeb steps from the `contracts` checkout, the fork's `-tron` delta doesn't exist there.
 - Fork out of sync with `main` for the target contract → stop and route to the pending/needed `sync/upstream-*` PR first; do not deploy stale bytecode.
-- `-tron` delta missing after a sync (grep in Phase 0 step 3 fails) → the sync merge dropped Tron-specific code; fix before deploying, especially for any contract that moves USDT.
+- `-tron` delta missing after a sync (grep in Phase 0b step 3 fails) → the sync merge dropped Tron-specific code; fix before deploying, especially for any contract that moves USDT.
 - Version doesn't follow the `-tron`/`-tron-rN` scheme, or implies a `main` version that doesn't exist yet → fix before deploying; audit tooling assumes one version = one bytecode.
 - Deploy log PR opened against `contracts-tron` instead of `lifinance/contracts` → close it and re-open against upstream; the fork must never receive a direct commit for deploy logs.
-- Insufficient deployer TRX → see `deployer-wallet-address-vs-global-json` guidance: derive the deployer address from the private key, not `global.json`, and check its TRX balance before running Phase 3.
+- Insufficient deployer TRX → stop before Phase 3; fund `tronWallets.deployerWallet` (or `devWallet` for `tronshasta`) or rent Energy first.
+- Logged network differs from the plan (`tronshasta` when you meant `tron`, or the reverse) → stop before anything broadcasts; `PRODUCTION` is wrong for this run.

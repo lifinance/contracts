@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: Orchestrates a PRODUCTION multisig rollout end-to-end — deploy (via `deploy-contract`), propose-only for already-deployed bytecode, or whitelist sync across chains — then captures Safe proposals, drafts a PR when needed, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use for "roll out <Facet> vX.Y.Z", "create the diamond cut proposals", "propose cuts for already-deployed X", "re-propose after deleting Safe txs", "sync the whitelist for PR <N>", or Polymer CCTP domain propagation. Also triggers on a bare "deploy <Contract> to <network>" or "the receiver is missing on <chain>" when the target is a mainnet/production diamond — production deploys ALWAYS enter here, never `deploy-contract` directly, because registration needs Safe proposals shepherded to signing. Staging/test deploy without the proposal lifecycle → `deploy-contract`. Requires lifi-connect (MongoDB), gh, and Slack MCP.
+description: "Orchestrates a PRODUCTION multisig rollout end-to-end — deploy (via `deploy-contract`), propose-only for already-deployed bytecode, or whitelist sync across chains — then captures Safe proposals, drafts a PR when needed, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use for \"roll out <Facet> vX.Y.Z\", \"create the diamond cut proposals\", \"propose cuts for already-deployed X\", \"re-propose after deleting Safe txs\", \"sync the whitelist for PR <N>\", or Polymer CCTP domain propagation. Also triggers on a bare \"deploy <Contract> to <network>\" or \"the receiver is missing on <chain>\" when the target is a mainnet/production diamond — production deploys ALWAYS enter here, never `deploy-contract` directly, because registration needs Safe proposals shepherded to signing. Staging/test deploy without the proposal lifecycle → `deploy-contract`. Requires lifi-connect (MongoDB), gh, and Slack MCP."
 usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <ContractName> [networks…] | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
@@ -17,8 +17,6 @@ All modes converge on the same tail: capture proposals → (deploy mode only, or
 **Per-diamond chainId-mapping add-on**: a `PolymerCCTPFacet` or `FraxFacet` rollout that adds a chain also has to propagate its chainId mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
-
-See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboard-sc-dev` drive this skill to propose Safe owner / CANCELLER-role swaps.
 
 ## Hard rails
 

@@ -134,7 +134,7 @@ Render a one-block summary and require explicit "yes" before any write. The summ
 About to open PR against lifinance/automate-wallet-dev-fees:
 
   Chain:       base (chainId 8453)
-  Recipient:   deployerWallet → 0xb137683965ADC470f140df1a1D05B0D25C14E269
+  Recipient:   deployerWallet → 0xb05E63458A51731Aad26BdcD6E12246330E6095F
   Token:       USDC → 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
                  ↳ on-chain symbol(): "USDC"
                  ↳ on-chain name():   "USD Coin"
@@ -144,7 +144,7 @@ About to open PR against lifinance/automate-wallet-dev-fees:
 JSON entry:
 {
   "chainId": 8453,
-  "to": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+  "to": "0xb05E63458A51731Aad26BdcD6E12246330E6095F",
   "amount": "100.0",
   "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   "description": "Top-up deployer for upcoming chain onboarding"
@@ -222,7 +222,7 @@ PR body:
 \`\`\`json
 {
   "chainId": 8453,
-  "to": "0xb137683965ADC470f140df1a1D05B0D25C14E269",
+  "to": "0xb05E63458A51731Aad26BdcD6E12246330E6095F",
   "amount": "100.0",
   "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
   "description": "..."

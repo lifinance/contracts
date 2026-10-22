@@ -44,7 +44,8 @@ The command performs these steps in order:
 
    - Search `src/` directory tree for `{ContractName}.sol` files
    - Determine contract type (facet if name contains "Facet", otherwise periphery)
-   - Display contracts to be deprecated for confirmation
+   - Display contracts to be deprecated and wait for explicit go-ahead — also for a single
+     contract, because step 6 writes parked tasks to MongoDB
 
 2. **Reference Analysis**
 
@@ -58,8 +59,8 @@ The command performs these steps in order:
      - `script/deploy/resources/deployRequirements.json`
      - `script/deploy/_targetState.json` (all networks/environments)
      - `config/{contractNameLowercase}.json` (if contract-specific, or remove entries if shared)
-     - `config/whitelist.json` and `config/whitelist.staging.json` (PERIPHERY section)
-     - `config/global.json` (coreFacets/corePeriphery arrays)
+     - `config/whitelist.json` (PERIPHERY section; `config/whitelist.staging.json` is gitignored and not part of the PR)
+     - `config/global.json`: `coreFacets` / `corePeriphery` arrays, the contract's `whitelistPeripheryFunctions` and `whitelistPeripheryNetworks` entries, and any `facetPeripheryCouplings` entry naming it as key or `requires` target
 
 3. **Test Coverage Preservation** (for bridge facets only)
 
@@ -82,7 +83,7 @@ The command performs these steps in order:
      - Delete if contract-specific
      - Remove only contract-specific entries if shared with other contracts
    - Remove from whitelist configs (periphery contracts)
-   - Remove from `global.json` core lists if present
+   - Remove from `global.json` core lists, `whitelistPeripheryFunctions`, `whitelistPeripheryNetworks` and `facetPeripheryCouplings` if present
    - Delete test files (only after successful replacement for bridge facets)
    - Delete documentation files
    - Delete demo scripts
@@ -93,6 +94,7 @@ The command performs these steps in order:
    - **Verify coverage** (bridge facets only): Measure final coverage and compare with baseline from step 3. Target is final ≥ baseline; if final < baseline, require explicit user confirmation before proceeding (see "Coverage decrease" under Error Handling).
    - **Run full test suite**: Run `forge test` to verify ALL tests pass (required per `.agents/rules/099-finish.md` - tests must pass after any Solidity changes)
    - Display summary of all changes including coverage comparison (if applicable)
+   - Open the deprecation PR with `/create-pr` (it owns the Linear ticket, the template and its own confirm gate). Step 6 needs the URL it returns.
 
 6. **On-chain removal — park it into the deferred diamond-cleanup queue (facets)**
 
@@ -203,8 +205,7 @@ The command performs these steps in order:
 - `script/deploy/_targetState.json` - Removes from all networks/environments
 - `config/{contractNameLowercase}.json` - Deleted if contract-specific, or entries removed if shared
 - `config/whitelist.json` - Removes from PERIPHERY section
-- `config/whitelist.staging.json` - Removes from PERIPHERY section
-- `config/global.json` - Removes from coreFacets/corePeriphery arrays
+- `config/global.json` - Removes from coreFacets/corePeriphery arrays, whitelistPeripheryFunctions, whitelistPeripheryNetworks and facetPeripheryCouplings
 - `test/solidity/**/{ContractName}.t.sol` - Test files (replaced with similar bridge tests for bridge facets, deleted for non-bridge contracts)
 - `docs/{ContractName}.md` - Documentation (deleted)
 - `script/demoScripts/demo{ContractName}.ts` - Demo scripts (deleted)
@@ -311,7 +312,7 @@ Before executing, validate:
 
 ## Safety Features
 
-- **Confirmation**: For multiple contracts, display summary before proceeding
+- **Confirmation**: For every run, display the summary and wait for go-ahead before step 6
 - **Config file safety**: Only remove config files if contract-specific
 - **Remaining occurrences review**: Present all matches for user review before removing
 - **Test verification**: Run `forge test` after all changes to ensure ALL tests pass (required per `.agents/rules/099-finish.md` - tests must pass after any Solidity changes, including test file modifications)

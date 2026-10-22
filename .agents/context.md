@@ -13,17 +13,17 @@ Solidity ^0.8.17 · Foundry · TypeScript/Bun scripts.
 ```
 
 Edit files in `.agents/` only — never edit the symlinks in `.cursor/` or `.claude/` directly.
-Rules load automatically: global rules (000–003, 099) always apply; scoped rules activate
-when you edit matching files. Convention anchors (e.g. `[CONV:LICENSE]`, `[CONV:EVENTS]`)
+Rules load automatically: global rules (000–002, 099, and 600, which has no `paths:`)
+always apply; scoped rules activate when you edit matching files. Convention anchors (e.g. `[CONV:LICENSE]`, `[CONV:EVENTS]`)
 are embedded in rule files.
 
 ## Common Commands
 
 | Task | Command |
 |---|---|
-| Format | `bun format:fix` |
-| Lint | `bun lint:fix` (JS + Solidity) |
-| Test (Solidity) | `bun test` |
+| Format | `bunx prettier --write <file>` (scoped; `bun format:fix` rewrites the whole tree) |
+| Lint | `bunx oxlint --type-aware <file>` (TS/JS) |
+| Test (Solidity) | `bun run test` (bare `bun test` runs Bun's own test runner) |
 | Test (TypeScript) | `bun test:ts` |
 | Build | `forge build` |
 | Type check | `bash script/utils/typecheck-files.sh <file>` |

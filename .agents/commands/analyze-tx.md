@@ -174,7 +174,7 @@ bun troncast code <address> --env testnet
 - `cast sig "<FUNCTION_NAME>"` - Get selector from function name
 - `cast tx <TX_HASH> --rpc-url <RPC>` - Get transaction details
 - `cast receipt <TX_HASH> --rpc-url <RPC>` - Get transaction receipt (contains logs)
-- `web_search` - Search for contract information on block explorers
+- `WebSearch` - Search for contract information on block explorers
 
 ## Analysis Workflow
 
@@ -216,7 +216,7 @@ When root transaction calls a contract other than LiFiDiamond:
 2. **Research contract:**
 
    - Construct URL: `<explorerUrl>/address/<CONTRACT_ADDRESS>`
-   - Use `web_search`: `"<explorerUrl>/address/<CONTRACT_ADDRESS> contract verified"`
+   - Use `WebSearch`: `"<explorerUrl>/address/<CONTRACT_ADDRESS> contract verified"`
    - Navigate to "Contract" tab → "Write Contract" sub-tab
    - Extract: contract name, function signatures, selectors, parameters
 

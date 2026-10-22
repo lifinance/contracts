@@ -91,7 +91,7 @@ Proceed with this repo?  (yes / paste the correct owner/repo)
 
 If Slack yields nothing, ask the user for the repo directly — don't guess.
 
-## Step 2 — Ensure repo access (auto-accept invite)
+## Step 2 — Ensure repo access (accept invite on confirmation)
 
 The auditor's findings repo is private; you need collaborator access.
 
@@ -101,9 +101,9 @@ gh api /user/repository_invitations \
 ```
 
 - If a pending invitation exists **whose repo owner matches the auditor discovered in Step 1**
-  → **accept it automatically**. This is pre-authorised because `/request-audit` already
-  confirmed the auditor and their findings repo before the audit began; accepting here just
-  materialises access the team already agreed to grant.
+  → show it (`<owner>/<repo>`, invitation id) and ask the user to approve accepting it.
+  Accepting grants this account access to an external repo, and with `--audit-repo` Step 1
+  had no confirmation of its own, so this is the first point the user sees the repo.
 
   ```bash
   gh api -X PATCH /user/repository_invitations/<invitation_id>
@@ -164,8 +164,7 @@ ln -s <main-checkout>/.env .env            # framework/deploy scripts read the s
 command above is the portable idiom and works on any clean checkout.)
 
 Verify the base is right: `git log <pr_head>..HEAD` should be empty (you branched from the PR
-head, not from stale main). See the worktree memories for the submodule / typechain / prettier
-traps.
+head, not from stale main).
 
 ## Step 5 — Triage (the one gate)
 
@@ -222,7 +221,7 @@ Process issues independently. For each **Fix**:
    ```
 
    (Reproduce under the deploy toolchain if the finding touches a stack-depth-sensitive path —
-   see the london/0.8.17 memory.)
+   build with `FOUNDRY_PROFILE=solc_floor`, the solc 0.8.17 / london pair london-EVM networks ship.)
 3. Commit — **one commit per finding** — with a message that names the issue:
 
    ```text
@@ -248,7 +247,7 @@ check; the triage gate already approved the plan.
 
 On go:
 
-1. Push the branch (SSH if it touches `.github/workflows/**` — see the workflow-scope memory).
+1. Push the branch (over SSH if it touches `.github/workflows/**` — an HTTPS push with a `gh` token lacking the `workflow` scope is refused).
 2. Open the remediation PR from `.github/pull_request_template.md`, linking the `EXSC-\d+`
    ticket. Title e.g. `fix(<Facet>): address <auditor> audit findings`. Open as **draft** if
    the change trips the audit/version CI gate (it will — struct/selector/version churn) so the

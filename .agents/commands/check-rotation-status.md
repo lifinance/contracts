@@ -1,6 +1,6 @@
 ---
 name: check-rotation-status
-description: Verify a wallet rotation / SC-dev offboarding is complete across all active networks — Safe-owner membership (old removed / new added), Timelock CANCELLER_ROLE (old removed / new granted), whitelist permission, staging-diamond `owner()`, and wallet funding (the CI funding check). Generalizes the hardcoded `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` (whose addresses are baked-in module constants) into a reusable, flag-driven check that takes old/new addresses as citty flags — writing that generalized checker is this skill's real work. Read-only, so it is the natural final gate for every rotate-* skill and the `offboard-sc-dev` orchestrator. Use when the user says "check the offboarding status", "verify the rotation is complete", "is the deployer/dev rotation done across all chains", "run the rotation status check", or similar. NOT for performing any rotation step — those are `rotate-dev-wallet` / `rotate-deployer-wallet` / `rotate-pauser-wallet`. Requires `bun` and RPC access (premium RPC via `ETH_NODE_URI_<NETWORK>` env vars recommended).
+description: "Verify a wallet rotation / SC-dev offboarding is complete across all active networks — Safe-owner membership (old removed / new added), Timelock CANCELLER_ROLE (old removed / new granted), whitelist permission, staging-diamond `owner()`, and wallet funding. Generalizes the hardcoded `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` into a flag-driven check; that checker does not exist yet, and until it lands as its own PR the skill reports every check as not run. Read-only, so it is the final gate for every rotate-* skill and `offboard-sc-dev`. Use when the user says \"check the offboarding status\", \"verify the rotation is complete\", \"is the deployer/dev rotation done across all chains\", or \"run the rotation status check\". NOT for performing any rotation step — those are `rotate-dev-wallet` / `rotate-deployer-wallet` / `rotate-pauser-wallet`. Requires `bun` and RPC access (premium `ETH_NODE_URI_<NETWORK>` recommended)."
 usage: /check-rotation-status --old-address 0xOLD --new-address 0xNEW [--role deployer|dev|pauser] [--removed-signer 0x] [--network <csv>] [--production]
 ---
 
@@ -24,7 +24,7 @@ completed rotation must satisfy and prints a per-network pass/fail matrix:
 Because it changes nothing, it is the completeness gate at the end of every
 `rotate-*` flow and of `offboard-sc-dev`.
 
-## The real work: generalize the hardcoded temp checker
+## The missing checker (lands as its own reviewed PR)
 
 `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` already implements the
 per-network read logic (Safe owners via `getOwners`, Timelock `CANCELLER_ROLE`
@@ -61,8 +61,9 @@ Concretely:
    as `-`) and the premium-RPC-first resolution (`getRPCEnvVarName` →
    `ETH_NODE_URI_<NETWORK>` fallback to `networks.json`).
 
-Until that generalized script exists in the branch, this skill's first action
-is to create it; do not shell out to the `temp/` file with edited constants.
+This skill never creates that script: it lands as its own reviewed PR, and
+this skill only runs it (step 1 below). Do not shell out to the `temp/` file
+with edited constants either.
 
 ## When to use / when NOT
 
@@ -118,13 +119,15 @@ Optional:
 
 ## Workflow
 
-### 1. Ensure the generalized checker exists (this skill's build step)
+### 1. Confirm the generalized checker exists
 
-If `script/tasks/checkRotationStatusPerNetwork.ts` does not yet exist on the
-branch, create it per "The real work" above — lift the read logic from
-`script/tasks/temp/checkOffboardingStatusPerNetwork.ts`, swap the hardcoded
-constants for citty flags, keep the exclusions and premium-RPC resolution.
-Leave the `temp/` script in place as the reference.
+`script/tasks/checkRotationStatusPerNetwork.ts` does not exist on `main` yet.
+If it is still missing, do **not** write it during a rotation — a gate
+improvised mid-rotation is unreviewed code deciding whether governance changes
+landed. Stop, tell the user the checker has to land as its own reviewed PR
+(built per "The missing checker" above), and report each applicable check as
+"not run". The calling `rotate-*` skill then treats its completeness gate as
+open, not passed.
 
 ### 2. Run the check
 

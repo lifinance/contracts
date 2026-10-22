@@ -1,6 +1,6 @@
 ---
 name: verify-contracts
-description: Verify a deployed network's smart contracts on its block explorer and flip the MongoDB `verified` flag for each. Use this skill whenever a user asks to "verify the contracts for <network>", "verify contracts in PR #<N>", verify a fresh deployment on its explorer (blockscout / sourcify / etherscan), or fix contracts that show as unverified after a deploy. Drives the verified, working flow: source the deployment address map, ensure the worktree can compile, loop `verifyContract` over every address, then write the `verified:true` flag back to Mongo (which on-chain verification alone does NOT do). Even partial phrasings like "the deploy for X is showing unverified" or "mark these as verified in the logs" should trigger.
+description: "Verify a deployed network's smart contracts on its block explorer and flip the MongoDB `verified` flag for each. Use this skill whenever a user asks to \"verify the contracts for <network>\", \"verify contracts in PR #<N>\", verify a fresh deployment on its explorer (blockscout / sourcify / etherscan), or fix contracts that show as unverified after a deploy. Drives the verified, working flow: source the deployment address map, ensure the worktree can compile, loop `verifyContract` over every address, then write the `verified:true` flag back to Mongo (which on-chain verification alone does NOT do). Even partial phrasings like \"the deploy for X is showing unverified\" or \"mark these as verified in the logs\" should trigger."
 usage: /verify-contracts <network>  |  /verify-contracts PR #<N>
 ---
 
@@ -41,7 +41,7 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 
 - [`foundry.toml`](../../foundry.toml) — `NETWORK` present in **both** `[rpc_endpoints]` and `[etherscan]`. The `[etherscan]` entry carries the verifier `url`, `chain`, and `verifier` (`blockscout` | `sourcify` | `custom`/etherscan).
 - [`config/networks.json`](../../config/networks.json) — `verificationType` and `explorerApiUrl` for `NETWORK`.
-- `[profile.default]` compiler settings (`solc_version`, `evm_version`, `optimizer_runs`) match what the contracts were deployed with. A mismatch is a silent source of "Unable to verify" on etherscan-type verifiers.
+- The active Foundry profile matches what the contracts were built with. A network whose `config/networks.json` entry has `"targetEvmVersion": "london"` deploys under `[profile.solc_floor]` (solc 0.8.17 / london), so run Step 4 as `FOUNDRY_PROFILE=solc_floor ./script/tasks/verifyNetworkContracts.sh <network>`. zkEVM networks (`isZkEVM` in `networks.json`) need nothing extra: `verifyContract` scopes `FOUNDRY_PROFILE=zksync` to its own command. Every other network uses `[profile.default]`. A mismatch is a silent source of "Unable to verify" on etherscan-type verifiers.
 
 ### 4. Verify each contract on-chain
 
@@ -109,7 +109,7 @@ Report any record still `false` and why (e.g. superseded version intentionally l
 | What fails | What to do |
 |---|---|
 | `Details: Fail - Unable to verify` with `lib/...: No such file or directory` above it | Submodules not initialized — `git submodule update --init --recursive` (gotcha #1). |
-| `Unable to verify` on an etherscan-type verifier, `lib/` is fine | Compiler profile mismatch — re-check `solc_version` / `evm_version` / `optimizer_runs` in `[profile.default]` against the deploy (Step 3). |
+| `Unable to verify` on an etherscan-type verifier, `lib/` is fine | Compiler profile mismatch — a london network needs `FOUNDRY_PROFILE=solc_floor` (Step 3); otherwise re-check `solc_version` / `evm_version` / `optimizer_runs` in `[profile.default]` against the deploy. |
 | `No verifier URL found for network` | `NETWORK` missing from the `[etherscan]` section of `foundry.toml` (Step 3). |
 | Explorer shows green but reports still say unverified | Mongo flag never written — run Step 5. This is gotcha #2. |
 | `update-deployment-logs.ts` can't find the record | Wrong `--version` or `--address` — list with `--no-use-cache` first and match by address. |

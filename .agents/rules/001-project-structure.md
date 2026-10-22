@@ -10,7 +10,7 @@ alwaysApply: true
 
 ```
 /contracts
- ├── .cursor/              # Cursor AI rules and prompts (do not modify unless adding rules)
+ ├── .agents/              # Agent rules, commands and hooks (source of truth; .cursor/ and .claude/ symlink here)
  ├── .github/              # GitHub workflows and CI/CD
  ├── audit/                # Audit reports and audit log
  │   └── reports/          # PDF audit reports
@@ -33,7 +33,8 @@ alwaysApply: true
  ├── safe/                 # Safe contract artifacts (flattened contracts)
  ├── script/               # Deployment, updating, and automation scripts
  │   ├── deploy/           # Solidity deployment and update scripts
- │   │   ├── facets/       # Facet deployment scripts
+ │   │   ├── facets/       # Deploy/update scripts for every contract (facets and periphery)
+ │   │   ├── resources/    # deployRequirements.json, immutableRegistry.json, deploy reminders
  │   │   ├── safe/         # Safe multisig integration
  │   │   ├── shared/       # Shared deployment utilities
  │   │   ├── tron/         # Tron-specific scripts
@@ -41,7 +42,7 @@ alwaysApply: true
  │   ├── demoScripts/      # TypeScript demo scripts
  │   │   └── utils/        # Demo script helpers
  │   ├── mongoDb/          # MongoDB integration for multisig proposals and RPC URLs
- │   ├── resources/        # Resource files (e.g., deployRequirements.json, gasRebates.json)
+ │   ├── resources/        # gasRebates.json
  │   ├── tasks/            # Utility tasks and scripts
  │   │   └── solidity/     # Solidity task scripts
  │   ├── troncast/         # Tron-specific CLI utilities
@@ -77,7 +78,7 @@ alwaysApply: true
 
 ## Script Organization (`script/`)
 
-- **deploy/**: Solidity deployment scripts (`.s.sol`). Use Foundry's `Script` contract pattern. Place facet deployments in `deploy/facets/`.
+- **deploy/**: Solidity deployment scripts (`.s.sol`). Use Foundry's `Script` contract pattern. Place deployments for facets and periphery alike in `deploy/facets/`.
 - **demoScripts/**: TypeScript examples demonstrating contract usage. Reference existing demos for patterns.
 - **tasks/**: Utility scripts for maintenance tasks (e.g., syncing whitelists, updating configs).
 - **utils/**: Shared TypeScript utilities for scripts.
@@ -86,7 +87,7 @@ alwaysApply: true
 
 Use remappings defined in `remappings.txt`:
 
-- `lifi/` → `src/` (e.g., `import lifi/Facets/SomeFacet.sol`)
+- `lifi/` → `src/` (e.g., `import { SomeFacet } from "lifi/Facets/SomeFacet.sol"`): tests and scripts import this way; contracts in `src/` import each other by relative path
 - `test/` → `test/` (e.g., `import test/TestBase.sol`)
 - External libs: `@openzeppelin/`, `solmate/`, `solady/`, `permit2/`, etc.
 
@@ -98,7 +99,7 @@ Use remappings defined in `remappings.txt`:
 - **New interfaces**: `src/Interfaces/`
 - **New helpers**: `src/Helpers/`
 - **New errors**: Add to `src/Errors/GenericErrors.sol` or define locally in facet if facet-specific
-- **Deployment scripts**: `script/deploy/facets/` for facets, `script/deploy/` for other contracts
+- **Deployment scripts**: `script/deploy/facets/` for every contract (zkSync variants in `script/deploy/zksync/`)
 - **Demo scripts**: `script/demoScripts/`
 - **Tests**: `test/solidity/` mirroring `src/` structure
 
