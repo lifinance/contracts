@@ -30,7 +30,6 @@ are embedded in rule files.
 | Node runtime fence | `bun lint:node-runtime` |
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
-| Agent harness | `bun lint:agents` |
 
 ## Environment & resource access
 

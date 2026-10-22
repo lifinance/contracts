@@ -82,7 +82,6 @@ Remove duplicates rather than keeping both in sync.
 
 - `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all should be symlinks into `.agents/rules/`.
 - `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- `bun lint:agents` — frontmatter parses, `name` matches the file, descriptions ≤ 1024 chars, `bun` scripts and links resolve.
 - `.agents/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
 
 ## README update triggers
