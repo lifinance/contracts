@@ -39,7 +39,7 @@ The two scopes use different identifiers and different ignore mechanisms: **`pr`
 
 The Aikido GitHub app (`aikido-pr-checks[bot]`) scans the PR diff and posts one **inline review comment** per finding. These are authoritative for the PR — use them, not the feed. The feed is tagged to `main` and both misses findings the PR introduces and includes `main` findings on files the PR doesn't touch.
 
-1. **Resolve the PR.** `gh pr view --json number,url` finds the PR for the *current* branch. If it prints "no pull requests found" — you're not on the PR's head branch (e.g. testing from another branch) — ask the user for the PR number or URL; do not guess. Owner/repo come from `gh` automatically (the `origin` remote). Never hardcode the repo: this repo and its upstream share most code under **different** Aikido repo names (`contracts-tron` vs `contracts`), so querying the wrong one returns the wrong findings.
+1. **Resolve the PR.** `gh pr view --json number,url` finds the PR for the *current* branch. If it prints "no pull requests found" — you're not on the PR's head branch (e.g. testing from another branch) — ask the user for the PR number or URL; do not guess. Owner/repo come from `gh` automatically (the `origin` remote). Never hardcode the repo: this repo and its `contracts-tron` fork share most code under **different** Aikido repo names (`contracts` vs `contracts-tron`), so querying the wrong one returns the wrong findings.
 2. **Fetch the bot's findings** — they are **review comments**, not issue comments, and each finding root has `in_reply_to_id == null`:
 
    ```
@@ -61,7 +61,7 @@ If the bot has not commented yet (scan still running), say so and stop — do no
 
 ### `all` / `<issue-id>` mode — read the feed
 
-Call `aikido-mcp:aikido_issues_list` with issue type `sast` and the repo name. Derive the name from `gh repo view --json name -q .name` (the `origin` repo, e.g. `contracts-tron`) — don't hardcode it; the upstream shares code under the `contracts` repo name. For `<issue-id>`, keep only the finding whose `issue_id` matches the argument; if none matches, report `issue <id> not found in the feed` and stop. For `all`, keep every finding.
+Call `aikido-mcp:aikido_issues_list` with issue type `sast` and the repo name. Derive the name from `gh repo view --json name -q .name` (the `origin` repo, e.g. `contracts`) — don't hardcode it; the `contracts-tron` fork shares code under its own repo name. For `<issue-id>`, keep only the finding whose `issue_id` matches the argument; if none matches, report `issue <id> not found in the feed` and stop. For `all`, keep every finding.
 
 ---
 

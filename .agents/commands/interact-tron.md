@@ -55,19 +55,19 @@ bun troncast code <address> --env mainnet   # analog of `cast code`
 ## Sending transactions — `troncast send`
 
 ```bash
-bun troncast send <address> "<functionSignature>" [params...] --private-key <KEY> --env <mainnet|testnet>
+bun troncast send <address> "<functionSignature>" [params...] --private-key-env <ENV_VAR> --env <mainnet|testnet>
 
 # transfer tokens
-bun troncast send <TOKEN> "transfer(address,uint256)" <RECEIVER>,1000000 --private-key "$KEY"
+bun troncast send <TOKEN> "transfer(address,uint256)" <RECEIVER>,1000000 --private-key-env PRIVATE_KEY_PRODUCTION
 
-# send TRX (native)
-bun troncast send <address> "deposit()" --value 0.1tron --private-key "$KEY"
+# send TRX (native): --value with no signature
+bun troncast send <RECIPIENT> --value 0.1tron --private-key-env PRIVATE_KEY_PRODUCTION
 
 # dry run first for anything non-trivial
 bun troncast send <TOKEN> "approve(address,uint256)" <SPENDER>,1000000 --dry-run
 ```
 
-Key flags: `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap, default 1000), `--energy-limit`, `--dry-run` (simulate, no broadcast), `--no-confirm`, `--json`.
+Key flags: `--private-key-env` (name of the env var holding the key; prefer it over `--private-key`, which puts the key in shell history), `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap, default 1000), `--energy-limit`, `--dry-run` (simulate, no broadcast), `--no-confirm`, `--json`.
 
 **One broadcast per tool call.** Same rule as `manage-wallet-funds`: never loop `troncast send` inside a single tool call — one signed transaction per invocation, confirm the result before sending the next.
 

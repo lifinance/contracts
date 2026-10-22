@@ -13,7 +13,7 @@ paths:
 
 - **Storage**:
 
-  - `IExecutor public immutable executor` - Executor contract for performing swaps
+  - `IExecutor public immutable EXECUTOR` - Executor contract for performing swaps (CONSTANT_CASE per [CONV:NAMING], as in `ReceiverAcrossV4` / `ReceiverOIF`)
   - Bridge-specific authorized caller (e.g., `address public immutable spokepool`, `chainflipVault`, `endpointV2`)
   - Bridge-specific configuration (e.g., `recoverGas` for StargateV2, protocol-specific constants)
 
@@ -37,7 +37,7 @@ paths:
   - Handle native vs ERC20 tokens:
     - **ERC20**: Use `safeApproveWithRetry()` or `safeIncreaseAllowance()` to approve executor, reset to 0 after
     - **Native**: Pass `value: amount` when calling executor
-  - Call `executor.swapAndCompleteBridgeTokens()` in try-catch block
+  - Call `EXECUTOR.swapAndCompleteBridgeTokens()` in try-catch block
   - **On success**: Executor emits `LiFiTransferCompleted`; no action needed
   - **On failure**: Transfer raw bridged tokens directly to receiver and emit `LiFiTransferRecovered` with `_transactionId`, `assetId`, `receiver`, `amount`, `block.timestamp`
   - For native tokens with gas checks (e.g., StargateV2): Check `gasleft()` before executing; if insufficient, send tokens directly and emit `LiFiTransferRecovered`
@@ -53,4 +53,4 @@ paths:
 
 - **Libraries**: Use `LibAsset` for asset operations, `LibSwap` for swap data structures, `SafeTransferLib` from solady for safe transfers.
 
-- **Error handling**: Use try-catch for executor calls; always have fallback to send raw tokens on failure. Reset approvals to 0 after operations.
+- **Error handling**: Use try-catch for executor calls with a fallback that sends the raw tokens on failure, and reset approvals to 0 afterwards. The exception is a receiver whose callback should revert when the swap fails — `ReceiverOIF` calls the executor directly, so a failed swap reverts `outputFilled` — and such a receiver states why in its NatSpec.

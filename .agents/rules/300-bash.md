@@ -178,7 +178,7 @@ Validate before proposing any bash change:
 2. **Unbound variables** (with `set -euo pipefail`):
    - Use `${VAR:-}` not `$VAR`; `${ARRAY[@]:-}` not `-v ARRAY[@]`
    - Check `${#ARRAY[@]}` before accessing arrays
-3. **Compatibility**: bash 5.0+ (macOS default); avoid bash 4.0-only features
+3. **Compatibility**: `#!/bin/bash` is bash 3.2 on macOS, so new code avoids bash 4 features (`mapfile`/`readarray`, `declare -A`, `${VAR,,}`). The existing `mapfile` calls in `multiNetworkExecution.sh`, `playgroundHelpers.sh` and `verifyRolloutContracts.sh` are not a precedent
 4. **Strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
 
 ### Pitfalls not covered above

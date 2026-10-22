@@ -51,7 +51,7 @@ cores, so the guard and the withholding widen together. Consequences:
 - **A credential whose name carries no core is invisible** to both the scan and
   the sweep. Adding a new kind of secret to the store means adding its core,
   not assuming the pattern grew.
-- **Only the two `withholdCredentials` callers are covered.** Other tests that
+- **Only tests that call `withholdCredentials` are covered.** Other tests that
   spawn a child build the environment by hand; nothing yet asserts that a
   spawning test calls the helper. Tracked in EXSC-996.
 

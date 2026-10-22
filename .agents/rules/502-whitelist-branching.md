@@ -51,4 +51,3 @@ When the agent detects edits to whitelist config files:
 ### Exceptions
 
 - **Emergency updates**: In rare cases where whitelist updates are critical and time-sensitive, coordinate with the team to ensure proper merge strategy
-- **Staging whitelist**: `config/whitelist.staging.json` follows the same policy (target `main` branch)

@@ -55,14 +55,16 @@ it can be posted for peer review.
 - **`VersionControlAndAuditVerification`**
   (`versionControlAndAuditCheck.yml`) enforces contract version bumps for
   audit-relevant changes and, on PRs targeting `main`, requires an
-  `audit/auditLog.json` entry (report at the logged path, audited commit in the
-  PR) for every changed contract. It assigns `AuditRequired` and **stays red
+  `audit/auditLog.json` entry for every changed contract: the report at the
+  logged path, and the contract's import-closure hash at PR head matching the
+  hash at a logged audit commit. It assigns `AuditRequired` and **stays red
   until stage 9 is done**. A failing audit check during stages 3–7 is expected
   and does not block peer review or BE integration — do not "fix" it early by
   adding audit entries before the audit happened.
 - **Core-dev approval is enforced by the repository ruleset**, not a workflow:
-  the `main protection` ruleset requires at least one approval from the
-  `smart-contract-core` team. Approvals are dismissed on push, so the stage-9
+  the `main protection` ruleset requires one approval from `api-expansion` on
+  every PR, plus one from `smart-contract-core` when the PR touches `src/**`,
+  `script/deploy/safe/**` or `script/emergency/**`. Approvals are dismissed on push, so the stage-9
   audit commit invalidates them — which is why stage 10 needs a fresh approval.
 - **`securityAlertsReview.yml`** is the only workflow that reverts a ready PR
   back to draft. It fires on `ready_for_review` and force-drafts when Olympix

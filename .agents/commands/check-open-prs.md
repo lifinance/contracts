@@ -29,7 +29,7 @@ GitHub scope is env-overridable (LI.FI defaults baked in), so the script is org-
 bunx tsx script/utils/check-open-prs.ts --json
 ```
 
-(Add `--quick` for quick mode.) The script returns, per PR: repo/number/title/url, kind (`own`/`incoming`), bucket, draft, CI rollup + failing checks tagged `review/audit` vs `restartable` vs `core-dev-gate`, conflicts, reviewDecision, mergeStateStatus, last commit, last non-author human comment, my last review (`myReview: {state, at, sha}` — `sha` is the commit my review was submitted against, used by Phase 2D), and `slackCheck: true` where Slack thread state is needed to finish classification. Archived-repo PRs and stale incoming PRs are already excluded (listed under `excluded`).
+(Add `--quick` for quick mode.) The script returns, per PR: repo/number/title/url, kind (`own`/`incoming`), bucket, draft, CI rollup + failing checks tagged `review/audit` vs `restartable` vs `human-gate`, conflicts, reviewDecision, mergeStateStatus, last commit, last non-author human comment, my last review (`myReview: {state, at, sha}` — `sha` is the commit my review was submitted against, used by Phase 2D), and `slackCheck: true` where Slack thread state is needed to finish classification. Archived-repo PRs and stale incoming PRs are already excluded (listed under `excluded`).
 
 **Refresh mode** ("refresh the dashboard"): just re-run the script — it's cheap. Never re-render from data fetched earlier in the conversation; a PR may have been replied to, merged, or re-pinged since. Stamp every dashboard with the script's `asOf` (convert to `+07`).
 
@@ -115,7 +115,7 @@ Per PR, one short prompt with the script's bucket and suggested next step; execu
 ## Phase 2D — incoming queue
 
 - **INBOX-UNREVIEWED**: show link + 2-line preview; offer open-in-browser / sub-agent triage (≤200 words) / skip.
-- **INBOX-REREVIEW**: fetch diff since my last review (`gh pr diff <n> --commit-range <sha>..HEAD`, where `<sha>` is the PR's `myReview.sha` from the script JSON — the commit my last review was submitted against). If `myReview.sha` is `null` (review predates the commit or it was detached), fall back to the full `gh pr diff <n>`. Quote the dev's hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
+- **INBOX-REREVIEW**: fetch the diff since my last review (`gh api -H 'Accept: application/vnd.github.diff' repos/<owner>/<repo>/compare/<sha>...<head>`, where `<sha>` is the PR's `myReview.sha` from the script JSON — the commit my last review was submitted against — and `<head>` is `gh pr view <n> --json headRefOid -q .headRefOid`; `gh pr diff` has no range flag). If `myReview.sha` is `null` (review predates the commit or it was detached), or the compare fails because a force-push dropped it, fall back to the full `gh pr diff <n>`. Quote the dev's hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
 
 Never auto-approve, auto-comment, or auto-request-changes — the skill routes; the human reviews.
 
