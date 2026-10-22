@@ -2170,11 +2170,11 @@ function verifyContractOnExplorer() {
     elif [[ "$VERIFICATION_TYPE" = "oklink" ]]; then
       # forge does not read `verifier` from foundry.toml; without this flag it falls back to Sourcify
       VERIFY_CMD+=("--verifier" "oklink")
-      if [[ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [ -z "${!API_KEY}" ]; then
+      if [[ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [ -z "${!API_KEY:-}" ]; then
         echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
         return 1
       fi
-      if [ -n "${!API_KEY}" ]; then
+      if [ -n "${!API_KEY:-}" ]; then
         VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
       fi
     elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
