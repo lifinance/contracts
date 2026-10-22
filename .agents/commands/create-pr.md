@@ -101,7 +101,7 @@ On failure, stop and surface it — do not push without explicit user override.
 
 ```text
 About to create PR on branch `<branch-name>`:
-  (renamed from `<old-branch>`)                  ← only if renamed
+  (renamed to `<new-branch>` in step 9)          ← only if step 4 planned a rename
 
 Commits (<N>) since main (`git log main..HEAD --oneline`):
   • <sha>  <subject>

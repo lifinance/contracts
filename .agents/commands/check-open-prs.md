@@ -105,7 +105,7 @@ Per PR, one short prompt with the bucket and suggested next step; execute the ch
 ## Phase 2D — incoming queue
 
 - **INCOMING-UNREVIEWED**: link + 2-line preview; offer open-in-browser / sub-agent triage (≤200 words) / skip.
-- **INCOMING-REREVIEW**: diff since my last review — `gh pr diff` has no range flag, so use `gh api -H 'Accept: application/vnd.github.diff' repos/<owner>/<repo>/compare/<sha>...<head>` with `<sha>` = `myReview.sha` and `<head>` from `gh pr view <n> --repo <owner>/<repo> --json headRefOid -q .headRefOid`. If `myReview.sha` is `null` or the compare fails (force-push dropped it), fall back to the full `gh pr diff <n>`. Quote the hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
+- **INCOMING-REREVIEW**: diff since my last review — `gh pr diff` has no range flag, so use `gh api -H 'Accept: application/vnd.github.diff' repos/<owner>/<repo>/compare/<sha>...<head>` with `<sha>` = `myReview.sha` and `<head>` from `gh pr view <n> --repo <owner>/<repo> --json headRefOid -q .headRefOid`. If `myReview.sha` is `null` or the compare fails (force-push dropped it), fall back to the full `gh pr diff <n> --repo <owner>/<repo>`. Quote the hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
 
 Never auto-approve, auto-comment, or auto-request-changes — the skill routes; the human reviews.
 
