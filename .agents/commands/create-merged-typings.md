@@ -1,6 +1,6 @@
 ---
 name: create-merged-typings
-description: Produces a single beta typings package that combines several in-flight PRs, so backend/QA can test a flow that needs changes from more than one open feature branch at once. Builds a disposable "DO NOT MERGE" branch that merges the selected PRs on top of main, opens a labeled PR to fire the Types Bindings workflow, captures the exact published beta tag, and returns the version backend pins. Use when someone says "create a merged typings package", "combine PRs X and Y into a types package", "I need beta types with both <topic A> and <topic B>", "typings for backend that has facet A and facet B", or invokes /create-merged-typings.
+description: Publishes one beta typings package combining two or more open PRs via a disposable DO-NOT-MERGE branch that fires the Types Bindings workflow, and returns the exact beta tag backend pins. Use for "combine PRs X and Y into a types package" or beta types that need several unmerged branches at once.
 usage: /create-merged-typings [PR numbers | topic keywords]
 ---
 
@@ -8,23 +8,13 @@ usage: /create-merged-typings [PR numbers | topic keywords]
 
 > **Usage**: `/create-merged-typings [PR numbers | topic keywords]`
 
-## Why this exists
+Each feature branch publishes a `-beta` typings tag built from that branch alone
+(`types.yaml` → `lifinance/lifi-contract-types`), and the `-beta` version is one global counter
+shared by all branches. The tag lives in `lifi-contract-types` and keeps working after the
+throwaway branch is deleted.
 
-Each feature branch publishes a `-beta` typings tag generated from **that branch alone**
-(`types.yaml` → `lifinance/lifi-contract-types`). The `-beta` version is a single global
-counter, so no published beta ever contains two in-flight branches together. When backend/QA
-needs to test a flow that spans two unmerged branches, they need one package with **both**.
-
-This command builds a throwaway branch that merges the selected PRs on top of `main`, lets the
-existing Types Bindings workflow publish one combined beta tag, hands that tag back, then tears
-the throwaway branch down. The tag lives in `lifi-contract-types` independently and keeps
-working after the throwaway branch is gone.
-
-## When NOT to use
-
-- A single PR is enough → that PR already publishes its own beta on every push; just give
-  backend its tag. This command is only for **combining** two or more.
-- You want a permanent release → that is the `push to main` path, not a throwaway branch.
+Not for a single PR (it already publishes its own beta on every push — give backend that tag)
+or a permanent release (that is the push-to-main path).
 
 ## Phase 1 — Resolve the change set
 
@@ -94,9 +84,8 @@ Explicitly add the label (do not rely on the auto-label race) — this is what t
 gh pr edit --repo lifinance/contracts <PR_NUMBER> --add-label requires-types
 ```
 
-The full contracts CI suite (version+audit, smoke, security) will run and mostly **fail** on a
-merge branch. That is expected and irrelevant — **ignore every check except `Types Bindings`.**
-Do not try to fix them.
+The rest of CI (version+audit, smoke, security) mostly fails on a merge branch — ignore every
+check except `Types Bindings`; don't fix them.
 
 ## Phase 4 — Await the run and capture the exact tag
 
@@ -177,8 +166,6 @@ explicitly after the worktree is gone.)
 
 ## Notes
 
-- **Re-running later** (branch A or B got new commits): just run the command again — it
-  recreates the throwaway branch from scratch and publishes a fresh beta.
-- **More than two PRs**: supported — merge them all in Phase 2 in the order given.
-- **Beta stream is topic-blind**: consecutive `-beta` tags belong to unrelated branches. Always
-  hand backend the specific tag this command returns, never "the latest beta".
+- **Re-running** after A or B got new commits: run the command again — it recreates the branch
+  and publishes a fresh beta.
+- **More than two PRs**: merge them all in Phase 2 in the order given.
