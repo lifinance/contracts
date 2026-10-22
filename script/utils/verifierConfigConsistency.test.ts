@@ -1,9 +1,9 @@
 /**
  * Keeps `config/networks.json` `verificationType` in agreement with the
- * `foundry.toml` `[etherscan]` entries that need no API key. `verifyContract`
- * routes a network typed `etherscan` through the branch that demands a
- * non-empty key, so such a network never reaches forge and verifies on
- * Sourcify only.
+ * `foundry.toml` `[etherscan]` entries that need no API key.
+ * `verifyContractOnExplorer` routes a network typed `etherscan` through the
+ * branch that demands a non-empty key, and passes no `--verifier` for a network
+ * without a type, so either way such a network verifies on Sourcify only.
  */
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -40,6 +40,7 @@ const findMismatches = (
     const verificationType = row.verificationType
     const verifier = entry.verifier
     const agrees =
+      verificationType !== undefined &&
       verificationType !== 'etherscan' &&
       (verifier === undefined || verificationType === verifier)
     if (!agrees)
@@ -89,6 +90,12 @@ describe('findMismatches', () => {
       )
     ).toEqual([
       'other: foundry.toml verifier "<none>", networks.json verificationType "etherscan"',
+    ])
+  })
+
+  it('reports a keyless network without a verificationType', () => {
+    expect(findMismatches({ jovay: { key: NO_KEY } }, { jovay: {} })).toEqual([
+      'jovay: foundry.toml verifier "<none>", networks.json verificationType "undefined"',
     ])
   })
 
