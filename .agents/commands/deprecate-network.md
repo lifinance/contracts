@@ -1,6 +1,6 @@
 ---
 name: deprecate-network
-description: Deprecate one or more networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, CORE_FACET_EXEMPTIONS, the whitelist and per-network deploy logs, while preserving the master log and facet chainId mappings
+description: Deprecate one or more networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, the core facet and periphery exemptions, the whitelist and per-network deploy logs, while preserving the master log and facet chainId mappings
 usage: /deprecate-network <network1> [network2] [network3] ...
 ---
 
@@ -19,7 +19,7 @@ This command completely removes a network (or multiple networks) from the codeba
 5. Removing the network entry from `script/deploy/_targetState.json` (removes both production and staging environments)
 6. Removing all deployment log files in `deployments/` directory that match the network name pattern
 7. Removing the network from every bridge/integration config under `config/` that carries a per-network entry
-8. Removing the network from `CORE_FACET_EXEMPTIONS` in `script/deploy/healthCheckInvariants.ts`
+8. Removing the network from `CORE_FACET_EXEMPTIONS` and `CORE_PERIPHERY_EXEMPTIONS` in `script/deploy/healthCheckInvariants.ts`
 9. Hand-removing the network's blocks from `config/whitelist.json` (not via the generator)
 10. Marking — not removing — the network in any hardcoded chainId mapping under `src/Facets/`
 
@@ -38,7 +38,7 @@ are **preserved**: they are historical records, not a list of active networks.
    - Remove network entries from `script/deploy/_targetState.json`
    - Delete all deployment log files matching the network pattern
    - Remove the network's entry from every bridge/integration config that carries one
-   - Remove the network from `CORE_FACET_EXEMPTIONS`
+   - Remove the network from `CORE_FACET_EXEMPTIONS` and `CORE_PERIPHERY_EXEMPTIONS`
    - Hand-remove the network's `PERIPHERY` and `DEXS[].contracts` blocks from `config/whitelist.json`
    - Flag any hardcoded chainId mapping in `src/Facets/` for a comment instead of a deletion
    - Display a summary of all changes made, including the records deliberately preserved
@@ -65,7 +65,8 @@ When `/deprecate-network` is invoked with network names:
 
    - Read `config/networks.json` to verify all specified networks exist
    - If a network doesn't exist, warn the user but continue with other networks
-   - Display list of networks to be deprecated for confirmation
+   - Display the networks to be deprecated and wait for explicit go-ahead — also for a
+     single network, because step 2 writes to MongoDB before any PR review
 
 2. **Cancel open parked diamond-cleanup tasks** (before anything destructive):
 
@@ -87,7 +88,9 @@ When `/deprecate-network` is invoked with network names:
      `bunx tsx script/deploy/safe/reconcile-parked-tasks.ts --network {network} --cancel-deprecated --yes`
      Run it **once per network**; `--cancel-deprecated` refuses to run fleet-wide on
      purpose, so a temporarily narrowed `networks.json` can never cancel the whole queue.
-     Drop `--yes` first to preview.
+     Run it without `--yes` first, show the user the tasks it would cancel, and add
+     `--yes` only after they approve that list — a cancelled task does not come back if
+     the deprecation PR is later rejected.
    - A `proposed` task is **not** cancelled by that command: its Safe removal proposal is
      already live and `markCancelled` accepts `queued` only, so cancelling it would cut
      the proposal from its origin-PR linkage. It needs `revertToQueued` first, for which
@@ -177,12 +180,12 @@ When `/deprecate-network` is invoked with network names:
    - Report anything the search surfaces outside `config/` (scripts, docs, comments) in
      the step 15 review rather than deleting it silently.
 
-9. **Remove from `CORE_FACET_EXEMPTIONS`** in `script/deploy/healthCheckInvariants.ts`:
+9. **Remove from `CORE_FACET_EXEMPTIONS` and `CORE_PERIPHERY_EXEMPTIONS`** in `script/deploy/healthCheckInvariants.ts`:
 
-   - Delete the network from the `networks` array of every exemption that lists it.
-   - This is CI-enforced: `script/deploy/healthCheckInvariants.test.ts` has a test
-     `every exempt network is a known network` asserting each exemption network exists
-     in `config/networks.json`, so a leftover entry fails the TS test suite.
+   - Delete the network from the `networks` array of every exemption in both tables that lists it.
+   - This is CI-enforced: `script/deploy/healthCheckInvariants.test.ts` runs
+     `every exempt network is a known network` against each table, asserting each exemption
+     network exists in `config/networks.json`, so a leftover entry fails the TS test suite.
    - If removing the network empties an exemption's `networks` array, remove the whole
      exemption object.
    - Verify with `bun test:ts` (the TS suite; a bare `bun test` runs the Solidity tests
@@ -375,9 +378,7 @@ The command handles:
 
 ## Safety Features
 
-- **Dry-run option**: Consider showing what would be removed before actually removing (optional enhancement)
-- **Confirmation**: For multiple networks, display summary before proceeding
-- **Backup suggestion**: Recommend backing up files before deprecation (informational message)
+- **Confirmation**: For every run, display the summary and wait for go-ahead before step 2
 - **Remaining occurrences review**: After deprecation, search codebase and present all matches for user review before removing
 
 ## Manual Steps Required
@@ -397,7 +398,7 @@ After the command completes, you **must** manually update the Product Target Sta
 - `deployments/{network}*.json` - Deployment log files (deletes matching files)
 - `deferred-cleanup.parkedTasks` (MongoDB) - Parked diamond-cleanup tasks (cancels the network's `queued` ones only)
 - `config/*.json` (bridge/integration configs) - Per-network entries, found by search rather than from a fixed list
-- `script/deploy/healthCheckInvariants.ts` - `CORE_FACET_EXEMPTIONS` (CI-enforced; a stale entry fails `bun test:ts`)
+- `script/deploy/healthCheckInvariants.ts` - `CORE_FACET_EXEMPTIONS` and `CORE_PERIPHERY_EXEMPTIONS` (CI-enforced; a stale entry fails `bun test:ts`)
 - `config/whitelist.json` - Hand-edited, deletions only; **never** regenerated
 - `src/Facets/*.sol` - Hardcoded chainId mappings get a marker comment, not a deletion
 

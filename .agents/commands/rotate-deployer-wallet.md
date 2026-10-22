@@ -1,6 +1,6 @@
 ---
 name: rotate-deployer-wallet
-description: Rotates the shared SC-owned **Deployer** wallet — `safeOwners[0]` + the Timelock `CANCELLER_ROLE` (and prod timelock executor) — end-to-end: bootstraps the new deployer's gas, swaps the Safe owner and moves the canceller role via Safe proposals, handles Tron, updates config, decommissions the old key, and gates on a completeness check. Thin orchestrator: it CALLS the L1 skills (`sweep-wallet-funds`, `move-tron-delegation`, `update-wallet-config`, `check-rotation-status`) and existing skills (`/multisig-rollout`, `transfer-ownership-to-timelock.ts`), never reimplementing them. Use when the user says "rotate the deployer wallet", "replace safeOwners[0]", "swap the deployer / canceller EOA", or "/rotate-deployer-wallet". This is the heaviest-governance rotation (production Safe + Timelock) — NOT the staging owner (that is `rotate-dev-wallet`), NOT the emergency pauser (that is `rotate-pauser-wallet`), and NOT a full person offboarding (that is `offboard-sc-dev`). Requires Foundry, gh, lifi-connect for MongoDB, and a securely generated new wallet + hardware-wallet signing — both human steps. NEVER self-sign; all on-chain owner/role changes go through Safe/timelock.
+description: Rotates the shared SC-owned **Deployer** wallet — `safeOwners[0]` + the Timelock `CANCELLER_ROLE` (and prod timelock executor) — end-to-end: bootstraps the new deployer's gas, swaps the Safe owner and moves the canceller role via Safe proposals, handles Tron, updates config, decommissions the old key, and gates on a completeness check. Thin orchestrator: it CALLS the L1 skills (`sweep-wallet-funds`, `move-tron-delegation`, `update-wallet-config`, `check-rotation-status`) and existing tooling (`manageSafeOwner` / `manageTimelockCanceller`, `transfer-ownership-to-timelock.ts`), never reimplementing them. Use when the user says "rotate the deployer wallet", "replace safeOwners[0]", "swap the deployer / canceller EOA", or "/rotate-deployer-wallet". This is the heaviest-governance rotation (production Safe + Timelock) — NOT the staging owner (that is `rotate-dev-wallet`), NOT the emergency pauser (that is `rotate-pauser-wallet`), and NOT a full person offboarding (that is `offboard-sc-dev`). Requires Foundry, gh, lifi-connect for MongoDB, and a securely generated new wallet + hardware-wallet signing — both human steps. NEVER self-sign; all on-chain owner/role changes go through Safe/timelock.
 usage: /rotate-deployer-wallet [--new-address 0xNEW] [--check]
 ---
 
@@ -14,7 +14,7 @@ Rotate the shared **Deployer** wallet, which carries the protocol's heaviest pri
 - The Timelock `CANCELLER_ROLE` (and the production timelock executor).
 - The CREATE3 deployer key used to broadcast deploys.
 
-Because it is SC-owned it is rotatable, but every privilege it holds is governed by Safe + Timelock — so the on-chain swaps run as **Safe proposals through `multisig-rollout`**, never as owner shortcuts. This skill is a **thin orchestrator**: it sequences the L1 and existing skills, enforces the guardrails, and gates on the final check. It reimplements none of their logic.
+Because it is SC-owned it is rotatable, but every privilege it holds is governed by Safe + Timelock — so the on-chain swaps run as **Safe proposals** (Phase 2), never as owner shortcuts. This skill is a **thin orchestrator**: it sequences the L1 and existing skills, enforces the guardrails, and gates on the final check. It reimplements none of their logic.
 
 ## When to use / when NOT
 
@@ -45,21 +45,21 @@ The **old** deployer address is derived from `PRIVATE_KEY_PRODUCTION` in `.env` 
 ## Guardrails
 
 - **Custody guard.** Rotate only SC-owned wallets (**deployer, dev, pauser**); this skill rotates **deployer** only. NEVER touch the CTO-owned refund / feeCollector / withdraw — if the request drifts there, stop and say so.
-- **Never self-sign.** New-key generation is a human step. The Safe owner swap and canceller-role move are Ledger-signed by the human via `multisig-rollout`'s hand-off (`script/deploy/safe/confirm-safe-tx.ts`); this orchestrator hands off and WAITS — it never runs the signer.
-- **Never bypass Safe/timelock** (rule 002-architecture). Every EVM Safe owner / role / canceller change is a timelock-wrapped Safe proposal via `multisig-rollout`. The Tron ownership transfer (Phase 3, `transfer-ownership-to-timelock.ts`) is the one different mechanism but still governed — its confirm step is itself a Safe/Timelock proposal, not an owner shortcut.
+- **Never self-sign.** New-key generation is a human step. The Safe owner swap and canceller-role move are Ledger-signed by the human (`script/deploy/safe/confirm-safe-tx.ts`); this orchestrator hands off and WAITS — it never runs the signer.
+- **Never bypass Safe/timelock** (rule 002-architecture). Every EVM Safe owner change is a Safe proposal and every role/canceller change a timelock-wrapped one (Phase 2). The Tron ownership transfer (Phase 3, `transfer-ownership-to-timelock.ts`) is the one different mechanism but still governed — its confirm step is itself a Safe/Timelock proposal, not an owner shortcut.
 - **Secrets hygiene.** Never print a private key or full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
 - **Bootstrap ordering.** Sweep FIRST (Phase 1) so the new deployer has gas before it acts; within the sweep, native goes LAST (the L1 skill enforces this) so gas for other moves isn't stranded.
 - **Dry-run first.** Run each step's preview/`--check`/`--dryRun` and confirm the plan before any broadcast or proposal is minted.
 
 ## Workflow
 
-Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`. lifi-connect is required for the MongoDB signature verification inside `multisig-rollout`.
+Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`. lifi-connect is required for the MongoDB signature verification in Phase 2.
 
 ### Phase 0 — Preflight & confirm plan
 
 - Confirm `--new-address` is present, checksum-valid, and NOT any current SC/CTO wallet in `config/global.json`.
 - Report old → new for the EVM field and the derived Tron base58.
-- Present the ordered plan (Phases 1–7) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for human key generation and, critically, for **Ledger signing** of the Safe proposals inside `multisig-rollout`, after which the user returns to the chat and the skill resumes with the remaining phases (3–7).
+- Present the ordered plan (Phases 1–7) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for human key generation and, critically, for **Ledger signing** of the Phase 2 Safe proposals, after which the user returns to the chat and the skill resumes with the remaining phases (3–7).
 
 ### Phase 1 — Bootstrap the new deployer's gas (`sweep-wallet-funds`) — FIRST
 
@@ -77,24 +77,24 @@ Sweep native gas from the old deployer to the new one across all active EVM chai
 
 > **Sophon deployer allow-list (manual, per-address).** `sophon` gates contract deployment behind a per-EOA allow-list, so the new deployer is **rejected on every Sophon deploy** (`contract deployer address … is not in the allow list`) until the Sophon team adds it — funding the wallet is not enough, and the allow-listing does **not** carry over on rotation. It's an off-repo, async request, so start it **now** during bootstrap rather than discovering it at the next Sophon rollout: ask in the Sophon partner channel to allow-list the new deployer EOA. It doesn't block the other phases. (Other zkEVM chains like `abstract` and `zksync` have no such restriction.)
 
-### Phase 2 — Swap the Safe owner + move CANCELLER_ROLE (`multisig-rollout`)
+### Phase 2 — Swap the Safe owner + move CANCELLER_ROLE
 
-The governed changes — replace `safeOwners[0]` (old → new) on every production Safe and move the Timelock `CANCELLER_ROLE` (old removed, new granted) — run as timelock-wrapped Safe proposals via the production rollout skill:
+`multisig-rollout` has no owner-swap mode; it deploys, proposes cuts and syncs whitelists only. The proposals come from two helpers in `script/playgroundHelpers.sh`, run once per production network:
 
-```text
-/multisig-rollout <owner-swap + canceller-role change>
-```
+- `manageSafeOwner "replace" <network> <OLD> <NEW>` — a Safe `swapOwner` proposal on the Safe itself (not timelock-wrapped).
+- `manageTimelockCanceller "replace" <network> <OLD> <NEW>` — a timelock-wrapped proposal that revokes `CANCELLER_ROLE` from the old deployer and grants it to the new one.
 
-`multisig-rollout` captures the proposals, drafts the PR, and then **pauses to hand Ledger signing to the human** (`confirm-safe-tx.ts`) — it verifies `signatureCount >= 2` in MongoDB and posts `#dev-sc-multisig-proposals`. This orchestrator does NOT sign and does NOT post; it waits for `multisig-rollout` to complete its lifecycle (the human signs, the team recruits the remaining signer). Never self-sign, never bypass the Safe.
+No committed entry point runs these across networks; the commented examples in `executeNetworkActions` (`script/multiNetworkExecution.sh`) are the team's playground for it. Ask the user how they want to run them, and do not commit the playground edit. Then follow `multisig-rollout`'s tail for the created proposals: hand Ledger signing to the human (`confirm-safe-tx.ts`), verify `signatureCount >= 2` in MongoDB, and post `#dev-sc-multisig-proposals`. Never self-sign, never bypass the Safe.
 
-### Phase 3 — Tron: ownership → Timelock + delegation
+### Phase 3 — Tron: Safe owner + delegation
 
-On Tron the diamond ownership is held by the Timelock; move it via the existing script (env-derived network: production → `tron`, NOT a flag):
+Read the Tron diamond's owner first:
 
 ```bash
-bunx tsx script/deploy/tron/transfer-ownership-to-timelock.ts --dryRun          # preview
-bunx tsx script/deploy/tron/transfer-ownership-to-timelock.ts --step 1          # then --step 2
+bunx tsx script/troncast/index.ts call --env mainnet <LiFiDiamond from deployments/tron.json> "owner() returns (address)"
 ```
+
+If it is the `LiFiTimelockController` from `deployments/tron.json`, there is no ownership to move and `transfer-ownership-to-timelock.ts` has nothing to do; if it is the old deployer, run that script (`--dryRun`, then `--step 1`, then `--step 2`, with `PRODUCTION=true`). The Tron Safe owner swap has no helper — `manageSafeOwner` proposes through the EVM `propose-to-safe.ts` — so report it as a manual follow-up rather than marking Tron done.
 
 Then re-point the Tron staked-resource delegation from the old deployer Tron address to the new one:
 
@@ -130,7 +130,7 @@ For the deployer role the relevant checks are: Safe-owner membership (old remove
 
 ### Phase 7 — Report
 
-Summarize: swept networks (moved/skipped), the `multisig-rollout` outcome (proposal nonces, PR URL, Slack thread, remaining team signatures), Tron ownership + delegation state, config PR URL, old-key decommission status, and the `check-rotation-status` result. Call out anything still pending (unsigned proposals, unverified networks) and the human follow-ups.
+Summarize: swept networks (moved/skipped), the Phase 2 outcome (proposal nonces, Slack thread, remaining team signatures), Tron ownership + delegation state, config PR URL, old-key decommission status, and the `check-rotation-status` result. Call out anything still pending (unsigned proposals, unverified networks) and the human follow-ups.
 
 ## Verification
 
@@ -141,8 +141,8 @@ Complete only when `check-rotation-status` (Phase 6) passes for every network: n
 | Step | Delegates to | Owns |
 |---|---|---|
 | Bootstrap gas | `sweep-wallet-funds` | native sweep across EVM chains, pre-send report, secrets hygiene |
-| Safe owner swap + canceller move | `multisig-rollout` | proposals → PR → Ledger hand-off → Mongo sig verify → Slack |
-| Tron ownership → Timelock | `script/deploy/tron/transfer-ownership-to-timelock.ts` | env-derived Tron handover (production → tron) |
+| Safe owner swap + canceller move | `manageSafeOwner` / `manageTimelockCanceller` (`script/playgroundHelpers.sh`), then `multisig-rollout`'s signing tail | proposals → Ledger hand-off → Mongo sig verify → Slack |
+| Tron ownership → Timelock (only if still deployer-owned) | `script/deploy/tron/transfer-ownership-to-timelock.ts` | env-derived Tron handover (`PRODUCTION=true` → tron) |
 | Tron delegation | `move-tron-delegation` | undelegate→re-delegate request + Tronscan verify |
 | Config PR | `update-wallet-config` | `global.json` deployerWallet + `tronWallets.deployerWallet`, `/create-pr` |
 | Completeness gate | `check-rotation-status` | read-only cross-network verification |

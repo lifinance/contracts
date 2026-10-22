@@ -18,7 +18,7 @@ User says any of:
 
 - **Branch name** (optional). If omitted, derive from staged changes or task context (e.g. `feat/short-description`).
 - **Commit message** (optional). If omitted, derive from the diff.
-- **Draft** (optional). When the user or a delegating skill asks for a draft PR, pass `--draft` in step 11. All other steps (template, Linear ticket, tests) apply unchanged.
+- **Draft** (optional). When the user or a delegating skill asks for a draft PR, pass `--draft` in step 10. All other steps (template, Linear ticket, tests) apply unchanged.
 - **Linear task link or ID** (required unless the user explicitly opts out). Must be a **SmartContract-team ticket (EXSC prefix)** that is **assigned** and has an **estimate** — step 5 validates and repairs this for existing tickets and guarantees it for created ones. If known from context, include in PR body; otherwise step 5 resolves or creates one. "Explicitly opts out" means the user said in this session that this PR needs no ticket (or chose `s` at the step 5 prompt) — the absence of a known ticket is never an opt-out.
 
 ## Related conventions
@@ -90,10 +90,10 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
   **Validation (applies to any ticket resolved via routes 1–3)** — fetch it with the Linear MCP `get_issue` tool and check:
 
   - **Team**: must belong to the SmartContract team (EXSC prefix). A ticket from another team does not satisfy the requirement — keep it as an extra `Ref <ID>` line if relevant, but fall through to route 4 to create the EXSC ticket.
-  - **Assignee**: if unassigned, assign the current user via `save_issue` with `assignee: "me"`. Never reassign a ticket that already has an assignee.
-  - **Estimate**: if none is set, propose one scaled to the diff (default **1** for simple/small changes), show it to the user for adjustment, and set it via `save_issue`. Unattended runs set the proposed value directly.
+  - **Assignee**: if unassigned, plan to assign the current user (`save_issue` with `assignee: "me"`). Never reassign a ticket that already has an assignee.
+  - **Estimate**: if none is set, propose one scaled to the diff (default **1** for simple/small changes) for the user to adjust.
 
-  Report any repairs made (assignee/estimate) in the pre-flight summary (step 9).
+  Do not write to Linear yet. List the planned repairs (assignee/estimate) in the pre-flight summary (step 8); they run in step 9 after approval. Unattended runs apply the proposed values in step 9.
 
   4. **Not found** — create a new Linear ticket. A ticket is **required** on every PR; proceeding without one is allowed only on an explicit user opt-out, never as a silent fallback. If the user already opted out earlier in this session, skip this prompt and use `<!-- No Linear task -->`. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
      - Propose in chat (filling in the placeholders with the actual derived values):
@@ -108,8 +108,8 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
        - `e` (default) — show the proposed title and estimate (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
        - `y` — create the ticket with the proposed title as-is **and** rename the branch.
        - `s` — explicit opt-out; proceed without a ticket and leave the branch as-is. If the change genuinely qualifies (typo / doc-only / dep-bump / single-line fix), suggest adding the `trivial` label so the ticket-linkage metric counts the PR as linked.
-     - If running unattended (no user available to answer), create the ticket with the derived title — do **not** proceed without one.
-     - On `y` / `e` (after the user confirms the edited title): call the Linear MCP `save_issue` tool with `team: "SmartContract"`, the (edited) title, a short body summarizing the change + a placeholder for the PR URL, `assignee: "me"`, and the confirmed `estimate` (default **1** for simple tasks, scaled to the diff). Use the returned ID:
+     - If running unattended (no user available to answer), plan the ticket with the derived title — do **not** proceed without one.
+     - On `y` / `e` (after the user confirms the edited title): record the planned ticket (title, estimate). It is created in step 9, after the pre-flight approval, with the Linear MCP `save_issue` tool: `team: "SmartContract"`, the (edited) title, a short body summarizing the change + a placeholder for the PR URL, `assignee: "me"`, and the confirmed `estimate` (default **1** for simple tasks, scaled to the diff). Then, still in step 9:
        - Insert `Fixes [<ID>](<ticket URL>)` in the PR body's Linear section (URL from the `save_issue` response).
        - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). The user already consented to this rename via the prompt above.
      - On `s` (explicit user opt-out) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
@@ -126,13 +126,6 @@ Read `.github/pull_request_template.md` verbatim. Fill in:
 ### 6. Derive PR title
 
 Short imperative title (≤70 chars). Match existing commit style in `git log`.
-
-**Revert PRs**: the title must start with `Revert` or contain `[Revert]`.
-`versionControlAndAuditCheck.yml` uses the title to exempt revert PRs from the
-audit-commit-hash check (the audited commit lives in the reverted PR's history,
-never in the revert PR's commit list) — a non-conforming title (e.g.
-`fix: undo facet change`) blocks the merge of a genuine revert that touches
-audited contracts.
 
 ### 7. Run the test suite
 
@@ -174,7 +167,8 @@ Self-review:
   • Findings: <none / list any concerns>
   • Single-concern: <yes / no — and why>
 
-Linear: <EXSC-ID> — assignee <name>, estimate <n>   (repairs: <none / assigned <name> / estimate set to <n>>)
+Linear: <EXSC-ID> — assignee <name>, estimate <n>   (planned repairs: <none / assign <name> / set estimate <n>>)
+  ↑ or: new ticket "<title>", estimate <n>, branch → <new-branch>   (created in step 9)
   ↑ or: no ticket (explicit user opt-out)
 
 Checks run:
@@ -192,10 +186,12 @@ PR body:
 Proceed? (y/n)
 ```
 
-If the user says **n**: ask what to change (title, body, files) and loop back. Do not push.
+If the user says **n**: ask what to change (title, body, files) and loop back. Do not push, and do not write to Linear.
 If the user says **y**: proceed to steps 9–10.
 
-### 9. Push
+### 9. Apply Linear changes, then push
+
+Run the Linear writes planned in step 5 — create the ticket, or apply the assignee/estimate repairs — then fill the ticket link into the body and rename the branch if step 5 planned it. Then push:
 
 ```bash
 git push -u origin <branch-name>
@@ -203,10 +199,10 @@ git push -u origin <branch-name>
 
 ### 10. Create PR
 
-Write body to a temp file and create via `gh`:
+Write the body to a file in the session scratchpad (not a shared `/tmp` path — parallel sessions overwrite each other there) and create via `gh`:
 
 ```bash
-gh pr create --title "<title>" --body "$(cat /tmp/pr-body.md)" --base main --head <branch-name>
+gh pr create --title "<title>" --body-file <scratchpad>/pr-body.md --base main --head <branch-name>
 ```
 
 Append `--draft` if the Draft input was requested.

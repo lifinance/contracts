@@ -97,7 +97,7 @@ universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVAT
 
 You can also call `universalCall`, `universalSend`, `universalSendRaw`, or `universalCode` directly (they are what `universalCast` dispatches to). **Optional private key override**: For `universalSend`, `universalSendRaw`, and `sendOrPropose`, pass a hex private key as the last (optional) argument to use that key instead of `getPrivateKey(NETWORK, ENVIRONMENT)` (e.g. for pauser wallet or old/new owner flows).
 
-**For raw calldata transactions**, use `sendOrPropose` (internally uses `universalCast "sendRaw"` for Tron and EVM staging; EVM production uses propose-to-safe.ts):
+**For raw calldata transactions**, use `sendOrPropose`. Production proposes to the Safe — `propose-to-safe.ts` on EVM, `propose-to-safe-tron.ts` on Tron — unless `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`; staging and testnets send directly via `universalCast "sendRaw"`:
 
 ```bash
 # sendOrPropose NETWORK ENVIRONMENT TARGET CALLDATA [TIMELOCK] [PRIVATE_KEY_OVERRIDE]
@@ -107,12 +107,14 @@ sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "true"
 
 ### Routing Behavior for universalCast
 
-| Function | Tron | EVM Production | EVM Staging |
-|----------|------|----------------|-------------|
-| `universalCall` | troncast call | cast call | cast call |
-| `universalSend` | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
-| `universalSendRaw` | troncast send (direct) | (not used) | cast send (direct) |
-| `universalCode` | troncast code | cast code | cast code |
+| Function | Tron Production | Tron Staging | EVM Production | EVM Staging / Testnet |
+|----------|-----------------|--------------|----------------|-----------------------|
+| `universalCall` | troncast call | troncast call | cast call | cast call |
+| `universalSend` | propose-to-safe-tron.ts | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
+| `universalSendRaw` | troncast send (direct) | troncast send (direct) | (not used) | cast send (direct) |
+| `universalCode` | troncast code | troncast code | cast code | cast code |
+
+`universalSend` delegates to `sendOrPropose`, so its production column holds only while `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` is not `true`; with it set, production sends directly too.
 
 ### Consolidate routing predicates [CONV:ROUTING-PREDICATE]
 

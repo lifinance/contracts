@@ -1,12 +1,12 @@
 ---
 name: offboard-sc-dev
-description: Orchestrates a full smart-contract-team offboarding end-to-end — swaps the departing person out of the multisig and rotates every shared SC-owned wallet they held (deployer, dev, pauser) to freshly generated replacements. v1 is EXECUTE-ONLY: it assumes the Linear ticket tree already exists (modeled on EXSC-558) and runs the rotations; it does NOT create the tickets (that is a fast-follow). Use when the user says "offboard <SC dev>", "run the SC-dev offboarding", or "replace <person> as multisig signer and rotate the shared wallets". NOT for non-SC offboarding, and it never reimplements a rotation — it drives `rotate-deployer-wallet`, `rotate-dev-wallet`, `rotate-pauser-wallet`, and `multisig-rollout` for the signer swap, gating on `check-rotation-status`. Requires Foundry, gh, lifi-connect (MongoDB), the Slack MCP server, and a human at the keyboard for key generation and Ledger signing. Never self-signs; never rotates CTO-owned wallets.
+description: Orchestrates a full smart-contract-team offboarding end-to-end — swaps the departing person out of the multisig and rotates every shared SC-owned wallet they held (deployer, dev, pauser) to freshly generated replacements. v1 is EXECUTE-ONLY: it assumes the Linear ticket tree already exists (modeled on EXSC-558) and runs the rotations; it does NOT create the tickets (that is a fast-follow). Use when the user says "offboard <SC dev>", "run the SC-dev offboarding", or "replace <person> as multisig signer and rotate the shared wallets". NOT for non-SC offboarding, and it never reimplements a rotation — it drives `rotate-deployer-wallet`, `rotate-dev-wallet`, `rotate-pauser-wallet`, and the `manageSafeOwner` helper for the signer swap, gating on `check-rotation-status`. Requires Foundry, gh, lifi-connect (MongoDB), the Slack MCP server, and a human at the keyboard for key generation and Ledger signing. Never self-signs; never rotates CTO-owned wallets.
 usage: /offboard-sc-dev --person <name> --removed-signer 0x --new-signer 0x [--linear EXSC-XXX]
 ---
 
 # Offboard SC Dev (LI.FI Contracts)
 
-Drives the smart-contract half of offboarding a departing SC team member: remove them as a Safe multisig signer, add their replacement, and rotate every **shared** wallet they had custody of to a freshly generated one. This is the orchestrator — it **calls** the per-role rotate-* skills and `multisig-rollout`; it does not reimplement any rotation.
+Drives the smart-contract half of offboarding a departing SC team member: remove them as a Safe multisig signer, add their replacement, and rotate every **shared** wallet they had custody of to a freshly generated one. This is the orchestrator — it **calls** the per-role rotate-* skills and the Safe owner helpers; it does not reimplement any rotation.
 
 **v1 scope — EXECUTE-ONLY.** This skill assumes the offboarding **Linear ticket tree already exists** (created by hand, modeled on EXSC-558) and its job is to *execute* that plan. It does **not** generate the ticket tree. Auto-creating the tickets is a deliberate **fast-follow** — call it out at the start so the user knows to have the tree ready, and don't silently skip a step because a ticket is missing.
 
@@ -20,7 +20,7 @@ Why an orchestrator and not one big script: each role has a different rotation m
 | Just the deployer wallet | `rotate-deployer-wallet` |
 | Just the staging owner (Dev wallet) | `rotate-dev-wallet` |
 | Just the emergency pauser | `rotate-pauser-wallet` |
-| A single production rollout / signer swap on its own | `multisig-rollout` |
+| A single production rollout on its own | `multisig-rollout` |
 
 NOT for non-SC offboarding (HR/IT deprovisioning is out of scope) and NOT for rotating a CTO-owned wallet (refund / feeCollector / withdraw — see custody guard).
 
@@ -35,8 +35,8 @@ NOT for non-SC offboarding (HR/IT deprovisioning is out of scope) and NOT for ro
 ## Guardrails
 
 - **Custody guard.** Rotate only the SC-owned shared wallets (**deployer, dev, pauser**) plus swap the departing person's **personal multisig signer** seat. NEVER rotate the CTO-owned refund / feeCollector / withdraw — if the ticket tree implies touching one, stop and escalate.
-- **Never self-sign.** New-key generation is a human step. Every Safe proposal (signer swap, deployer's Safe-owner / CANCELLER moves, pauser diamond cuts) is human Ledger-signed via `multisig-rollout` → `script/deploy/safe/confirm-safe-tx.ts`; this skill and the ones it calls hand off and WAIT — none run the signer.
-- **Never bypass Safe/timelock** (rule 002-architecture). All owner/role/pauser on-chain changes go through `multisig-rollout` — no direct cuts, no `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`.
+- **Never self-sign.** New-key generation is a human step. Every Safe proposal (signer swap, deployer's Safe-owner / CANCELLER moves, pauser diamond cuts) is human Ledger-signed via `script/deploy/safe/confirm-safe-tx.ts`; this skill and the ones it calls hand off and WAIT — none run the signer.
+- **Never bypass Safe/timelock** (rule 002-architecture). All owner/role/pauser on-chain changes go through Safe proposals — no direct cuts, no `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`.
 - **Secrets hygiene.** Never print a private key or full RPC URL. Derive every old address from its key or on-chain state, never from `config/global.json`.
 - **Exit-code convention** for sub-skills / scripts: `0` success; `1` real error (report, stop, no retry); `2` recoverable misconfig (name the missing env/credential). A failing network in one rotation must not silently abort the others — surface it and let the operator decide.
 - Scripting is TypeScript (`bunx tsx`) or Bash only, never Python. Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
@@ -62,13 +62,9 @@ Nothing on-chain can proceed until the replacement keys exist. The human securel
 
 ### Phase 2 — Swap the multisig signer (remove departing, add replacement)
 
-Change the Safe ownership set on every production chain: remove the departing person's personal signer, add the replacement. This is a Safe owner change, so it runs through the production rollout lifecycle:
+Change the Safe ownership set on every production chain: remove the departing person's personal signer, add the replacement. `multisig-rollout` has no owner-swap mode; the proposals come from `manageSafeOwner "replace" <network> <DEPARTING> <REPLACEMENT>` (`script/playgroundHelpers.sh`), run once per production network. No committed entry point runs it across networks — the commented examples in `executeNetworkActions` (`script/multiNetworkExecution.sh`) are the team's playground for it, so ask the user how they want to run it and do not commit the playground edit. Tron's Safe has no helper; report it as a manual follow-up.
 
-```text
-/multisig-rollout
-```
-
-driven for the owner-swap (add replacement + remove departing signer) across all chains — proposals → PR → **human Ledger signing (hand off, wait)** → verify `signatureCount >= 2` → post `#dev-sc-multisig-proposals`. Do not run `confirm-safe-tx.ts` yourself. Wait for the user to confirm signing before treating the swap as landed.
+Then follow `multisig-rollout`'s signing tail: **human Ledger signing (hand off, wait)** → verify `signatureCount >= 2` → post `#dev-sc-multisig-proposals`. Do not run `confirm-safe-tx.ts` yourself. Wait for the user to confirm signing before treating the swap as landed.
 
 ### Phase 3 — Rotate the deployer wallet
 
@@ -78,7 +74,7 @@ Heaviest governance role (`safeOwners[0]` + Timelock `CANCELLER_ROLE` + prod tim
 /rotate-deployer-wallet --new-address <NEW_DEPLOYER>
 ```
 
-It sweeps old→new first (bootstrap gas), swaps the Safe owner + moves `CANCELLER_ROLE` via `multisig-rollout` (human signs), handles Tron ownership + delegation, updates config, and decommissions the old key. Let it own its own signing hand-offs; wait for it to report complete.
+It sweeps old→new first (bootstrap gas), swaps the Safe owner + moves `CANCELLER_ROLE` via Safe proposals (human signs), handles Tron ownership + delegation, updates config, and decommissions the old key. Let it own its own signing hand-offs; wait for it to report complete.
 
 ### Phase 4 — Rotate the dev wallet
 
@@ -98,7 +94,7 @@ Immutable pauser → redeploy `EmergencyPauseFacet` with the new pauser and cut 
 /rotate-pauser-wallet --new-address <NEW_PAUSER>
 ```
 
-It repoints (via `deploy-contract` / `multisig-rollout`, incl. Tron), sweeps the old pauser, runs the CI funding check, rotates the CI pauser secret + re-verifies `verifyEmergencyPauseReadiness.yml` (coordinated, partly outside this repo), and updates config.
+It updates config first (the redeploy reads it), repoints (via `deploy-contract` / `multisig-rollout`, and `deploy-contract-tron` for Tron), sweeps the old pauser, runs the CI funding check, and rotates the CI pauser secret + re-verifies `verifyEmergencyPauseReadiness.yml` (coordinated, partly outside this repo).
 
 ### Phase 6 — Shared-secret rotation checklist
 
@@ -130,7 +126,7 @@ Offboarding is complete only when ALL hold:
 
 | Step | Calls |
 |---|---|
-| Multisig signer swap (remove departing, add replacement) | `/multisig-rollout` |
+| Multisig signer swap (remove departing, add replacement) | `manageSafeOwner "replace"` per network, then `multisig-rollout`'s signing tail |
 | Rotate deployer (`safeOwners[0]` + CANCELLER) | `/rotate-deployer-wallet` |
 | Rotate dev (staging owner) | `/rotate-dev-wallet` |
 | Rotate pauser (immutable → redeploy `EmergencyPauseFacet`) | `/rotate-pauser-wallet` |

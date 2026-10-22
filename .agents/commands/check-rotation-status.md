@@ -1,6 +1,6 @@
 ---
 name: check-rotation-status
-description: Verify a wallet rotation / SC-dev offboarding is complete across all active networks — Safe-owner membership (old removed / new added), Timelock CANCELLER_ROLE (old removed / new granted), whitelist permission, staging-diamond `owner()`, and wallet funding (the CI funding check). Generalizes the hardcoded `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` (whose addresses are baked-in module constants) into a reusable, flag-driven check that takes old/new addresses as citty flags — writing that generalized checker is this skill's real work. Read-only, so it is the natural final gate for every rotate-* skill and the `offboard-sc-dev` orchestrator. Use when the user says "check the offboarding status", "verify the rotation is complete", "is the deployer/dev rotation done across all chains", "run the rotation status check", or similar. NOT for performing any rotation step — those are `rotate-dev-wallet` / `rotate-deployer-wallet` / `rotate-pauser-wallet`. Requires `bun` and RPC access (premium RPC via `ETH_NODE_URI_<NETWORK>` env vars recommended).
+description: Verify a wallet rotation / SC-dev offboarding is complete across all active networks — Safe-owner membership (old removed / new added), Timelock CANCELLER_ROLE (old removed / new granted), whitelist permission, staging-diamond `owner()`, and wallet funding (the CI funding check). Generalizes the hardcoded `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` (whose addresses are baked-in module constants) into a reusable, flag-driven check that takes old/new addresses as citty flags. The generalized checker does not exist yet; until it lands as its own PR, the skill reports every check as not run. Read-only, so it is the natural final gate for every rotate-* skill and the `offboard-sc-dev` orchestrator. Use when the user says "check the offboarding status", "verify the rotation is complete", "is the deployer/dev rotation done across all chains", "run the rotation status check", or similar. NOT for performing any rotation step — those are `rotate-dev-wallet` / `rotate-deployer-wallet` / `rotate-pauser-wallet`. Requires `bun` and RPC access (premium RPC via `ETH_NODE_URI_<NETWORK>` env vars recommended).
 usage: /check-rotation-status --old-address 0xOLD --new-address 0xNEW [--role deployer|dev|pauser] [--removed-signer 0x] [--network <csv>] [--production]
 ---
 
@@ -118,13 +118,15 @@ Optional:
 
 ## Workflow
 
-### 1. Ensure the generalized checker exists (this skill's build step)
+### 1. Confirm the generalized checker exists
 
-If `script/tasks/checkRotationStatusPerNetwork.ts` does not yet exist on the
-branch, create it per "The real work" above — lift the read logic from
-`script/tasks/temp/checkOffboardingStatusPerNetwork.ts`, swap the hardcoded
-constants for citty flags, keep the exclusions and premium-RPC resolution.
-Leave the `temp/` script in place as the reference.
+`script/tasks/checkRotationStatusPerNetwork.ts` does not exist on `main` yet.
+If it is still missing, do **not** write it during a rotation — a gate
+improvised mid-rotation is unreviewed code deciding whether governance changes
+landed. Stop, tell the user the checker has to land as its own reviewed PR
+(built per "The real work" above), and report each applicable check as
+"not run". The calling `rotate-*` skill then treats its completeness gate as
+open, not passed.
 
 ### 2. Run the check
 

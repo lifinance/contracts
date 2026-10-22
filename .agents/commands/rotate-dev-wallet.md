@@ -56,9 +56,15 @@ Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`.
 - Report old → new for both the EVM field and the derived Tron base58 (the derivation itself is done inside `update-wallet-config` / `move-tron-delegation`).
 - Present the ordered plan (Phases 1–6) and wait for explicit go-ahead. State up front that the rotation is **semi-automated**: it will pause for the human key-generation confirmation and, on Tron, for any Ledger signing.
 
-### Phase 1 — Fund the new wallet (`sweep-wallet-funds`)
+### Phase 1 — Start the staging diamond ownership transfers (old key)
 
-Sweep native gas from the old dev wallet to the new one across all active EVM chains, so the new wallet can pay for its own ownership-acceptance / delegation txs.
+Staging diamonds are EOA-owned by the dev wallet, and `OwnershipFacet` hands over in two steps: the current owner calls `transferOwnership(<NEW>)`, then the new owner calls `confirmOwnershipTransfer()`. Send every `transferOwnership` from the old dev key **now**, while it still has gas — Phase 2 sweeps it. Preview first, confirm, then go one network at a time.
+
+Tron staging is out of scope: there is no `deployments/tron.staging.json`, so `transfer-ownership-to-timelock.ts` throws when run with `PRODUCTION` unset. Report it as not applicable rather than running it.
+
+### Phase 2 — Fund the new wallet (`sweep-wallet-funds`)
+
+Only after every old-key transaction from Phase 1 has landed, sweep native gas from the old dev wallet to the new one across all active EVM chains, so the new wallet can pay for `confirmOwnershipTransfer()` and its delegation txs.
 
 ```text
 /sweep-wallet-funds --new-address <NEW> --old-key-env PRIVATE_KEY   # staging dev key
@@ -68,18 +74,7 @@ Sweep native gas from the old dev wallet to the new one across all active EVM ch
 
 > **HyperEVM big blocks (manual, per-address).** The new dev EOA cannot deploy on `hyperevm` until big blocks are enabled for it — an L1 setting that does **not** carry over on rotation (register the address as a HyperCore Core user, then toggle big blocks ON). Follow the runbook: `docs/HyperEVMBigBlocks.md`.
 
-### Phase 2 — Transfer staging diamond ownership (old → new)
-
-Staging diamonds are EOA-owned by the dev wallet, so this is a direct owner transfer per EVM network (the old dev key sets the new dev address as owner; the new wallet accepts if the diamond uses a two-step handover). Run the preview/dry-run first, confirm, then execute one network at a time.
-
-On **Tron staging** (`tronshasta`) ownership does not go to an EOA — hand the diamond to the Timelock via the existing script (env-derived network: staging → `tronshasta`, NOT a flag):
-
-```bash
-bunx tsx script/deploy/tron/transfer-ownership-to-timelock.ts --dryRun            # preview
-bunx tsx script/deploy/tron/transfer-ownership-to-timelock.ts --step 1            # then --step 2
-```
-
-This script may prompt for `--currentOwnerPrivateKey`; supply the old dev key via env, never inline. If any step needs Ledger signing, it is a human step — never self-sign.
+Then, from the new key, call `confirmOwnershipTransfer()` on every staging diamond from Phase 1 and read `owner()` back.
 
 ### Phase 3 — Move Tron energy delegation (`move-tron-delegation`)
 
@@ -117,7 +112,7 @@ Summarize per network: swept (moved/skipped), staging ownership transferred, Tro
 
 ## Verification
 
-The rotation is complete only when `check-rotation-status` (Phase 5) passes for every active network: new dev owns each staging diamond, old dev owns none, Tron staging + delegation reflect the new address, and funding passes. Re-run `/rotate-dev-wallet --check` any time to re-confirm without changing state.
+The rotation is complete only when `check-rotation-status` (Phase 5) passes for every active network: new dev owns each staging diamond, old dev owns none, the Tron delegation reflects the new address, and funding passes. Re-run `/rotate-dev-wallet --check` any time to re-confirm without changing state.
 
 ## Reuse map
 
