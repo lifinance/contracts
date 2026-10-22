@@ -18,7 +18,7 @@ paths:
 
 ### Immutable action refs ([CONV:ACTIONS-IMMUTABLE])
 
-- **Every `uses:` reference MUST use a full 40-character commit SHA** — including `actions/upload-artifact` and the `actions-ecosystem` label actions. Do not use tags (e.g. `@v4`, `@v1`, `@main`) or short SHAs; tags can be reassigned.
+- **Every external `uses:` reference MUST use a full 40-character commit SHA** (local `./.github/actions/*` paths take none) — including `actions/upload-artifact` and the `actions-ecosystem` label actions. Do not use tags (e.g. `@v4`, `@v1`, `@main`) or short SHAs; tags can be reassigned.
 - **Format**: `owner/repo@<full-40-char-sha>` with an optional trailing comment for traceability:
 
   ```yaml

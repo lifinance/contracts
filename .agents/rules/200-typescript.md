@@ -128,4 +128,4 @@ Editor diagnostics (and Cursor “lints”) are not sufficient. On every changed
 - `bunx oxlint --type-aware <files>` must exit `0` (`--fix` applies fixable issues).
 - `bash script/utils/typecheck-files.sh <files>`.
 
-When changes touch shared helpers or wide surfaces, run `bun lint:js` and `bun lint` instead.
+When changes touch shared helpers or wide surfaces, also run `bun lint` (it includes `bun lint:js`); it does not replace the per-file typecheck.

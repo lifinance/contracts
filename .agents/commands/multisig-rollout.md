@@ -67,7 +67,7 @@ In deploy mode, `deploy-contract` re-checks the deploy-side prerequisites (Found
 
 ### deploy mode
 
-Explicit chains if the user named them; otherwise every chain where the contract is already live. Run the commands from `deploy-contract` Phase 1 directly for live-chain discovery, repo version (report old → new per network), the diamond-called check (its registration proposal then carries the allowlist writes), and the **required companion periphery** — a facet with a `facetPeripheryCouplings` entry in `config/global.json` needs its companion deployed *and* registered on every target chain, or destination calls stay disabled there. Run the companion recipes in propose-only and whitelist modes too, since they never call that skill.
+Explicit chains if the user named them; otherwise every chain where the contract is already live. Run the commands from `deploy-contract` Phase 1 directly for live-chain discovery, repo version (report old → new per network), the diamond-called check (its registration proposal then carries the allowlist writes), and the **required companion periphery** — a facet with a `facetPeripheryCouplings` entry in `config/global.json` needs its companion deployed *and* registered on every target chain its `notRequiredOn` does not name, or destination calls stay disabled there. Run the companion recipes in propose-only and whitelist modes too, since they never call that skill.
 
 ### propose-only mode — resolve targets
 
