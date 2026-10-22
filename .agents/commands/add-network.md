@@ -1,16 +1,18 @@
 ---
 name: add-network
-description: Add a new network to the codebase (networks.json, foundry.toml, permit2Proxy.json, gaszip.json, bridge configs; do not mutate global.json for per-network Permit2/GasZip; target state via scriptMaster)
+description: "Adds a new network to config (networks.json, foundry.toml, target state, permit2Proxy/gaszip and bridge configs) from manual input or a chain-team form CSV, checking every address with cast code. Use for \"add network <name>\". Never edits global.json or whitelist.json. Removal → deprecate-network."
 usage: /add-network [networkKey] — inputs manually or via CSV of chain team form responses; optionally permit2 address, gasZip short ID and router address
 ---
 
-# Add Network Command
+# Add Network
 
 **Usage**: `/add-network` or `/add-network <networkKey>`
 
-Collect required inputs (manually or from a **CSV** of chain team form responses), validate them and contract addresses with `cast code`, then update config files. For any contract address (multicall, Permit2, Gas.zip router, bridge contracts), run `cast code <address> --rpc-url <rpcUrl>`; if result is `0x` or empty, warn and do not add or ask for the correct address.
+For any contract address (multicall, Permit2, Gas.zip router, bridge contracts), run `cast code <address> --rpc-url <rpcUrl>`; if the result is `0x` or empty, warn and do not add it — ask for the correct address.
 
-**Order**: (1) Validate all inputs and addresses; (2) Update configs. Validation can run in parallel (RPC, cast code, Etherscan V2 chainlist, Gas.zip inbound page, deployer/pauser balances). Config updates can run in parallel across files.
+**Order**: (1) Validate all inputs and addresses; (2) Update configs.
+
+**Do not edit `config/whitelist.json`** for the new network — whitelist is managed separately. Do not edit `config/global.json` either (Steps 5–6).
 
 ---
 
@@ -24,7 +26,7 @@ Collect required inputs (manually or from a **CSV** of chain team form responses
 
 **CSV column mapping** (LI.FI form): chainId ← Chain ID; networkKey ← Chain Name (lowercase, no spaces); rpcUrl ← Public RPC URL; explorerUrl ← Recommended block explorer URL:; verificationType ← What is the type of your recommended block explorer? (etherscan|blockscout|Routescan|Custom / Hemera's Social Scan / etc. → custom); nativeCurrency ← Symbol of native token; nativeAddress ← Address / Representation of native token (L1 → `0x0...0` if NA); wrappedNativeAddress ← Address of wrapped native token; multicallAddress ← Address of the Multicall3 contract (if deployed); permit2Address ← Address of the Permit2 contract (if deployed); gasZipRouterAddress ← Address of Gas.Zip Deposit V1 (if deployed); isZkEVM ← Is your chain a zkEVM chain type? (Yes→true). **explorerApiUrl**: not in form — use Etherscan V2 URL if chainId in chainlist, else from explorer type/docs. **Bridges**: column 40 (free text), 41–63 (checkboxes), 65 (addresses).
 
-**Validation**: Warn on missing required, bad format, unknown verificationType. Check Etherscan V2 chainlist; RPC chainId match; Gas.zip inbound for chainId; `cast code` for multicall, Permit2, Gas.zip router; **always** `cast balance` deployerWallet and pauserWallet from `config/global.json` and warn if zero/low. Summarize values and warnings; ask user to confirm before Step 2.
+**Validation**: Warn on missing required, bad format, unknown verificationType. Check Etherscan V2 chainlist; RPC chainId match; Gas.zip inbound for chainId; `cast code` for multicall, Permit2, Gas.zip router; **always** `cast balance` deployerWallet and pauserWallet from `config/global.json` and warn if zero/low (fund with native token before deploy; include balances in the output). Summarize values and warnings; ask user to confirm before Step 2.
 
 **verificationType** (foundry.toml): etherscan | blockscout | zksync | oklink | sourcify | routescan | custom.
 
@@ -92,44 +94,5 @@ No per-network work in the normal case. Both health-check workflows share one in
 
 Two fields set in earlier steps change what runs: `gasZipChainId: 0` skips the GasZip invariants, and `safeAddress` drives `safe-config`. On a chain with no native asset (`nativeCurrency: "N/A"`) also set `feeTokenAddress`, or `pauser-funded` cannot read a gas balance and only warns.
 
-If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` where there is no native asset to wrap), add a reasoned entry to `CORE_PERIPHERY_EXEMPTIONS` / `CORE_FACET_EXEMPTIONS`, or to `HEALTH_CHECK_EXCLUSIONS` for a whole invariant. No single flag disables the check for a whole network: every carve-out is per-invariant or per-contract and prints its reason. The blanket flag that used to exist left three chains unverified for months (EXSC-786).
+If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` where there is no native asset to wrap), add a reasoned entry to `CORE_PERIPHERY_EXEMPTIONS` / `CORE_FACET_EXEMPTIONS`, or to `HEALTH_CHECK_EXCLUSIONS` for a whole invariant. No single flag disables the check for a whole network: every carve-out is per-invariant or per-contract and prints its reason.
 
----
-
-## Warnings to show
-
-1. Multicall no code → provide valid address or abort.
-2. Permit2 no code → not adding to permit2Proxy.json (omit this network); do not edit global.json.
-3. Gas.zip router no code → verify address or do not add.
-4. Bridge address no code → do not add until correct address; check docs or column 65.
-5. Target state → add the network block with every contract set to `"latest"` (scriptMaster use case 7 → 3, or by hand).
-6. Deployer/pauser zero or low balance → fund with native token before deploy; include balances in output.
-7. **Changing `config/whitelist.json` is not allowed** — do not add or edit the new network there; whitelist is managed separately.
-
----
-
-## Checklist
-
-- [ ] Collect/validate inputs; confirm multicall and (if used) Permit2, Gas.zip router have code; run deployer/pauser balance check; summarize and get user confirm.
-- [ ] Add network to networks.json (alphabetical).
-- [ ] Add RPC + etherscan to foundry.toml; remind ETH_NODE_URI in .env.
-- [ ] Target-state block added for the new network, every contract `"latest"` (never a version — a version is a deliberate pin).
-- [ ] Permit2: add to permit2Proxy.json if has code; if no code, omit this network from permit2Proxy.json only (do not edit global.json).
-- [ ] Gas.zip: add to gaszip.json + networks.json if available; if not, set gasZipChainId = 0 in networks.json and omit from gaszip.json only (do not edit global.json).
-- [ ] Bridges: for each indicated, add to bridge config and validate addresses with cast code.
-- [ ] Health check: set `feeTokenAddress` if `nativeCurrency` is `"N/A"`; otherwise nothing to add unless a core contract cannot exist here — then add a reasoned exemption-table entry.
-
----
-
-## Files modified
-
-| File                              | Change                                                                                                                       |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `config/networks.json`            | New network (alphabetical); set gasZipChainId (or 0) per network.                                                            |
-| `foundry.toml`                    | New RPC + etherscan entry.                                                                                                   |
-| `config/permit2Proxy.json`        | New entry **only if** Permit2 has code on this network; omit network if no code.                                             |
-| `config/gaszip.json`              | New router entry **only if** Gas.zip available on this network; omit if not.                                                 |
-| `config/global.json`              | **Do not edit** for Permit2/GasZip — keep coreFacets/corePeriphery unchanged; omissions are per-network via the above files. |
-| `config/<bridge>.json`            | New network per indicated bridge (validate addresses).                                                                       |
-| `script/deploy/_targetState.json` | New network block, every contract `"latest"` (scriptMaster use case 7 → 3, or by hand).                                      |
-| `config/whitelist.json`           | **Do not edit** — changing whitelist.json is not allowed; whitelist is managed separately.                                   |

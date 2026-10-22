@@ -1,16 +1,14 @@
 ---
 name: deploy-contract-tron
-description: "Deploys a facet/periphery contract to Tron (mainnet or Shasta testnet) from the `contracts-tron` fork — the two-repo, TronWeb-based round trip that Foundry's `deployContractToNetworks.sh` cannot run. Use whenever the target network is `tron`/`tronshasta`, whenever `deploy-contract` detects a Tron target and routes here, or when the user says \"deploy <Contract> to tron\", \"redeploy on tron shasta\", or \"push the Tron USDT bypass fix\". Locates or clones the `contracts-tron` checkout, checks the fork is synced with upstream `main` for the contract being deployed, verifies the `-tron` delta (LibAsset bypass + WithdrawablePeriphery re-route) is intact, enforces `-tron`/`-tron-rN` versioning, runs the TronWeb deploy scripts in order, verifies on Tronscan, and opens the deploy-log PR against **upstream** `lifinance/contracts` (never the fork). Requires `gh`, `bun`, and TRX in the deployer wallet. Background on why the fork exists and how sync works: `docs/TronFork.md`."
+description: "Deploys a facet/periphery contract to Tron (tron/tronshasta) from the contracts-tron fork with the TronWeb scripts, verifies on Tronscan, and PRs the deploy logs to upstream lifinance/contracts, never the fork. Use for \"deploy <Contract> to tron\". EVM → deploy-contract."
 usage: /deploy-contract-tron <ContractName> <tron|tronshasta...>
 ---
 
 # Deploy Contract to Tron
 
-Tron has no Foundry support, so it does not go through `deployContractToNetworks.sh` or CREATE3 — it uses the TypeScript/TronWeb scripts in `script/deploy/tron/`, run from a **separate fork repo**, `lifinance/contracts-tron`. This skill is the Tron analog of `/deploy-contract`; use it whenever a target network is `tron` or `tronshasta`.
+Tron has no Foundry support (no `deployContractToNetworks.sh`, no CREATE3): it uses the TronWeb scripts in `script/deploy/tron/`, run from the separate fork repo `lifinance/contracts-tron`. Requires `gh`, `bun`, and TRX in the deployer wallet.
 
-## Why a separate repo
-
-`main` in `lifinance/contracts` carries **zero** Tron branching by design — Tron USDT is a broken ERC-20, so the fix (a bypass in `LibAsset.transferERC20` + a `WithdrawablePeriphery` re-route) lives only in the fork as a small, deliberate delta. Code flows one-way `contracts` → `contracts-tron`; deploy logs flow back the other way via a PR against upstream — never a direct commit to the fork. Full rationale, the exact fork delta, and the sync mechanism: **`docs/TronFork.md`** (read it if anything below is unclear on *why*, not just *what*).
+`main` in `lifinance/contracts` carries zero Tron branching; the Tron USDT fix (a bypass in `LibAsset.transferERC20` + a `WithdrawablePeriphery` re-route) lives only in the fork. Code flows one-way `contracts` → `contracts-tron`; deploy logs flow back via a PR against upstream — never a direct commit to the fork. Rationale, exact delta, sync mechanism: `docs/TronFork.md`.
 
 ## Phase 0 — Locate the `contracts-tron` checkout
 
@@ -99,7 +97,7 @@ It is the only Tron path that sets the MongoDB `verified` flag, so a manual Tron
 
 ## Phase 5 — PR the deploy logs to *upstream*, never the fork
 
-This is the step most likely to be gotten backwards. The fork never pushes back to `main` — deploy logs are the one exception, and even they don't go to the fork's own PR flow. `contracts-tron` and `contracts` are separate repos with unrelated-enough histories that cherry-picking commits between them is the wrong tool — **copy the two generated JSON files as plain data**, from the `contracts-tron` checkout into a fresh branch of `contracts`.
+The histories are unrelated enough that cherry-picking is the wrong tool — **copy the two generated JSON files as plain data** from the `contracts-tron` checkout into a fresh branch of `contracts`. A deploy-log PR opened against `contracts-tron` → close it and re-open against upstream.
 
 ```bash
 # capture the fork commit before leaving it — goes in the PR body for re-verification
@@ -117,7 +115,7 @@ Then delegate the commit / template / Linear ticket / push / create mechanic to 
 - **title / commit message**: `chore(<Contract>): deploy vX.Y.Z-tron to tron`.
 - **body** (the "Why"): deploy-log update from `contracts-tron`, fork commit `$TRON_COMMIT`.
 
-Store the `contracts-tron` commit hash in the PR body (and it flows into MongoDB via the normal deploy-log ingestion) — this is what lets someone re-verify bytecode later by checking out that exact fork commit, without upstream `main` needing to still match. Don't reimplement branching/commit/PR plumbing here; `/create-pr` owns it (including the EXSC Linear-ticket requirement).
+The fork commit hash in the PR body (it flows into MongoDB via deploy-log ingestion) is what lets someone re-verify bytecode later from that exact fork commit.
 
 Once merged upstream, these logs reach `contracts-tron` again on the next upstream→fork sync PR — do not also commit them directly to the fork's `main`.
 
@@ -127,11 +125,6 @@ Report: contract + version, network(s), deployed address(es), Tronscan verificat
 
 ## Failure modes
 
-- Wrong repo (`contracts` instead of `contracts-tron`) → abort immediately; nothing in this skill's Phase 0b–4 runs against upstream. Only Phase 5 runs from `contracts`.
-- No `contracts-tron` checkout found and no `gh` access to clone one → stop and ask; do not attempt the TronWeb steps from the `contracts` checkout, the fork's `-tron` delta doesn't exist there.
-- Fork out of sync with `main` for the target contract → stop and route to the pending/needed `sync/upstream-*` PR first; do not deploy stale bytecode.
-- `-tron` delta missing after a sync (grep in Phase 0b step 3 fails) → the sync merge dropped Tron-specific code; fix before deploying, especially for any contract that moves USDT.
-- Version doesn't follow the `-tron`/`-tron-rN` scheme, or implies a `main` version that doesn't exist yet → fix before deploying; audit tooling assumes one version = one bytecode.
-- Deploy log PR opened against `contracts-tron` instead of `lifinance/contracts` → close it and re-open against upstream; the fork must never receive a direct commit for deploy logs.
+- No `contracts-tron` checkout and no `gh` access to clone one → stop and ask; never run the TronWeb steps from `contracts` — the `-tron` delta doesn't exist there.
 - Insufficient deployer TRX → stop before Phase 3; fund `tronWallets.deployerWallet` (or `devWallet` for `tronshasta`) or rent Energy first.
-- Logged network differs from the plan (`tronshasta` when you meant `tron`, or the reverse) → stop before anything broadcasts; `PRODUCTION` is wrong for this run.
+- Logged network differs from the plan → stop before anything broadcasts; `PRODUCTION` is wrong for this run.
