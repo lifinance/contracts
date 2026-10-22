@@ -78,9 +78,43 @@ const sameAddress = (left: string, right: string): boolean =>
     : left === right
 
 /**
+ * Every production version the deploy log records for `address` under `name` on this network.
+ *
+ * @param deployLog - the parsed master deploy log, or null when unavailable
+ * @param name - contract name as the log keys it
+ * @param networkLower - lowercased network key
+ * @param address - the deployed address to look up
+ * @returns the versions in log key order, empty when the log records no deployment at that address
+ */
+export function versionsAtAddress(
+  deployLog: DeployLog | null,
+  name: string,
+  networkLower: string,
+  address: string
+): string[] {
+  const byVersion = own(
+    own(own(deployLog ?? undefined, name), networkLower),
+    'production'
+  )
+  if (!byVersion) return []
+  return Object.entries(byVersion)
+    .filter(
+      ([, records]) =>
+        Array.isArray(records) &&
+        records.some(
+          (record) =>
+            typeof record?.ADDRESS === 'string' &&
+            sameAddress(record.ADDRESS, address)
+        )
+    )
+    .map(([version]) => version)
+}
+
+/**
  * The version the deploy log records for `address` under `name` on this network.
  *
- * @returns the version, or null when the log records no deployment at that address
+ * @returns the first version in log key order, or null when the log records no deployment at
+ *   that address
  */
 function versionAtAddress(
   deployLog: DeployLog | null,
@@ -88,22 +122,7 @@ function versionAtAddress(
   networkLower: string,
   address: string
 ): string | null {
-  const byVersion = own(
-    own(own(deployLog ?? undefined, name), networkLower),
-    'production'
-  )
-  if (!byVersion) return null
-  for (const [version, records] of Object.entries(byVersion))
-    if (
-      Array.isArray(records) &&
-      records.some(
-        (record) =>
-          typeof record?.ADDRESS === 'string' &&
-          sameAddress(record.ADDRESS, address)
-      )
-    )
-      return version
-  return null
+  return versionsAtAddress(deployLog, name, networkLower, address)[0] ?? null
 }
 
 /** Order two versions by their MAJOR.MINOR.PATCH base; null when either has none. */
