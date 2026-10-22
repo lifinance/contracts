@@ -1103,9 +1103,13 @@ function saveDiamondFacets() {
         BATCH_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "${FACET_ADDRESS}::${ENV_TRY}" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
         [[ -z "$BATCH_ENTRY" || "$BATCH_ENTRY" == "null" ]] && continue
         BATCH_NAME=$(echo "$BATCH_ENTRY" | jq -r '.contractName // empty')
-        # Version may be empty for legacy rows; never infer from @custom:version or other deployments
+        # Legacy rows may lack a version: keep the diamond file's, never infer from
+        # @custom:version or other deployments
         BATCH_VERSION=$(echo "$BATCH_ENTRY" | jq -r '.version // empty')
         if [[ -n "$BATCH_NAME" ]]; then
+          if [[ -z "$BATCH_VERSION" && -f "$DIAMOND_FILE" ]]; then
+            BATCH_VERSION=$(jq -r --arg addr "$FACET_ADDRESS" --arg dn "$DIAMOND_NAME" '.[$dn].Facets[$addr].Version // ""' "$DIAMOND_FILE" 2>/dev/null || true)
+          fi
           if [[ "$ENV_TRY" != "$ENVIRONMENT" ]]; then
             echoDebug "saveDiamondFacets: resolved $FACET_ADDRESS ($BATCH_NAME) from ${ENV_TRY} deployment log (requested ${ENVIRONMENT})"
           fi
@@ -1352,6 +1356,18 @@ function saveDiamondPeriphery() {
   EXISTING_PERIPHERY=$(jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' "$DIAMOND_FILE" 2>/dev/null) || EXISTING_PERIPHERY='{}'
   local EXISTING_COUNT
   EXISTING_COUNT=$(echo "$EXISTING_PERIPHERY" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || EXISTING_COUNT=0
+
+  # PERIPHERY_CONTRACTS follows glob order, which depends on the caller's collation locale.
+  # Keep the order the diamond file already has and add new names in byte order (jq `keys`),
+  # so a sync never moves an entry the file already holds.
+  PERIPHERY_JSON=$(jq -n --argjson new "$PERIPHERY_JSON" --argjson old "$EXISTING_PERIPHERY" '
+      ([$old | keys_unsorted[] | select(. as $k | $new | has($k))]
+        + (($new | keys) - ($old | keys_unsorted))) as $order
+      | reduce $order[] as $k ({}; .[$k] = $new[$k])
+    ' 2>/dev/null) || {
+    warning "[$NETWORK] Failed to order periphery entries, keeping existing Periphery section"
+    PERIPHERY_JSON="$EXISTING_PERIPHERY"
+  }
   local NEW_COUNT
   NEW_COUNT=$(echo "$PERIPHERY_JSON" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || NEW_COUNT=0
 
