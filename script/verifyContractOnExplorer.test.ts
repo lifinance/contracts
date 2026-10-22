@@ -31,8 +31,14 @@ interface IRun {
 /**
  * Runs verifyContractOnExplorer for `network`. `keys` are assigned after
  * helperFunctions.sh has sourced the repo .env, so they replace its values.
+ * Names in `unsetKeys` are unset after that, and the call then runs under
+ * `set -u`.
  */
-function run(network: string, keys: Record<string, string>): IRun {
+function run(
+  network: string,
+  keys: Record<string, string>,
+  unsetKeys: string[] = []
+): IRun {
   const dir = mkdtempSync(join(tmpdir(), 'explorer-verify-'))
   const forgeLog = join(dir, 'forge.log')
   writeFileSync(forgeLog, '')
@@ -53,6 +59,7 @@ function run(network: string, keys: Record<string, string>): IRun {
     MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=1
     ${assignments}
     getContractFilePath() { echo "src/Facets/DiamondCutFacet.sol"; }
+    ${unsetKeys.length > 0 ? `unset ${unsetKeys.join(' ')}; set -u` : ''}
     verifyContractOnExplorer "$@"
   `
 
@@ -121,6 +128,16 @@ describe('verifyContractOnExplorer', () => {
 
   it('refuses gravity before calling forge when its key is empty', () => {
     const result = run('gravity', { GRAVITY_ETHERSCAN_API_KEY: '' })
+
+    expect(result.status).toBe(1)
+    expect(result.forgeCalls).toHaveLength(0)
+    expect(result.output).toContain('GRAVITY_ETHERSCAN_API_KEY is empty')
+  })
+
+  it('refuses gravity under set -u when its key is unset', () => {
+    const result = run('gravity', { DEBUG: 'false' }, [
+      'GRAVITY_ETHERSCAN_API_KEY',
+    ])
 
     expect(result.status).toBe(1)
     expect(result.forgeCalls).toHaveLength(0)
