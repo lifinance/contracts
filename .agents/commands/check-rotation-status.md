@@ -26,9 +26,10 @@ Spec: `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` already has the re
 - `--role` — `deployer` (default, full column set) | `dev` (staging owner + funding) | `pauser` (funding + config).
 - `--removedSigner` — extra departing Safe signer to assert removed (offboarding).
 - `--network` — restrict; default all active.
+- `--production` — target production (default staging).
 - `--json` — machine-readable output for orchestrators.
 
-Wrap address flags in viem `getAddress()` at parse time: a wrong-but-well-formed address reads as "old already removed" and falsely passes. Keep the Tron exclusion and premium-RPC-first resolution (`getRPCEnvVarName` → `ETH_NODE_URI_<NETWORK>`, fallback `networks.json`). Exit codes: `0` all applicable checks pass on reachable networks; `1` a check failed on a reachable network; `2` recoverable misconfig (name the missing RPC var). Tron exclusions and genuinely absent staging diamonds are not failures.
+Wrap address flags in viem `getAddress()` at parse time so a typo fails fast; it cannot catch a well-formed wrong address, which reads as "old already removed" and falsely passes. Keep the Tron exclusion and premium-RPC-first resolution (`getRPCEnvVarName` → `ETH_NODE_URI_<NETWORK>`, fallback `networks.json`). Exit codes: `0` all applicable checks pass on reachable networks; `1` a check failed on a reachable network; `2` recoverable misconfig (name the missing RPC var). Tron exclusions and genuinely absent staging diamonds are not failures.
 
 ## Run
 

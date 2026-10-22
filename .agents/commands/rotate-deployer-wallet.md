@@ -80,7 +80,7 @@ Once Phase 6 shows the old address holds no Safe-owner / canceller / owner privi
 /check-rotation-status --old-address <old deployer 0x…> --new-address <NEW> --role deployer --production
 ```
 
-Deployer checks: Safe owners (old out, new in) on every production Safe, `CANCELLER_ROLE` moved, CI funding. Tron counts as done only on Phase 3's owner read and Tronscan evidence. The `swapOwner` lands once signed to threshold and executed; the canceller change also waits out the timelock delay — until then "old" is pending, not failure.
+Deployer checks: Safe owners (old out, new in) on every production Safe, `CANCELLER_ROLE` moved, CI funding. Tron counts as done only on Phase 3's owner read, Tronscan evidence, and the manual Tron Safe-owner swap executed. The `swapOwner` lands once signed to threshold and executed; the canceller change also waits out the timelock delay — until then "old" is pending, not failure.
 
 ### Phase 7 — Report
 

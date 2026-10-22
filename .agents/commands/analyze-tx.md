@@ -162,7 +162,8 @@ Gotchas:
   ABI-encoded `triggerconstantcontract` params use the 20-byte form (no `0x41`; padded to 32
   bytes in ABI).
 
-`troncast` (conventions in `.agents/rules/202-tron-scripts.md`):
+`troncast` (conventions in `.agents/rules/202-tron-scripts.md`; `address` needs `ETH_NODE_URI_TRON` set
+even though it is offline — prefix a dummy value if unset):
 
 ```bash
 bun troncast address to-hex TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t   # → 0xa614f8…; comma-separated lists OK

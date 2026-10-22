@@ -52,6 +52,8 @@ Keep the per-network new facet addresses for verification.
 
 ### Phase 3 — Sweep the old pauser
 
+Only after every Phase 2 cut has executed (production waits out the timelock delay) and the new pauser reads back on every target diamond, incl. Tron.
+
 The old pauser key is `PRIVATE_KEY_PAUSER_WALLET` (`walletKeys.pauserWallet`), not `PRIVATE_KEY_PRODUCTION` (the deployer):
 
 ```text

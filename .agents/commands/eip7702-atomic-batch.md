@@ -8,7 +8,7 @@ description: "Runs contract calls atomically as an EOA via an EIP-7702 sponsored
 
 Engine: `script/tasks/atomicBatch7702.ts`; this document is the policy around it.
 
-The EOA (authority) is delegated to canonical Multicall3 (`0xcA11bde05977b3631167028862bE2a173976CA11`) and its `aggregate3` runs each call with `msg.sender == authority`, reverting all on any failure. The sponsor signs and pays; the authority signs only an off-chain authorization, so it needs no native balance and there is no funding tx to front-run. That is why it works for a compromised key whose gas is swept on arrival: no gas lands, the sweeper bot stays idle, and the authority's nonce stays stable so the authorization isn't invalidated.
+The EOA (authority) is delegated to canonical Multicall3 (`0xcA11bde05977b3631167028862bE2a173976CA11`) and its `aggregate3` runs each call with `msg.sender == authority`, reverting all on any failure. The sponsor signs and pays; a separate authority signs only an off-chain authorization, so it needs no native balance and there is no funding tx to front-run. That is why it works for a compromised key whose gas is swept on arrival: no gas lands, the sweeper bot stays idle, and the authority's nonce stays stable so the authorization isn't invalidated.
 
 ## When to use / skip
 
@@ -71,8 +71,8 @@ Multicall3's `aggregate3` has no access control: while an EOA is delegated to it
 1. Resolves chain/RPC, sponsor, and authority.
 2. Builds `aggregate3` with `allowFailure: false`.
 3. Signs the 7702 authorization (`executor: 'self'` only for self-batch).
-4. Simulates the whole authorized `aggregate3` as one call with the delegation applied — per-call simulation against pre-batch state would wrongly fail dependent batches like approve→deposit. Aborts before spending on revert.
-5. Estimates the type-4 tx — the live check that the chain accepts EIP-7702.
+4. Simulates the whole authorized `aggregate3` as one call with the delegation applied — per-call simulation against pre-batch state would wrongly fail dependent batches like approve→deposit. Aborts before spending on revert; any other simulation error (e.g. an RPC that can't `eth_call` a 7702 tx) only warns.
+5. Estimates the type-4 tx — the live check that the chain accepts EIP-7702. A failed estimate only warns and does not block `--broadcast`, so a clean dry-run needs both ✓ lines.
 6. `--broadcast`: sends one sponsor-paid type-4 tx and reports success/revert. Re-running re-simulates but is not idempotent — a successful batch repeats its effects.
 7. Auto-undelegates after any mined batch, success or revert (the delegation is applied before execution and not rolled back): a second sponsored tx authorizes the zero address, then verifies `getCode == 0x`.
 

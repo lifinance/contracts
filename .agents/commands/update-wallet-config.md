@@ -26,10 +26,11 @@ From the worktree root. `troncast` is `script/troncast/index.ts` run via `bunx t
 
 ### Phase 1 — Derive and round-trip the Tron base58
 
-Derive both fields from `--new-address`; never copy an existing base58 — `global.json` can be mid-rotation-inconsistent (one twin rotated, the other not). Run the script directly rather than `bun troncast`, whose echoed command line pollutes a captured value. Flags are kebab-case (verify with `bunx tsx script/troncast/index.ts address --help`). `address` needs `ETH_NODE_URI_TRON` set even though conversion is offline; if unset, prefix a dummy value for the invocation (as in `interact-tron`).
+Derive both fields from `--new-address`; never copy an existing base58 — `global.json` can be mid-rotation-inconsistent (one twin rotated, the other not). Flags are kebab-case (verify with `bunx tsx script/troncast/index.ts address --help`). `address` needs `ETH_NODE_URI_TRON` set even though conversion is offline; the block below falls back to a dummy value (as in `interact-tron`).
 
 ```bash
 NEW_EVM="<0xNEW>"
+export ETH_NODE_URI_TRON="${ETH_NODE_URI_TRON:-https://dummy}"
 NEW_TRON=$(bunx tsx script/troncast/index.ts address to-base58 "$NEW_EVM")
 ROUNDTRIP=$(bunx tsx script/troncast/index.ts address to-hex "$NEW_TRON")
 ```

@@ -49,7 +49,7 @@ bunx tsx script/tasks/manageWalletFunds.ts send --wallet devWallet \
   --network bsc --to 0xRecipient --amount 0.01
 ```
 
-- One broadcast per invocation; confirm the result before the next. Never loop the script.
+- One route tx per invocation (an ERC-20 input first sends an approval if allowance is short; that receipt alone is not the move); confirm the route result before the next. Never loop the script.
 - Amount: `--amount <human>` of the input asset, or `--percent <n>` of native balance (native inputs only; leaves gas headroom).
 - `--max-slippage` (default 3%) aborts if the quote's USD-measured loss exceeds it or the route has no USD pricing.
 - Tokens: `native`, `0x…`, or a symbol from the LI.FI token list (ambiguous symbol aborts — pass the address).

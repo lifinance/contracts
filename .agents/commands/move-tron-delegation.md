@@ -73,7 +73,7 @@ Both must hold; a residual on the old address means the undelegate half is incom
 
 ### 6. Config
 
-If the rotation's `update-wallet-config` PR (`tronWallets.<role>`) has not landed, run `/update-wallet-config` for this role now.
+If the rotation's `update-wallet-config` PR (`tronWallets.<role>`) has not landed, report it pending — the calling rotate-* skill runs it in its config phase. Standalone use (no rotate-* caller) → run `/update-wallet-config` for this role now.
 
 ## Verification
 
