@@ -10,7 +10,7 @@ Rules are numbered for ordering by category (**numeric prefixes must be unique**
 - `100-199`: Solidity-related rules (basics, contracts, facets, interfaces, receivers, security, gas, scripts)
 - `200-299`: TypeScript-related rules (scripts, helpers, conventions)
 - `300-399`: Bash-related rules (deployment scripts, shell utilities)
-- `400-499`: Testing-related rules (Solidity tests, TS tests, testing patterns, coverage)
+- `400-499`: Testing-related rules (Solidity tests, TS tests)
 - `500-599`: Git/GitHub Actions + audit-process rules (CI/CD workflows, audit log/report management)
 - `600-699`: Mixed/other rules (transaction analysis, cross-cutting concerns)
 
@@ -127,7 +127,6 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `203-signing-stack-doc-currency.md` | Gate changes update `docs/MultisigSigningProcess.md` in the same PR | ❌ On match | `script/deploy/safe/**/*.ts`, `script/deploy/codehash/**/*.ts`                                            |
 | `300-bash.md`                 | Deployment bash structure and safety                             | ❌ On match | `**/*.sh`                                                                                                     |
 | `400-solidity-tests.md`       | Foundry test structure, naming, and expectations                 | ❌ On match | `test/**/*.sol`                                                                                               |
-| `401-testing-patterns.md`     | Cross-language testing, coverage, and structure                  | ❌ On match | `test/**/*.t.sol`, `**/*.test.ts`, `script/**/*.ts`                                                           |
 | `402-typescript-tests.md`     | Bun test structure and expectations for `.test.ts`               | ❌ On match | `**/*.test.ts`                                                                                                |
 | `500-github-actions.md`       | GitHub Actions workflows structure and conventions               | ❌ On match | `.github/workflows/**/*.yml`, `.github/workflows/**/*.yaml`, `.github/**/*.yml`, `.github/**/*.yaml`          |
 | `501-audits.md`               | Audit log and audit report management                            | ❌ On match | `audit/**/*.json`, `audit/**/*.pdf`, `.github/workflows/**/*audit*.yml`, `.github/workflows/**/*version*.yml` |

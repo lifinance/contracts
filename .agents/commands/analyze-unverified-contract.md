@@ -78,7 +78,7 @@ The extractor takes every `PUSH4`, so the list includes interface IDs the contra
 
 Run in order (cheap → rate-limited), stopping per selector at the first match:
 
-1. **Well-known standard selectors** (ERC-165/1271/721/1155 receivers, UUPS, ERC-20/721) from memory.
+1. **Well-known standard selectors** (ERC-165/1271/721/1155 receivers, UUPS, ERC-20/721) from memory — accept a match only after `cast sig "<signature>"` returns that selector.
 2. **Local artifacts**: `jq -r '.methodIdentifiers | to_entries[] | "\(.value)\t\(.key)"' out/*.sol/*.json 2>/dev/null | grep -i "<selector-without-0x>"`.
 3. **cast**: `cast 4byte "<selector>"` per still-unresolved selector.
 4. **4byte.directory**: `decodeSelectors4byte` with no args reads and updates `opcodes-selectors.md`. Set `FOURBYTE_DELAY=0.5` on 429s.
