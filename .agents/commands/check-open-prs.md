@@ -45,7 +45,7 @@ Each PR gets one native `bucket`. Rows with `slackCheck: true` are provisional u
 
 ## Phase 1.5 — Slack cross-reference (only `slackCheck: true` PRs)
 
-1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks), matched by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review pull/<NUMBER>`) for PRs the scrape did not match. Assert "not posted for review yet" only when the PR's `created` is inside the scrape window **and** the fallback search returned nothing — otherwise emit no Slack note. Never write "Posted today": say "Created today" for a fresh PR; "posted" means a confirmed `#dev-sc-review` message.
+1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks), matched by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review <owner>/<repo>/pull/<NUMBER>`) for PRs the scrape did not match, and use a hit only if it contains that exact PR URL. Assert "not posted for review yet" only when the PR's `created` is inside the scrape window **and** the fallback search returned nothing — otherwise emit no Slack note. Never write "Posted today": say "Created today" for a fresh PR; "posted" means a confirmed `#dev-sc-review` message.
 2. **Read each thread** with `slack_read_thread` (`response_format="detailed"`), 5–8 in parallel per message. Paginate until `reply_count` is exhausted — the missed reply is usually the newest, which decides the bucket.
 3. **Own PRs** — classify by the last human (non-bot) message author; content never overrides this:
    - The user → REMIND: `<48h` since that message → REMIND-RECENTLY-PINGED, `≥48h` → REMIND-DUE. Zero replies → apply the 48h rule to the parent post.

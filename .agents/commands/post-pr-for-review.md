@@ -108,7 +108,7 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 ## Failure modes
 
 - **Slack MCP not connected** → ask the user to connect it. Never fall back to webhooks — the MCP posts as the user, which reviewers need for attribution and thread notifications.
-- **`gh` missing / unauthenticated** → stop: tag routing, pre-flight and auto-merge all need it; ask the user to run `gh auth login`.
+- **`gh` missing / unauthenticated** → stop: tag routing, pre-flight and auto-merge all need it; ask the user to install `gh` (or fix `PATH`) if it is missing, or run `gh auth login` if it is unauthenticated.
 
 ## Variations
 

@@ -8,7 +8,7 @@ description: "Runs contract calls atomically as an EOA via an EIP-7702 sponsored
 
 Engine: `script/tasks/atomicBatch7702.ts`; this document is the policy around it.
 
-The EOA (authority) is delegated to canonical Multicall3 (`0xcA11bde05977b3631167028862bE2a173976CA11`) and its `aggregate3` runs each call with `msg.sender == authority`, reverting all on any failure. The sponsor signs and pays; a separate authority signs only an off-chain authorization, so it needs no native balance and there is no funding tx to front-run. That is why it works for a compromised key whose gas is swept on arrival: no gas lands, the sweeper bot stays idle, and the authority's nonce stays stable so the authorization isn't invalidated.
+The EOA (authority) is delegated to canonical Multicall3 (`0xcA11bde05977b3631167028862bE2a173976CA11`) and its `aggregate3` runs each call with `msg.sender == authority`, reverting all on any failure. The sponsor signs and pays; a separate authority signs only an off-chain authorization, so it needs no native balance and there is no funding tx to front-run. That is why it works for a compromised key whose gas is swept on arrival: no gas lands, the sweeper bot stays idle, and the authority sends no tx of its own, so its nonce doesn't move before the sponsored tx is mined and the authorization stays valid (applying it then increments the nonce).
 
 ## When to use / skip
 

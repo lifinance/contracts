@@ -142,7 +142,7 @@ Where should I send this?
 Reply 1/2/3/4, or suggest edits to the message text before I send.
 ```
 
-Stop and wait. `4` → stop: send nothing, skip Step 6. On any other reply, ask again. If edits
+Stop and wait. `1`–`3` → Step 5. `4` → stop: send nothing, skip Step 6. Anything else that is not an edit request → ask again. If edits
 are requested, apply them, show the updated message, and confirm
 (`Ready to send? (yes / cancel)`) before sending.
 

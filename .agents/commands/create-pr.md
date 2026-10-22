@@ -22,7 +22,7 @@ To **edit** an existing PR's title/body, follow `.agents/context.md` → "Creati
 
 - **No changes** (clean tree and `git log main..HEAD` empty): abort — nothing to PR.
 - **Detached HEAD**: abort and ask the user to check out a branch.
-- **Feature branch with an open PR**: surface its URL and offer to commit + push to it instead of opening a new one; on yes, push, print that URL and stop.
+- **Feature branch with an open PR**: surface its URL and offer to commit + push to it instead of opening a new one; on yes, run steps 3–9 as usual, then print that URL instead of step 10.
 - **On `main`/`master`**: require a new branch; never commit to a protected branch.
 
 ### 2. Branch
