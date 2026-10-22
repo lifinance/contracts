@@ -132,7 +132,7 @@ Run the read-only completeness gate scoped to the deployer rotation:
 /check-rotation-status --old-address <old deployer 0x…> --new-address <NEW> --role deployer --production
 ```
 
-For the deployer role the relevant checks are: Safe-owner membership (old removed / new added) on every production Safe, Timelock `CANCELLER_ROLE` (old removed / new granted), and the CI wallet-funding check. `check-rotation-status` covers EVM only; Tron counts as done only on Phase 3's owner read, the Tron timelock `CANCELLER_ROLE` read (old revoked / new granted) and Tronscan delegation evidence. Only declare complete when every network passes.
+For the deployer role the relevant checks are: Safe-owner membership (old removed / new added) on every production Safe, Timelock `CANCELLER_ROLE` (old removed / new granted), and the CI wallet-funding check. `check-rotation-status` covers EVM only; Tron counts as done only on Phase 3's diamond owner read, the Tron Safe owner swap (`getOwners() returns (address[])` on `tron.safeAddress` from `config/networks.json`: old removed / new added), the Tron timelock `CANCELLER_ROLE` read (old revoked / new granted) and Tronscan delegation evidence. Only declare complete when every network passes.
 
 ### Phase 7 — Report
 
