@@ -916,6 +916,7 @@ const NON_USER_FACING_NAMES = new Set([
   // ever wants clear-signing for owner-side recovery flows, classify and remove.
   'withdraw', // WithdrawFacet — owner-only recovery
   'executeCallAndWithdraw', // operator-only utility
+  'startBridgeAttested', // AttestedBridgeFacet — called by solver executor contracts during a fill, not signed by users; wraps an opaque facet call
 ])
 
 const PACKED_OR_MIN_SUFFIX = /(Packed|Min)$/u
