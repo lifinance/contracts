@@ -41,7 +41,7 @@ The **old** dev address is derived from `config/global.json.devWallet` for refer
 ## Guardrails
 
 - **Custody guard.** Rotate only SC-owned wallets (**deployer, dev, pauser**); this skill rotates **dev** only. NEVER touch the CTO-owned refund / feeCollector / withdraw — if the request drifts there, stop and say so.
-- **Never self-sign.** New-key generation is a human step; any Ledger signing (e.g. the Tron ownership-to-Timelock step) is handed off via the owning skill — this orchestrator never signs.
+- **Never self-sign.** New-key generation is a human step; any Ledger signing is handed off via the owning skill — this orchestrator never signs.
 - **Never bypass Safe/timelock** (rule 002-architecture). Staging diamonds are EOA-owned so the staging transfer is a direct owner tx, but any governed change routes through `multisig-rollout` — never an owner shortcut.
 - **Secrets hygiene.** Never print a private key or full RPC URL; read keys in a subshell and redact. Derive the acting address from the key, never from `config/global.json`.
 - **Dry-run first.** Run each L1 step's preview/`--check` and confirm the plan with the user before broadcasting anything.
@@ -104,7 +104,7 @@ Run the read-only completeness gate scoped to the dev rotation:
 /check-rotation-status --old-address <old dev 0x…> --new-address <NEW> --role dev
 ```
 
-For the dev role the relevant checks are: staging-diamond `owner()` = new (old no longer owner) on every EVM network, the Tron staging owner/delegation state, and the CI wallet-funding check. Only declare the rotation complete when every network passes.
+For the dev role the relevant checks are: staging-diamond `owner()` = new (old no longer owner) on every EVM network, and the CI wallet-funding check. `check-rotation-status` covers EVM only; the Tron delegation counts as done only on the Tronscan evidence from Phase 3. Only declare the rotation complete when every network passes.
 
 ### Phase 6 — Report
 
@@ -112,14 +112,13 @@ Summarize per network: swept (moved/skipped), staging ownership transferred, Tro
 
 ## Verification
 
-The rotation is complete only when `check-rotation-status` (Phase 5) passes for every active network: new dev owns each staging diamond, old dev owns none, the Tron delegation reflects the new address, and funding passes. Re-run `/rotate-dev-wallet --check` any time to re-confirm without changing state.
+The rotation is complete only when `check-rotation-status` (Phase 5) passes for every active network: new dev owns each staging diamond, old dev owns none, and funding passes — plus Phase 3's Tronscan evidence that the delegation moved. Re-run `/rotate-dev-wallet --check` any time to re-confirm without changing state.
 
 ## Reuse map
 
 | Step | Delegates to | Owns |
 |---|---|---|
 | Fund new wallet | `sweep-wallet-funds` | native sweep across EVM chains, pre-send report, secrets hygiene |
-| Tron ownership → Timelock | `script/deploy/tron/transfer-ownership-to-timelock.ts` | env-derived Tron network handover (staging → tronshasta) |
 | Tron delegation | `move-tron-delegation` | undelegate→re-delegate request + Tronscan verify |
 | Config PR | `update-wallet-config` | `global.json` devWallet + `tronWallets.devWallet`, `/create-pr` |
 | Completeness gate | `check-rotation-status` | read-only cross-network verification |

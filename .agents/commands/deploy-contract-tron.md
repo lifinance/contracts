@@ -65,7 +65,7 @@ Present: contract + version, target network(s) (`tron` and/or `tronshasta`), and
 **`PRODUCTION` alone picks the network and the key.** The scripts ignore `NETWORK`: `getEnvironment()` (`script/utils/utils.ts`) reads `PRODUCTION`, and `PRODUCTION=true` means `tron` with `PRIVATE_KEY_PRODUCTION` (deployerWallet), anything else means `tronshasta` with `PRIVATE_KEY` (devWallet). Both keys come from `.env`; an exported `PRODUCTION` wins over the `.env` value. Set it explicitly for every run, and check the network the script logs before it broadcasts:
 
 ```bash
-export PRODUCTION=true    # tron (mainnet); use PRODUCTION=false for tronshasta
+export PRODUCTION=true    # tron (mainnet); PRODUCTION=false (tronshasta) only for scripts that support it
 
 bunx tsx script/deploy/tron/deploy-core-facets.ts
 bunx tsx script/deploy/tron/register-facets-to-diamond.ts
@@ -75,7 +75,7 @@ bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-allbridge-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-near-intents-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-eco-facet.ts
-bunx tsx script/deploy/tron/deploy-and-register-layerswap-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-layerswap-facet.ts   # tron only: exits unless PRODUCTION=true
 bunx tsx script/deploy/tron/deploy-and-register-lifi-intent-escrow-facet-v2.ts
 ```
 
@@ -89,10 +89,10 @@ Each script reads the network config, deploys via `TronContractDeployer` (CREATE
 
 ## Phase 4 — Verify on Tronscan
 
-`forge verify-contract` cannot target Tron. Run `verify-tron-contracts.ts` from the `contracts` checkout, pointing `--repo-root` at the fork so sources flatten from the code that was deployed:
+`forge verify-contract` cannot target Tron. Run `verify-tron-contracts.ts` from the fork checkout, as in Phase 3: it reads `deployments/<network>.json` from the working directory, which is where Phase 3 wrote the new address, and `--repo-root .` flattens sources from the code that was deployed:
 
 ```bash
-bunx tsx script/deploy/tron/verify-tron-contracts.ts --network <tron|tronshasta> --repo-root ../contracts-tron --only <Contract>
+bunx tsx script/deploy/tron/verify-tron-contracts.ts --network <tron|tronshasta> --repo-root . --only <Contract>
 ```
 
 It is the only Tron path that sets the MongoDB `verified` flag, so a manual Tronscan upload leaves the record unverified. A record that fails to flag ends the run non-zero; re-run that contract. Flags and the browser fallback: `docs/TronFork.md` → "Contract verification (Tronscan)".

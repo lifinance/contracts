@@ -11,7 +11,7 @@ usage: /rotate-deployer-wallet [--new-address 0xNEW] [--check]
 Rotate the shared **Deployer** wallet, which carries the protocol's heaviest privileges:
 
 - `safeOwners[0]` — a signer on every production Safe.
-- The Timelock `CANCELLER_ROLE` (and the production timelock executor).
+- The Timelock `CANCELLER_ROLE`.
 - The CREATE3 deployer key used to broadcast deploys.
 
 Because it is SC-owned it is rotatable, but every privilege it holds is governed by Safe + Timelock — so the on-chain swaps run as **Safe proposals** (Phase 2), never as owner shortcuts. This skill is a **thin orchestrator**: it sequences the L1 and existing skills, enforces the guardrails, and gates on the final check. It reimplements none of their logic.
@@ -126,7 +126,7 @@ Run the read-only completeness gate scoped to the deployer rotation:
 /check-rotation-status --old-address <old deployer 0x…> --new-address <NEW> --role deployer --production
 ```
 
-For the deployer role the relevant checks are: Safe-owner membership (old removed / new added) on every production Safe, Timelock `CANCELLER_ROLE` (old removed / new granted), the Tron ownership/delegation state, and the CI wallet-funding check. Only declare complete when every network passes.
+For the deployer role the relevant checks are: Safe-owner membership (old removed / new added) on every production Safe, Timelock `CANCELLER_ROLE` (old removed / new granted), and the CI wallet-funding check. `check-rotation-status` covers EVM only; Tron counts as done only on Phase 3's owner read and Tronscan delegation evidence. Only declare complete when every network passes.
 
 ### Phase 7 — Report
 
@@ -134,7 +134,7 @@ Summarize: swept networks (moved/skipped), the Phase 2 outcome (proposal nonces,
 
 ## Verification
 
-Complete only when `check-rotation-status` (Phase 6) passes for every network: new deployer is `safeOwners[0]` and holds `CANCELLER_ROLE`, the old deployer holds neither anywhere, Tron reflects the new address, and funding passes. Because the Safe swaps go through timelock, the on-chain state flips only after the proposals are signed to threshold and the timelock delay elapses — the check may legitimately still show "old" until then; report that as pending, not as failure. Re-run `/rotate-deployer-wallet --check` to re-confirm.
+Complete only when `check-rotation-status` (Phase 6) passes for every network: new deployer is `safeOwners[0]` and holds `CANCELLER_ROLE`, the old deployer holds neither anywhere, and funding passes — plus Phase 3's Tron evidence. The Safe owner swap lands once its proposal is signed to threshold and executed; the canceller change is timelock-wrapped, so it lands only after the timelock delay as well. Until then the check may legitimately still show "old"; report that as pending, not as failure. Re-run `/rotate-deployer-wallet --check` to re-confirm.
 
 ## Reuse map
 

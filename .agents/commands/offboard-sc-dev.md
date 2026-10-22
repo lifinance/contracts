@@ -64,7 +64,7 @@ Nothing on-chain can proceed until the replacement keys exist. The human securel
 
 Change the Safe ownership set on every production chain: remove the departing person's personal signer, add the replacement. `multisig-rollout` has no owner-swap mode; the proposals come from `manageSafeOwner "replace" <network> <DEPARTING> <REPLACEMENT>` (`script/playgroundHelpers.sh`), run once per production network. No committed entry point runs it across networks — the commented examples in `executeNetworkActions` (`script/multiNetworkExecution.sh`) are the team's playground for it, so ask the user how they want to run it and do not commit the playground edit. Tron's Safe has no helper; report it as a manual follow-up.
 
-Then follow `multisig-rollout`'s signing tail: **human Ledger signing (hand off, wait)** → verify `signatureCount >= 2` → post `#dev-sc-multisig-proposals`. Do not run `confirm-safe-tx.ts` yourself. Wait for the user to confirm signing before treating the swap as landed.
+The Safe `swapOwner` is not timelock-wrapped: it lands as soon as the proposal is signed to threshold and executed. Then follow `multisig-rollout`'s signing tail: **human Ledger signing (hand off, wait)** → verify `signatureCount >= 2` → post `#dev-sc-multisig-proposals`. Do not run `confirm-safe-tx.ts` yourself. Wait for the user to confirm signing before treating the swap as landed.
 
 ### Phase 3 — Rotate the deployer wallet
 

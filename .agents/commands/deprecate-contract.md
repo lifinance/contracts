@@ -60,7 +60,7 @@ The command performs these steps in order:
      - `script/deploy/_targetState.json` (all networks/environments)
      - `config/{contractNameLowercase}.json` (if contract-specific, or remove entries if shared)
      - `config/whitelist.json` (PERIPHERY section; `config/whitelist.staging.json` is gitignored and not part of the PR)
-     - `config/global.json`: `coreFacets` / `corePeriphery` arrays, the contract's `whitelistPeripheryFunctions` entry, and any `facetPeripheryCouplings` entry naming it as key or `requires` target
+     - `config/global.json`: `coreFacets` / `corePeriphery` arrays, the contract's `whitelistPeripheryFunctions` and `whitelistPeripheryNetworks` entries, and any `facetPeripheryCouplings` entry naming it as key or `requires` target
 
 3. **Test Coverage Preservation** (for bridge facets only)
 
@@ -83,7 +83,7 @@ The command performs these steps in order:
      - Delete if contract-specific
      - Remove only contract-specific entries if shared with other contracts
    - Remove from whitelist configs (periphery contracts)
-   - Remove from `global.json` core lists, `whitelistPeripheryFunctions` and `facetPeripheryCouplings` if present
+   - Remove from `global.json` core lists, `whitelistPeripheryFunctions`, `whitelistPeripheryNetworks` and `facetPeripheryCouplings` if present
    - Delete test files (only after successful replacement for bridge facets)
    - Delete documentation files
    - Delete demo scripts
@@ -205,7 +205,7 @@ The command performs these steps in order:
 - `script/deploy/_targetState.json` - Removes from all networks/environments
 - `config/{contractNameLowercase}.json` - Deleted if contract-specific, or entries removed if shared
 - `config/whitelist.json` - Removes from PERIPHERY section
-- `config/global.json` - Removes from coreFacets/corePeriphery arrays, whitelistPeripheryFunctions and facetPeripheryCouplings
+- `config/global.json` - Removes from coreFacets/corePeriphery arrays, whitelistPeripheryFunctions, whitelistPeripheryNetworks and facetPeripheryCouplings
 - `test/solidity/**/{ContractName}.t.sol` - Test files (replaced with similar bridge tests for bridge facets, deleted for non-bridge contracts)
 - `docs/{ContractName}.md` - Documentation (deleted)
 - `script/demoScripts/demo{ContractName}.ts` - Demo scripts (deleted)

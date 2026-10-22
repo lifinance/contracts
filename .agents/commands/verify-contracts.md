@@ -41,7 +41,7 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 
 - [`foundry.toml`](../../foundry.toml) — `NETWORK` present in **both** `[rpc_endpoints]` and `[etherscan]`. The `[etherscan]` entry carries the verifier `url`, `chain`, and `verifier` (`blockscout` | `sourcify` | `custom`/etherscan).
 - [`config/networks.json`](../../config/networks.json) — `verificationType` and `explorerApiUrl` for `NETWORK`.
-- The active Foundry profile matches what the contracts were built with. A network whose `config/networks.json` entry has `"targetEvmVersion": "london"` deploys under `[profile.solc_floor]` (solc 0.8.17 / london), so run Step 4 as `FOUNDRY_PROFILE=solc_floor ./script/tasks/verifyNetworkContracts.sh <network>`; every other network uses `[profile.default]`. A mismatch is a silent source of "Unable to verify" on etherscan-type verifiers.
+- The active Foundry profile matches what the contracts were built with. A network whose `config/networks.json` entry has `"targetEvmVersion": "london"` deploys under `[profile.solc_floor]` (solc 0.8.17 / london), so run Step 4 as `FOUNDRY_PROFILE=solc_floor ./script/tasks/verifyNetworkContracts.sh <network>`. zkEVM networks (`isZkEVM` in `networks.json`) need nothing extra: `verifyContract` scopes `FOUNDRY_PROFILE=zksync` to its own command. Every other network uses `[profile.default]`. A mismatch is a silent source of "Unable to verify" on etherscan-type verifiers.
 
 ### 4. Verify each contract on-chain
 

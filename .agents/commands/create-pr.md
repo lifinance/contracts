@@ -207,6 +207,8 @@ gh pr create --title "<title>" --body-file <scratchpad>/pr-body.md --base main -
 
 Append `--draft` if the Draft input was requested.
 
+If step 9 created the ticket, replace its PR URL placeholder with the URL `gh pr create` returned (`save_issue` with `id` and a `patch`).
+
 Print the resulting PR URL to the user.
 
 ### 11. Offer to post for review

@@ -24,7 +24,7 @@ completed rotation must satisfy and prints a per-network pass/fail matrix:
 Because it changes nothing, it is the completeness gate at the end of every
 `rotate-*` flow and of `offboard-sc-dev`.
 
-## The real work: generalize the hardcoded temp checker
+## The missing checker (lands as its own reviewed PR)
 
 `script/tasks/temp/checkOffboardingStatusPerNetwork.ts` already implements the
 per-network read logic (Safe owners via `getOwners`, Timelock `CANCELLER_ROLE`
@@ -61,8 +61,9 @@ Concretely:
    as `-`) and the premium-RPC-first resolution (`getRPCEnvVarName` →
    `ETH_NODE_URI_<NETWORK>` fallback to `networks.json`).
 
-Until that generalized script exists in the branch, this skill's first action
-is to create it; do not shell out to the `temp/` file with edited constants.
+This skill never creates that script: it lands as its own reviewed PR, and
+this skill only runs it (step 1 below). Do not shell out to the `temp/` file
+with edited constants either.
 
 ## When to use / when NOT
 
@@ -124,7 +125,7 @@ Optional:
 If it is still missing, do **not** write it during a rotation — a gate
 improvised mid-rotation is unreviewed code deciding whether governance changes
 landed. Stop, tell the user the checker has to land as its own reviewed PR
-(built per "The real work" above), and report each applicable check as
+(built per "The missing checker" above), and report each applicable check as
 "not run". The calling `rotate-*` skill then treats its completeness gate as
 open, not passed.
 

@@ -25,7 +25,8 @@
     ],
     "ask": [
       "Bash(cast send *)",
-      "Bash(forge script * --broadcast*)"
+      "Bash(forge script * --broadcast*)",
+      "Bash(forge script * --resume*)"
     ],
     "deny": [
       "Read(/.env)",
