@@ -6,15 +6,17 @@
 # exit 0 goes to the debug log). Formatting runs here rather than as a sibling hook because
 # matching hooks run in parallel, and prettier rewriting the file mid-check races the linters.
 
+HOOK_DIR=$(cd "$(dirname "$0")" && pwd)
 INPUT=$(cat)
 FILE=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
 
 [[ -z "$FILE" || ! -f "$FILE" ]] && exit 0
 
-echo "$INPUT" | bash "$(dirname "$0")/post-edit-format.sh"
-
-ROOT=$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null || pwd)
+# Scratch files outside a checkout have no repo tooling or tsconfig to check against.
+ROOT=$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$ROOT" || exit 0
+
+echo "$INPUT" | bash "$HOOK_DIR/post-edit-format.sh"
 
 # Resolve path relative to repo root (macOS-compatible)
 REL="${FILE#"$ROOT"/}"
