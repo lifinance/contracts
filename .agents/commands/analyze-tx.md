@@ -27,8 +27,8 @@ the logs, it did not happen, whatever the code implies.
    fallback to a public RPC returns a truncated trace that reads like a complete one.
 2. **Confirm LiFiDiamond involvement first** (direct or indirect), or say the transaction is not
    ours and stop.
-3. **`msg.value` from the receipt**, not the trace — a nested call's value is not the root
-   transaction's.
+3. **`msg.value` from the transaction object** (`eth_getTransactionByHash`), not the trace — a
+   nested call's value is not the root transaction's.
 4. **Cross-check every function selector**, in this order: the function name in the trace, then
    `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers, then
    `cast sig "<FUNCTION_SIGNATURE>"`. Where `cast 4byte` disagrees with the trace, the trace wins
@@ -63,14 +63,14 @@ the logs, it did not happen, whatever the code implies.
 ```
 
 Run it as a plain command from the repo root — a worktree-isolated session refuses inline
-`source`. Fallback: ask the user for a premium RPC URL and fetch `eth_getTransactionReceipt`
-(status, gas, logs, `to`/`from`, `value`) and `debug_traceTransaction` with `callTracer`
-(optionally `cast run`).
+`source`. Fallback: ask the user for a premium RPC URL and fetch `eth_getTransactionByHash`
+(`from`, `to`, `input`, `value`), `eth_getTransactionReceipt` (status, gas, logs) and
+`debug_traceTransaction` with `callTracer` (optionally `cast run`).
 
 ### 2. Identify the transaction
 
-Extract `to`, `from`, calldata, `msg.value` (receipt). Does `to` match LiFiDiamond? If not, find
-the LiFiDiamond call in the trace. Map addresses from `deployments/<network>.json`.
+Extract `to`, `from`, calldata, `msg.value` (transaction object). Does `to` match LiFiDiamond? If
+not, find the LiFiDiamond call in the trace. Map addresses from `deployments/<network>.json`.
 
 ### 3. Root call is not LiFiDiamond
 
@@ -185,7 +185,7 @@ bun troncast code <base58-or-hex-address> [--env testnet]       # "0x" if not a 
 - **From:** [address]
 - **To:** [contract name] ([address])
 - **Function:** [name] ([selector])
-- **Value:** [amount] [symbol] (read from the receipt, not the trace)
+- **Value:** [amount] [symbol] (read from the transaction object, not the trace)
 - **Status:** [Success/Fail]
 
 ## Parameters Decoded

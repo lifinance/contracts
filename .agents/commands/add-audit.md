@@ -49,7 +49,7 @@ Convert to `DD.MM.YYYY` or `YYYY-MM-DD`, consistent with existing entries. Prefe
 - None → `"n/a"` with an explanation, e.g. "n/a (This is a forked contract that was audited for
   [project])", "n/a (one deployed contract instance was audited)", "n/a (audited deployed
   version)".
-- Show the hash as a clickable `https://github.com/lifinance/contracts/commit/<hash>` link and
+- Show the hash as a clickable `https://github.com/<repo>/commit/<hash>` link (same repo) and
   ask the user to confirm it — a wrong hash pins the audit to a tree that was never audited.
   Skip for "n/a".
 

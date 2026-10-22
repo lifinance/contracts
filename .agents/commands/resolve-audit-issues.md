@@ -92,7 +92,7 @@ Load every open issue. `gh issue list --limit N` silently truncates at `N`, so p
 (the `pull_request` filter drops PRs, which this endpoint also returns):
 
 ```bash
-gh api --paginate repos/<owner>/<repo>/issues \
+gh api --paginate -X GET repos/<owner>/<repo>/issues \
   -f state=open --jq '.[] | select(.pull_request | not) | {number, title}'
 ```
 
