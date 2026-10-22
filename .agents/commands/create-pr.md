@@ -1,178 +1,126 @@
 ---
 name: create-pr
-description: "Create a pull request for the current branch: creates a new branch if needed, commits staged/unstaged changes, pushes, and opens a PR using the repo's pull_request_template.md. Use when the user says \"create PR\", \"open PR\", \"make a pull request\", \"push and PR\", or similar. Requires a SmartContract-team (EXSC) Linear ticket — assigned and estimated — on every PR; resolves one from context or creates one (auto-assigned, proposed estimate) unless the user explicitly opts out. Leaves reviewer checklist unchecked."
+description: "Commits, pushes and opens a PR for the current branch from .github/pull_request_template.md, creating a branch if needed. Requires an assigned, estimated EXSC Linear ticket — resolves or creates one unless the user opts out. Use for \"create PR\", \"open PR\", \"push and PR\"."
 ---
 
 # Create PR
 
-## When to trigger
-
-User says any of:
-
-- "create PR" / "open PR" / "make a pull request"
-- "push and create PR" / "commit, push and PR"
-- "new branch, commit, push and PR"
-- `/create-pr [branch-name]`
-
 ## Inputs
 
-- **Branch name** (optional). If omitted, derive from staged changes or task context (e.g. `feat/short-description`).
+- **Branch name** (optional). If omitted, derive from staged changes or task context.
 - **Commit message** (optional). If omitted, derive from the diff.
-- **Draft** (optional). When the user or a delegating skill asks for a draft PR, pass `--draft` in step 10. All other steps (template, Linear ticket, tests) apply unchanged.
-- **Linear task link or ID** (required unless the user explicitly opts out). Must be a **SmartContract-team ticket (EXSC prefix)** that is **assigned** and has an **estimate** — step 5 validates and repairs this for existing tickets and guarantees it for created ones. If known from context, include in PR body; otherwise step 5 resolves or creates one. "Explicitly opts out" means the user said in this session that this PR needs no ticket (or chose `s` at the step 5 prompt) — the absence of a known ticket is never an opt-out.
+- **Draft** (optional). When the user or a delegating skill asks for a draft PR, pass `--draft` in step 10. All other steps apply unchanged.
+- **Linear task link or ID** (required unless the user explicitly opts out). Must be a **SmartContract-team ticket (EXSC prefix)** that is **assigned** and has an **estimate**. "Explicitly opts out" means the user said in this session that this PR needs no ticket (or chose `s` at the step 4 prompt) — the absence of a known ticket is never an opt-out.
 
-## Related conventions
-
-This skill creates PRs. For **editing** an existing PR's title/body, follow CLAUDE.md →
-"Creating and editing PRs via gh" (uses `gh api -X PATCH` with a JSON payload).
-
-Review runs in CI: cloud CodeRabbit comments on every PR and is the review backstop.
-There is no local CodeRabbit pre-flight.
+To **edit** an existing PR's title/body, follow `.agents/context.md` → "Creating and editing PRs via gh".
 
 ## Workflow
 
 ### 1. Assess current state
 
-Run `git status` and `git diff HEAD` to understand:
+`git status`, `git diff HEAD`, `gh pr view`. Before continuing:
 
-- Current branch name
-- Staged vs unstaged changes
-- Whether a remote branch / open PR already exists (`gh pr view`)
+- **No changes**: abort — nothing to PR.
+- **Detached HEAD**: abort and ask the user to check out a branch.
+- **Feature branch with an open PR**: surface its URL and offer to commit + push to it instead of opening a new one.
+- **On `main`/`master`**: require a new branch; never commit to a protected branch.
 
-Handle these edge cases before continuing:
+### 2. Branch
 
-- **No changes (clean tree, no staged diff)**: abort with a clear message. There's nothing to PR.
-- **Detached HEAD**: abort and ask the user to check out a branch first.
-- **Already on a feature branch with an open PR**: offer to just commit + push + update the existing PR instead of opening a new one.
-- **On `main`/`master` with local changes**: require a new branch (step 3); never commit to a protected branch.
+- If the user supplied a name, use it exactly (`git checkout -b`, or switch to it if it exists).
+- Else prefer `<type>/<lowercase-id>-<short-slug>` when a Linear ID is already known (e.g. `feat/exsc-327-add-foo`) — the ID in the branch name is the most reliable trigger for Linear's GitHub auto-link.
+- Otherwise `<type>/<short-slug>`; step 9 may rename it once a ticket exists.
 
-### 2. Determine branch name
+### 3. Stage and commit
 
-- If user supplied one, use it exactly.
-- Else derive from the primary change. **Prefer `<type>/<lowercase-id>-<short-slug>`** when a Linear ID is already known from conversation context (e.g. `feat/exsc-327-add-foo`). Branch-name ID prefix is the most reliable trigger for Linear's GitHub auto-link.
-- Fall back to slug-only (`feat/<short-slug>`, `fix/<short-slug>`, `chore/<short-slug>`) when no Linear ID exists yet. Step 5 may still resolve or create one later, in which case the branch can be renamed (`git branch -m`) before push.
-- Never commit directly to `main` or `master` — create a new branch.
+Stage only files relevant to the task — never `git add -A` blindly; skip unrelated untracked files and confirm the list with the user when any look unrelated. Match the subject style of recent `git log` entries (e.g. `chore(skills): …`).
 
-### 3. Create branch (if needed)
+### 4. Resolve the Linear ticket
 
-```bash
-git checkout -b <branch-name>
-```
+Linear auto-links PR and ticket only when the **branch name** contains the ID, or the PR title/body has `Fixes|Closes|Resolves|Ref <ID>` (`Ref` for partial work — no auto-close on merge); a bare ID in the body does not reliably link. Render the body's Linear line as `Fixes [<ID>](<ticket URL>)` (or `Ref …`), using the `url` from the Linear MCP.
 
-If branch already exists locally, switch to it (`git checkout <branch-name>`).
+Resolve in order:
 
-### 4. Stage and commit
+1. **Conversation context** — a Linear URL or ID the user mentioned this session.
+2. **Branch-name ID** — if the branch matches `(?i)([A-Z]+-\d+)`, look it up via Linear MCP `list_issues` with `query: "<ID>"`; if the ID matches, use it without further questions (validation still applies).
+3. **Scoped keyword search** — tokens from the branch name (strip the type prefix, `-` → space) and commit subject; `list_issues` with `team: "SmartContract"`. Do **not** filter by `assignee` — tickets are often created by PMs/others.
+   - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its `statusType` is `started` or `unstarted`.
+   - Otherwise show the top 3 as `ID — Title — status` and ask which to link, with a "none of these" option that falls through to route 4 (not an opt-out). Use `AskUserQuestion` if available.
 
-- Stage only the files relevant to the task. **Never** `git add -A` blindly — check for unrelated untracked files first and skip them.
-- Derive a concise commit message from the diff (imperative mood, ≤72 chars subject); match the style of recent `git log` entries (e.g. `chore(skills): …`).
+**Validation** (routes 1–3) — `get_issue` and check:
 
-```bash
-git commit -m "<subject line>"
-```
+- **Team**: must be SmartContract (EXSC). A ticket from another team doesn't satisfy the requirement — keep it as an extra `Ref <ID>` line if relevant and fall through to route 4.
+- **Assignee**: if unassigned, plan to assign the current user (`assignee: "me"`). Never reassign an assigned ticket.
+- **Estimate**: if none, propose one scaled to the diff (default **1** for small changes).
 
-### 5. Build PR body from template (locally, before pushing)
+Do not write to Linear yet — planned repairs go in the step 8 pre-flight and run in step 9. Unattended runs apply the proposed values in step 9.
 
-Read `.github/pull_request_template.md` verbatim. Fill in:
+4. **Not found** — a ticket is required; proceed without one only on explicit opt-out (if the user already opted out this session, skip the prompt and use `<!-- No Linear task -->`). The prompt must show both side-effects — ticket creation and branch rename:
 
-- **Linear task link**: resolve in this order. Linear's GitHub integration creates the bidirectional auto-link (PR in the ticket's "Links" sidebar; ticket in the PR's "Linked issues" panel) only when at least one of:
+   ```text
+   No Linear ticket found — one is required. Create in EXSC and rename branch?
+     • Ticket: team=SmartContract, title="<derived title>"
+     • Assignee: <current user>   • Estimate: <proposed, default 1>
+     • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
+   ```
 
-  - the **branch name** contains the issue ID (e.g. `feat/exsc-327-…`, see step 2), or
-  - the PR **title or body** contains a magic keyword + ID — `Fixes EXSC-327`, `Closes EXSC-327`, `Resolves EXSC-327`, or `Ref EXSC-327` (case-insensitive; use `Ref` for partial work that should not auto-close the ticket on merge).
+   - `e` (default) — let the user adjust title and estimate before anything runs.
+   - `y` — accept as proposed.
+   - `s` — explicit opt-out: no ticket, branch unchanged, body line `<!-- No Linear task -->`; never fabricate a link. If the change is genuinely trivial (typo / doc-only / dep-bump / single-line fix), suggest the `trivial` label so the ticket-linkage metric counts it.
+   - Unattended: plan the ticket with the derived title — never proceed without one.
 
-  A bare `EXSC-327` mention in the body alone does **not** reliably trigger the link. Prefer the branch-name route; always render the body's Linear line as a markdown link — `Fixes [<ID>](<ticket URL>)` (or `Ref [<ID>](<ticket URL>)`), using the `url` returned by the Linear MCP — so reviewers can click through to the ticket, and the keyword + ID still trigger the auto-link as a belt-and-braces measure. No extra Linear MCP call is needed for cross-linking once either condition is satisfied.
+   On `y` / `e`, record the planned ticket. Step 9 creates it with `save_issue`: `team: "SmartContract"`, the title, a short body summarizing the change plus a PR-URL placeholder, `assignee: "me"`, and the confirmed `estimate`.
 
-  1. **Conversation context** — look for any Linear URL or issue ID (e.g. `EXSC-123`) mentioned by the user in this session.
-  2. **Branch-name ID prefix** — if the branch name matches `(?i)([A-Z]+-\d+)` (e.g. `feature/exsc-327-…`), look up that ID directly via the Linear MCP `list_issues` tool with `query: "<ID>"`. If found and the ID matches, use it — no further questions about which ticket to link (the validation block below still applies).
-  3. **Scoped keyword search** — extract meaningful tokens from the branch name (strip `feat/`, `fix/`, `chore/`, replace `-` with space) and the commit subject. Query the Linear MCP `list_issues` tool with `team: "SmartContract"` (i.e. EXSC tickets) and the keyword string. Do **not** filter by `assignee` — tickets are often created by PMs/others.
-     - **Auto-accept** the top hit only if its title shares ≥3 meaningful tokens with the branch/commit AND its status is active (`statusType: started` or `unstarted`).
-     - **Ambiguous** (top hit doesn't pass the threshold, or several candidates look plausible): show the top 3 in chat with `ID — Title — status`, and ask which to link (with a "none of these" option that falls through to route 4's required-ticket prompt — it is not an opt-out). Use `AskUserQuestion` if available; otherwise plain chat.
+### 5. Build the PR body
 
-  **Validation (applies to any ticket resolved via routes 1–3)** — fetch it with the Linear MCP `get_issue` tool and check:
+Read `.github/pull_request_template.md` verbatim and fill in:
 
-  - **Team**: must belong to the SmartContract team (EXSC prefix). A ticket from another team does not satisfy the requirement — keep it as an extra `Ref <ID>` line if relevant, but fall through to route 4 to create the EXSC ticket.
-  - **Assignee**: if unassigned, plan to assign the current user (`save_issue` with `assignee: "me"`). Never reassign a ticket that already has an assignee.
-  - **Estimate**: if none is set, propose one scaled to the diff (default **1** for simple/small changes) for the user to adjust.
+- **Linear task**: per step 4.
+- **Why I implemented it this way**: one short paragraph of rationale. Write body prose **unwrapped** (one paragraph = one line) — GitHub renders single newlines in PR bodies as hard breaks.
+- **Author checklist**: each tick is a claim — tick only what you verified:
+  - Self-review — only after walking the full `git diff main...HEAD`: no debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets, naming/style matches surrounding code. Surface findings instead of ticking.
+  - Small / one problem — only after `git diff --name-only main...HEAD` shows a single coherent concern. Ignore commit granularity (PRs are squash-merged).
+  - Tests added / new facet / docs updated — only if this diff actually does so.
+- **Reviewer checklist**: leave every item unchecked.
 
-  Do not write to Linear yet. List the planned repairs (assignee/estimate) in the pre-flight summary (step 8); they run in step 9 after approval. Unattended runs apply the proposed values in step 9.
+### 6. Title
 
-  4. **Not found** — create a new Linear ticket. A ticket is **required** on every PR; proceeding without one is allowed only on an explicit user opt-out, never as a silent fallback. If the user already opted out earlier in this session, skip this prompt and use `<!-- No Linear task -->`. The consent prompt must make **both** side-effects visible up front (ticket creation + local branch rename), so the user knows exactly what they're approving with a single keystroke. Default action is **edit** so the user always sees the proposed title and the proposed new branch name before anything is created or renamed:
-     - Propose in chat (filling in the placeholders with the actual derived values):
+Imperative, ≤70 chars, matching `git log` style.
 
-       ```
-       No Linear ticket found — one is required. Create in EXSC and rename branch?
-         • Ticket: team=SmartContract, title="<derived title>"
-         • Assignee: <current user>   • Estimate: <proposed, default 1>
-         • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
-       ```
+### 7. Run tests
 
-       - `e` (default) — show the proposed title and estimate (and the resulting new branch name once an ID is allocated) and let the user adjust before either action runs.
-       - `y` — create the ticket with the proposed title as-is **and** rename the branch.
-       - `s` — explicit opt-out; proceed without a ticket and leave the branch as-is. If the change genuinely qualifies (typo / doc-only / dep-bump / single-line fix), suggest adding the `trivial` label so the ticket-linkage metric counts the PR as linked.
-     - If running unattended (no user available to answer), plan the ticket with the derived title — do **not** proceed without one.
-     - On `y` / `e` (after the user confirms the edited title): record the planned ticket (title, estimate). It is created in step 9, after the pre-flight approval, with the Linear MCP `save_issue` tool: `team: "SmartContract"`, the (edited) title, a short body summarizing the change + a placeholder for the PR URL, `assignee: "me"`, and the confirmed `estimate` (default **1** for simple tasks, scaled to the diff). Then, still in step 9:
-       - Insert `Fixes [<ID>](<ticket URL>)` in the PR body's Linear section (URL from the `save_issue` response).
-       - If the local branch name doesn't already contain the ID, rename it before push: `git branch -m <new-name>` (use `<type>/<lowercase-id>-<short-slug>` per step 2). The user already consented to this rename via the prompt above.
-     - On `s` (explicit user opt-out) — leave the section blank with `<!-- No Linear task -->`. Never fabricate a link, and do not rename the branch.
+`.husky/pre-commit` and `.agents/hooks/post-edit-validate.sh` already enforce lint, format, typecheck, build, solhint and secret scanning at commit time. The gap is **tests** (pre-commit uses `forge build --skip test` and skips `bun test:ts`):
 
-- **Why I implemented it this way**: one short paragraph explaining the approach/rationale derived from the diff and conversation context. Write body prose **unwrapped** (one paragraph = one source line) — GitHub renders single newlines in PR/issue bodies as hard `<br>` breaks, so hard-wrapped text displays with ragged mid-sentence line breaks.
-- **Author checklist**: tick only items the skill has actually verified. Do not tick by default — each tick is a claim that must be checked first.
-  - `[x] I have performed a self-review of my code` — tick **only after** you actually walk the full `git diff main...HEAD` and confirm: no leftover debug prints/commented-out code, no obvious bugs, no unrelated edits, no secrets/credentials, naming/style matches the surrounding code. Note any findings in the summary; if anything looks off, surface it instead of ticking.
-  - `[x] This pull request is as small as possible and only tackles one problem` — tick **only after** you inspect the file list (`git diff --name-only main...HEAD`). Tick if all touched files serve a single, coherent concern. Do not tick if the branch mixes unrelated changes. Ignore commit granularity: GitHub squashes commits on merge, so fix-up / iterative commits are not a reason to withhold the tick.
-  - `[x] I have added tests that cover the functionality` — tick only if tests were actually added in this diff.
-  - `[x] For new facets: ...` — tick only if a new facet was added.
-  - `[x] I have updated any required documentation` — tick only if docs were updated.
-- **Reviewer checklist**: leave all items **unchecked** (`- [ ]`).
+- **Solidity**: `bun test:scoped -- <path-or-match>` while iterating; full `bun test` (or `forge test --match-path` if scope is clear) before opening the PR.
+- **TypeScript/JS**: `bun test <path>` while iterating; full `bun test:ts` before opening the PR.
+- **Docs / markdown / skill files only**: skip; report `N/A`.
 
-### 6. Derive PR title
+On failure, stop and surface it — do not push without explicit user override.
 
-Short imperative title (≤70 chars). Match existing commit style in `git log`.
+### 8. Pre-flight summary — wait for approval
 
-### 7. Run the test suite
-
-Lint, format, typecheck, build, solhint, and secret scanning are already enforced by
-`.husky/pre-commit` (and `.agents/hooks/post-edit-validate.sh`) at every commit in
-step 4. Don't repeat them here.
-
-The one gap pre-commit deliberately leaves is **tests** (`forge build --skip test`, no
-`bun test:ts`). Per `.agents/rules/099-finish.md`, run them now:
-
-- **Solidity changes**: `bun test:scoped -- <path-or-match>` during iteration; full `bun test` (or `forge test --match-path` if scope is clear) before opening a PR.
-- **TypeScript / JS changes**: `bun test <path>` during iteration; full `bun test:ts` (runs every `script/**/*.test.ts`) before opening a PR.
-- **Docs / markdown / skill files only**: skip; note `N/A` in the summary.
-
-If anything fails, **stop and surface the failure** — do not push without explicit user
-override.
-
-### 8. Show pre-flight summary and confirm
-
-Before pushing or opening a PR, display a summary and wait for explicit approval:
-
-```
+```text
 About to create PR on branch `<branch-name>`:
-  (renamed from `<old-branch>` in step 5)        ← show only if step 5 renamed it
+  (renamed from `<old-branch>`)                  ← only if renamed
 
-Commits (<N>) since main (from `git log main..HEAD --oneline`):
-  • <sha>  <subject>                          ← step 4
-  ...
+Commits (<N>) since main (`git log main..HEAD --oneline`):
+  • <sha>  <subject>
 
-Files changed (<N>) (from `git diff --name-only main...HEAD`):
-  • <file1>
-  • <file2>
-  ...
-  ↑ If any file here looks unrelated to the task,
-    answer `n` below and we'll split it into a separate PR.
+Files changed (<N>) (`git diff --name-only main...HEAD`):
+  • <file>
+  ↑ If any file looks unrelated, answer `n` and we'll split it into a separate PR.
 
 Self-review:
   • Diff walked: <N> files, <±M> lines
-  • Findings: <none / list any concerns>
-  • Single-concern: <yes / no — and why>
+  • Findings: <none / concerns>
+  • Single-concern: <yes / no — why>
 
-Linear: <EXSC-ID> — assignee <name>, estimate <n>   (planned repairs: <none / assign <name> / set estimate <n>>)
+Linear: <EXSC-ID> — assignee <name>, estimate <n>   (planned repairs: <none / assign / set estimate>)
   ↑ or: new ticket "<title>", estimate <n>, branch → <new-branch>   (created in step 9)
   ↑ or: no ticket (explicit user opt-out)
 
 Checks run:
-  • Pre-commit hook ... PASS (enforced lint/typecheck/build/secrets at every commit)
+  • Pre-commit hook ... PASS
   • forge test ........ PASS / FAIL / N/A
   • bun test:ts ....... PASS / FAIL / N/A
 
@@ -186,34 +134,23 @@ PR body:
 Proceed? (y/n)
 ```
 
-If the user says **n**: ask what to change (title, body, files) and loop back. Do not push, and do not write to Linear.
-If the user says **y**: proceed to steps 9–10.
+On **n**: ask what to change and loop back — no push, no Linear writes.
 
 ### 9. Apply Linear changes, then push
 
-Run the Linear writes planned in step 5 — create the ticket, or apply the assignee/estimate repairs — then fill the ticket link into the body and rename the branch if step 5 planned it. Then push:
+Run the planned Linear writes (create the ticket, or apply assignee/estimate repairs), fill the ticket link into the body, and rename the branch (`git branch -m <type>/<lowercase-id>-<slug>`) if planned — the user consented in step 4. Then `git push -u origin <branch-name>`.
 
-```bash
-git push -u origin <branch-name>
-```
+### 10. Create the PR
 
-### 10. Create PR
-
-Write the body to a file in the session scratchpad (not a shared `/tmp` path — parallel sessions overwrite each other there) and create via `gh`:
+Write the body to the session scratchpad (not a shared `/tmp` path — parallel sessions overwrite each other there):
 
 ```bash
 gh pr create --title "<title>" --body-file <scratchpad>/pr-body.md --base main --head <branch-name>
 ```
 
-Append `--draft` if the Draft input was requested.
-
-If step 9 created the ticket, replace its PR URL placeholder with the URL `gh pr create` returned (`save_issue` with `id` and a `patch`).
-
-Print the resulting PR URL to the user.
+Append `--draft` if requested. If step 9 created the ticket, replace its PR-URL placeholder with the returned URL (`save_issue` with `id` and a `patch`). Print the PR URL.
 
 ### 11. Offer to post for review
-
-After the PR is created, ask:
 
 > PR created: <url>. Want me to post it for review? (`/post-pr-for-review`)
 
@@ -221,14 +158,6 @@ After the PR is created, ask:
 
 ## Failure modes
 
-- **Uncommitted secrets / sensitive files**: warn and skip those files.
-- **Branch already has open PR**: surface URL, offer to push new commits instead.
-- **Push rejected (non-fast-forward)**: report error; do not force-push without explicit user instruction.
-- **No template found**: use minimal body with title + rationale only.
-- **Linear task unknown**: create a new ticket (step 5, bullet 4) with `e` (default, edit title) / `y` (accept as-is) / `s` (explicit opt-out). Only on explicit opt-out, leave the section blank with `<!-- No Linear task -->`; unattended runs must create the ticket. Never fabricate a link.
-- **Tests/lints fail**: stop. Surface failures to the user and do not push unless they explicitly override.
-
-## Notes
-
-- Always confirm the file list before committing when there are untracked files that look unrelated to the task.
-- Never amend published commits (already pushed) without explicit user instruction.
+- **Secrets / sensitive files in the diff**: warn and skip those files.
+- **Push rejected (non-fast-forward)**: report; never force-push without explicit instruction.
+- **No template found**: minimal body with title + rationale.
