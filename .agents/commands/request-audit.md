@@ -142,8 +142,9 @@ Where should I send this?
 Reply 1/2/3/4, or suggest edits to the message text before I send.
 ```
 
-Stop and wait. On any other reply, ask again. If edits are requested, apply them, show the
-updated message, and confirm (`Ready to send? (yes / cancel)`) before sending.
+Stop and wait. `4` → stop: send nothing, skip Step 6. On any other reply, ask again. If edits
+are requested, apply them, show the updated message, and confirm
+(`Ready to send? (yes / cancel)`) before sending.
 
 ## Step 5 — Send
 

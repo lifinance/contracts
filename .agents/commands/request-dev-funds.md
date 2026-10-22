@@ -120,7 +120,7 @@ git commit -m "chore: request <amount> <token> on <chain> for <recipient-label>"
 git push -u origin "$BRANCH"
 ```
 
-Preserve the `{ "version": 1, "entries": [...] }` wrapper; build JSON only with `jq`. Branch exists → suffix `-2`, `-3`, …. If `transfers/requests.json`'s schema has changed, re-read the upstream README and confirm before editing.
+Preserve the `{ "version": 1, "entries": [...] }` wrapper; build JSON only with `jq`. Before `git checkout -b`, if `git ls-remote --exit-code --heads origin "$BRANCH"` finds it, suffix `-2`, `-3`, …. If `transfers/requests.json`'s schema has changed, re-read the upstream README and confirm before editing.
 
 ```bash
 gh pr create --repo lifinance/automate-wallet-dev-fees \

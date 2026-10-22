@@ -19,7 +19,7 @@ GitHub scope is env-overridable (LI.FI defaults baked in):
 bunx tsx script/utils/check-open-prs.ts --json          # add --quick for quick mode
 ```
 
-Per PR the script returns: repo/number/title/url, kind (`own`/`incoming`), bucket, draft, CI rollup with failing checks tagged `review/audit` / `restartable` / `human-gate`, conflicts, reviewDecision, mergeStateStatus, last commit, last non-author human comment, `myReview: {state, at, sha}` (`sha` = commit my review was against, used in Phase 2D), and `slackCheck: true` where Slack state is needed to finish classification. Archived-repo and stale incoming PRs are already excluded (listed under `excluded`).
+Per PR the script returns: `repo`/`n`/`title`/`url`, `kind` (`own`/`incoming`), `bucket`, `draft`, `ci` + `ciFail` (failing checks tagged `review/audit` / `restartable` / `human-gate`), `conflicts`, `decision` (review decision), `mergeStateStatus`, `lastCommit`, `lastNonAuthor` (last non-author human comment), `myReview: {state, at, sha}` (`sha` = commit my review was against, used in Phase 2D), and `slackCheck: true` where Slack state is needed to finish classification. Archived-repo and stale incoming PRs are already excluded (listed under `excluded`).
 
 **Refresh mode**: re-run the script — never re-render from data fetched earlier in the conversation. Stamp every dashboard with the script's `asOf` (converted to `+07`).
 
@@ -45,7 +45,7 @@ Each PR gets one native `bucket`. Rows with `slackCheck: true` are provisional u
 
 ## Phase 1.5 — Slack cross-reference (only `slackCheck: true` PRs)
 
-1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks), matched by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review pull/<NUMBER>`) only for PRs outside the window. Assert "not posted for review yet" only when the PR's `created` is inside the scrape window **and** the fallback search returned nothing — otherwise emit no Slack note. Never write "Posted today": say "Created today" for a fresh PR; "posted" means a confirmed `#dev-sc-review` message.
+1. **Locate threads.** One scrape of `#dev-sc-review` (`C088UJWC8PR`) history (last 6 weeks), matched by PR URL. Fall back to `slack_search_public` (`in:#dev-sc-review pull/<NUMBER>`) for PRs the scrape did not match. Assert "not posted for review yet" only when the PR's `created` is inside the scrape window **and** the fallback search returned nothing — otherwise emit no Slack note. Never write "Posted today": say "Created today" for a fresh PR; "posted" means a confirmed `#dev-sc-review` message.
 2. **Read each thread** with `slack_read_thread` (`response_format="detailed"`), 5–8 in parallel per message. Paginate until `reply_count` is exhausted — the missed reply is usually the newest, which decides the bucket.
 3. **Own PRs** — classify by the last human (non-bot) message author; content never overrides this:
    - The user → REMIND: `<48h` since that message → REMIND-RECENTLY-PINGED, `≥48h` → REMIND-DUE. Zero replies → apply the 48h rule to the parent post.
@@ -99,8 +99,8 @@ friendly bump <!subteam^S096X6MCB0C>
 
 Per PR, one short prompt with the bucket and suggested next step; execute the chosen disposition:
 
-- Drafts: (1) flip ready (`gh pr ready <n>` + `post-pr-for-review`) (2) keep working (3) close with reason (4) investigate (Phase 3) (5) skip.
-- Stale: (1) close with reason (2) post "Still active — target: <D>" (3) re-assign (4) convert to draft (`gh pr ready --undo`) (5) investigate (6) skip.
+- Drafts: (1) flip ready (`gh pr ready <n> --repo <owner>/<repo>` + `post-pr-for-review`) (2) keep working (3) close with reason (4) investigate (Phase 3) (5) skip.
+- Stale: (1) close with reason (2) post "Still active — target: <D>" (3) re-assign (4) convert to draft (`gh pr ready <n> --repo <owner>/<repo> --undo`) (5) investigate (6) skip.
 
 ## Phase 2D — incoming queue
 
@@ -115,4 +115,4 @@ One sub-agent per PR, in parallel, self-contained prompt: PR URL + pasted Slack 
 
 ## Phase 4 — implementation (per-PR approval required)
 
-`gh pr checkout <n>` → apply → lint/test → push → reply in the Slack thread linking the commit. Never touch closed or merged PRs.
+`gh pr checkout <n> --repo <owner>/<repo>` → apply → lint/test → push → reply in the Slack thread linking the commit. Never touch closed or merged PRs.

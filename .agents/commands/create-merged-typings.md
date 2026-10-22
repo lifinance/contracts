@@ -8,8 +8,8 @@ usage: /create-merged-typings [PR numbers | topic keywords]
 
 > **Usage**: `/create-merged-typings [PR numbers | topic keywords]`
 
-Each feature branch publishes a `-beta` typings tag built from that branch alone
-(`types.yaml` → `lifinance/lifi-contract-types`), and the `-beta` version is one global counter
+Each non-draft PR labelled `requires-types` publishes a `-beta` typings tag built from its branch
+alone (`types.yaml` → `lifinance/lifi-contract-types`), and the `-beta` version is one global counter
 shared by all branches. The tag lives in `lifi-contract-types` and keeps working after the
 throwaway branch is deleted.
 
@@ -167,5 +167,6 @@ explicitly after the worktree is gone.)
 ## Notes
 
 - **Re-running** after A or B got new commits: run the command again — it recreates the branch
-  and publishes a fresh beta.
+  and publishes a fresh beta. A failed run kept its worktree, branch and PR: tear them down
+  (Phase 5 commands) first, or `git worktree add -b` fails.
 - **More than two PRs**: merge them all in Phase 2 in the order given.

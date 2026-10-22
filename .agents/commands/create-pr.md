@@ -20,9 +20,9 @@ To **edit** an existing PR's title/body, follow `.agents/context.md` → "Creati
 
 `git status`, `git diff HEAD`, `gh pr view`. Before continuing:
 
-- **No changes**: abort — nothing to PR.
+- **No changes** (clean tree and `git log main..HEAD` empty): abort — nothing to PR.
 - **Detached HEAD**: abort and ask the user to check out a branch.
-- **Feature branch with an open PR**: surface its URL and offer to commit + push to it instead of opening a new one.
+- **Feature branch with an open PR**: surface its URL and offer to commit + push to it instead of opening a new one; on yes, push, print that URL and stop.
 - **On `main`/`master`**: require a new branch; never commit to a protected branch.
 
 ### 2. Branch

@@ -15,7 +15,7 @@ PR URL (optional). Else resolve from the current branch with `gh pr view --json 
 
 Channel: `#dev-sc-review` (`C088UJWC8PR`).
 
-The tag follows the `main protection` ruleset: any API Expansion approval merges a PR; PRs touching SC-critical paths also need Smart Contract Core. Classify from the PR's files:
+The tag follows the `main protection` ruleset: every PR needs one API Expansion approval; PRs touching SC-critical paths also need one from Smart Contract Core. Classify from the PR's files:
 
 ```bash
 files=$(gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
@@ -103,12 +103,12 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 
 ### 7. Report
 
-`Posted to #dev-sc-review ✓ — auto-merge (squash) enabled`
+`Posted to #dev-sc-review ✓ — auto-merge: <enabled | already on | skipped: <reason>>`
 
 ## Failure modes
 
 - **Slack MCP not connected** → ask the user to connect it. Never fall back to webhooks — the MCP posts as the user, which reviewers need for attribution and thread notifications.
-- **`gh` missing / unauthenticated** → ask for the URL, skip pre-flight, warn.
+- **`gh` missing / unauthenticated** → stop: tag routing, pre-flight and auto-merge all need it; ask the user to run `gh auth login`.
 
 ## Variations
 
