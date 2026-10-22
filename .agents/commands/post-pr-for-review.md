@@ -103,7 +103,7 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 
 ### 7. Report
 
-`Posted to #dev-sc-review ✓ — auto-merge: <enabled | already on | skipped: <reason>>`
+`Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error>` with the parent link instead.
 
 ## Failure modes
 
@@ -117,4 +117,4 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 - "quiet ping" → drop the 🙏; keep the subteam syntax.
 - "tag SC core" → `<!subteam^S096X6MCB0C>` even for a routine PR.
 - "without auto-merge" / "no auto-merge" / "manual merge" → skip step 5.
-- Explicit channel override → use it; keep the post shape unless overridden too.
+- Explicit channel override → resolve its ID with `slack_search_channels` and use it instead of `C088UJWC8PR` for both sends and the report; keep the post shape unless overridden too.
