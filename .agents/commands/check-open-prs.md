@@ -115,7 +115,7 @@ Per PR, one short prompt with the script's bucket and suggested next step; execu
 ## Phase 2D — incoming queue
 
 - **INBOX-UNREVIEWED**: show link + 2-line preview; offer open-in-browser / sub-agent triage (≤200 words) / skip.
-- **INBOX-REREVIEW**: fetch the diff since my last review (`gh api -H 'Accept: application/vnd.github.diff' repos/<owner>/<repo>/compare/<sha>...<head>`, where `<sha>` is the PR's `myReview.sha` from the script JSON — the commit my last review was submitted against — and `<head>` is `gh pr view <n> --repo <owner>/<repo> --json headRefOid -q .headRefOid`; `gh pr diff` has no range flag). If `myReview.sha` is `null` (review predates the commit or it was detached), or the compare fails because a force-push dropped it, fall back to the full `gh pr diff <n>`. Quote the dev's hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
+- **INBOX-REREVIEW**: fetch the diff since my last review (`gh api -H 'Accept: application/vnd.github.diff' repos/<owner>/<repo>/compare/<sha>...<head>`, where `<sha>` is the PR's `myReview.sha` from the script JSON — the commit my last review was submitted against — and `<head>` is `gh pr view <n> --repo <owner>/<repo> --json headRefOid -q .headRefOid`; `gh pr diff` has no range flag). If `myReview.sha` is `null` (review predates the commit or it was detached), or the compare fails because a force-push dropped it, fall back to the full `gh pr diff <n> --repo <owner>/<repo>`. Quote the dev's hand-back message, list my unresolved inline comments; offer browser / sub-agent verify-comments-addressed / skip.
 
 Never auto-approve, auto-comment, or auto-request-changes — the skill routes; the human reviews.
 

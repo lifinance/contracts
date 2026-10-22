@@ -134,7 +134,7 @@ Summarize: swept networks (moved/skipped), the Phase 2 outcome (proposal nonces,
 
 ## Verification
 
-Complete only when `check-rotation-status` (Phase 6) passes for every network: new deployer is `safeOwners[0]` and holds `CANCELLER_ROLE`, the old deployer holds neither anywhere, and funding passes — plus Phase 3's Tron evidence. The Safe owner swap lands once its proposal is signed to threshold and executed; the canceller change is timelock-wrapped, so it lands only after the timelock delay as well. Until then the check may legitimately still show "old"; report that as pending, not as failure. Re-run `/rotate-deployer-wallet --check` to re-confirm.
+Complete only when `check-rotation-status` (Phase 6) passes for every network: new deployer is `safeOwners[0]` and holds `CANCELLER_ROLE`, the old deployer holds neither anywhere, and funding passes — plus Phase 3's Tron evidence. The Safe owner swap lands once its proposal is signed to threshold and executed; the canceller change is timelock-wrapped, so it lands only after the timelock delay as well. Until then the check may legitimately still show "old"; report that as pending, not as failure. Re-run `/rotate-deployer-wallet --new-address <NEW> --check` to re-confirm.
 
 ## Reuse map
 
