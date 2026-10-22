@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: Create a pull request for the current branch: creates a new branch if needed, commits staged/unstaged changes, pushes, and opens a PR using the repo's pull_request_template.md. Use when the user says "create PR", "open PR", "make a pull request", "push and PR", or similar. Requires a SmartContract-team (EXSC) Linear ticket — assigned and estimated — on every PR; resolves one from context or creates one (auto-assigned, proposed estimate) unless the user explicitly opts out. Leaves reviewer checklist unchecked.
+description: "Create a pull request for the current branch: creates a new branch if needed, commits staged/unstaged changes, pushes, and opens a PR using the repo's pull_request_template.md. Use when the user says \"create PR\", \"open PR\", \"make a pull request\", \"push and PR\", or similar. Requires a SmartContract-team (EXSC) Linear ticket — assigned and estimated — on every PR; resolves one from context or creates one (auto-assigned, proposed estimate) unless the user explicitly opts out. Leaves reviewer checklist unchecked."
 ---
 
 # Create PR

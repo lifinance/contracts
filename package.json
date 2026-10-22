@@ -42,7 +42,8 @@
     "tsc-files": "^1.1.4",
     "tsx": "4.23.13",
     "typechain": "^8.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "yaml": "2.9.1"
   },
   "overrides": {
     "protobufjs": "7.5.5",
@@ -92,6 +93,7 @@
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:sol:fix": "solhint \"src/**/*.sol\" --fix",
     "lint:funnel": "bunx tsx script/deploy/safe/funnel-fence.ts .",
+    "lint:agents": "bunx tsx script/utils/check-agents-harness.ts",
     "lint:node-runtime": "bunx tsx script/utils/node-runtime-fence.ts script tasks",
     "lint:md": "bunx --no-install --bun markdownlint-cli2 \"**/*.md\"",
     "lint:md:fix": "bunx --no-install --bun markdownlint-cli2 --fix \"**/*.md\"",
