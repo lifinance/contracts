@@ -42,15 +42,10 @@ paths:
   - **On failure**: Transfer raw bridged tokens directly to receiver and emit `LiFiTransferRecovered` with `_transactionId`, `assetId`, `receiver`, `amount`, `block.timestamp`
   - For native tokens with gas checks (e.g., StargateV2): Check `gasleft()` before executing; if insufficient, send tokens directly and emit `LiFiTransferRecovered`
 
-- **Events**:
-
-  - **NEVER** emit `LiFiTransferStarted` (reserved for facets)
-  - **NEVER** emit `LiFiTransferCompleted` (reserved for Executor contract)
-  - **ONLY** emit `LiFiTransferRecovered` when swaps fail and raw bridged tokens are sent to receiver
-  - Event signature: `LiFiTransferRecovered(bytes32 indexed transactionId, address receivingAssetId, address receiver, uint256 amount, uint256 timestamp)`
+- **Events** (ownership per `[CONV:EVENTS]`): emit only `LiFiTransferRecovered(bytes32 indexed transactionId, address receivingAssetId, address receiver, uint256 amount, uint256 timestamp)`, and only when swaps fail and raw bridged tokens are sent to the receiver.
 
 - **Receive function**: Must implement `receive() external payable {}` to handle native token transfers from bridges.
 
 - **Libraries**: Use `LibAsset` for asset operations, `LibSwap` for swap data structures, `SafeTransferLib` from solady for safe transfers.
 
-- **Error handling**: Use try-catch for executor calls with a fallback that sends the raw tokens on failure, and reset approvals to 0 afterwards. The exception is a receiver whose callback should revert when the swap fails — `ReceiverOIF` calls the executor directly, so a failed swap reverts `outputFilled` — and such a receiver states why in its NatSpec.
+- **Exception to try-catch**: a receiver whose callback should revert when the swap fails — `ReceiverOIF` calls the executor directly, so a failed swap reverts `outputFilled` — and such a receiver states why in its NatSpec.
