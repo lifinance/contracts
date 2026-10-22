@@ -3649,6 +3649,7 @@ describe('facet-versions-match-target-state', () => {
     deployedContracts = {},
     sourceVersions = {},
     pendingRegistrations = new Map(),
+    deployLog = null,
   }: {
     network?: string
     targets: Record<string, string>
@@ -3657,6 +3658,7 @@ describe('facet-versions-match-target-state', () => {
     deployedContracts?: Record<string, string>
     sourceVersions?: Record<string, string>
     pendingRegistrations?: IHealthCheckContext['pendingRegistrations']
+    deployLog?: IHealthCheckContext['deployLog']
   }): IHealthCheckContext {
     return Object.assign(makeCtx(), {
       network,
@@ -3664,6 +3666,7 @@ describe('facet-versions-match-target-state', () => {
       diamondAddress: DRIFT_DIAMOND,
       deployedContracts,
       pendingRegistrations,
+      deployLog,
       targetState: {
         [network]: { production: { LiFiDiamond: targets } },
       } as TargetState,
@@ -4046,10 +4049,24 @@ describe('facet-versions-match-target-state', () => {
         ],
       ])
 
-    /** GenericSwapFacetV3 live at 1.0.0, target 2.0.0, deploy log pointing at `deployed`. */
+    /** A master deploy log recording GenericSwapFacetV3 on mainnet at `version` → `address`. */
+    const masterLog = (
+      version: string,
+      address = UPGRADE
+    ): IHealthCheckContext['deployLog'] => ({
+      GenericSwapFacetV3: {
+        mainnet: { production: { [version]: [{ ADDRESS: address }] } },
+      },
+    })
+
+    /**
+     * GenericSwapFacetV3 live at 1.0.0, target 2.0.0, deploy log pointing at `deployed`, and the
+     * master log recording `deployed` at the target version unless `deployLog` says otherwise.
+     */
     const behindCtx = (
       pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
-      deployed = UPGRADE
+      deployed = UPGRADE,
+      deployLog = masterLog('2.0.0', deployed)
     ): IHealthCheckContext =>
       makeDriftCtx({
         targets: { GenericSwapFacetV3: '2.0.0' },
@@ -4058,6 +4075,7 @@ describe('facet-versions-match-target-state', () => {
         },
         deployedContracts: { GenericSwapFacetV3: deployed },
         pendingRegistrations,
+        deployLog,
       })
 
     it('reports a behind facet as expected-pending when a queued cut registers its deploy-log address', async () => {
@@ -4065,6 +4083,35 @@ describe('facet-versions-match-target-state', () => {
       await invariant.run(ctx)
       expect(ctx.errors).toEqual([])
       expect(ctx.warnings).toEqual([])
+    })
+
+    it('compares the queued build with the target by base version', async () => {
+      const ctx = behindCtx(queued(), UPGRADE, masterLog('2.0.0-tron'))
+      await invariant.run(ctx)
+      expect(ctx.warnings).toEqual([])
+    })
+
+    // A cut queued before the target moved on lands a build that is still behind.
+    it('still reports behind when the master log records the queued build at another version', async () => {
+      const ctx = behindCtx(queued(), UPGRADE, masterLog('1.1.0'))
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('GenericSwapFacetV3 is behind')
+    })
+
+    it('still reports behind when the master log does not record the queued address', async () => {
+      const unrecorded = behindCtx(
+        queued(),
+        UPGRADE,
+        masterLog('2.0.0', '0xffff000000000000000000000000000000000099')
+      )
+      const unavailable = behindCtx(queued(), UPGRADE, null)
+      await invariant.run(unrecorded)
+      await invariant.run(unavailable)
+      expect(unrecorded.warnings).toHaveLength(1)
+      expect(unrecorded.warnings[0]).toContain('is behind')
+      expect(unavailable.warnings).toHaveLength(1)
+      expect(unavailable.warnings[0]).toContain('is behind')
     })
 
     it('still reports behind when the queued cut registers a different address', async () => {

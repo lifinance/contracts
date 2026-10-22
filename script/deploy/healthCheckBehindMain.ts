@@ -80,9 +80,13 @@ const sameAddress = (left: string, right: string): boolean =>
 /**
  * The version the deploy log records for `address` under `name` on this network.
  *
+ * @param deployLog - the parsed master deploy log, or null when unavailable
+ * @param name - contract name as the log keys it
+ * @param networkLower - lowercased network key
+ * @param address - the deployed address to look up
  * @returns the version, or null when the log records no deployment at that address
  */
-function versionAtAddress(
+export function versionAtAddress(
   deployLog: DeployLog | null,
   name: string,
   networkLower: string,

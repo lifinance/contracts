@@ -38,6 +38,11 @@ import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
+  loadDeployLog,
+  versionAtAddress,
+  type DeployLog,
+} from './healthCheckBehindMain'
+import {
   diffFacets,
   getExpectedFacetNames,
   getProtectedNames,
@@ -190,6 +195,11 @@ export interface IHealthCheckContext {
    * test to whatever version the fleet happens to be running.
    */
   diamondFacetLog?: DiamondFacetLog
+  /**
+   * `deployments/_deployments_log_file.json`. Undefined = read from disk (the default); injectable
+   * so the queued-upgrade version check is testable without pinning a test to the fleet's log.
+   */
+  deployLog?: DeployLog | null
   /**
    * Reads a contract's `@custom:version` from this checkout, which is what a `latest` target
    * state entry expects. Undefined = read `src/` (the default); injectable so the target-version
@@ -1848,8 +1858,8 @@ async function resolveTargetFacetVersion(
  * @param liveVersion - the version the diamond log records at the registered address, if any
  * @param target - the resolved target version
  * @param isUpgradeQueued - consulted only for a behind facet: true when a queued timelock
- *   diamondCut already registers the facet's deploy-log address, which turns the warning into
- *   expected-pending; that build's version is not compared with the target
+ *   diamondCut registers the facet's deploy-log address and the master deploy log records that
+ *   address at the target's base version, which turns the warning into expected-pending
  * @returns true when the live version equals the target
  */
 async function reportFacetVersionDrift(
@@ -2604,7 +2614,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       let unreachableReason: string | undefined
       const isUpgradeQueued = async (
         contractName: string,
-        liveAddress: string
+        liveAddress: string,
+        targetVersion: string
       ): Promise<boolean> => {
         scheduled ??= await resolvePendingRegistrations(ctx)
         if (!(scheduled instanceof Map)) {
@@ -2616,10 +2627,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // A deploy log still naming the live build never logged the target one, so a queued cut
         // of that address would re-register the build that is behind.
         if (addressesMatch(String(deployed), liveAddress)) return false
-        return (
+        const isCutQueued =
           scheduled
             .get(String(deployed).toLowerCase())
             ?.some((record) => record.kind === 'facet-cut') ?? false
+        if (!isCutQueued) return false
+        // A cut queued before the target moved on would land a build that is still behind, and
+        // the sign-time gate may refuse it, so only a queued build at the target version waits.
+        const queuedVersion = versionAtAddress(
+          ctx.deployLog === undefined ? loadDeployLog() : ctx.deployLog,
+          contractName,
+          ctx.networkLower,
+          String(deployed)
+        )
+        return (
+          queuedVersion !== null &&
+          compareContractVersions(
+            baseSemanticVersion(queuedVersion),
+            baseSemanticVersion(targetVersion)
+          ) === 0
         )
       }
 
@@ -2654,7 +2680,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               contractName,
               liveVersion,
               target,
-              () => isUpgradeQueued(contractName, address)
+              () => isUpgradeQueued(contractName, address, target.version)
             )
           )
             matching++
