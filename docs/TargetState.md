@@ -103,6 +103,7 @@ attempt every facet and periphery contract the network declares, whatever versio
 deployed; on the version gate only a pin can refuse, and since the migration to `latest`
 the only pins are deliberate hold-backs (`ChainflipFacet` on mainnet and arbitrum,
 `ThorSwapFacet` on avalanche and bsc until its deprecation, EXSC-1169;
+`DeBridgeDlnFacet` at its deployed 1.0.0/1.0.1 until the 1.1.0 rollout, EXSC-1172;
 `CalldataVerificationFacet` on tron at 1.3.1, EXSC-1174). Before the migration, stage 6 deployed a periphery contract only where the
 declared version equalled the repo's and skipped the rest with a warning, so an entry whose
 declared version had fallen behind the repo was never touched. Entering a run at stage 5 or 6
