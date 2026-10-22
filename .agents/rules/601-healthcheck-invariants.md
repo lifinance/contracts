@@ -106,7 +106,9 @@ deliberate version pin; the one invariant that consults it is
 `facet-versions-match-target-state`, which warns when a registered facet is behind or ahead of
 that version and never fails the run ([docs/TargetState.md](../../docs/TargetState.md)). A
 behind facet is reported as expected-pending instead when a `queued` `diamondCut` on that
-network's diamond registers the facet's deploy-log address, matched as for additions below.
+network's diamond registers the facet's deploy-log address, matched as for additions below,
+and `deployments/_deployments_log_file.json` records that address for this network's production
+environment at the target's base version. A missing or different version keeps the warning.
 A deploy-log address equal to the live, behind address never qualifies: the target build was
 never logged, so that cut re-registers the build that is behind.
 

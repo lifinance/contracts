@@ -4086,9 +4086,54 @@ describe('facet-versions-match-target-state', () => {
     })
 
     it('compares the queued build with the target by base version', async () => {
-      const ctx = behindCtx(queued(), UPGRADE, masterLog('2.0.0-tron'))
+      const suffixedLog = behindCtx(queued(), UPGRADE, masterLog('2.0.0-tron'))
+      const suffixedTarget = makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0-tron' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: UPGRADE },
+        pendingRegistrations: queued(),
+        deployLog: masterLog('2.0.0'),
+      })
+      await invariant.run(suffixedLog)
+      await invariant.run(suffixedTarget)
+      expect(suffixedLog.warnings).toEqual([])
+      expect(suffixedTarget.warnings).toEqual([])
+    })
+
+    it('accepts the queued build when any version the master log records for it is the target', async () => {
+      const ctx = behindCtx(queued(), UPGRADE, {
+        GenericSwapFacetV3: {
+          mainnet: {
+            production: {
+              '1.1.0': [{ ADDRESS: UPGRADE }],
+              '2.0.0': [{ ADDRESS: UPGRADE }],
+            },
+          },
+        },
+      })
       await invariant.run(ctx)
       expect(ctx.warnings).toEqual([])
+    })
+
+    it('reads the master log only for this network and production', async () => {
+      const otherNetwork = behindCtx(queued(), UPGRADE, {
+        GenericSwapFacetV3: {
+          arbitrum: { production: { '2.0.0': [{ ADDRESS: UPGRADE }] } },
+        },
+      })
+      const stagingOnly = behindCtx(queued(), UPGRADE, {
+        GenericSwapFacetV3: {
+          mainnet: { staging: { '2.0.0': [{ ADDRESS: UPGRADE }] } },
+        },
+      })
+      await invariant.run(otherNetwork)
+      await invariant.run(stagingOnly)
+      expect(otherNetwork.warnings).toHaveLength(1)
+      expect(otherNetwork.warnings[0]).toContain('is behind')
+      expect(stagingOnly.warnings).toHaveLength(1)
+      expect(stagingOnly.warnings[0]).toContain('is behind')
     })
 
     // A cut queued before the target moved on lands a build that is still behind.

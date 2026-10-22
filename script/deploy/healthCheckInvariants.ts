@@ -39,7 +39,7 @@ import { normalizeSelector } from '../utils/utils'
 
 import {
   loadDeployLog,
-  versionAtAddress,
+  versionsAtAddress,
   type DeployLog,
 } from './healthCheckBehindMain'
 import {
@@ -2634,18 +2634,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         if (!isCutQueued) return false
         // A cut queued before the target moved on would land a build that is still behind, and
         // the sign-time gate may refuse it, so only a queued build at the target version waits.
-        const queuedVersion = versionAtAddress(
+        return versionsAtAddress(
           ctx.deployLog === undefined ? loadDeployLog() : ctx.deployLog,
           contractName,
           ctx.networkLower,
           String(deployed)
-        )
-        return (
-          queuedVersion !== null &&
-          compareContractVersions(
-            baseSemanticVersion(queuedVersion),
-            baseSemanticVersion(targetVersion)
-          ) === 0
+        ).some(
+          (queuedVersion) =>
+            compareContractVersions(
+              baseSemanticVersion(queuedVersion),
+              baseSemanticVersion(targetVersion)
+            ) === 0
         )
       }
 
