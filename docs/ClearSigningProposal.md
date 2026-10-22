@@ -42,46 +42,47 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
       "format": "addressName",
       "params": { "types": ["eoa", "contract"], "sources": ["local", "ens"] },
       "visible": "always"
+    },
+    /* bridge-specific fields, see below */
+    {
+      "path": "@.value",
+      "label": "Native Value Sent",
+      "format": "amount",
+      "visible": "always"
     }
     /* hidden plumbing: transactionId, bridge, integrator, referrer, hasSourceSwaps, hasDestinationCall */
   ]
 }
 ```
 
+`@.value` is on every payable bridge format (non-payable entrypoints such as `startBridgeTokensViaPolymerCCTP` omit it): several facets take a native fee from `msg.value` on top of an ERC-20 amount (AllBridge, Arbitrum, Centrifuge, DeBridgeDln, Frax, Glacis, Paxos, Squid, Stargate, Superset, Symbiosis).
+
 Reads on a hardware wallet as one sentence: _"Bridge 100 USDC via Across to chain 137 for vitalik.eth"_.
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
-#### Bridge-specific recipient (`BRIDGE_EXTRA_RECEIVERS`)
+#### Bridge-specific fields (`BRIDGE_FACET_DISPLAY`)
 
-For most bridges the on-chain recipient is `_bridgeData.receiver`, so the standard `Recipient` field is the whole story. A number of bridges credit funds on the destination chain to a **bridge-specific** struct field instead, and `_bridgeData.receiver` is then a sentinel (`NON_EVM_ADDRESS`) or an intermediary contract. For those, the generator appends an extra **always-visible** field sourced from the bridge-specific field, e.g. for AcrossV4:
+`_bridgeData` is what the transfer claims to do. In many facets the facet's own struct decides part of it instead, without checking it against `_bridgeData`. The rule: **any facet value that changes the amount bridged or received, the token received, the chain or address the funds go to, or where refunds land is displayed.** A value the facet checks against `_bridgeData` (Frax and Superset bind their LayerZero endpoint to `destinationChainId`) stays hidden.
 
-```json
-{
-  "path": "_acrossData.receiverAddress",
-  "label": "Across Recipient",
-  "format": "raw",
-  "visible": "always"
-}
-```
+`BRIDGE_FACET_DISPLAY` in the generator lists these fields per bridge, keyed by `bridgeFacetName()`. Each entry names the component path, its exact ABI type, label, format and visibility, and can restrict a field to the `start` or `swap` entrypoint when the other one ignores or rewrites it. The classes:
 
-The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is no `bytes32`→EVM-address formatter — so the honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the dominant EVM path it resolves to a trusted name/ENS, and the raw field carries the ground truth for the rest. The mapping is **strict-by-default**: if a referenced struct component is renamed or retyped, the generator fails and blocks CI rather than emit a dead display path.
+- **Amount actually bridged or delivered** — Mayan bridges `mayanAmountIn`, not the swap output, rounded down to 8 decimals; PolymerCCTP cuts `polymerTokenFee` from the amount; Paxos delivers the amount minus `protocolFee` and `integratorFee`; AcrossV4, LiFiIntentEscrowV2, DeBridgeDln, Stargate, M0 and Superset deliver an output amount, minimum or multiplier from their own struct; Across v1 takes `relayerFeePct` from the amount. The output multipliers are raw: they fold the token decimal difference into the ratio, so a percentage would be wrong whenever the decimals differ.
+- **Token taken or received** — both Squid entrypoints hand `depositAssetId` to the router, so the amount is formatted in that token, and Squid shows the Axelar `bridgedTokenSymbol` and the source calls (target and raw call data); GasZip's swap entrypoint bridges the native swap output; AcrossV4 shows its own `sendingAssetId` (ignored when bridging native). Tokens received: Across, AllBridge, OptimismBridge and MegaETHBridge (`assetIdOnL2`, with the custom-bridge flag that bypasses it), DeBridgeDln, Glacis, LiFiIntentEscrowV2, M0, Paxos, NEARIntents, Chainflip, Superset (the omni-token id in the last 32 bytes of `path`).
+- **Where the funds go** — Stargate's `dstEid` and `sendParams.to`; Squid's `destinationChain`, `destinationAddress` and route type: route 1 (CallBridge) delivers to `_bridgeData.receiver` and ignores `destinationAddress`, routes 0 and 2 deliver to the `destinationAddress` contract and refund to `_bridgeData.receiver`, so the sentence names neither address and the labels say which route uses which; DeBridgeDln's `receiver` and `orderAuthorityDst`; ThorSwap's vault and memo; GasZip's `destinationChains`; Symbiosis' `callTo`; Paxos' `destEID`; PolymerCCTP's Solana token account and Stellar forwarder hook; Mayan's order (`protocolData`, raw: its token, minimum and chain sit at offsets that differ per Mayan protocol); AcrossV4Swap's route and Across call data (raw; its hash is backend-signed). Where the facet does not use `_bridgeData.receiver` or `destinationChainId`, their labels say so (`chainLabel`, `receiverLabel`): Squid, Stargate, Paxos, Mayan, Symbiosis, ThorSwap, GasZip, Garden and RelayDepository. Arbitrum, Optimism, MegaETH, Polygon and Omni bridges fix the destination chain, so the sentence names it (`fixedDestination`).
+- **Deposit addresses and off-chain orders** — Unit, NEARIntents, LayerSwap and Garden send the funds to a deposit address or solver; for those the sentence names it and says the recipient is filled off-chain. RelayDepository deposits into the Relay Depository contract, so its sentence says the order is filled off-chain, and it shows the depositor the deposit is recorded under.
+- **Destination calls** — on AcrossV4, Chainflip, LiFiIntentEscrowV2 and Stargate a destination call replaces the recipient check, so `Destination Call` and the call receiver are shown.
+- **Native fees** — shown as `amount`, alongside `@.value`.
+- **Fields read on one path only** — a non-EVM recipient, a Solana token account, a forwarder hook, a destination-call receiver, a fee taken only on one route: `visible: { ifNotIn: [0] }`, so they show whenever set and stay off screens where the facet ignores them.
+- **Refund recipients** — shown as `addressName` with `visible: optional`, except where the refund recipient receives part of the output on the normal path: the swap entrypoints of PaxosTransit, NEARIntents, Eco and Symbiosis (which bridge a fixed amount and refund the swap surplus), both Mayan entrypoints, Frax (HopV2 dust on every transfer) and LiFiIntentEscrowV2.
 
-Two shapes, keyed by `bridgeFacetName()`:
+A `bytes32` recipient may hold a non-EVM address, so it keeps a `raw` field; its address bytes are shown a second time as `addressName` through a `[12:32]` slice. GasZip's recipient is shown raw only: it equals `_bridgeData.receiver` on EVM targets. On facets that accept `LiFiData.NON_EVM_ADDRESS` as `_bridgeData.receiver`, the recipient label says that `0x11f1…11F1` means the real recipient is in a non-EVM field below. Where `_bridgeData` misstates the transfer, the entry also replaces the sentence (`interpolatedIntent`) or the amount label: DeBridgeDln names `_deBridgeData.receiver`, Stargate names `dstEid` and `sendParams.to`, PaxosTransit names `destEID`.
 
-- **TYPE-A** — the field is the on-chain recipient in **every** branch (always populated). `AcrossV4` (`_acrossData.receiverAddress`) and `DeBridgeDln` (`_deBridgeData.receiver`) can differ from `_bridgeData.receiver` even on EVM (destination call → our Receiver contract; DeBridgeDln never cross-checks its `receiver`), so the field adds signal on EVM too. `Glacis`, `AllBridge`, `LiFiIntentEscrowV2`, `GasZip` enforce equality on plain EVM transfers, so there the field re-shows the recipient and carries the real value on non-EVM. Labelled `"<Bridge> Recipient"`.
-- **TYPE-B** — a `nonEVMReceiver`-style field only set on non-EVM transfers (`0x0` on EVM, where `_bridgeData.receiver` is the faithful recipient): `Mayan`, `LayerSwap`, `Chainflip`, `Eco`, `NEARIntents`, `PolymerCCTP`, `Frax`. Labelled `"Non-EVM Recipient"` so the `0x0` on an EVM transfer reads as "N/A".
-
-> **`GasZip` caveat:** its `receiverAddress` is a **right-padded** `bytes32` (`bytes32(bytes20(addr))`), unlike the left-padded convention elsewhere; `raw` shows the address in the high bytes.
-
-Deliberately **excluded** (no clean static fix — tracked as follow-up):
-
-- **Opaque / EIP-712-gated flows** — `AcrossV4Swap`, `Garden`, `ThorSwap`, `Symbiosis`, `RelayDepository`: the receiver lives in opaque calldata or an off-chain order and is not on-chain-verifiable by design.
-- **`Squid`** — the recipient is route-type-dependent (`_squidData.destinationAddress` for `BridgeCall`/`CallBridgeCall`, `_bridgeData.receiver` for `CallBridge`), so no single field is always correct; needs its own design.
+The mapping is **strict-by-default**: a renamed or retyped component, or a token path that does not resolve, fails the generator and blocks CI rather than emitting a dead display path. Every `{placeholder}` in a sentence must name a field the format displays.
 
 ### Swap-and-bridge: `swapAndStartBridgeTokensVia<Bridge>`
 
-Adds the head of the swap chain (`_swapData.[0]`) as a separate field:
+Adds every swap input (`_swapData.[].fromAmount`, formatted against `_swapData.[].sendingAssetId`) as a separate field, with its `requiresDeposit` flag ("Swap Step Taken From Wallet"): `LibAsset.depositAssets` pulls `fromAmount` from the signer for every entry with `requiresDeposit`, not only the first; a step without it spends what an earlier step produced.
 
 ```json
 {
@@ -90,7 +91,7 @@ Adds the head of the swap chain (`_swapData.[0]`) as a separate field:
 }
 ```
 
-The user sees both the swap input amount and the minimum bridge output. Intentionally does not interpolate `_swapData.[0].fromAmount` into the sentence — hardware wallets struggle to render two token amounts on one line, and the bridge output is the user-facing commitment.
+The user sees the swap inputs and the minimum bridge output. The sentence does not interpolate the swap inputs — there can be several, and the bridge output is the user-facing commitment.
 
 ### Packed / Min variants: `*ERC20Packed`, `*NativePacked`, `*ERC20Min`, `*NativeMin` — excluded
 
@@ -113,9 +114,10 @@ The `display.formats` entries carried over from the registry descriptor, re-auth
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SingleV3ERC20ToERC20` / `SingleV3ERC20ToNative`     | `Swap {_swapData.fromAmount} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                          |
 | `SingleV3NativeToERC20`                              | `Swap {@.value} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                                       |
-| `MultipleV3ERC20ToERC20` / `MultipleV3ERC20ToNative` | `Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                      |
+| `MultipleV3ERC20ToERC20` / `MultipleV3ERC20ToNative` | `Swap for at least {_minAmountOut} to {_receiver}` (every deposited input is its own `_swapData.[].fromAmount` field)                                                                                                                              |
 | `MultipleV3NativeToERC20`                            | `Swap {@.value} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                                       |
-| `swapTokensGeneric`                                  | `Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver}` (note: this signature uses `_minAmount`, not `_minAmountOut`; the function is no longer in the diamond, so the generator emits no entry and the registry keeps its own) |
+
+`swapTokensGeneric` (the deprecated GenericSwapFacet) has no entry: the sync drops it from the registry as a retired LI.FI function.
 
 ## Conventions & deliberate choices
 
@@ -125,8 +127,8 @@ The `display.formats` entries carried over from the registry descriptor, re-auth
 
    A LI.FI-authored `format: enum` map was the natural alternative and does not work either: the on-device ENUM_VALUE struct encodes an entry value in a single byte taken from the enum key, so no chain id above 255 is representable and `erc7730 calldata` silently drops the entire descriptor.
 
-4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
-5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
+4. **`BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`) — these carry no user-facing decision content. `hasDestinationCall` is hidden too, except on the facets where a destination call replaces the recipient check (see above).
+5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo` and `approveTo` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
 ## Full proposal — per function
 
@@ -161,9 +163,9 @@ The registry requires one test case per `display.formats` entry — it derives t
 
 Two invariants the generator enforces, both of which produce fixtures that pass every runner while asserting nothing if violated:
 
-- **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_EXTRA_RECEIVERS` entry fails our PR rather than reaching the registry. This covers the transaction envelope too: the native-in `swapTokens*` formats display `@.value` rather than a parameter, so those cases are encoded with a non-zero value and `--check` rejects any other `@.` path, which the generator has no way to populate.
+- **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_FACET_DISPLAY` entry fails our PR rather than reaching the registry. A conditional field (`ifNotIn`) is exempt, since it hides at zero; a `VARIANT_CASES` entry asserts it where it shows. Base cases use the inputs each facet accepts (`BASE_CASE_OVERRIDES`: the fixed chain of a canonical bridge, DAI for GnosisBridge, native for Unit and GasZip). This covers the transaction envelope too: the native-in `swapTokens*` formats display `@.value` rather than a parameter, so those cases are encoded with a non-zero value and `--check` rejects any other `@.` path, which the generator has no way to populate.
 - **No expectation may stay `PENDING`.** Expectations come from the reference runner, so a new format needs a render pass before it can be published.
-- **No format may go without a case.** `--check --tests config/clearSigningTests.json` verifies the reviewed fixture covers every format in the proposal, and runs in `verifyClearSigning.yml`. Without it the missing case is not a PR failure at all: the sync is the first thing to notice, after merge, unattended. The sync also runs the zero-value half of `--check` against the merged descriptor, which is the only place formats the registry preserves but we never proposed can be checked — PR CI cannot see upstream.
+- **No format may go without a case.** `--check --tests config/clearSigningTests.json` verifies the reviewed fixture covers every format in the proposal, and runs in `verifyClearSigning.yml`. Without it the missing case is not a PR failure at all: the sync is the first thing to notice, after merge, unattended. The sync also runs `--check --tests --rejectUnmatched` against the merged descriptor, which is the only place formats the registry preserves but we never proposed can be checked — PR CI cannot see upstream. `--rejectUnmatched` fails on a case whose function the descriptor has no format for, which the registry rejects. It runs only there: against the proposal it would also flag the case of a format the registry keeps after we drop it, and that case has to stay.
 
 **The reviewed fixture lives in this repo**, at [`config/clearSigningTests.json`](../config/clearSigningTests.json). The registry copy is an output of it: the sync reads the repo file, writes the registry path, and never reads the registry's own copy back. So the fixture is reviewed through a normal PR here, alongside the proposal change that made it necessary, and no state is carried on the fork's sync branch — a branch that is recreated from upstream and force-pushed on every run, and that anyone may delete. The cost is that an edit made directly on the registry is replaced rather than merged; it shows up as a diff in the sync PR, and the fix is to make the same change here.
 
@@ -203,7 +205,7 @@ Commit the result here. Existing cases are kept verbatim — they carry real tra
 
 Note what this does **not** do: a descriptor change that alters an **already-covered** format leaves that case's expectation untouched. The generator preserves reviewed expectations rather than guessing at new ones, and it cannot re-render without the reference runner — so that case needs a deliberate pass through the loop above.
 
-`--check --tests` catches the common half of that automatically: for every covered format it compares the descriptor's displayed labels, in order, against the case's `expected.fields[*].label` and fails on a mismatch. Both sides are in-repo, so a renamed label fails the PR that renames it rather than the sync after merge. **Value** drift is still unguarded — only the reference runner can say what a field renders to — so a template change that alters a value while keeping its label needs the deliberate pass.
+`--check --tests` catches the common half of that automatically: for every covered format it compares the descriptor's displayed labels, in order, against the case's `expected.fields[*].label` and fails on a mismatch (a field over an array path, such as `_swapData.[].fromAmount`, renders once per element, so its label may repeat). Both sides are in-repo, so a renamed label fails the PR that renames it rather than the sync after merge. **Value** drift is still unguarded — only the reference runner can say what a field renders to — so a template change that alters a value while keeping its label needs the deliberate pass.
 
 The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | prettier --parser json --print-width 120`) or the fixture carries a whole-file reformat diff. The sync workflow does this.
 
@@ -238,7 +240,7 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
     - strips the deprecated context.contract.abi (the v2 registry infers
       the ABI from the display.formats keys)
     - regenerates context.contract.deployments from deployments/* (active
-      mainnets, zkEVM chains excluded)
+      mainnets; zkEVM chains and chains without a native currency excluded)
     - merges display.formats from config/clearSigningProposal.json,
       scrubbing our own title-only Packed/Min residue and entries for
       retired LI.FI functions (RETIRED_LIFI_FUNCTIONS)
