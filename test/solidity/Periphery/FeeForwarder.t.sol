@@ -1033,7 +1033,8 @@ contract FeeForwarderTest is TestBase {
 
         // Act & Assert
         vm.prank(USER_SENDER);
-        vm.expectRevert(NullAddrIsNotAnERC20Token.selector);
+        // balanceOf on an address without code returns no data, so the revert carries none
+        vm.expectRevert(bytes(""));
 
         feeForwarder.forwardERC20FeesBps(address(0), distributions);
     }

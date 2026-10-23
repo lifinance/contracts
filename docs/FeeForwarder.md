@@ -65,7 +65,7 @@ Each share is `balanceOf(caller) * bps / 10_000`, rounded down. The balance is r
 - Reverts with `InvalidReceiver` for a zero-address recipient, whatever its share
 - A share that rounds to zero (or a 0 bps entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
 - The `FeesForwarded` event carries the computed amounts, in input order
-- ERC20 only: `address(0)` reverts with `NullAddrIsNotAnERC20Token`
+- ERC20 only: `address(0)` reverts without error data (the `balanceOf` call has no code to run)
 
 **Using it in `GenericSwapFacetV3`:**
 
@@ -134,7 +134,6 @@ The contract uses minimal error checking for gas optimization:
 - **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset; checked up front in `forwardERC20FeesBps`)
 - **Natural Failures**: Insufficient balance or approvals will cause natural reverts
 - **InvalidTotalBps(totalBps)**: Thrown by `forwardERC20FeesBps` when the shares add up to more than 10_000 bps; carries the running total at the first share past the limit
-- **NullAddrIsNotAnERC20Token**: Thrown by `forwardERC20FeesBps` when `address(0)` is passed as the token
 - **InsufficientBalance(required, balance)**: Thrown by `forwardNativeFees` when the distributions sum to more than `msg.value` **and** the contract's own balance was able to cover the shortfall — the invocation is refusing to spend funds its caller did not provide. Without such a balance the failing transfer reverts first with `ETHTransferFailed`, so under-funding surfaces as one of these two errors depending on whether a stray balance is present
 
 ## Security Considerations

@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { InvalidConfig, InvalidReceiver, InsufficientBalance, NullAddrIsNotAnERC20Token } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InsufficientBalance } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
@@ -113,8 +113,6 @@ contract FeeForwarder is WithdrawablePeriphery {
         address _token,
         FeeBpsDistribution[] calldata _distributions
     ) external {
-        if (LibAsset.isNativeAsset(_token)) revert NullAddrIsNotAnERC20Token();
-
         uint256 balance = IERC20(_token).balanceOf(msg.sender);
 
         uint256 length = _distributions.length;
