@@ -60,6 +60,12 @@ bunx tsx script/troncast/index.ts call --env mainnet <LiFiDiamond from deploymen
 
 Owner is the `LiFiTimelockController` from `deployments/tron.json` → nothing to move. Owner is the old deployer → run `script/deploy/tron/transfer-ownership-to-timelock.ts` with `PRODUCTION=true` (`--dryRun`, then `--step 1`, then `--step 2`). The Tron Safe owner swap has no helper (`manageSafeOwner` uses the EVM `propose-to-safe.ts`): report it as a manual follow-up, not done.
 
+The Tron `LiFiTimelockController` also grants `CANCELLER_ROLE` to `tronWallets.deployerWallet` (set at deploy by `deploy-and-register-periphery.ts`). `manageTimelockCanceller` also goes through `propose-to-safe.ts`, so report the Tron revoke-old / grant-new as a second manual follow-up. Read it for the old and the new deployer:
+
+```bash
+bunx tsx script/troncast/index.ts call --env mainnet <LiFiTimelockController from deployments/tron.json> "hasRole(bytes32,address) returns (bool)" "$(cast keccak CANCELLER_ROLE),<deployer 0x…>"
+```
+
 ```text
 /move-tron-delegation --old-address <old deployer 0x…> --new-address <NEW> --role deployer
 ```
@@ -80,7 +86,7 @@ Once Phase 6 shows the old address holds no Safe-owner / canceller / owner privi
 /check-rotation-status --old-address <old deployer 0x…> --new-address <NEW> --role deployer --production
 ```
 
-Deployer checks: Safe owners (old out, new in) on every production Safe, `CANCELLER_ROLE` moved, CI funding. Tron counts as done only on Phase 3's owner read, Tronscan evidence, and the manual Tron Safe-owner swap executed. The `swapOwner` lands once signed to threshold and executed; the canceller change also waits out the timelock delay — until then "old" is pending, not failure.
+Deployer checks: Safe owners (old out, new in) on every production Safe, `CANCELLER_ROLE` moved, CI funding. Tron counts as done only on Phase 3's diamond owner read, the Tron Safe owner swap (`getOwners() returns (address[])` on `tron.safeAddress` from `config/networks.json`: old out, new in), the Tron timelock `CANCELLER_ROLE` read (old revoked, new granted) and Tronscan delegation evidence. The `swapOwner` lands once signed to threshold and executed; the canceller change also waits out the timelock delay — until then "old" is pending, not failure.
 
 ### Phase 7 — Report
 
