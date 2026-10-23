@@ -1,12 +1,14 @@
 ---
 name: multisig-rollout
-description: "Orchestrates a PRODUCTION multisig rollout end-to-end — deploy (via `deploy-contract`), propose-only for already-deployed bytecode, or whitelist sync across chains — then captures Safe proposals, drafts a PR when needed, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use for \"roll out <Facet> vX.Y.Z\", \"create the diamond cut proposals\", \"propose cuts for already-deployed X\", \"re-propose after deleting Safe txs\", \"sync the whitelist for PR <N>\", or Polymer CCTP domain propagation. Also triggers on a bare \"deploy <Contract> to <network>\" or \"the receiver is missing on <chain>\" when the target is a mainnet/production diamond — production deploys ALWAYS enter here, never `deploy-contract` directly, because registration needs Safe proposals shepherded to signing. Staging/test deploy without the proposal lifecycle → `deploy-contract`. Requires lifi-connect (MongoDB), gh, and Slack MCP."
+description: "Production rollout: deploy, propose-only or whitelist sync, then Safe proposals through signing and Slack. Use for \"roll out <Facet> vX.Y.Z\", \"propose cuts\", re-proposing deleted Safe txs, Polymer CCTP domain propagation or any mainnet deploy. Testnet → deploy-contract; executed → finish-rollout."
 usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <ContractName> [networks…] | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
-# Multisig Rollout (LI.FI Contracts)
+# Multisig Rollout
 
-Drives the production rollout lifecycle in three modes:
+Production deploys always enter here, never `deploy-contract` directly — registration needs Safe proposals shepherded to signing. Requires lifi-connect (MongoDB) and gh; without Slack MCP the user posts the Phase 8 thread.
+
+Three modes:
 
 - **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist writes, explorer verification) is delegated to the **`deploy-contract`** skill; this skill owns the proposal lifecycle around it.
 - **propose-only mode** — bytecode already in `deployments/<net>.json` (deferred cuts, recreate-after-delete). Runs `proposeContractToNetworks.sh` — no CREATE3. Same signing/Slack tail as deploy.
@@ -28,7 +30,7 @@ All modes converge on the same tail: capture proposals → (deploy mode only, or
 
 ## Phase 0 — Preflight
 
-**Proceed optimistically — do not pre-gate on tunnel or signing.** Assume the human has the `lifi-connect` tunnel up (per `docs/Setup-agents.md`). Do not ask "how should we run this given I can't open the tunnel / sign" — just execute. The MongoDB scripts fail fast (`list-pending-proposals.ts` exits `2`) if the tunnel is actually down, and signing is handed off in Phase 6 when it's actually needed. The only up-front gate is confirming the resolved plan (contract/version/networks) in Phase 2, since it costs gas across many chains.
+Do not pre-gate on tunnel or signing: assume the human has the `lifi-connect` tunnel up (per `docs/Setup-agents.md`) — `list-pending-proposals.ts` exits `2` if it is down, and signing is handed off in Phase 6. The only up-front gate is the Phase 2 plan confirmation.
 
 Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
@@ -65,23 +67,7 @@ In deploy mode, `deploy-contract` re-checks the deploy-side prerequisites (Found
 
 ### deploy mode
 
-If the user named explicit chains, use those. Otherwise discover every chain where the contract is already live:
-
-```bash
-for F in deployments/*.diamond.json; do
-  NET=$(basename "$F" .diamond.json)
-  V=$(jq -r --arg N "<Contract>" '(.LiFiDiamond.Facets // {}) | to_entries[] | select(.value.Name == $N) | .value.Version' "$F" 2>/dev/null | head -1)
-  [ -n "$V" ] && echo "$NET $V"
-done
-```
-
-Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Periphery/...`). Report old → new per network. Check if the contract is diamond-called (its registration proposal then carries the allowlist writes):
-
-```bash
-jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json
-```
-
-Also resolve any **required companion periphery** before confirming the plan — a facet with a `facetPeripheryCouplings` entry in `config/global.json` needs its companion deployed *and* registered on every target chain, or destination calls stay disabled there. `deploy-contract` Phase 1 carries the detection recipes; run them here too, since propose-only and whitelist modes never call that skill.
+Explicit chains if the user named them; otherwise every chain where the contract is already live. Run the commands from `deploy-contract` Phase 1 directly for live-chain discovery, repo version (report old → new per network), the diamond-called check (its registration proposal then carries the allowlist writes), and the **required companion periphery** — a facet with a `facetPeripheryCouplings` entry in `config/global.json` needs its companion deployed *and* registered on every target chain its `notRequiredOn` does not name, or destination calls stay disabled there. Run the companion recipes in propose-only and whitelist modes too, since they never call that skill.
 
 ### propose-only mode — resolve targets
 
@@ -121,7 +107,7 @@ The sync itself is on-chain-diff-driven, so a too-wide network list is harmless 
 
 Present: mode, contract + version (or PR + summary), full network list, and what will be created (one timelock-wrapped Safe proposal per chain — for a diamond-called periphery it carries the registration and its whitelist writes). Wait for explicit go-ahead before proceeding.
 
-Set the interaction model up front: this rollout is **semi-automated** — it will pause for Ledger signing; the user comes back saying “signed”; then you verify + post Slack. Do not let them do Phases 7–8 by hand.
+Tell the user up front: the rollout pauses for Ledger signing; they come back saying “signed”; you then verify + post Slack (Phases 7–8 are yours, not theirs).
 
 After confirmation:
 

@@ -90,8 +90,7 @@ checklist:
   `legacyGetters`, or coverage drops to the chains already redeployed.
 
 If none of the above applies, no registry change is needed — but the review itself is not
-optional. Edits to `healthCheckInvariants.ts` follow `200-typescript.md` (module header,
-JSDoc on exports, `bunx oxlint --type-aware` + `bash script/utils/typecheck-files.sh`).
+optional.
 
 ## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
 

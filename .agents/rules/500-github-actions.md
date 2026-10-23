@@ -16,24 +16,13 @@ paths:
 
 ## GitHub Actions Conventions
 
-- Workflows: explicit permissions, comments, secrets via `${{ secrets.* }}`; clear step names & triggers.
-
 ### Immutable action refs ([CONV:ACTIONS-IMMUTABLE])
 
-- **Every `uses:` reference MUST use a full 40-character commit SHA.** Do not use tags (e.g. `@v4`, `@v1`, `@main`) or short SHAs. Tags can be reassigned and have been exploited in supply-chain attacks (e.g. compromised third-party actions).
-- **Format**: `owner/repo@<full-40-char-sha>` with an optional trailing comment for traceability (e.g. `# v4.1.7`).
-- **When adding or updating a workflow**: Resolve the action’s tag/branch to its commit SHA (e.g. from the action’s repo releases or `git ls-remote`) and pin to that SHA.
-- **Example (correct)**:
+- **Every external `uses:` reference MUST use a full 40-character commit SHA** (local `./.github/actions/*` paths take none) — including `actions/upload-artifact` and the `actions-ecosystem` label actions. Do not use tags (e.g. `@v4`, `@v1`, `@main`) or short SHAs; tags can be reassigned.
+- **Format**: `owner/repo@<full-40-char-sha>` with an optional trailing comment for traceability:
 
   ```yaml
   - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-  ```
-
-- **Anti-pattern (forbidden)**:
-
-  ```yaml
-  - uses: actions/checkout@v4.1.7
-  - uses: some-action@main
   ```
 
 ### No template injection in `run:` scripts ([CONV:ACTIONS-NO-INJECTION])
@@ -110,59 +99,28 @@ paths:
 
 ## GitHub Actions Workflow Structure
 
-### File Organization
+- **Retiring a workflow**: delete it. Git history is the archive — a parked copy under a sibling directory is never re-enabled, drifts out of date, and hides live-looking policy that no longer runs.
+- **Header**: every workflow file starts with a comment block stating purpose, triggers, key behaviors, and known limitations or disabled checks:
 
-- **Location**: All workflow files must be in `.github/workflows/`
-- **Naming**: Use descriptive names ending in `.yml` (e.g., `versionControlAndAuditCheck.yml`, `protectAuditLabels.yml`)
-- **Retiring a workflow**: delete it. Git history is the archive — a parked copy under a sibling directory is never re-enabled, drifts out of date, and hides live-looking policy that no longer runs
+  ```yaml
+  # Workflow Name
+  # - Brief description of purpose
+  # - Key behavior 1
+  # - Known limitations or special cases
+  ```
 
-### File Header and Documentation
+- **Job names**: kebab-case (e.g., `version-control`, `audit-verification`).
+- **Shell logging**: ANSI colors — `\033[32m` green (success), `\033[31m` red (error), `\033[0m` reset.
 
-Every workflow file MUST start with a clear header comment block describing:
-
-1. **Purpose**: What the workflow does
-2. **Triggers**: When it runs (events, branches, paths)
-3. **Key behaviors**: Important actions it performs
-4. **Known limitations**: Any edge cases or disabled features
-
-Example header format:
-
-```yaml
-# Workflow Name
-# - Brief description of purpose
-# - Key behavior 1
-# - Key behavior 2
-# - Known limitations or special cases
-```
-
-### Workflow Structure
-
-#### Required Sections (in order)
-
-1. **Name**: Descriptive workflow name
-2. **On triggers**: Explicit event types and conditions
-3. **Permissions**: Minimal required permissions with comments explaining each
-4. **Jobs**: Organized by logical function
-
-#### Permissions
+### Permissions
 
 - **Default-deny at the workflow level** with `permissions: {}`, then grant the minimal
   scopes each job needs at the **job level**. A workflow-level grant is inherited by every
   job, handing low-trust jobs more access than they need (flagged by Aikido as
   "Overly Broad Permissions").
-- **Always document why each permission is needed** with inline comments
-- Use minimal permissions (principle of least privilege)
-- Common patterns:
-  - `contents: read` - Fetch repository contents
-  - `pull-requests: write` - Edit PR title, assign/remove labels, post comments
-  - `actions: write` - Upload/download artifacts between jobs
-  - `security-events: write` - Upload SARIF results to GitHub Code Scanning
-  - `issues: write` - Post comments via GitHub Issues API
-
-Example:
+- Document why each permission is needed with an inline comment:
 
 ```yaml
-# Default-deny at the workflow level; grant only what each job needs at the job level.
 permissions: {}
 
 jobs:
@@ -173,77 +131,17 @@ jobs:
       actions: write # required to upload/download artifacts between jobs
 ```
 
-#### Job Organization
+### Secrets and bot identity
 
-- **Job names**: Use kebab-case (e.g., `version-control`, `audit-verification`)
-- **Conditional execution**: Use `if:` conditions to skip jobs when appropriate
-- **Job dependencies**: Use `needs:` to ensure proper execution order
-- **Concurrency**: Use `concurrency:` groups to prevent duplicate runs
-
-#### Step Documentation
-
-- **Step names**: Use clear, action-oriented names (e.g., "Checkout repository", "Verify version updates")
-- **Comments**: Add inline comments for complex logic, especially in shell scripts
-- **Error handling**: Include proper error messages with ANSI color codes for visibility
-- **Environment variables**: Document all custom environment variables
-
-### Shell Script Patterns
-
-When using shell scripts in workflow steps:
-
-1. **Error handling**: Use `set -e` where appropriate, or explicit error checks
-2. **Logging**: Use ANSI color codes for visibility:
-   - `\033[32m` - Green (success)
-   - `\033[31m` - Red (error)
-   - `\033[0m` - Reset
-3. **Variable initialization**: Initialize variables before use
-4. **Exit codes**: Use appropriate exit codes (0 for success, 1 for failure)
-5. **Comments**: Add descriptive comments for complex logic blocks
-
-Example:
-
-```bash
-##### Initialize empty variables
-CONTRACTS=""
-
-##### go through all file paths and identify all files in src/ folder
-while IFS= read -r FILE; do
-  if echo "${FILE}" | grep -E '^src/.*\.sol$'; then
-    CONTRACTS="${CONTRACTS}${FILE}"$'\n'
-  fi
-done <<< "${FILES}"
-```
-
-### Secrets Management
-
-- **Use GitHub Secrets**: Never hardcode sensitive data
-- **Naming convention**: Use descriptive names (e.g., `GIT_ACTIONS_BOT_PAT_CLASSIC`, `MONGODB_URI`)
-- **Access control**: Use service account tokens (e.g., `lifi-action-bot`) for automated actions
-- **Token usage**: Unset default `GITHUB_TOKEN` when using custom PATs:
+- Use service account tokens (e.g., `lifi-action-bot`) for automated actions; secrets follow names like `GIT_ACTIONS_BOT_PAT_CLASSIC`, `MONGODB_URI`.
+- Unset the default `GITHUB_TOKEN` when using a custom PAT:
 
   ```bash
   unset GITHUB_TOKEN
   echo $GH_PAT | gh auth login --with-token
   ```
 
-### Conditional Execution
-
-- **Draft PRs**: Skip workflows on draft PRs: `if: ${{ github.event.pull_request.draft == false }}`
-- **Branch targeting**: Check base branch: `if: ${{ github.event.pull_request.base.ref == 'main' }}`
-- **Path filters**: Use `paths:` to trigger only on relevant file changes
-- **Event types**: Specify exact event types needed (e.g., `types: [opened, synchronize, ready_for_review]`)
-
-### Artifact Management
-
-- **Upload/download artifacts**: Pin to full commit SHA (e.g. `actions/upload-artifact@<full-sha> # v4`); never use `@v4` or other tags.
-- **Artifact names**: Use descriptive names (e.g., `contracts_for_audit`)
-- **Cleanup**: Initialize empty files to prevent upload failures
-
-### Label Management
-
-- **Label assignment**: Pin to full commit SHA for `actions-ecosystem/action-add-labels` and `action-remove-labels`; never use `@v1` or other tags.
-- **Authorization**: Only allow specific bots (e.g., `lifi-action-bot`) to modify protected labels
-- **Verification**: Always verify label state after modification
+- Only specific bots (e.g., `lifi-action-bot`) may modify protected labels; verify label state after modifying it.
 
 ### Label-gated heavy workflows ([CONV:CI-LABEL-GATE])
 
@@ -258,37 +156,5 @@ Reference: `assignRequiresTypesLabel.yml` + `types.yaml`.
 
 ### PR Comments
 
-- **Comment identification**: Use unique markers (e.g., "🤖 GitHub Action: Security Alerts Review 🔍")
-- **Update vs. create**: Check for existing comments before creating new ones
-- **Formatting**: Use Markdown for readability (headers, lists, code blocks)
-- **Status indicators**: Use emojis for visual status (✅ success, ❌ error, ⚠️ warning)
-
-### Error Messages
-
-- **Clear messaging**: Provide actionable error messages
-- **Context**: Include relevant file paths, contract names, or identifiers
-- **Color coding**: Use ANSI colors for visibility in logs
-- **Exit behavior**: Fail fast with `exit 1` when critical checks fail
-
-### Testing and Validation
-
-- **Input validation**: Validate environment variables and inputs early
-- **State verification**: Verify expected state after operations (e.g., label assignment)
-- **Graceful degradation**: Handle missing data gracefully (e.g., empty file lists)
-- **Known limitations**: Document disabled checks or edge cases in comments
-
-### Integration Patterns
-
-- **Workflow dependencies**: Ensure prerequisite workflows complete before dependent workflows
-- **Status checks**: Verify upstream workflow success when needed
-- **Concurrency groups**: Use concurrency groups to prevent duplicate runs on same PR
-- **Manual triggers**: Include `workflow_dispatch` for manual execution when appropriate
-
-### Best Practices
-
-1. **Idempotency**: Design workflows to be safely re-runnable
-2. **Transparency**: Log all important decisions and state changes
-3. **Failure handling**: Provide clear error messages and recovery guidance
-4. **Performance**: Use path filters and conditional execution to minimize unnecessary runs
-5. **Maintainability**: Keep workflows focused on single responsibilities
-6. **Documentation**: Comment complex logic and document known limitations
+- Identify bot comments with a unique marker (e.g., "🤖 GitHub Action: Security Alerts Review 🔍") and update an existing comment instead of posting a new one.
+- Status indicators: ✅ success, ❌ error, ⚠️ warning.

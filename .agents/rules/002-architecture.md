@@ -40,5 +40,4 @@ alwaysApply: true
 
 ## Implementation Guidelines
 
-- When introducing new facets/periphery contracts, mirror existing directory and naming patterns and prefer using `plop` templates and documented patterns over bespoke structures.
 - For any change that could affect selector layout, upgrade flows, or storage layout, cross-check relevant rules and documentation and call out the impact explicitly before editing.

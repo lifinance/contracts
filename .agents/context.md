@@ -5,14 +5,8 @@ Solidity ^0.8.17 · Foundry · TypeScript/Bun scripts.
 
 ## Agent Configuration
 
-```
-.agents/
-  rules/*.md      28 rule files (source of truth, symlinked to .cursor/ as .mdc and .claude/ as .md)
-  commands/*.md   34 command files (source of truth, symlinked to .cursor/ and .claude/)
-  hooks/*.sh       post-edit hooks (auto-format + lint feedback)
-```
-
-Edit files in `.agents/` only — never edit the symlinks in `.cursor/` or `.claude/` directly.
+`.agents/rules/`, `.agents/commands/` and `.agents/hooks/` are the source of truth; `.cursor/`
+and `.claude/` symlink into them. Edit files in `.agents/` only — never the symlinks.
 Rules load automatically: global rules (000–002, 099, and 600, which has no `paths:`)
 always apply; scoped rules activate when you edit matching files. Convention anchors (e.g. `[CONV:LICENSE]`, `[CONV:EVENTS]`)
 are embedded in rule files.
@@ -51,15 +45,13 @@ review.** Full stage list and automation mapping:
 ## Ticket linkage
 
 The PR template's "Which Linear task belongs to this PR?" field is the source of
-truth. The monthly **Ticket Linkage Metric** workflow
-(`.github/workflows/ticketLinkageMetric.yml`) posts to Slack on the 1st of each
-month with the % of merged PRs that reference a Linear ticket ID (regex
-`[A-Z]+-[0-9]+`) in their title, branch, or body. Target: 80%+.
+truth. `.github/workflows/ticketLinkageMetric.yml` reports monthly the % of
+merged PRs that reference a Linear ticket ID (regex `[A-Z]+-[0-9]+`) in their
+title, branch, or body. Target: 80%+.
 
-Carve-out: PRs labelled `trivial` (typo / doc-only / dep-bump / single-line fix)
-are counted as linked. Use sparingly — the carve-out exists so the metric
-doesn't punish genuinely tiny PRs, not as an opt-out for skipping ticket creation.
-The monthly report lists every `trivial`-only PR by name so misuse is visible.
+PRs labelled `trivial` (typo / doc-only / dep-bump / single-line fix) count as
+linked. Use it only for genuinely tiny PRs, not to skip ticket creation; the
+report lists every `trivial`-only PR by name.
 
 ## Creating and editing PRs via gh
 
