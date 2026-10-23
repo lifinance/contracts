@@ -900,7 +900,7 @@
         "contractName": "FeeForwarder",
         "sourceId": "src/Periphery/FeeForwarder.sol",
         "version": "2.1.0",
-        "closureHash": "0x2de21e93f0dca521358783a9ea8fc38642652ba2fc9608a2ce5dcb7ec06b82fd",
+        "closureHash": "0x38b61410c678addb1651cbe250cdb23b94c7539088ee6055c9f5dbabd8b0046e",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"

@@ -94,18 +94,10 @@ contract FeeForwarder is WithdrawablePeriphery {
         emit FeesForwarded(_token, _distributions);
     }
 
-    /// @notice Forwards bps shares of the caller's full ERC20 balance to the specified recipients
-    /// @dev Intended as a swap step after the swap that produces `_token`, to take fees as a share
-    ///      of the actual output. All shares are computed from the balance read once before any
-    ///      transfer, so every fee for `_token` must go in a single call: a second call would
-    ///      compute its shares from the balance the first one already reduced.
-    ///      The caller's full balance is the fee base, including any balance it held before the
-    ///      swap (same full-balance pattern as OutputValidator). GenericSwapFacetV3 pays that
-    ///      full balance to the receiver; the SwapperV2 bridge flows credit only the balance
-    ///      increase, so there the fee on a pre-existing balance is borne by the user.
-    ///      Shares are rounded down and a share of zero is skipped (some tokens revert on
-    ///      zero-value transfers); the event still lists it with amount 0. A zero-address
-    ///      recipient reverts regardless of its share.
+    /// @notice Forwards bps shares of the caller's ERC20 balance to the specified recipients
+    /// @dev Intended as a GenericSwapFacetV3 swap step after the swap that produces `_token`.
+    ///      Must not be used in SwapperV2 bridge flows: they credit only the balance increase,
+    ///      so tokens donated to the caller would make the route revert.
     ///      The caller must have approved this contract to spend the tokens.
     /// @param _token The address of the ERC20 token to forward
     /// @param _distributions Array of recipients and their shares in basis points
