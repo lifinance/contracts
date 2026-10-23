@@ -60,7 +60,7 @@ Each share is `balanceOf(caller) * bps / 10_000`, rounded down. The balance is r
 
 - The caller must have approved this contract to spend the tokens
 - Put **all** fees for `token` into a single call. A second call computes its shares from the balance the first one already reduced, so the fees compound
-- The fee base is the caller's full balance of `token`, including any balance it held before the swap (same full-balance pattern as [OutputValidator](OutputValidator.md)). `GenericSwapFacetV3` pays that full balance to the receiver. The `SwapperV2` bridge flows credit only the balance increase, so there the fee on a pre-existing balance is borne by the user
+- The fee base is the caller's full balance of `token`, including any balance it held before the swap (same full-balance pattern as [OutputValidator](OutputValidator.md)). `GenericSwapFacetV3` pays that full balance to the receiver. The `SwapperV2` bridge flows credit only the balance increase, so there the fee on a pre-existing balance is borne by the user, and the route reverts if the total fee exceeds the swap output
 - Reverts with `InvalidTotalBps(totalBps)` once the running total of the shares passes 10_000 bps; `totalBps` is the running total at that share
 - Reverts with `InvalidReceiver` for a zero-address recipient, whatever its share
 - A share that rounds to zero (or a 0 bps entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
