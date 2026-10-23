@@ -6,7 +6,7 @@ usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <Cont
 
 # Multisig Rollout
 
-Production deploys always enter here, never `deploy-contract` directly — registration needs Safe proposals shepherded to signing. Requires lifi-connect (MongoDB), gh, and Slack MCP.
+Production deploys always enter here, never `deploy-contract` directly — registration needs Safe proposals shepherded to signing. Requires lifi-connect (MongoDB) and gh; without Slack MCP the user posts the Phase 8 thread.
 
 Three modes:
 

@@ -58,7 +58,7 @@ No committed entry point runs these across networks; the commented examples in `
 bunx tsx script/troncast/index.ts call --env mainnet <LiFiDiamond from deployments/tron.json> "owner() returns (address)"
 ```
 
-Owner is the `LiFiTimelockController` from `deployments/tron.json` → nothing to move. Owner is the old deployer → run `script/deploy/tron/transfer-ownership-to-timelock.ts` with `PRODUCTION=true` (`--dryRun`, then `--step 1`, then `--step 2`). The Tron Safe owner swap has no helper (`manageSafeOwner` uses the EVM `propose-to-safe.ts`): report it as a manual follow-up, not done.
+Owner is the `LiFiTimelockController` from `deployments/tron.json` → nothing to move. Owner is the old deployer → run `script/deploy/tron/transfer-ownership-to-timelock.ts` with `PRODUCTION=true` (`--dryRun`, then `--step 1`, then `--step 2`). Any other owner → report the address and stop the rotation before Phase 4. The Tron Safe owner swap has no helper (`manageSafeOwner` uses the EVM `propose-to-safe.ts`): report it as a manual follow-up, not done.
 
 The Tron `LiFiTimelockController` also grants `CANCELLER_ROLE` to `tronWallets.deployerWallet` (set at deploy by `deploy-and-register-periphery.ts`). `manageTimelockCanceller` also goes through `propose-to-safe.ts`, so report the Tron revoke-old / grant-new as a second manual follow-up. Read it for the old and the new deployer:
 
@@ -78,7 +78,7 @@ bunx tsx script/troncast/index.ts call --env mainnet <LiFiTimelockController fro
 
 ### Phase 5 — Decommission the old key
 
-Once Phases 2–4 have landed and Phase 6 shows the old address holds no Safe-owner / canceller / owner privilege anywhere: remove it from `.env` and secret stores and rotate any CI secret carrying it. Human step — give the checklist; don't touch secret stores.
+Run the Phase 6 check first. Once Phases 2–4 have landed and that check shows the old address holds no Safe-owner / canceller / owner privilege anywhere: remove it from `.env` and secret stores and rotate any CI secret carrying it. Human step — give the checklist; don't touch secret stores.
 
 ### Phase 6 — Verify
 

@@ -61,7 +61,7 @@ Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply th
           | map(select(.isResolved == false and .isOutdated == false))'
   ```
 
-  Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view --json reviewDecision,comments` and warn that resolution state is unknown.
+  Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view --json reviewDecision,comments` and treat resolution state as unknown: don't post unless the user explicitly says to go ahead.
 
 - **Failing CI** (blocking, `gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
 

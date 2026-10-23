@@ -39,7 +39,7 @@ ROUNDTRIP=$(bunx tsx script/troncast/index.ts address to-hex "$NEW_TRON")
 
 ### Phase 2 — Edit both fields in place
 
-Preserve structure and key order (rule 004 `[CONV:CONFIG-STRUCTURE]`). Deployer example:
+Preserve structure and key order (rule 004 `[CONV:CONFIG-STRUCTURE]`). Deployer example (for `dev` / `pauser`, use `.devWallet` + `.tronWallets.devWallet` / `.pauserWallet` + `.tronWallets.pauserWallet`):
 
 ```bash
 jq --arg evm "$NEW_EVM" --arg tron "$NEW_TRON" \
