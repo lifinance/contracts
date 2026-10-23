@@ -97,7 +97,7 @@ contract FeeForwarder is WithdrawablePeriphery {
     /// @notice Forwards bps shares of the caller's ERC20 balance to the specified recipients
     /// @dev Intended as a GenericSwapFacetV3 swap step after the swap that produces `_token`.
     ///      Must not be used in SwapperV2 bridge flows: they credit only the balance increase,
-    ///      so tokens donated to the caller would make the route revert.
+    ///      so tokens donated to the caller raise the user's fee and can make the route revert.
     ///      The caller must have approved this contract to spend the tokens.
     /// @param _token The address of the ERC20 token to forward
     /// @param _distributions Array of recipients and their shares in basis points
