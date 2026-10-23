@@ -51,7 +51,7 @@ If the bot hasn't commented yet (scan still running), say so and stop — never 
 
 ### `all` / `<issue-id>` mode — feed
 
-`aikido-mcp:aikido_issues_list` with issue type `sast` and the repo name from `gh repo view --json name -q .name`. For `<issue-id>`, keep only the matching `issue_id`; if none, report `issue <id> not found in the feed` and stop.
+`aikido-mcp:aikido_issues_list` with issue type `sast` and the repo name from the `repo-name` argument if given, else `gh repo view --json name -q .name`. For `<issue-id>`, keep only the matching `issue_id`; if none, report `issue <id> not found in the feed` and stop.
 
 ## Phase 2 — Triage
 

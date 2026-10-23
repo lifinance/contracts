@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: "Production rollout: deploy, propose-only or whitelist sync, then Safe proposals, signing hand-off, signature check and #dev-sc-multisig-proposals post. Use for \"roll out <Facet> vX.Y.Z\", \"propose cuts\" or any mainnet deploy. Staging/testnet → deploy-contract; after execution → finish-rollout."
+description: "Production rollout: deploy, propose-only or whitelist sync, then Safe proposals through signing and Slack. Use for \"roll out <Facet> vX.Y.Z\", \"propose cuts\", re-proposing deleted Safe txs, Polymer CCTP domain propagation or any mainnet deploy. Testnet → deploy-contract; executed → finish-rollout."
 usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <ContractName> [networks…] | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 

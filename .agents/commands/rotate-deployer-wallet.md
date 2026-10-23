@@ -78,7 +78,7 @@ bunx tsx script/troncast/index.ts call --env mainnet <LiFiTimelockController fro
 
 ### Phase 5 — Decommission the old key
 
-Once Phase 6 shows the old address holds no Safe-owner / canceller / owner privilege anywhere: remove it from `.env` and secret stores and rotate any CI secret carrying it. Human step — give the checklist; don't touch secret stores.
+Once Phases 2–4 have landed and Phase 6 shows the old address holds no Safe-owner / canceller / owner privilege anywhere: remove it from `.env` and secret stores and rotate any CI secret carrying it. Human step — give the checklist; don't touch secret stores.
 
 ### Phase 6 — Verify
 

@@ -93,7 +93,7 @@ About to open PR against lifinance/automate-wallet-dev-fees:
   Description: Top-up deployer for upcoming chain onboarding
 
 JSON entry:
-{ "chainId": 8453, "to": "0xb05E…095F", "amount": "100.0", "token": "0x8335…2913", "description": "…" }
+{ "chainId": 8453, "to": "0xb05E63458A51731Aad26BdcD6E12246330E6095F", "amount": "100.0", "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", "description": "…" }
 ```
 
 Omit token lines for native, and the `symbol()`/`name()` lines for Solana. Accept only `yes`, `proceed`, or `confirm` (case-insensitive) — reject bare `y`. Render and wait even if the prompt already sounded like consent.

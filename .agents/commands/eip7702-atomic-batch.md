@@ -30,7 +30,7 @@ NODE_PATH=./node_modules bunx tsx script/tasks/atomicBatch7702.ts --config ./bat
 NODE_PATH=./node_modules bunx tsx script/tasks/atomicBatch7702.ts --config ./batch.json --broadcast
 ```
 
-RPC: `ETH_NODE_URI_<NETWORK>` first, else `networks.json` `rpcUrl`. `--keep-delegation` skips the automatic undelegate.
+RPC: `ETH_NODE_URI_<NETWORK>` first, else `networks.json` `rpcUrl`. `--keep-delegation` skips the automatic undelegate — only with an access-restricted delegate meant to persist, never Multicall3.
 
 ## Config JSON
 

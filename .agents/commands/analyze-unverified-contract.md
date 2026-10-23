@@ -1,6 +1,6 @@
 ---
 name: analyze-unverified-contract
-description: Investigates an unverified contract from an address + network or an explorer URL: proxy detection, Heimdall disassembly, selector extraction and resolution, one markdown report. Use for unknown or unverified contracts, decompiling bytecode, or when /analyze-tx hits an unverified target.
+description: "Investigates an unverified contract from an address + network or an explorer URL: proxy detection, Heimdall disassembly, selector extraction and resolution, one markdown report. Use for unknown or unverified contracts, decompiling bytecode, or when /analyze-tx hits an unverified target."
 usage: /analyze-unverified-contract <address> <network>  |  /analyze-unverified-contract <block_explorer_contract_url>
 ---
 
