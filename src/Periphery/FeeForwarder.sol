@@ -2,8 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { InvalidConfig, InsufficientBalance } from "../Errors/GenericErrors.sol";
+import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
+import { InvalidConfig, InvalidReceiver, InsufficientBalance } from "../Errors/GenericErrors.sol";
 
 /// @title FeeForwarder
 /// @author LI.FI (https://li.fi)
@@ -12,7 +12,7 @@ import { InvalidConfig, InsufficientBalance } from "../Errors/GenericErrors.sol"
 ///      everything it receives and leaves no net balance behind. A balance that does
 ///      accumulate anyway (e.g. a forced transfer) is never paid out as a caller refund
 ///      and is recoverable only by the owner via WithdrawablePeriphery.
-/// @custom:version 2.0.0
+/// @custom:version 2.1.0
 contract FeeForwarder is WithdrawablePeriphery {
     /// Types ///
 
@@ -23,6 +23,24 @@ contract FeeForwarder is WithdrawablePeriphery {
         address recipient;
         uint256 amount;
     }
+
+    /// @notice Represents a fee share of the caller's token balance for a recipient
+    /// @param recipient The address that will receive the fee share
+    /// @param bps The share of the caller's balance in basis points (10_000 = 100%)
+    struct FeeBpsDistribution {
+        address recipient;
+        uint16 bps;
+    }
+
+    /// Constants ///
+
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+
+    /// Errors ///
+
+    /// @notice Thrown when the bps shares of a call add up to more than 10_000
+    /// @param totalBps The running total at the first share that pushes it past 10_000
+    error InvalidTotalBps(uint256 totalBps);
 
     /// Events ///
 
@@ -74,6 +92,54 @@ contract FeeForwarder is WithdrawablePeriphery {
         }
 
         emit FeesForwarded(_token, _distributions);
+    }
+
+    /// @notice Forwards bps shares of the caller's ERC20 balance to the specified recipients
+    /// @dev Intended as a GenericSwapFacetV3 swap step after the swap that produces `_token`.
+    ///      Must not be used in SwapperV2 bridge flows: they credit only the balance increase,
+    ///      so tokens donated to the caller raise the user's fee and can make the route revert.
+    ///      The caller must have approved this contract to spend the tokens.
+    /// @param _token The address of the ERC20 token to forward
+    /// @param _distributions Array of recipients and their shares in basis points
+    function forwardERC20FeesBps(
+        address _token,
+        FeeBpsDistribution[] calldata _distributions
+    ) external {
+        uint256 balance = IERC20(_token).balanceOf(msg.sender);
+
+        uint256 length = _distributions.length;
+        FeeDistribution[] memory forwarded = new FeeDistribution[](length);
+        uint256 totalBps;
+        FeeBpsDistribution calldata distribution;
+        for (uint256 i; i < length; ++i) {
+            distribution = _distributions[i];
+
+            // checked up front: the transfer also rejects it, but only for a non-zero share
+            if (distribution.recipient == address(0)) revert InvalidReceiver();
+
+            uint256 bps = distribution.bps;
+            // cannot overflow: the check below keeps totalBps <= 10_000 before each addition
+            unchecked {
+                totalBps += bps;
+            }
+            // checked before the transfer: past 10_000 the shares exceed the balance and the
+            // transfer would revert first with a less specific error
+            if (totalBps > BPS_DENOMINATOR) revert InvalidTotalBps(totalBps);
+
+            uint256 amount = (balance * bps) / BPS_DENOMINATOR;
+            forwarded[i] = FeeDistribution(distribution.recipient, amount);
+
+            if (amount != 0) {
+                LibAsset.transferFromERC20(
+                    _token,
+                    msg.sender,
+                    distribution.recipient,
+                    amount
+                );
+            }
+        }
+
+        emit FeesForwarded(_token, forwarded);
     }
 
     /// @notice Forwards native token fees to the specified recipients
