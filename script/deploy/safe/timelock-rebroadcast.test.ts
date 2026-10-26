@@ -19,7 +19,6 @@ import {
   buildChainEndpoints,
   confirmWithRebroadcast,
   createExecutorRpc,
-  NOT_ON_CHAIN_REASON,
   type IRpcEndpoint,
 } from './timelock-rebroadcast'
 
@@ -297,12 +296,6 @@ describe('confirmWithRebroadcast', () => {
 
     expect(outcome).toBe('unconfirmed')
     expect(stub.calls()).toBe(FAST_POLL.attempts)
-  })
-
-  it('exposes the reason text the run summary reports', () => {
-    expect(NOT_ON_CHAIN_REASON).toBe(
-      'submitted, not on-chain: RPC likely dropped it'
-    )
   })
 })
 
