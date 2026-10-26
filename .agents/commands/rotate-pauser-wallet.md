@@ -46,7 +46,7 @@ Before cutting, read the pauser back from the newly deployed facet — it must b
 
 - Staging / testnets: `/deploy-contract EmergencyPauseFacet <network...>` (deploy, verify, direct cut).
 - Production EVM: `/multisig-rollout EmergencyPauseFacet` (finds every chain with the facet, one timelock-wrapped cut proposal per chain, signing hand-off, Slack).
-- Tron: `/deploy-contract-tron EmergencyPauseFacet tron` — `multisig-rollout` does not cover it, and the Tron diamond hosts the facet too.
+- Tron: `multisig-rollout` does not cover it, and the Tron diamond hosts the facet too. Deploy only, via `/deploy-contract-tron EmergencyPauseFacet tron` running `deploy-core-facets.ts` — skip `register-facets-to-diamond.ts`, which cuts directly from the deployer and reverts against the timelock-owned diamond. Propose the cut through the Tron Safe + Timelock: `bunx tsx script/deploy/tron/propose-to-safe-tron.ts --to <LiFiDiamond base58> --calldata <diamondCut calldata> --timelock`. After Safe signing and timelock execution, read the facet address back from the diamond loupe.
 
 Keep the per-network new facet addresses for verification.
 

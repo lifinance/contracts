@@ -152,13 +152,13 @@ Per chosen channel, independently (one failure must not abort the other):
 
 1. Combine parent + blank line + thread reply into one message, dropping `:thread:` (webhooks
    can't thread). Use the code style.
-2. Write it to `/tmp/audit-{pr_number}-{channel}.txt` (multi-line text mustn't be shell-quoted).
+2. Write it to `<scratchpad>/audit-{pr_number}-{channel}.txt` — the session scratchpad, not a shared `/tmp` path that parallel sessions overwrite (multi-line text mustn't be shell-quoted).
 3. Run, with `{channel}` = `dev-sc-audit` or `dev-sc-audit-burrasec`:
 
    ```bash
    bunx tsx script/utils/send-slack-webhook-message.ts \
      --channel {channel} \
-     --message-file /tmp/audit-{pr_number}-{channel}.txt
+     --message-file <scratchpad>/audit-{pr_number}-{channel}.txt
    ```
 
 | Exit | Meaning | Action |
@@ -171,7 +171,7 @@ Per chosen channel, independently (one failure must not abort the other):
 
 Use display-name mentions instead of `<@…>` (pasted API mentions don't resolve) and plain text
 (Slack doesn't render inline code from pasted content). Build the content for all fallback
-channels first (omit any that posted), then write once to `/tmp/audit-request-{pr_number}.md` —
+channels first (omit any that posted), then write once to `<scratchpad>/audit-request-{pr_number}.md` —
 never write one channel then overwrite with another:
 
 ```markdown
@@ -198,7 +198,7 @@ Tell the user, one line per fallback channel, naming the exact missing var:
 
 ```text
 ⚠️ {webhook_var} is not set in .env — wrote manual fallback for #{channel} to
-   /tmp/audit-request-{pr_number}.md. Set the env var (URL in 1Password -> Developers
+   <scratchpad>/audit-request-{pr_number}.md. Set the env var (URL in 1Password -> Developers
    Smart Contract -> Webhooks SC Channels) to post automatically next time.
 ```
 

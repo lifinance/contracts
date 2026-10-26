@@ -44,8 +44,8 @@ data, or system integrity.
 
 ## Severity (smart contracts)
 
-**Impact** (% of daily total user transfers across all EVM chains): Critical 50–100% or
-governance; High 20–50%; Medium 0.5–20%, or serious reputational/legal/financial harm to many
+**Impact** (% of daily total user transfers across all EVM chains): Critical ≥ 50% or
+governance; High ≥ 20% and < 50%; Medium ≥ 0.5% and < 20%, or serious reputational/legal/financial harm to many
 users; Low/Info minimal direct risk.
 
 **Likelihood:** High = very easy / highly incentivized; Medium = possible under conditions;
@@ -67,8 +67,8 @@ Policies for applying it:
   Prefer **Low** or flag **borderline Low/Medium** and challenge the rating so the user decides.
 - **Conjunctive conditions:** likelihood is the conjunction of every precondition; list them
   all. Malicious/compromised intermediary (frontend, relayer, integrator) **and** a specific
-  path (e.g. swap+bridge only) **and** a particular outcome (e.g. positive slippage) → **Low**,
-  not Medium. "Malicious frontend is a real threat" alone never justifies Medium.
+  path (e.g. swap+bridge only) **and** a particular outcome (e.g. positive slippage) → likelihood
+  **Low**, not Medium; impact is still rated from the affected volume. "Malicious frontend is a real threat" alone never justifies Medium.
 - **High/Critical bar:** requires harm across many flows/tools/chains or protocol insolvency;
   default to questioning these and flag **Overrated** when the reporter's rating exceeds yours.
 - **Uncertainty:** if impact or likelihood can't be validated with available data, output

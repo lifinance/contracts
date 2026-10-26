@@ -82,8 +82,9 @@ evidence** (page/snippet/sha):
      `2024.08.14_StargateFacetV2_ReAudit.pdf`).
    - Multiple contracts: `YYYY.MM.DD_CustomFileName.pdf` (e.g. `2025.01.10_Cantina_PreComp.pdf`).
    - Add `_ReAudit` for re-audits; `_1`, `_2`, … for same-day duplicates.
-4. **Save the PDF** — find the pasted file:
-   `find ~/Downloads ~/Desktop . -maxdepth 3 -name "*.pdf" -type f 2>/dev/null | grep -i "audit\|report\|repot"`
+4. **Save the PDF** — find the pasted file among all PDFs (report filenames vary, so don't
+   filter by name): `find ~/Downloads ~/Desktop . -maxdepth 3 -name "*.pdf" -type f 2>/dev/null`.
+   List the candidates and ask the user which one it is.
    - If the target name already exists in `audit/reports/`, never overwrite it and never treat it
      as proof the audit was logged (a run that died before the log write leaves exactly this
      state). `cmp -s "<source-path>" "audit/reports/<generated-filename>.pdf"`:

@@ -49,6 +49,7 @@ Per-address settings that do not carry over on rotation:
 
 - `manageSafeOwner "replace" <network> <OLD> <NEW>` — Safe `swapOwner` on the Safe itself (not timelock-wrapped).
 - `manageTimelockCanceller "replace" <network> <OLD> <NEW>` — timelock-wrapped revoke/grant of `CANCELLER_ROLE`.
+- `removeAccessManagerPermission <network> 0x1171c007 <OLD>` — timelock-wrapped `AccessManagerFacet.setCanExecute(…, false)` revoking the old deployer's `batchSetContractSelectorWhitelist` permission (the helper skips networks where `addressCanExecuteMethod` is already false). Not `removeDeployerWhitelistPermission`: it hardcodes a previous deployer's address.
 
 No committed entry point runs these across networks; the commented examples in `executeNetworkActions` (`script/multiNetworkExecution.sh`) are the team's playground. Ask the user how to run them and don't commit the playground edit. Then follow `multisig-rollout`'s tail: human Ledger signing, verify `signatureCount >= 2` in MongoDB, post `#dev-sc-multisig-proposals`.
 
@@ -78,7 +79,7 @@ bunx tsx script/troncast/index.ts call --env mainnet <LiFiTimelockController fro
 
 ### Phase 5 — Decommission the old key
 
-Run the Phase 6 check first. Once Phases 2–4 have landed and that check shows the old address holds no Safe-owner / canceller / owner privilege anywhere: remove it from `.env` and secret stores and rotate any CI secret carrying it. Human step — give the checklist; don't touch secret stores.
+Run the Phase 6 check first. Once Phases 2–4 have landed and that check shows the old address holds no Safe-owner / canceller / owner / AccessManager privilege anywhere: remove it from `.env` and secret stores and rotate any CI secret carrying it. Human step — give the checklist; don't touch secret stores.
 
 ### Phase 6 — Verify
 
@@ -86,7 +87,7 @@ Run the Phase 6 check first. Once Phases 2–4 have landed and that check shows 
 /check-rotation-status --old-address <old deployer 0x…> --new-address <NEW> --role deployer --production
 ```
 
-Deployer checks: Safe owners (old out, new in) on every production Safe, `CANCELLER_ROLE` moved, CI funding. Tron counts as done only on Phase 3's diamond owner read, the Tron Safe owner swap (`getOwners() returns (address[])` on `tron.safeAddress` from `config/networks.json`: old out, new in), the Tron timelock `CANCELLER_ROLE` read (old revoked, new granted) and Tronscan delegation evidence. The `swapOwner` lands once signed to threshold and executed; the canceller change also waits out the timelock delay — until then "old" is pending, not failure.
+Deployer checks: Safe owners (old out, new in) on every production Safe, `CANCELLER_ROLE` moved, `addressCanExecuteMethod(0x1171c007, <OLD>)` false on every production diamond, CI funding. Tron counts as done only on Phase 3's diamond owner read, the Tron Safe owner swap (`getOwners() returns (address[])` on `tron.safeAddress` from `config/networks.json`: old out, new in), the Tron timelock `CANCELLER_ROLE` read (old revoked, new granted) and Tronscan delegation evidence. The `swapOwner` lands once signed to threshold and executed; the canceller change also waits out the timelock delay — until then "old" is pending, not failure.
 
 ### Phase 7 — Report
 

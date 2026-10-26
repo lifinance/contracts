@@ -30,7 +30,7 @@ If an entry in `.agents/references/aikido-false-positive-catalog.md` already cov
 > <same reasoning expanded for Aikido's AutoTriage — plain language, explain all safe wrappers and input sources so the scanner can make the right call>
 ```
 
-Slug: lowercase, underscored, descriptive (e.g. `nosql_mongoEq`, `path_traversal_scripts`).
+Slug: lowercase, underscored, descriptive (e.g. `nosql_mongo_eq`, `path_traversal_scripts`).
 
 ## Step 4 — Confirm
 

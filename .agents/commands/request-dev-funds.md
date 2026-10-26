@@ -22,7 +22,7 @@ The wallet auto-bridges/swaps via LI.FI, so any token on any supported chain can
 ## Inputs (parsed from the prompt)
 
 - **amount** (required) — decimal string in human token units, not atomic (`"1"` = 1 ETH; `"100.0"` = 100 USDC). Always quoted in JSON; the action applies decimals. If ambiguous (e.g. `1000000000000000000` for ETH), ask.
-- **token** (required) — symbol or address.
+- **token** (required for token requests; omitted for native gas, step 4) — symbol or address.
 - **chain** (required) — name or chainId.
 - **recipient** — wallet label or raw address; default `deployerWallet`.
 - **description** — free-text justification.

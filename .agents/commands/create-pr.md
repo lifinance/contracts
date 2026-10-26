@@ -160,4 +160,4 @@ Append `--draft` if requested. If step 9 created the ticket, replace its PR-URL 
 
 - **Secrets / sensitive files in the diff**: warn and skip those files.
 - **Push rejected (non-fast-forward)**: report; never force-push without explicit instruction.
-- **No template found**: minimal body with title + rationale.
+- **No template found**: stop and report it; never open a PR with a custom body layout.

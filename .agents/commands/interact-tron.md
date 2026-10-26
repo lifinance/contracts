@@ -41,7 +41,7 @@ bun troncast code <address> --env mainnet
 ```bash
 bun troncast send <TOKEN> "transfer(address,uint256)" <RECEIVER>,1000000 --private-key-env PRIVATE_KEY_PRODUCTION
 
-# native TRX: --value, no signature
+# native TRX: --value, no function signature
 bun troncast send <RECIPIENT> --value 0.1tron --private-key-env PRIVATE_KEY_PRODUCTION
 
 bun troncast send <TOKEN> "approve(address,uint256)" <SPENDER>,1000000 --dry-run

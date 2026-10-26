@@ -12,7 +12,7 @@ Wraps `script/tasks/moveNativeFundsToNewWallet.ts`, which moves the native balan
 
 - `--new-address` (required) — sweep destination. Missing or invalid → ask once, stop.
 - `--old-key-env` — `.env` var holding the rotated-out key; maps to the script's `--privateKeyEnvKey`. Default `PRIVATE_KEY_PRODUCTION` with `--production`, else `PRIVATE_KEY`.
-- `--production` — target production (default staging).
+- `--production` — only changes the default key var. The mover always targets every `status: active` network in `config/networks.json`, testnets included; there is no network-set selector.
 - `--check` — this skill's preview mode (Phases 0–2, no broadcast). It is NOT a script flag: the mover has no dry-run, citty silently ignores unknown flags, and the script would broadcast a live sweep.
 
 ## Guardrails

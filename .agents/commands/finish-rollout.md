@@ -1,6 +1,6 @@
 ---
 name: finish-rollout
-description: "Closes out a production multisig rollout once its timelock ops executed: verifies execution, replies Executed in the #dev-sc-multisig-proposals thread, syncs diamond logs onto the rollout PR and posts it for review. Use for \"finish the rollout\" or a thread link. Tail of multisig-rollout."
+description: "Closes out a production multisig rollout once its timelock ops executed: verifies execution, replies Executed in the #dev-sc-multisig-proposals thread and, in deploy mode, syncs diamond logs onto the rollout PR and posts it for review. Use for \"finish the rollout\" or a thread link. Tail of multisig-rollout."
 usage: /finish-rollout <slack thread link>
 ---
 
