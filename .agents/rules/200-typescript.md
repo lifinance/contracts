@@ -18,15 +18,14 @@ paths:
 - **Update `.env.example` whenever you introduce a new env var.** Add a placeholder entry with a one-line comment explaining what it controls and where the value comes from (e.g. 1Password vault, generated, etc.). Keep `.env.example` and runtime env reads in sync. Use UPPERCASE names with underscores (e.g. `WEBHOOK_DEV_SC_AUDIT`, not `webhook_dev-sc-audit`) — POSIX env-var convention.
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
-- **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore`; properly type all code and fix type errors instead of suppressing them.
-- **Verify callee signatures before passing new values**: When passing a new literal, argument, or variant into a function, helper, or type defined elsewhere, **read the callee's signature first** — don't infer the accepted set from how other callers use it. Existing callers may all happen to use the safe subset of accepted values, and "code-by-analogy" (copying a call site and substituting a new value) is the dominant source of cross-file type mismatches. Concrete example: `getPrivateKey(keyType, ...)` in `script/deploy/safe/safe-utils.ts` accepts only `'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'`; passing a new string like `'PRIVATE_KEY_STAGING'` is a TS error caught by the type check but invisible to grep-pattern review. Whenever you write `existingCall(NEW_VALUE)` and `NEW_VALUE` isn't already used elsewhere, grep the definition and verify acceptance before committing.
-- **Always run `bash script/utils/typecheck-files.sh <file>` on every TS file you edit** before commit. It checks a shipped module against Node-only types (`tsconfig.node.json`) and a `*.test.ts` against the Bun-typed `tsconfig.json`; a bare `bunx tsc-files` uses the latter for both, so it cannot see a Bun-only API in a shipped module. The repo's `.agents/hooks/post-edit-validate.sh` runs this automatically when the Claude Code session is rooted in the repo, but does NOT fire when the session is rooted elsewhere and you're editing via absolute path — run it manually in that case.
+- **Type checking policy**: never use `// @ts-nocheck` or `// @ts-ignore`; fix type errors instead of suppressing them.
+- **Verify callee signatures before passing new values**: read the callee's signature rather than inferring the accepted set from other callers — they may all use a safe subset. Example: `getPrivateKey(keyType, ...)` in `script/deploy/safe/safe-utils.ts` accepts only `'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'`; passing `'PRIVATE_KEY_STAGING'` is a TS error the type check catches but grep-pattern review does not.
+- **Type check with `bash script/utils/typecheck-files.sh <file>`**. It checks a shipped module against Node-only types (`tsconfig.node.json`) and a `*.test.ts` against the Bun-typed `tsconfig.json`; a bare `bunx tsc-files` uses the latter for both, so it cannot see a Bun-only API in a shipped module. The repo's `.agents/hooks/post-edit-validate.sh` runs this automatically when the Claude Code session is rooted in the repo, but does NOT fire when the session is rooted elsewhere and you're editing via absolute path — run it manually in that case.
 
 ## Code Quality
 
-- Obey `.oxlintrc.json`; avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
-- When editing any file matching this rule’s globs, run `bunx oxlint --type-aware <file(s)>` and fix all reported issues before finalizing; do not introduce new lint violations.
-- **Always reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
+- Avoid `any`; use TypeChain types from `typechain/` directory (e.g., `ILiFi.BridgeDataStruct`).
+- **Reuse existing helpers and types**: Search `script/common/`, `script/utils/`, `script/demoScripts/utils/`, and other helper directories before implementing new functionality. Key helpers:
   - `script/utils/delay.ts` - `sleep(ms)` function for delays (MUST use this instead of implementing sleep locally),
   - `script/utils/deploymentHelpers.ts` (deployment loading),
   - `script/demoScripts/utils/demoScriptHelpers.ts` (viem-based demo helpers and swap helpers),
@@ -41,12 +40,11 @@ paths:
   - Do not use `export { ... } from '...'`, `export * from '...'`, or `export type { ... } from '...'` solely to re-export another module.
   - Do not add `export { importedSymbol }` at the end of a file when that symbol is only imported from elsewhere; consumers should import from the defining module instead.
   - `export { name }` / `export type { Name }` that reference symbols **declared in the same file** (grouping exports) are fine.
-- **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors. Provide meaningful error messages.
+- **Error handling**: Use try/catch with `consola.error()` for logging; exit with `process.exit(1)` on fatal errors.
 
 ## External API fetch and timeout ([CONV:FETCH-TIMEOUT])
 
 - **All outbound HTTP requests to external APIs** (e.g. 4byte/Sourcify, relay APIs, explorer APIs, webhooks) **MUST** use the shared `fetchWithTimeout()` helper from `script/utils/fetchWithTimeout.ts`.
-- **Do not use unbounded `fetch(url)`** for external API calls; slow or hung requests can block scripts indefinitely.
 - **Standard pattern**: `fetchWithTimeout(url, init?, timeoutMs?)` — uses an AbortController and clears the timeout in a `finally` block. Default timeout is 10 seconds (`DEFAULT_FETCH_TIMEOUT_MS`). Pass a custom `timeoutMs` only when the use case requires it (e.g. large payloads).
 - When adding or modifying code that calls external HTTP APIs, use `fetchWithTimeout` and handle `AbortError` or timeout in catch blocks as appropriate (e.g. return null, warn, or retry).
 
@@ -58,7 +56,6 @@ paths:
   - **Tron-only** (types/interfaces used exclusively for Tron deploy/helpers, not as general script protocol types): `script/deploy/tron/types.ts`.
   - **Script-specific**: inline in the script file if only used locally.
   - Other domains where neither file fits: colocate (e.g. `script/troncast/types.ts`, shapes next to Safe helpers in `script/deploy/safe/`).
-- **Reuse existing types**: Prefer importing and reusing existing types over defining duplicates.
 - **Config-derived types**: Prefer deriving types from config schemas (e.g., `EVMVersion` from `networks.json`) over manually maintained union types. See `script/common/types.ts` for examples.
 - **Naming conventions** (enforced by `lifi/naming-convention` in `script/utils/oxlint-plugin-lifi.mjs`):
   - **Interfaces MUST start with `I` prefix** (e.g., `INetwork`, `ITransferResult`, `IValidationResults`). This is a hard requirement enforced by `bun lint:js`.
@@ -108,54 +105,27 @@ concurrency (chunk the array or use a small pool) rather than reverting to seque
 
 ## Inline Documentation
 
-Add comments only where the code doesn't speak for itself. Avoid restating what the code does — explain *why* or *when*.
-
 - **Module header**: Every new TS file MUST open with a `/** … */` block that states: (1) what the module does, (2) who should use it / when to import it. One to three sentences max.
 - **Exported functions/classes**: Use JSDoc with `@param`, `@returns`, and `@throws` for every exported function. Include a `@remarks` or leading sentence only when the behaviour is non-obvious (e.g. side effects, retry semantics, chain-specific restrictions).
 - **Constants**: Magic numbers and timeout/delay values MUST have an inline `// <value + unit>` comment (e.g. `// 2 minutes`) AND, when the value is policy-driven (rate limits, thresholds), a short sentence explaining the policy.
-- **Complex logic**: Add a single inline comment before a non-obvious block (e.g. binary search, bit manipulation, quirky API workaround). Skip comments for idiomatic loops, straightforward conditionals, and standard library calls.
-- **Do NOT add**: comments that merely restate the type, variable name, or an obviously named function; changelog/author notes (use git); section dividers like `// --- Helpers ---`.
+- **Do not add**: changelog/author notes (use git) or section dividers like `// --- Helpers ---`.
 - **No volatile implementation details in comments**: Don't name specific env var names (`PRIVATE_KEY_PRODUCTION`), wallet addresses, key paths, or config keys in prose comments. They rot when the implementation changes. Refer to roles ("the deployer wallet", "the Safe signer key"), not values.
 
-## CLI and Logging
-
-- CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
-
-### Never log a full RPC URL ([CONV:REDACT-RPC-URL])
+## Never log a full RPC URL ([CONV:REDACT-RPC-URL])
 
 `ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a live credential into every transcript of every run. Log the network name, or pass the URL through `redactUrls()` from `script/utils/redactUrls.ts`.
 
-`script/utils/rpc-url-log-scan.test.ts` enforces this for the identifiers and log calls it knows about. It does not close the class, so two cases stay yours: an endpoint held in a differently-named variable, and one viem embeds in an `error.message` — log `redactUrls(err.stack ?? String(err))` rather than the error itself (`redactErrorReason()` is for Slack: it collapses whitespace and truncates at 180 chars). In bash use `redactRpcUrl` from `helperFunctions.sh`, or `bgRedactUrl` inside `script/emergency/`, which must not depend on `helperFunctions.sh` loading. `script/redactRpcUrl.test.ts` pins the shared bash print paths, but there is no bash-wide scan: `getRPCUrl` returns the endpoint on stdout by design, so a naive one false-reds on the function whose job is to return it.
+`script/utils/rpc-url-log-scan.test.ts` enforces this for the identifiers and log calls it knows about. It does not close the class, so two cases stay yours: an endpoint held in a differently-named variable, and one viem embeds in an `error.message` — log `redactUrls(err.stack ?? String(err))` rather than the error itself (`redactErrorReason()` is for Slack: it collapses whitespace and truncates at 180 chars). Bash is covered by `300-bash.md`.
 
 ## Testing
 
-- New TypeScript helpers must be covered by a colocated `*.test.ts` file using Bun (`describe` / `it` / `expect`) with **100% coverage**. Cover edge cases and error paths.
+- New TypeScript helpers must be covered by a colocated `*.test.ts` file with **100% coverage**.
 
-## Post-Change Actions
+## Before finalizing
 
-- After TS changes run lint/tests (or state which remain) to ensure lint/type checks pass.
+Editor diagnostics (and Cursor “lints”) are not sufficient. On every changed file:
 
-### Hard gate: CLI validation required
+- `bunx oxlint --type-aware <files>` must exit `0` (`--fix` applies fixable issues).
+- `bash script/utils/typecheck-files.sh <files>`.
 
-Editor diagnostics (and Cursor “lints”) are **not sufficient** to claim a TypeScript script is clean.
-
-If you edit any file matching this rule’s globs, you **MUST** do the following before finalizing:
-
-- **Run oxlint on the changed file(s)**:
-  - `bunx oxlint --type-aware <changed-file-1> [<changed-file-2> ...]`
-  - If oxlint reports fixable issues, run: `bunx oxlint --type-aware --fix <changed-file(s)>`
-  - Re-run `bunx oxlint --type-aware <changed-file(s)>` and ensure it exits `0`.
-- **Run TypeScript typecheck on the changed file(s)**:
-  - `bash script/utils/typecheck-files.sh <changed-file-1> [<changed-file-2> ...]`
-
-### Reporting requirement
-
-- In the final message, explicitly list the commands that were run and whether they passed.
-- **Never** state or imply “no linting errors” unless `bunx oxlint ...` was executed and returned `0`.
-
-### Scope escalation (when needed)
-
-If changes touch shared helpers or wide surfaces (or you can’t easily isolate changed files), prefer running the broader checks:
-
-- `bun lint:js`
-- `bun lint`
+When changes touch shared helpers or wide surfaces, also run `bun lint` (it includes `bun lint:js`); it does not replace the per-file typecheck.

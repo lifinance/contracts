@@ -6,97 +6,130 @@ usage: /analyze-tx <network> <tx_hash>
 
 # Transaction Trace Analysis Command
 
-> **Usage**: `/analyze-tx <network> <tx_hash>`
->
-> Example: `/analyze-tx ethereum 0x1234...abcd`
+> **Usage**: `/analyze-tx <network> <tx_hash>` — e.g. `/analyze-tx ethereum 0x1234...abcd`
 
-## Trace-first analysis
+Both arguments are required; if only a hash was given, ask for the network.
 
-The execution trace and the receipt logs are the source of truth. Source code shows what
-should happen; only the trace shows what did. Report what the trace and logs contain — if
-a call or an event is not in them, it did not happen, whatever the code implies.
+## Trace-first
 
-### Source of Truth Hierarchy
+The execution trace (`debug_traceTransaction`) and the receipt logs are the source of truth;
+source code shows only what *should* happen. If a call is not in the trace or an event is not in
+the logs, it did not happen, whatever the code implies.
 
-1. **Execution Trace** (`debug_traceTransaction`) - Shows WHAT ACTUALLY HAPPENED:
-
-   - Every function call that occurred
-   - Every contract interaction
-   - Value transfers
-   - Revert points and error messages
-
-2. **Transaction Receipt Logs** - Shows WHAT EVENTS ACTUALLY EMITTED:
-
-   - Every event that was emitted
-   - Event topics and data are facts
-
-3. **Code (Source Files)** - Reference for understanding, NOT facts:
-   - Shows what SHOULD happen under normal conditions
-   - Helps understand intended behavior
-   - Use to understand context, not to claim what happened
-
-### Analysis Rules
-
-✅ **DO:**
-
-- State what trace shows: "The trace shows function X was called"
-- State what logs show: "The logs show event Y was emitted"
-- Use code to understand context: "Based on the code, function X should..."
-- Cross-reference trace with code to understand intent vs. reality
-
-❌ **DON'T:**
-
-- Claim an event was emitted if it's not in the logs
-- Claim a function was called if it's not in the trace
-- Assume something happened because code shows it should happen
-- Hallucinate or infer events/calls that aren't explicitly in trace/logs
-
-**Example:**
-
-- ❌ **WRONG**: "The transaction called `swapAndStartBridgeTokensViaStargate` and emitted `LiFiTransferStarted` events."
-- ✅ **CORRECT**: "The trace shows `swapTokensMultipleV3ERC20ToERC20` was called. The receipt logs show `LiFiGenericSwapCompleted` was emitted. No `LiFiTransferStarted` events are present in the logs."
+- ❌ "The transaction called `swapAndStartBridgeTokensViaStargate` and emitted
+  `LiFiTransferStarted` events."
+- ✅ "The trace shows `swapTokensMultipleV3ERC20ToERC20` was called. The receipt logs show
+  `LiFiGenericSwapCompleted` was emitted. No `LiFiTransferStarted` events are present."
 
 ## Rules that catch real failures here
 
-The workflow below is the procedure; these are the points where a plausible-looking
-analysis goes wrong.
-
 1. **Premium RPC only** — use `analyzeFailingTx` or a user-supplied premium RPC. A silent
    fallback to a public RPC returns a truncated trace that reads like a complete one.
-2. **Confirm LiFiDiamond involvement first** (direct or indirect), or say the transaction
-   is not ours and stop.
-3. **`msg.value` from the receipt**, not the trace — a nested call's value is not the root
-   transaction's.
-4. **Cross-check every function selector**, in this order: the function name in the trace,
-   then `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers, then
-   `cast sig "<FUNCTION_SIGNATURE>"`. Where `cast 4byte` disagrees with the trace, the
-   trace wins.
+2. **Confirm LiFiDiamond involvement first** (direct or indirect), or say the transaction is not
+   ours and stop.
+3. **`msg.value` from the transaction object** (`eth_getTransactionByHash`), not the trace — a
+   nested call's value is not the root transaction's.
+4. **Cross-check every function selector**, in this order: the function name in the trace, then
+   `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers, then
+   `cast sig "<FUNCTION_SIGNATURE>"`. Where `cast 4byte` disagrees with the trace, the trace wins
+   (e.g. `cast 4byte 0xab138240` returns `bridge(address,address,...)`, but the trace shows
+   `swapTokensMultipleV3ERC20ToERC20`).
 5. **Events from the receipt logs**, never from the code that would have emitted them.
-6. **Enrich every address** via whitelist.json (DEXS/PERIPHERY) → deployments → configs,
-   and name the DEX from whitelist.json rather than a generic term.
-7. **Find the config file from the deploy script** — the filename does not always match
-   the facet name.
+6. **Enrich every address** via whitelist.json (DEXS/PERIPHERY) → deployments → configs, and
+   name the DEX from whitelist.json — never a generic "Router"/"DEX" when a name exists.
+7. **Find the config file from the deploy script** — the filename does not always match the
+   facet name.
 8. **Check native fee requirements** in FacetData.
-9. **Find every revert point** — a failing transaction often has more than one, and a
-   nested call may have failed without reverting the root.
+9. **Find every revert point** — a failing transaction often has more than one, and a nested
+   call may have failed without reverting the root.
 
-## Tron-Specific Analysis
+## Key files
 
-### Tron RPC Limitations
+- `deployments/<network>.json` — contract addresses
+- `script/deploy/facets/Deploy<FacetName>.s.sol` — names the config file
+- `config/<configFileName>.json` — facet external contracts
+- `config/whitelist.json` — DEX/router names (`DEXS[]`, `PERIPHERY[]`)
+- `config/networks.json` — network metadata (`wrappedNative`, `explorerUrl`, …)
+- `src/Facets/<FacetName>.sol`, `src/Libraries/LibSwap.sol` (SwapData)
+- `src/Facets/CalldataVerificationFacet.sol` — decoding logic
+- `out/<ContractName>.sol/<ContractName>.json` — ABIs with methodIdentifiers
 
-- `debug_traceTransaction` is **NOT available** on TronGrid public endpoints
-- `triggerconstantcontract` simulates state-changing functions in read-only mode — **return values are unreliable** for write functions (e.g., `transfer` may return `false` in simulation but succeed on-chain)
-- `eth_getTransactionCount` is **NOT supported**, so `cast call` fails; use `curl` with TronGrid native API instead
+## Workflow
 
-### Tron Address Encoding
+### 1. Fetch transaction data
 
-- Tron addresses are 21 bytes: `0x41` prefix + 20-byte EVM address
-- **On-chain (Solidity `address` type): always use 20-byte EVM format** (strip `0x41` prefix)
-- **In ABI-encoded parameters** for `triggerconstantcontract`: use 20-byte EVM format padded to 32 bytes (no `0x41`)
+```bash
+./script/tasks/analyzeFailingTx.sh <NETWORK> <TX_HASH>
+```
 
-### Tron Transaction Fetching
+Run it as a plain command from the repo root — a worktree-isolated session refuses inline
+`source`. Fallback: ask the user for a premium RPC URL and fetch `eth_getTransactionByHash`
+(`from`, `to`, `input`, `value`), `eth_getTransactionReceipt` (status, gas, logs) and
+`debug_traceTransaction` with `callTracer` (optionally `cast run`).
 
-Use TronGrid native API instead of EVM RPC:
+### 2. Identify the transaction
+
+Extract `to`, `from`, calldata, `msg.value` (transaction object). Does `to` match LiFiDiamond? If
+not, find the LiFiDiamond call in the trace. Map addresses from `deployments/<network>.json`.
+
+### 3. Root call is not LiFiDiamond
+
+1. Research the contract at `<explorerUrl>/address/<CONTRACT_ADDRESS>` (`explorerUrl` from
+   `config/networks.json`), e.g. WebSearch `"<explorerUrl>/address/<ADDRESS> contract verified"`;
+   take name, signatures, selectors, parameters from Contract → Write Contract.
+2. Verify the selector (rule 4), then
+   `cast calldata-decode "<FUNCTION_SIGNATURE>" <CALLDATA>` — signature from the trace first,
+   then the explorer, then `cast 4byte`.
+3. If the router passes data to LiFiDiamond, extract the nested calldata from the `bytes`
+   parameter and decode it separately.
+
+If the target is unverified (no artifact in `out/`, `cast 4byte` returns nothing, no signature
+from the trace), run [`/analyze-unverified-contract <ADDRESS> <NETWORK>`](analyze-unverified-contract.md)
+and use its selectors file to identify the function.
+
+### 4. Facet and protocol
+
+Map the trace's selector to a facet via methodIdentifiers (rule 4). Load
+`src/Facets/<FacetName>.sol`, find the config filename in its deploy script, load
+`config/<configFileName>.json`.
+
+### 5. Decode LiFiDiamond calldata
+
+Use the `CalldataVerificationFacet` patterns — `extractBridgeData(bytes)` →
+`ILiFi.BridgeData`, `extractSwapData(bytes)` → `LibSwap.SwapData[]`,
+`extractMainParameters(bytes)` for a quick overview:
+
+```solidity
+bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
+(, swapData) = abi.decode(data[4:], (ILiFi.BridgeData, LibSwap.SwapData[])); // if hasSourceSwaps
+```
+
+Extract:
+
+- **BridgeData**: transactionId, bridge, integrator, sendingAssetId, receiver,
+  destinationChainId, minAmount, hasSourceSwaps, hasDestinationCall
+- **SwapData** per swap: callTo (DEX name), approveTo, sendingAssetId, receivingAssetId,
+  fromAmount, callData (decode selector), requiresDeposit
+- **FacetData**: facet-specific params, native fee requirements
+
+### 6. Address enrichment
+
+1. `config/whitelist.json`: `DEXS[]` → `contracts[<network>]` → match address
+   (case-insensitive) → `name`; `PERIPHERY[<network>]` → match → `name`.
+2. Fallback: `deployments/<network>.json`.
+3. Tokens: may call ERC20 `name()` via the premium RPC (read-only, non-fatal).
+
+### 7. Execution trace and root cause
+
+From the trace: entry point and inputs, each nested call (caller, target, function, value,
+success), native value flow, token flow (deposits, approvals, transfers), every revert point and
+its error; events from the receipt logs. Root cause: what was expected vs provided, which
+validation failed, what is needed to succeed.
+
+## Tron
+
+Use the TronGrid native API — `debug_traceTransaction` is not available on TronGrid public
+endpoints, and `eth_getTransactionCount` is unsupported, so `cast call` fails.
 
 ```bash
 # Full transaction data + internal transactions
@@ -110,235 +143,33 @@ curl -s -X POST https://api.trongrid.io/wallet/gettransactionbyid \
   -d '{"value": "<TX_HASH>"}' | jq .
 ```
 
-### Tron `gettransactioninfobyid` Fields
+`gettransactioninfobyid` fields:
 
-- `contractResult[0]`: **4-byte hex revert selector** (use `cast 4byte` to decode)
-- `resMessage`: hex-encoded revert message string (decode with `xxd -r -p`)
-- `internal_transactions[].rejected`: **ALL internal txs show `rejected: true` when outer tx reverts** — this does NOT mean each individual call failed; it means all effects were rolled back
-- `internal_transactions[].note`: `63616c6c` = "call", `64656c656761746563616c6c` = "delegatecall"
-- `receipt.energy_usage_total`: total energy consumed (including sub-calls)
-- `receipt.energy_penalty_total`: extra energy charged for calling certain contracts
+- `contractResult[0]`: 4-byte revert selector (`cast 4byte`)
+- `resMessage`: hex-encoded revert string (`xxd -r -p`)
+- `internal_transactions[].rejected`: **all** internal txs show `rejected: true` when the outer
+  tx reverts — it means effects were rolled back, not that each call failed
+- `internal_transactions[].note`: `63616c6c` = "call", `64656c656761746563616c6c` =
+  "delegatecall"
+- `receipt.energy_usage_total` (incl. sub-calls); `receipt.energy_penalty_total` (extra energy
+  for calling certain contracts)
 
-### Tron Address Conversion
+Gotchas:
 
-**Preferred — use `troncast` (see `.agents/rules/202-tron-scripts.md` for Tron script conventions):**
+- `triggerconstantcontract` simulates writes read-only — return values are unreliable for write
+  functions (`transfer` may return `false` in simulation but succeed on-chain).
+- Addresses are 21 bytes (`0x41` + 20-byte EVM address). Solidity `address` values and
+  ABI-encoded `triggerconstantcontract` params use the 20-byte form (no `0x41`; padded to 32
+  bytes in ABI).
+
+`troncast` (conventions in `.agents/rules/202-tron-scripts.md`; `address` needs `ETH_NODE_URI_TRON` set
+even though it is offline — prefix a dummy value if unset):
 
 ```bash
-# base58 → EVM hex
-bun troncast address to-hex TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
-# Output: 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c
-
-# EVM hex → base58
+bun troncast address to-hex TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t   # → 0xa614f8…; comma-separated lists OK
 bun troncast address to-base58 0xa614f803b6fd780986a42c78ec9c7f77e6ded13c
-# Output: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
-
-# Multiple addresses (comma-separated) supported in both directions
-bun troncast address to-hex "TAddr1,TAddr2"
+bun troncast code <base58-or-hex-address> [--env testnet]       # "0x" if not a contract
 ```
-
-### Tron Contract Code
-
-Use `troncast` instead of `cast code` (which does not support Tron). Accepts both base58 and EVM hex addresses:
-
-```bash
-# Get contract bytecode (analog of `cast code` for Tron)
-bun troncast code TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw
-# Returns 0x<bytecode> or "0x" if address is not a contract
-
-# Hex address is auto-converted to base58 internally
-bun troncast code 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b
-
-# Testnet
-bun troncast code <address> --env testnet
-```
-
-
-## Key Files & Tools
-
-### Files
-
-- `deployments/<network>.json` - Contract addresses
-- `script/deploy/facets/Deploy<FacetName>.s.sol` - Find config filename
-- `config/<configFileName>.json` - Facet external contracts
-- `config/whitelist.json` - DEX/router names (DEXS[] and PERIPHERY[] sections)
-- `config/networks.json` - Network metadata (wrappedNative, explorerUrl, etc.)
-- `src/Facets/<FacetName>.sol` - Facet code
-- `src/Libraries/LibSwap.sol` - SwapData structure
-- `src/Facets/CalldataVerificationFacet.sol` - Decoding logic
-- `out/<ContractName>.sol/<ContractName>.json` - Compiled contract ABIs with methodIdentifiers
-
-### Tools
-
-- `cast 4byte <SELECTOR>` - Get function signature from selector (4byte.directory)
-- `cast calldata-decode "<SIGNATURE>" <CALLDATA>` - Decode calldata using function signature
-- `cast sig "<FUNCTION_NAME>"` - Get selector from function name
-- `cast tx <TX_HASH> --rpc-url <RPC>` - Get transaction details
-- `cast receipt <TX_HASH> --rpc-url <RPC>` - Get transaction receipt (contains logs)
-- `WebSearch` - Search for contract information on block explorers
-
-## Analysis Workflow
-
-### 1. Fetch Transaction Data
-
-**Preferred:**
-
-```bash
-./script/tasks/analyzeFailingTx.sh <NETWORK> <TX_HASH>
-```
-
-Run it as a plain command from the repo root — a worktree-isolated session refuses inline `source`.
-
-**Fallback:** Ask user for premium RPC URL, use for:
-
-- `eth_getTransactionReceipt` - Contains logs (events that ACTUALLY happened)
-- `debug_traceTransaction` (callTracer) - Contains execution trace (what ACTUALLY happened)
-- Optional: `cast run`
-
-**Extract:**
-
-- Receipt: status, gas, **logs (EVENTS)**, `to`/`from`, `value`
-- Trace: Complete execution flow, nested calls, value flow, ALL revert points
-
-### 2. Transaction Identification
-
-- Extract: hash, network, `to` address, `from`, calldata, `msg.value` (from receipt)
-- Check: Does `to` match LiFiDiamond? If indirect, trace to find LiFiDiamond call
-- Enrich: Map addresses from `deployments/<network>.json`
-
-### 3. Root Transaction Analysis (If NOT Direct LiFiDiamond Call)
-
-When root transaction calls a contract other than LiFiDiamond:
-
-1. **Get block explorer URL:**
-
-   - Read `config/networks.json` → extract `explorerUrl` field
-
-2. **Research contract:**
-
-   - Construct URL: `<explorerUrl>/address/<CONTRACT_ADDRESS>`
-   - Use `WebSearch`: `"<explorerUrl>/address/<CONTRACT_ADDRESS> contract verified"`
-   - Navigate to "Contract" tab → "Write Contract" sub-tab
-   - Extract: contract name, function signatures, selectors, parameters
-
-3. **Verify function selector:**
-
-   - Extract selector from trace (first 4 bytes of calldata)
-   - Cross-check with actual function name from trace (preferred)
-   - Verify using `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers
-   - Use `cast sig "<FUNCTION_SIGNATURE>"` to get expected selector
-   - **If `cast 4byte` returns different function, use trace function name!**
-
-4. **Decode calldata:**
-
-   - Use verified function signature (from trace preferred, then block explorer, then `cast 4byte` fallback)
-   - Decode: `cast calldata-decode "<FUNCTION_SIGNATURE>" <CALLDATA>`
-
-5. **Extract nested calldata:**
-   - If router passes data to LiFiDiamond, extract from `bytes` parameter
-   - Decode nested LiFiDiamond calldata separately
-
-### 4. Facet & Protocol Identification
-
-1. **Extract function selector from trace:**
-
-   - Get selector from actual call in trace (first 4 bytes of calldata)
-   - Example: Trace shows `0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE::swapTokensMultipleV3ERC20ToERC20(...)`
-
-2. **Verify selector matches trace:**
-
-   - Cross-check with actual function name from trace (preferred)
-   - Verify using `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers
-   - Use `cast sig "<FUNCTION_SIGNATURE>"` to get expected selector
-   - **Never assume** - if `cast 4byte` returns different function, use trace function name!
-
-3. **Map selector to facet:**
-
-   - Use `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers
-   - Verify function signature matches trace
-
-4. **Load facet code:**
-   - Load: `src/Facets/<FacetName>.sol`
-   - Find config: Check `script/deploy/facets/Deploy<FacetName>.s.sol` for config filename
-   - Load config: `config/<configFileName>.json`
-
-**Common Error:**
-
-- ❌ **WRONG**: Seeing selector `0xab138240` and assuming it's `swapAndStartBridgeTokensViaStargate`
-- ✅ **CORRECT**: Check `cast 4byte 0xab138240` → returns `bridge(address,address,...)` → verify with trace → trace shows `swapTokensMultipleV3ERC20ToERC20` → use actual function from trace
-
-### 5. Calldata Decoding
-
-#### For Root Transaction (Non-LiFiDiamond)
-
-1. Identify function selector: `cast 4byte <SELECTOR>`
-2. Decode calldata: `cast calldata-decode "<FUNCTION_SIGNATURE>" <CALLDATA>`
-3. Extract nested calldata if router passes data to LiFiDiamond
-
-**Fallback for unverified contracts**: if the target is an unverified contract (no matching artifact in `out/`, `cast 4byte` returns nothing, and no signature can be resolved from the trace), run [`/analyze-unverified-contract <ADDRESS> <NETWORK>`](analyze-unverified-contract.md) to disassemble the bytecode, extract selectors, and enrich them against 4byte.directory. Use the resulting selectors file to identify the called function and proceed with `cast calldata-decode`.
-
-#### For LiFiDiamond Calls
-
-Use `CalldataVerificationFacet` patterns:
-
-**BridgeData:**
-
-```solidity
-bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
-```
-
-**SwapData (if hasSourceSwaps):**
-
-```solidity
-(, swapData) = abi.decode(data[4:], (ILiFi.BridgeData, LibSwap.SwapData[]));
-```
-
-**Key functions:**
-
-- `extractBridgeData(bytes calldata data)` → `ILiFi.BridgeData`
-- `extractSwapData(bytes calldata data)` → `LibSwap.SwapData[]`
-- `extractMainParameters(bytes calldata data)` → Quick overview
-
-### 6. Parameter Extraction
-
-- **BridgeData**: transactionId, bridge, integrator, sendingAssetId, receiver, destinationChainId, minAmount, hasSourceSwaps, hasDestinationCall
-- **SwapData** (if applicable): For each swap - callTo (enrich DEX name), approveTo, sendingAssetId, receivingAssetId, fromAmount, callData (decode selector), requiresDeposit
-- **FacetData**: Extract facet-specific params, check native fee requirements
-
-### 7. Address Enrichment
-
-**For every address:**
-
-1. Check `config/whitelist.json`:
-   - **DEXS section**: `DEXS[]` → `contracts[<network>]` → match address (case-insensitive) → use `name`
-   - **PERIPHERY section**: `PERIPHERY[<network>]` → match address → use `name`
-2. Fallback: `deployments/<network>.json`
-3. Tokens: MAY call ERC20 `name()` via premium RPC (read-only, non-fatal)
-
-**Never use generic terms** ("DexRouter", "Router", "DEX") when specific name available.
-
-### 8. Execution Trace Analysis
-
-**Analyze ONLY what the trace shows - never assume based on code!**
-
-- **Entry point**: Function called (from trace), input params (from trace)
-- **Call stack**: Trace each nested call - caller, target, function (from trace), value, params, success/fail
-- **Value flow**: Track native value through execution (from trace)
-- **Token flow**: Track deposits, approvals, transfers, balances (from trace)
-- **Events**: Check receipt logs to see what events were ACTUALLY emitted
-- **Failure points**: Identify ALL reverts (from trace), extract error messages
-
-**Rules:**
-
-- ✅ If trace shows function X → state "Function X was called"
-- ❌ If code shows function Y should emit event Z → DON'T claim event Z was emitted unless it's in the logs
-- ✅ If logs show event A → state "Event A was emitted"
-- ✅ Use code to UNDERSTAND what should happen, but trace/logs to report what DID happen
-
-### 9. Root Cause Analysis
-
-- What was expected vs. provided
-- Why it failed (specific validation/requirement that wasn't met)
-- What's needed to succeed
 
 ## Output Format
 
@@ -355,7 +186,7 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 - **From:** [address]
 - **To:** [contract name] ([address])
 - **Function:** [name] ([selector])
-- **Value:** [amount] [symbol] (read from the receipt, not the trace)
+- **Value:** [amount] [symbol] (read from the transaction object, not the trace)
 - **Status:** [Success/Fail]
 
 ## Parameters Decoded
@@ -422,13 +253,3 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 **Required Fix:** [What needs to change]
 **Impact:** [Who/what is affected]
 ```
-
-## Command Execution Flow
-
-When user invokes `/analyze-tx <network> <tx_hash>`:
-
-1. **Parse arguments**: Extract network and tx_hash from command
-2. **Validate inputs**: Ensure network is valid, tx_hash is hex format
-3. **Fetch transaction data**: Use premium RPC via `analyzeFailingTx` or prompt for RPC URL
-4. **Follow analysis workflow**: Execute all steps from "Analysis Workflow" section
-5. **Generate output**: Format results according to "Output Format" section

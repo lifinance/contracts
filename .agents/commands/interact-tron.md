@@ -1,97 +1,69 @@
 ---
 name: interact-tron
-description: "Reads or writes Tron contract state outside of a deploy — the TronWeb/`troncast` analog of using `cast` on EVM chains. Covers view calls, transactions (transfer, approve, admin calls), address checks and base58↔hex conversion, and bytecode fetches on `tron`/`tronshasta`. Also the routing target when `manage-wallet-funds` or another EVM-flavored skill detects a Tron network and cannot proceed with `cast`. Runs entirely from the `contracts` checkout (`troncast` lives at `script/troncast/`) — unlike `deploy-contract-tron`, no `contracts-tron` fork checkout is needed, since reading/writing on-chain state doesn't touch the fork's `-tron` source delta. Does NOT cover deploying new contracts (`deploy-contract-tron`) or production governance proposals through the Tron Safe+Timelock (`propose-to-safe-tron.ts` — flag and hand off, don't improvise call data through this skill). Background on the fork/repo split: `docs/TronFork.md`."
+description: "Reads or writes Tron (`tron`/`tronshasta`) contract state with `troncast`, the `cast` analog: calls, sends, TRX transfers, address conversion, bytecode. Use for \"call owner() on tron\" / \"send TRX\". Deploys → `deploy-contract-tron`; governance → Tron Safe+Timelock, not this skill."
 usage: /interact-tron <call|send|address|code> ...
 ---
 
 # Interact with Tron Contracts
 
-Tron has its own address format, RPC surface, and resource model, so `cast` does not work against it (`eth_getTransactionCount` and `debug_traceTransaction` aren't supported on TronGrid public endpoints). All read/write contract interaction on Tron goes through `troncast` (`script/troncast/`), a Cast-like TronWeb wrapper — never hand-roll a TronWeb script for something `troncast` already covers.
+`cast` fails on Tron (TronGrid public endpoints don't support `eth_getTransactionCount` or `debug_traceTransaction`). Use `troncast` (`script/troncast/`); never hand-roll TronWeb for something it covers. Runs from the `contracts` checkout — no `contracts-tron` fork needed (the fork matters only for deploys and `LibAsset`/`WithdrawablePeriphery` changes; see `docs/TronFork.md`).
 
-**Repo: stay in `contracts`.** Unlike `/deploy-contract-tron`, this skill needs no `contracts-tron` fork checkout — `troncast` and the deployed contract's on-chain state are both reachable from the normal `contracts` session. See `docs/TronFork.md` for why the fork exists at all and when it _does_ matter (deploys and any change to `LibAsset`/`WithdrawablePeriphery`).
+Routing:
 
-## When to reach for this vs other skills
+- Deploy → `/deploy-contract-tron`.
+- Production governance (whitelist sync, ownership transfer, anything via the Timelock) → `propose-to-safe-tron.ts` conventions (Safe quorum + `scheduleBatch`/`executeBatch`). Flag it and get explicit direction; don't improvise call data here.
+- Past transaction/trace → `/analyze-tx`.
 
-| Situation                                                                                        | Skill                                                                                                                                                                                                           |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Deploying a new contract to Tron                                                                 | `/deploy-contract-tron`                                                                                                                                                                                         |
-| Read a Tron contract's state, or send a simple write (transfer, approve, single admin call)      | **this skill**                                                                                                                                                                                                  |
-| Move gas (TRX) from our own deployer wallet                                                      | this skill (`troncast send ... --value`)                                                                                                                                                                        |
-| Production governance change (whitelist sync, ownership transfer, anything needing the Timelock) | route to `propose-to-safe-tron.ts` conventions — this needs Safe-quorum + `scheduleBatch`/`executeBatch` sequencing, not a one-off `troncast send`. Flag it and get explicit direction rather than improvising. |
-| Analyzing a past Tron transaction/trace                                                          | `/analyze-tx` (already has a Tron-specific section)                                                                                                                                                             |
+## Addresses (`[CONV:TRON-ADDRESS]`, `202-tron-scripts.md`)
 
-## Address handling ([CONV:TRON-ADDRESS], see `202-tron-scripts.md`)
-
-Tron addresses are base58 (`T...`) at the RPC/display layer, 21-byte hex (`0x41` prefix + 20-byte EVM address) internally. Convert explicitly at the point of use — never assume a hex address the user pastes is already in the right form for a given call:
+Base58 (`T…`) at the RPC/display layer; internally `0x41` + 20-byte EVM address. `call`/`send`/`code` accept either, so convert only when the other format is needed back or when hand-composing calldata:
 
 ```bash
 bun troncast address to-hex TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw     # -> 0x7252af...
 bun troncast address to-base58 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b   # -> TLPh66...
 ```
 
-`troncast` itself accepts either format for `call`/`send`/`code` target addresses, so conversion is only needed when the user needs the _other_ format back, or when composing calldata by hand.
+`address` always requires `ETH_NODE_URI_TRON` even though conversion is offline — the codec hardcodes the mainnet TronWeb instance, so `ETH_NODE_URI_TRONSHASTA` doesn't satisfy it and there is no `--env` flag. If unset, prefix a dummy value for that invocation; don't edit `.env`.
 
-**RPC env var required even for offline conversions.** `troncast address to-hex`/`to-base58` always requires `ETH_NODE_URI_TRON` in `.env` — the codec hardcodes the mainnet TronWeb instance, so `ETH_NODE_URI_TRONSHASTA` does not satisfy it and `address` takes no `--env` flag — even though the conversion itself is a pure offline codec operation; the CLI aborts without it. If it's not set, prefix a dummy value for that one invocation rather than editing `.env`.
-
-## Reading state — `troncast call`
+## Read — `call` / `code`
 
 ```bash
-bun troncast call <address> "<functionSignature> returns (<type>)" [params...] --env <mainnet|testnet>
-
-# examples
 bun troncast call <DIAMOND> "owner() returns (address)" --env mainnet
 bun troncast call <TOKEN> "balanceOf(address) returns (uint256)" <WALLET> --env mainnet
 bun troncast call <TOKEN> "decimals() returns (uint8)" --env mainnet --json
+bun troncast code <address> --env mainnet
 ```
 
-`--env` defaults to `mainnet`; use `testnet` for `tronshasta`. Function signatures follow the same Solidity/Foundry format as `cast` (`transfer(address,uint256) returns (bool)`).
+`--env` defaults to `mainnet`; `testnet` = `tronshasta`.
 
-## Fetching bytecode — `troncast code`
-
-```bash
-bun troncast code <address> --env mainnet   # analog of `cast code`
-```
-
-## Sending transactions — `troncast send`
+## Write — `send`
 
 ```bash
-bun troncast send <address> "<functionSignature>" [params...] --private-key-env <ENV_VAR> --env <mainnet|testnet>
-
-# transfer tokens
 bun troncast send <TOKEN> "transfer(address,uint256)" <RECEIVER>,1000000 --private-key-env PRIVATE_KEY_PRODUCTION
 
-# send TRX (native): --value with no signature
+# native TRX: --value, no signature
 bun troncast send <RECIPIENT> --value 0.1tron --private-key-env PRIVATE_KEY_PRODUCTION
 
-# dry run first for anything non-trivial
 bun troncast send <TOKEN> "approve(address,uint256)" <SPENDER>,1000000 --dry-run
 ```
 
-Key flags: `--private-key-env` (name of the env var holding the key; prefer it over `--private-key`, which puts the key in shell history), `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap, default 1000), `--energy-limit`, `--dry-run` (simulate, no broadcast), `--no-confirm`, `--json`.
+Flags: `--private-key-env` (prefer over `--private-key`, which lands in shell history), `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap, default 1000), `--energy-limit`, `--dry-run`, `--no-confirm`, `--json`.
 
-**One broadcast per tool call.** Same rule as `manage-wallet-funds`: never loop `troncast send` inside a single tool call — one signed transaction per invocation, confirm the result before sending the next.
+- `--dry-run` first for any fresh signature, new target, or non-trivial value.
+- One broadcast per tool call; confirm before the next. Never loop `send`.
+- Derive the sender from the key. `global.json` `tronWallets` is for identification and delegation bookkeeping, not proof of which key signs.
 
-**Derive the sender from the private key, not `config/global.json`.** `global.json` → `tronWallets` lists known-role addresses (`deployerWallet`, `devWallet`, `refundWallet`, ...) for identification and delegation bookkeeping — it is not a source of truth for which key you're about to sign with. Confirm you're using the intended wallet's key before broadcasting.
+## Energy and fee limit
 
-**Dry-run before any non-trivial write.** `--dry-run` simulates without broadcasting and costs nothing — use it whenever the call isn't a simple, previously-verified pattern (a fresh function signature, a new target contract, or anything moving more than trivial value).
+Set `--fee-limit` deliberately for anything beyond a cheap call. `send` pre-flights every contract call: it estimates Energy, prices it, and refuses before broadcasting if the cost exceeds `--fee-limit` or no estimate is obtainable — so out-of-energy shows up as a refusal naming the required limit, not a half-applied tx. A failed estimate usually means the call would revert; investigate before raising the limit. `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` broadcasts anyway — scope it to the network, since `true` disables the guard for every network in the run. Native TRX transfers are exempt.
 
-## Energy & fee-limit awareness
+Timelock `scheduleBatch`/`executeBatch` run on Energy delegated to `deployerWallet`/`devWallet` from staked TRX — human-arranged (ping Max), out of scope here.
 
-Tron pays for execution in Energy (≈ gas), not just bandwidth. `--fee-limit` is a TRX ceiling on what the transaction may consume if it must buy Energy — set it deliberately for anything beyond a cheap call rather than trusting the 1000 TRX default.
+## Gaps and failures
 
-`troncast send` pre-flights that ceiling on every contract call: it estimates the Energy, prices it, and **refuses before broadcasting** when the estimate costs more than `--fee-limit` covers, or when the estimate cannot be obtained at all. So an out-of-energy problem now surfaces as a refusal naming the required `--fee-limit`, not as a half-applied transaction. A failed _estimate_ usually means the call would revert — investigate that before reaching for a bigger limit. `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` broadcasts anyway; scope it to the network, because `true` disables the guard for every network in the run. Native TRX transfers are exempt — they run no VM code.
+`troncast` has no ABI auto-fetch, verification, wallet management, chain forking, or event-log filtering, and limited gas estimation — say so rather than writing ad hoc TronWeb outside `script/troncast/`.
 
-Ongoing higher-volume Tron operations (the Timelock's `scheduleBatch`/`executeBatch`) run off **delegated** Energy from staked TRX on `deployerWallet`/`devWallet` rather than burning TRX per call — that delegation is a separate, human-arranged concern (ping Max) and out of scope for a one-off `troncast` interaction.
-
-## Known `troncast` gaps
-
-No ABI auto-fetch, no contract verification, no wallet management, limited gas estimation, no chain forking, no event-log filtering. For anything needing these, say so explicitly rather than working around them with ad hoc TronWeb code outside `script/troncast/`.
-
-## Failure modes
-
-- `cast` used against a Tron network → will fail on RPC methods Tron doesn't support; switch to `troncast`.
-- Function call reverts with no clear reason → dry-run first (`--dry-run`), then check the target address is in the form `troncast` expects (base58 or 0x-hex, not a malformed hybrid).
-- `troncast send` refuses with `exceeds the fee limit` → re-run with the `--fee-limit` the message names; the call was never broadcast.
-- `troncast send` refuses with `Energy estimation failed` → the call would most likely revert; diagnose that rather than raising the limit. The same message is used when TronGrid returns 429 / the RPC dies after the estimator's retries — wait and re-run, or set `ALLOW_GAS_ESTIMATE_FALLBACK=tron` if the send (including a break-glass pause) must proceed without a figure.
-- Request turns out to need Safe/Timelock sequencing (multi-step, quorum, or anything touching production governance) → stop and hand off; this skill is for direct one-off calls only.
-- Command fails with `proto is not defined` → known TronWeb/Bun compatibility hiccup; retry the same command once before investigating further.
+- Revert with no reason → `--dry-run`, and check the target is base58 or `0x` hex, not a hybrid.
+- `exceeds the fee limit` → re-run with the named `--fee-limit`; nothing was broadcast.
+- `Energy estimation failed` → likely revert; diagnose. Same message on TronGrid 429 / RPC death after retries — wait and re-run, or set `ALLOW_GAS_ESTIMATE_FALLBACK=tron` if the send (e.g. a break-glass pause) must proceed.
+- `proto is not defined` → TronWeb/Bun hiccup; retry once before investigating.
