@@ -70,9 +70,10 @@ Each share is `balanceOf(caller) * bps / 10_000`, rounded down. The balance is r
 
 **Using it in `GenericSwapFacetV3`:**
 
+- Make the fee step the last step of the route, so `token` is the route's output. A later step that swaps `token` uses a `fromAmount` fixed off-chain: on a better fill the extra `token` goes to the receiver unswapped as positive slippage, and if the balance net of fees falls below that `fromAmount` the route reverts
 - Set `sendingAssetId` and `receivingAssetId` of the fee step to `token`, so the facet does not refund the step's sending asset as positive slippage
 - Set `requiresDeposit` to `false`: with it set, the facet pulls `fromAmount` from the user
-- `fromAmount` must be non-zero, and it does not affect the fee: the facet uses it to decide whether to renew its max approval to this contract, and reports it as the step's input amount in `AssetSwapped`. The fee step's `AssetSwapped` shows the facet's full balance as `toAmount`; the forwarded amounts are in `FeesForwarded`
+- Set `fromAmount` to the quoted output of the previous step. It does not affect the fee: the facet renews its max approval to this contract once the allowance drops below `fromAmount`, and reports it as the step's input amount in `AssetSwapped`. The fee step's `AssetSwapped` shows the facet's full balance as `toAmount`; the forwarded amounts are in `FeesForwarded`
 - The facet checks `minAmountOut` against its balance **after** all steps, so pass the amount net of fees
 
 ### Forwarding Native Fees

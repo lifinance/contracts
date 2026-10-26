@@ -1483,7 +1483,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             address(feeForwarder),
             ADDRESS_USDC,
             ADDRESS_USDC,
-            1, // only drives the max approval, the share is computed from the balance
+            swapOutput, // quoted output; the share is computed from the balance
             abi.encodeWithSelector(
                 feeForwarder.forwardERC20FeesBps.selector,
                 ADDRESS_USDC,
