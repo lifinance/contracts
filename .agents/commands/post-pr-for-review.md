@@ -103,7 +103,7 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 
 ### 7. Report
 
-`Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge not enabled` with the parent link instead.
+`Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge was not changed by this run` with the parent link instead.
 
 ## Failure modes
 
