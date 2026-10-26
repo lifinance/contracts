@@ -70,7 +70,7 @@ Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply th
 - **Aikido scan** (soft gate):
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files (`gh pr diff <N> --repo lifinance/contracts --name-only`) with their contents at the PR head (`git fetch origin <headRefName>`, then `git show FETCH_HEAD:<path>`) — never the local checkout, which may be another branch. Filter against `.agents/references/aikido-false-positive-catalog.md`.
+  3. Available → scan the PR's files (`gh pr diff <N> --repo lifinance/contracts --name-only`) with their contents at the exact PR head: `gh pr view <N> --repo lifinance/contracts --json headRefOid`, `git fetch origin pull/<N>/head` (works for fork PRs too), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`.
   4. Real findings remain → run `/aikido-address-findings` and stop; don't post until clean.
 
 ### 3. Gate
