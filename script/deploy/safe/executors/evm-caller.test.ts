@@ -17,7 +17,7 @@ import { EvmChainCaller } from './evm-caller'
 const TARGET: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const SIGNED: Hex = '0x02f8aa0102030405'
 const HASH: Hex =
-  '0x1111111111111111111111111111111111111111111111111111111111111111'
+  '0x1111111111111111111111111111111111111111111111111111111111111111' // [pre-commit-checker: not a secret]
 
 interface ISpy {
   sendTransaction: number
