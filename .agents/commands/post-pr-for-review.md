@@ -30,7 +30,7 @@ grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo cri
 | `critical` | `@smartcontract_core`  | `<!subteam^S096X6MCB0C>` |
 | `routine`  | `@api_expansion-squad` | `<!subteam^S0ADCJQC9F0>` |
 
-Keep the patterns in sync with the ruleset's `required_reviewers`. Tags must use `<!subteam^…>` form — plain `@…` does not notify.
+A `critical` PR tags SC Core alone: every SC Core member is also in `api-expansion`, so one SC Core approval meets both rules. If that stops holding (`gh api orgs/lifinance/teams/<slug>/members`), tag both groups. Keep the patterns in sync with the ruleset's `required_reviewers`. Tags must use `<!subteam^…>` form — plain `@…` does not notify.
 
 ## Post format
 
@@ -63,14 +63,14 @@ Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply th
 
   Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view --json reviewDecision,comments` and treat resolution state as unknown: don't post unless the user explicitly says to go ahead.
 
-- **Failing CI** (blocking, `gh pr checks <N>`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+- **Failing CI** (blocking, `gh pr checks <N> --repo lifinance/contracts`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
 
 - **Audit checks are non-blocking** — `audit-verification` / `audit-*` failing or pending, in either form, does not block: peer review precedes the audit (rule `503-sc-feature-pr-lifecycle`).
 
 - **Aikido scan** (soft gate):
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files (`gh pr diff <N> --repo lifinance/contracts --name-only`) with their contents at the exact PR head: `gh pr view <N> --repo lifinance/contracts --json headRefOid`, `git fetch origin pull/<N>/head` (works for fork PRs too), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`.
+  3. Available → scan the PR's files, skipping deletions (`gh api repos/lifinance/contracts/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: `gh pr view <N> --repo lifinance/contracts --json headRefOid`, `git fetch origin pull/<N>/head` (works for fork PRs too), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`.
   4. Real findings remain → run `/aikido-address-findings` and stop; don't post until clean.
 
 ### 3. Gate
