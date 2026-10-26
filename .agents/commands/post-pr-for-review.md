@@ -63,19 +63,19 @@ Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply th
 
   Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view --json reviewDecision,comments` and treat resolution state as unknown: don't post unless the user explicitly says to go ahead.
 
-- **Failing CI** (blocking, `gh pr checks <N> --repo lifinance/contracts`): block on `FAILURE` / `CANCELLED` / `TIMED_OUT` / `ACTION_REQUIRED`. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+- **Failing CI** (blocking, `gh pr checks <N> --repo lifinance/contracts --json name,state,link`): a check passes only on `SUCCESS` / `SKIPPED` / `NEUTRAL` and is in progress only on `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`; any other state (`FAILURE`, `STARTUP_FAILURE`, `CANCELLED`, an unknown one…) blocks. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
 
 - **Audit checks are non-blocking** — `audit-verification` / `audit-*` failing or pending, in either form, does not block: peer review precedes the audit (rule `503-sc-feature-pr-lifecycle`).
 
 - **Aikido scan** (soft gate):
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files, skipping deletions (`gh api repos/lifinance/contracts/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: `gh pr view <N> --repo lifinance/contracts --json headRefOid`, `git fetch origin pull/<N>/head` (works for fork PRs too), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`.
+  3. Available → scan the PR's files, skipping deletions (`gh api repos/lifinance/contracts/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: `gh pr view <N> --repo lifinance/contracts --json headRefOid`, `git fetch origin pull/<N>/head` (works for fork PRs too), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
   4. Real findings remain → run `/aikido-address-findings` and stop; don't post until clean.
 
 ### 3. Gate
 
-- **Unresolved threads or failing CI** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <conclusion> — <details_url>`) and ask the user to re-run after fixing.
+- **Unresolved threads or failing CI** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
 - **CI in progress, nothing failing** → tell the user; default to waiting.
 - **Draft + clean** → offer `gh pr ready <N>`; confirm first.
 
@@ -83,9 +83,13 @@ Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply th
 
 Skip if the invoking message already says to post ("post for review", "ship it", "send it", "post to dev-sc-review", "move to ready and push"). Otherwise show the planned top-level + thread text and wait for go.
 
-### 5. Auto-merge
+### 5. Post
 
-Check merge state first — `--auto` merges a fully-approved green PR immediately, which would leave a "please review" post for an already-merged PR:
+`slack_send_message` to `C088UJWC8PR` (if it fails, confirm the non-archived channel via `slack_search_channels` — it may have been renamed) with the top-level text; capture `ts`. Then `slack_send_message` with `thread_ts = <ts>` and the thread reply.
+
+### 6. Auto-merge
+
+Only after both sends succeeded; otherwise skip it and report. Check merge state first — `--auto` merges a fully-approved green PR immediately, before reviewers act on the post:
 
 ```bash
 state=$(gh pr view <N> --repo lifinance/contracts \
@@ -97,13 +101,9 @@ state=$(gh pr view <N> --repo lifinance/contracts \
 
 Already enabled → no-op. "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
 
-### 6. Post
-
-`slack_send_message` to `C088UJWC8PR` (if it fails, confirm the non-archived channel via `slack_search_channels` — it may have been renamed) with the top-level text; capture `ts`. Then `slack_send_message` with `thread_ts = <ts>` and the thread reply.
-
 ### 7. Report
 
-`Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error>` with the parent link instead.
+`Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge not enabled` with the parent link instead.
 
 ## Failure modes
 
@@ -116,5 +116,5 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 - "add context: <msg>" → a second thread reply, never the top-level.
 - "quiet ping" → drop the 🙏; keep the subteam syntax.
 - "tag SC core" → `<!subteam^S096X6MCB0C>` even for a routine PR.
-- "without auto-merge" / "no auto-merge" / "manual merge" → skip step 5.
+- "without auto-merge" / "no auto-merge" / "manual merge" → skip step 6.
 - Explicit channel override → resolve its ID with `slack_search_channels` and use it instead of `C088UJWC8PR` for both sends and the report; keep the post shape unless overridden too.
