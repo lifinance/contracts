@@ -23,7 +23,7 @@ files=$(gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
 grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo critical || echo routine
 ```
 
-`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`.
+`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`. The endpoint lists at most 3,000 files, so the post also stops when `gh pr view <N> --repo lifinance/contracts --json changedFiles` exceeds that (routing and the Aikido scan both read this list).
 
 | Result     | Group                  | Thread tag (`GROUP_TAG`) |
 | ---------- | ---------------------- | ------------------------ |
