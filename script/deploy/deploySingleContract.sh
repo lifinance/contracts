@@ -647,7 +647,7 @@ deploySingleContract() {
         VERIFIED=true
       fi
     fi
-  elif [[ $VERIFY_CONTRACTS == "true" ]]; then
+  elif [[ "${VERIFY_CONTRACTS:-}" == "true" ]]; then
     # The log's VERIFIED flag records the explorer only; Sourcify is checked
     # separately (one lookup when already verified there). The contract may
     # predate the current toolchain, so forge gets the one it was built with.
