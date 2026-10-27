@@ -25,6 +25,7 @@ import {
   isDeterministicReadFailure,
   RECEIVER_EXECUTOR_GETTERS,
   findDeprecatedLiveFacets,
+  findUntargetedLiveFacets,
   splitByParkedCoverage,
   isStalledParkedClaim,
   collapseOpenParkedTasks,
@@ -528,6 +529,169 @@ describe('findDeprecatedLiveFacets', () => {
       deployedContracts: { AcrossFacetV3: LIVE, AcrossFacetV4: KEEP },
     })
     expect(found.map((f) => f.name)).toEqual(['AcrossFacetV3'])
+  })
+})
+
+describe('findUntargetedLiveFacets', () => {
+  const LIVE = '0x00000000000000000000000000000000000000AA'
+  const KEEP = '0x00000000000000000000000000000000000000bb'
+
+  /** An untargeted facet: routed, in the deploy log, absent from target state, source present. */
+  function base(): Parameters<typeof findUntargetedLiveFacets>[0] {
+    return {
+      networkLower: 'worldchain',
+      environment: EnvironmentEnum.production,
+      onChainFacets: [{ address: LIVE, selectors: ['0xdeadbeef'] }],
+      deployedContracts: { AcrossFacetV4: LIVE },
+      expectedNames: new Set(['GenericSwapFacetV3']),
+      protectedNames: new Set(['DiamondCutFacet']),
+      sourceNames: new Set(['AcrossFacetV4', 'DiamondCutFacet']),
+    }
+  }
+
+  it('flags a routed facet whose source exists but target state omits it', () => {
+    expect(findUntargetedLiveFacets(base())).toEqual([
+      { name: 'AcrossFacetV4', address: LIVE, isCore: false },
+    ])
+  })
+
+  it('flags a core facet missing from target state, marked as core', () => {
+    expect(
+      findUntargetedLiveFacets({
+        ...base(),
+        deployedContracts: { DiamondCutFacet: LIVE },
+      })
+    ).toEqual([{ name: 'DiamondCutFacet', address: LIVE, isCore: true }])
+  })
+
+  it('ignores a facet target state lists', () => {
+    expect(
+      findUntargetedLiveFacets({
+        ...base(),
+        expectedNames: new Set(['AcrossFacetV4']),
+      })
+    ).toEqual([])
+  })
+
+  it('ignores a facet whose source is gone (no-stale-registered-facets owns that)', () => {
+    expect(
+      findUntargetedLiveFacets({ ...base(), sourceNames: new Set() })
+    ).toEqual([])
+  })
+
+  it('ignores a routed address the deploy log cannot name (no-unexpected-facets owns that)', () => {
+    expect(
+      findUntargetedLiveFacets({ ...base(), deployedContracts: {} })
+    ).toEqual([])
+  })
+
+  it('returns nothing when the network has no target-state entry (would flag everything)', () => {
+    expect(
+      findUntargetedLiveFacets({ ...base(), expectedNames: undefined })
+    ).toEqual([])
+  })
+
+  it('reports only the untargeted facet when a listed one is routed alongside it', () => {
+    const found = findUntargetedLiveFacets({
+      ...base(),
+      onChainFacets: [
+        { address: LIVE, selectors: ['0xdeadbeef'] },
+        { address: KEEP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV4: LIVE, GenericSwapFacetV3: KEEP },
+      sourceNames: new Set(['AcrossFacetV4', 'GenericSwapFacetV3']),
+    })
+    expect(found.map((f) => f.name)).toEqual(['AcrossFacetV4'])
+  })
+})
+
+describe('no-untargeted-live-facets invariant', () => {
+  // Real _targetState.json: mantle and sei list GenericSwapFacetV3 but not AcrossFacetV4,
+  // and src/Facets/AcrossFacetV4.sol exists, so routing it there is untargeted drift.
+  const ACROSS = '0x00000000000000000000000000000000000000AA'
+  const SWAP = '0x00000000000000000000000000000000000000bb'
+
+  function makeDriftCtx(
+    networkLower: string,
+    diamondFacetLog: IHealthCheckContext['diamondFacetLog'] = {
+      [ACROSS]: { Name: 'AcrossFacetV4', Version: '1.0.0' },
+    }
+  ): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      networkLower,
+      onChainFacets: [
+        { address: ACROSS, selectors: ['0xdeadbeef'] },
+        { address: SWAP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV4: ACROSS, GenericSwapFacetV3: SWAP },
+      diamondFacetLog,
+    })
+  }
+
+  it('is a production-only warning that reads the loupe', () => {
+    const inv = invariant('no-untargeted-live-facets')
+    expect(inv.severity).toBe('warning')
+    expect(inv.scope.environments).toEqual(['production'])
+    expect(inv.scope.skipTestnet).toBe(true)
+    expect(inv.readsOnChainFacets).toBe(true)
+  })
+
+  it('warns once with name, deployed version and address, and never errors', async () => {
+    const ctx = makeDriftCtx('mantle')
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Facet AcrossFacetV4 (v1.0.0)')
+    expect(ctx.warnings[0]).toContain(ACROSS)
+    expect(ctx.warnings[0]).toContain('mantle.production.LiFiDiamond')
+  })
+
+  it('says where the version is missing instead of guessing one', async () => {
+    const ctx = makeDriftCtx('mantle', {})
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings[0]).toContain(
+      'version not recorded in deployments/mantle.diamond.json'
+    )
+  })
+
+  it('stays silent when every routed facet is listed', async () => {
+    const ctx = Object.assign(makeDriftCtx('mantle'), {
+      onChainFacets: [{ address: SWAP, selectors: ['0xfeedface'] }],
+    })
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('skips without warning when the loupe read is empty', async () => {
+    const ctx = Object.assign(makeDriftCtx('mantle'), { onChainFacets: [] })
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('skips a network with no production target state', async () => {
+    const ctx = makeDriftCtx('testnet1')
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('collapses into one Slack digest cause per facet across networks', async () => {
+    const results = []
+    for (const network of ['mantle', 'sei']) {
+      const ctx = makeDriftCtx(network)
+      await invariant('no-untargeted-live-facets').run(ctx)
+      results.push({ network, warnings: ctx.warnings })
+    }
+    const groups = groupWarningsByCause(
+      results.map((r) => ({
+        network: r.network,
+        status: 'passed' as const,
+        warnings: r.warnings,
+        detail: '',
+      }))
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.networks).toEqual(['mantle', 'sei'])
+    expect(groups[0]?.cause).toContain('AcrossFacetV4')
   })
 })
 

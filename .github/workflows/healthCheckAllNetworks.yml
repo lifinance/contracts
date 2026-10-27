@@ -23,6 +23,10 @@
 #   without opening the run; the grouping is computed in healthCheckAllNetworks.ts. Fully-green runs, and the
 #   staging-only no-op push that resolves zero production networks, stay SILENT so the channel
 #   carries only issues, not routine confirmations.
+# - Target-state drift: the no-untargeted-live-facets invariant warns for each live facet missing
+#   from script/deploy/_targetState.json (name, deployed version, address). It is warning-only, so
+#   it appears in the :warning: digest — one bullet per facet, listing the networks it is missing
+#   on — and never fails the run.
 #   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
 #   shows up as a MISSING message — add a separate cron-liveness monitor if that signal is needed.
 # - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by a

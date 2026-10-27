@@ -60,7 +60,9 @@ spreadsheet — the file is edited in the repo and reviewed as a diff.
 - `healthCheck.ts` → `deriveNonCoreFacets` → the `non-core-facets-deployed`,
   `facets-registered` and `periphery-registered` invariants.
 - `diamondRemovalDiff.ts` → `getExpectedFacetNames`, used by `cleanUpProdDiamond` and the
-  `no-stale-registered-facets` invariant.
+  `no-stale-registered-facets` and `no-untargeted-live-facets` invariants. The second warns,
+  per facet, when a production diamond routes a facet the deploy log names and `src/` still
+  has, but this file does not list — the daily all-networks health check reports it in Slack.
 - `deployAllContracts.sh` (which non-core facets a new network gets) and
   `deployPeripheryContracts.sh` (which periphery it gets).
 
