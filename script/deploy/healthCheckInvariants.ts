@@ -377,7 +377,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'stable',
       'telos',
       'tempo',
-      'tron',
       'tronshasta',
       'unichain',
       'vana',

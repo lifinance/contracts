@@ -55,7 +55,7 @@ Every deployable contract carries `@custom:version X.Y.Z` (semver). Bump rules:
 
 **Cascade**: if a library you depend on bumps MAJOR, evaluate whether consumers are affected and bump them accordingly.
 
-**GenericErrors.sol** is a shared library — never remove or rename existing errors (selectors are part of the ABI). (Version-bump-on-add is covered under Error Handling.)
+**GenericErrors.sol** is a shared library — never remove or rename existing errors (selectors are part of the ABI).
 
 ## Blank Lines ([CONV:BLANKLINES])
 

@@ -52,6 +52,10 @@
       "0xd524DE642A409E9440346477666F77877Da84fC5": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x85458C635299707087a0E4CAD180D1852076cAc6": {
+        "Name": "M0Facet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

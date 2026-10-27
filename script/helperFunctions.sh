@@ -17,6 +17,9 @@ set -a
 source .env
 set +a
 
+# Default here, not at each read: set -u callers abort on an unset DEBUG.
+DEBUG="${DEBUG:-false}"
+
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
@@ -2633,7 +2636,7 @@ function verifyAllUnverifiedContractsInLogFile() {
           if [[ "$VERIFIED" != "true" ]]; then
             echo ""
             echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
-            if [[ "$DEBUG" == *"true"* ]]; then
+            if [[ "$DEBUG" == "true" ]]; then
               verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS"
             else
               verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS" 2>/dev/null
@@ -2717,7 +2720,7 @@ function removeFacetFromDiamond() {
     echo "[info] trying to remove $FACET_NAME  from diamond $DIAMOND_ADDRESS - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
 
     # call diamond
-    if [[ "$DEBUG" == *"true"* ]]; then
+    if [[ "$DEBUG" == "true" ]]; then
       universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS"
     else
       universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS" >/dev/null 2>&1
@@ -3130,7 +3133,7 @@ function echoDebug() {
   local MESSAGE="$1"
 
   # write message to console if debug flag is set to true
-  if [[ $DEBUG == "true" ]]; then
+  if [[ "$DEBUG" == "true" ]]; then
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
@@ -3993,7 +3996,7 @@ function getPrivateKey() {
   # check environment value
   if [[ "$ENVIRONMENT" == *"staging"* ]]; then
     # check if env variable is set/available
-    if [[ -z "$PRIVATE_KEY" ]]; then
+    if [[ -z "${PRIVATE_KEY:-}" ]]; then
       error "could not find PRIVATE_KEY value in your .env file"
       return 1
     else
@@ -4002,7 +4005,7 @@ function getPrivateKey() {
     fi
   else
     # check if env variable is set/available
-    if [[ -z "$PRIVATE_KEY_PRODUCTION" ]]; then
+    if [[ -z "${PRIVATE_KEY_PRODUCTION:-}" ]]; then
       error "could not find PRIVATE_KEY_PRODUCTION value in your .env file"
       return 1
     else
