@@ -4,6 +4,7 @@ import { formatEther } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import type { SupportedChain } from '../common/types'
+import { NOT_ON_CHAIN_REASON } from '../deploy/safe/confirm-timelock-execution'
 
 import { sleep } from './delay'
 
@@ -39,6 +40,8 @@ interface INetworkResult {
   operationsSucceeded?: number
   operationsRejected?: number
   operationsSkipped?: number
+  /** Executions submitted that no endpoint ever mined; a subset of `operationsFailed`. */
+  operationsNotOnChain?: number
   error?: unknown
 }
 
@@ -517,8 +520,12 @@ export class SlackNotifier {
     if (failedNetworks.length > 0) {
       const failureDetails = failedNetworks
         .map((r) => {
-          const errorMsg = this.extractErrorMessage(r.error)
-          return `• ${r.network}: ${errorMsg}`
+          const reasons = r.operationsNotOnChain
+            ? [`${r.operationsNotOnChain} operation(s) ${NOT_ON_CHAIN_REASON}`]
+            : []
+          if (r.error || reasons.length === 0)
+            reasons.push(this.extractErrorMessage(r.error))
+          return `• ${r.network}: ${reasons.join('; ')}`
         })
         .join('\n')
 
