@@ -129,7 +129,7 @@ function logContractDeploymentInfo {
   fi
 
   # Execute MongoDB logging command – keep stderr in debug mode
-  if [[ "$DEBUG" == "true" ]]; then
+  if [[ "${DEBUG:-}" == "true" ]]; then
     "${MONGO_CMD[@]}"
   else
     "${MONGO_CMD[@]}" 2>/dev/null
@@ -2633,7 +2633,7 @@ function verifyAllUnverifiedContractsInLogFile() {
           if [[ "$VERIFIED" != "true" ]]; then
             echo ""
             echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
-            if [[ "$DEBUG" == *"true"* ]]; then
+            if [[ "${DEBUG:-}" == *"true"* ]]; then
               verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS"
             else
               verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS" 2>/dev/null
@@ -2717,7 +2717,7 @@ function removeFacetFromDiamond() {
     echo "[info] trying to remove $FACET_NAME  from diamond $DIAMOND_ADDRESS - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
 
     # call diamond
-    if [[ "$DEBUG" == *"true"* ]]; then
+    if [[ "${DEBUG:-}" == *"true"* ]]; then
       universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS"
     else
       universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS" >/dev/null 2>&1
@@ -3130,7 +3130,7 @@ function echoDebug() {
   local MESSAGE="$1"
 
   # write message to console if debug flag is set to true
-  if [[ $DEBUG == "true" ]]; then
+  if [[ "${DEBUG:-}" == "true" ]]; then
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
