@@ -2079,7 +2079,8 @@
         "TokenWrapper": "latest",
         "GlacisFacet": "latest",
         "StargateFacetV2": "latest",
-        "ReceiverStargateV2": "latest"
+        "ReceiverStargateV2": "latest",
+        "M0Facet": "latest"
       }
     }
   },
