@@ -4,7 +4,6 @@
     "allow": [
       "Bash(forge *)",
       "Bash(cast *)",
-      "Bash(npm run *)",
       "Bash(bun *)",
       "Bash(bunx *)",
       "Bash(git status)",
@@ -24,11 +23,18 @@
       "Glob",
       "Grep"
     ],
+    "ask": [
+      "Bash(cast send *)",
+      "Bash(forge script * --broadcast*)",
+      "Bash(forge script * --resume*)"
+    ],
     "deny": [
       "Read(/.env)",
       "Read(**/.env)",
       "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
       "Bash(git push --force*)",
+      "Bash(git push -f *)",
       "Bash(git reset --hard*)",
       "Bash(git clean -f*)",
       "Bash(mongosh *)",
@@ -42,20 +48,11 @@
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .agents/hooks/post-edit-format.sh"
-          }
-        ]
-      },
-      {
         "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .agents/hooks/post-edit-validate.sh"
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/.agents/hooks/post-edit-validate.sh"
           }
         ]
       }

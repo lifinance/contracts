@@ -1,4 +1,4 @@
-# Cursor Rules Structure
+# Agent Rules and Commands
 
 This directory contains rule files (markdown with YAML frontmatter) that guide the AI assistant's behavior when working with this codebase. Source files are `.md`; symlinked into `.cursor/rules/` as `.mdc` (Cursor convention) and `.claude/rules/` as `.md` (Claude Code convention).
 
@@ -6,11 +6,11 @@ This directory contains rule files (markdown with YAML frontmatter) that guide t
 
 Rules are numbered for ordering by category (**numeric prefixes must be unique**):
 
-- `000-099`: Global/standards rules (always-applied: guardrails, architecture, project structure, final checks)
+- `000-099`: Global/standards rules (000–002 and 099 always apply; 004 and 010 are scoped)
 - `100-199`: Solidity-related rules (basics, contracts, facets, interfaces, receivers, security, gas, scripts)
 - `200-299`: TypeScript-related rules (scripts, helpers, conventions)
 - `300-399`: Bash-related rules (deployment scripts, shell utilities)
-- `400-499`: Testing-related rules (Solidity tests, TS tests, testing patterns, coverage)
+- `400-499`: Testing-related rules (Solidity tests, TS tests)
 - `500-599`: Git/GitHub Actions + audit-process rules (CI/CD workflows, audit log/report management)
 - `600-699`: Mixed/other rules (transaction analysis, cross-cutting concerns)
 
@@ -70,15 +70,15 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `deploy-contract.md` | `/deploy-contract <Contract> <network...> [--production]` | Deploy a facet/periphery to networks + register in each LiFiDiamond (verify, diamondCut/diamondUpdatePeriphery, periphery allowlist). Staging/test terminal path and the deploy primitive `multisig-rollout` calls; production rollouts go through `multisig-rollout`. Routes Tron targets to `deploy-contract-tron` |
 | `deploy-contract-tron.md` | `/deploy-contract-tron <Contract> <tron\|tronshasta...>` | Deploy a facet/periphery to Tron from the `contracts-tron` fork — sync/delta preflight, `-tron` versioning, TronWeb deploy scripts, Tronscan verify, deploy-log PR against **upstream** `contracts` |
 | `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
-| `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, `CORE_FACET_EXEMPTIONS`, the whitelist (hand-edited) and per-network deploy logs; preserves the master log and facet chainId mappings (never edits facet source) |
+| `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, `CORE_FACET_EXEMPTIONS` and `CORE_PERIPHERY_EXEMPTIONS`, the whitelist (hand-edited) and per-network deploy logs; preserves the master log and facet chainId mappings (never edits facet source) |
 | `eip7702-atomic-batch.md` | `/eip7702-atomic-batch --config <path.json> [--broadcast]` | Run calls atomically from an EOA via an EIP-7702 sponsored tx (delegate to Multicall3): a sponsor pays while the EOA only signs — so a gas-starved or compromised/actively-swept key can execute (e.g. `transferOwnership`) with no fundable balance for a sweeper to front-run. Engine: `script/tasks/atomicBatch7702.ts` |
-| `finish-rollout.md` | `/finish-rollout <slack thread link>` | Finish a production rollout after timelock execution — verify (timelock queue + on-chain), dispatch the Timelock Auto Execution workflow if ops are ready-but-unexecuted, close the `#dev-sc-multisig-proposals` thread, sync diamond logs onto the rollout PR, self-review → ready → `/post-pr-for-review`. The tail of `multisig-rollout` |
+| `finish-rollout.md` | `/finish-rollout <slack thread link>` | Finish a production rollout after timelock execution — verify (timelock queue + on-chain), dispatch the Timelock Auto Execution workflow if ops are ready-but-unexecuted, close the `#dev-sc-multisig-proposals` thread; in deploy mode, sync diamond logs onto the rollout PR, self-review → ready → `/post-pr-for-review`. The tail of `multisig-rollout` |
 | `interact-tron.md` | `/interact-tron <call\|send\|address\|code> ...` | Read/write Tron contract state via `troncast` (the `cast` analog for Tron) — calls, sends, address conversion, bytecode; routing target for EVM skills that hit a Tron network |
 | `manage-wallet-funds.md` | `/manage-wallet-funds <bridge\|swap\|send> --wallet <role\|0x> ...` | Move funds from any `.env` wallet — `bridge`/`swap` route via the LI.FI API (same wallet, autonomous), `send` is a direct native transfer to a different recipient (needs an explicit human `--confirm`); wallet resolved by role or address (EVM) |
 | `move-tron-delegation.md` | `/move-tron-delegation --old-address 0xOLD --new-address 0xNEW [--role dev\|deployer]` | Move Tron staked-resource (energy/bandwidth) delegation from a rotated-out wallet's Tron address to the new one — derive base58 pair, draft the provider (Max) request, verify on Tronscan; delegator-controlled, never signed from our keys |
 | `multisig-rollout.md` | `/multisig-rollout <Contract> \| --propose-only <Contract> \| --whitelist-pr <N>` | Orchestrate a production rollout: deploy (`deploy-contract`), propose-only (`proposeContractToNetworks.sh` for already-deployed bytecode), or whitelist-sync; Safe proposals, draft PR when needed, signing hand-off, signature verification, `#dev-sc-multisig-proposals` thread; PolymerCCTP chainId→domain propagation when adding a chain/corridor |
 | `offboard-sc-dev.md` | `/offboard-sc-dev --person <name> --removed-signer 0x --new-signer 0x [--linear EXSC-XXX]` | Orchestrate a full SC-team offboarding — swap the departing multisig signer and rotate all three shared wallets (deployer/dev/pauser); v1 execute-only, drives the rotate-* skills + `multisig-rollout`, gates on `check-rotation-status` |
-| `post-pr-for-review.md` | `/post-pr-for-review`            | Post to `#dev-sc-review`, auto-merge, tag `@api_expansion-squad` or `@smartcontract_core` |
+| `post-pr-for-review.md` | `/post-pr-for-review`            | Post to `#dev-sc-review`, auto-merge unless already mergeable, tag `@api_expansion-squad` or `@smartcontract_core` |
 | `request-audit.md` | `/request-audit <PR_NUMBER_OR_URL> [--urgent]` | Prepare and send a smart contract audit request to Slack (Sujith or burrasec team)       |
 | `request-dev-funds.md` | `/request-dev-funds`            | Request dev funds via the `automate-wallet-dev-fees` PR-based wallet (EVM + Solana)        |
 | `resolve-audit-issues.md` | `/resolve-audit-issues <PR_NUMBER_OR_URL_OR_FACET> [--audit-repo <owner/repo>]` | Work through an auditor's GitHub findings for a contracts PR — discover the audit repo from Slack, load every issue, triage fix-vs-acknowledge in one gate, fix each on a remediation branch (one commit per finding), reply `fixed <commit>` / `acknowledged <reason>` on each issue, then post a Slack wrap-up nudging the auditor + pinging `@smartcontract_core` |
@@ -118,20 +118,19 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `102-facets.md`               | Facet-only requirements and validations                          | ❌ On match | `src/Facets/**/*.sol`                                                                                         |
 | `103-solidity-interfaces.md`  | Interface-only rules for Solidity interfaces                     | ❌ On match | `src/Interfaces/**/*.sol`                                                                                     |
 | `104-receiver-contracts.md`   | Receiver contract requirements and patterns                      | ❌ On match | `src/Periphery/Receiver*.sol`                                                                                 |
-| `105-security.md`             | Cross-cutting security expectations                              | ❌ On match | `src/**/*.sol`, `script/**/*.sol`, `script/**/*.ts`, `test/**/*.t.sol`                                        |
+| `105-security.md`             | Cross-cutting security expectations                              | ❌ On match | `src/**/*.sol`, `script/**/*.sol`, `script/**/*.ts`                                                        |
 | `106-gas.md`                  | Gas-efficiency guidance aligned with existing patterns           | ❌ On match | `src/**/*.sol`                                                                                                |
-| `107-solidity-scripts.md`     | Foundry deployment/update script patterns                        | ❌ On match | `script/**/*.s.sol`, `script/**/*.sol`                                                                        |
+| `107-solidity-scripts.md`     | Foundry deployment/update script patterns                        | ❌ On match | `script/**/*.s.sol`                                                                                           |
 | `200-typescript.md`           | TS scripting, helpers, lint/tests                                | ❌ On match | `script/**/*.ts`, `tasks/**/*.ts`                                                                             |
 | `201-safe-decode-scripts.md`  | Safe/timelock decode & display conventions                       | ❌ On match | `script/deploy/safe/**/*.ts`                                                                                  |
 | `202-tron-scripts.md`         | Tron-specific TS conventions (TronWeb, address handling)         | ❌ On match | `script/deploy/tron/**/*.ts`, `script/troncast/**/*.ts`                                                       |
 | `203-signing-stack-doc-currency.md` | Gate changes update `docs/MultisigSigningProcess.md` in the same PR | ❌ On match | `script/deploy/safe/**/*.ts`, `script/deploy/codehash/**/*.ts`                                            |
 | `300-bash.md`                 | Deployment bash structure and safety                             | ❌ On match | `**/*.sh`                                                                                                     |
 | `400-solidity-tests.md`       | Foundry test structure, naming, and expectations                 | ❌ On match | `test/**/*.sol`                                                                                               |
-| `401-testing-patterns.md`     | Cross-language testing, coverage, and structure                  | ❌ On match | `test/**/*.t.sol`, `**/*.test.ts`, `script/**/*.ts`                                                           |
 | `402-typescript-tests.md`     | Bun test structure and expectations for `.test.ts`               | ❌ On match | `**/*.test.ts`                                                                                                |
 | `500-github-actions.md`       | GitHub Actions workflows structure and conventions               | ❌ On match | `.github/workflows/**/*.yml`, `.github/workflows/**/*.yaml`, `.github/**/*.yml`, `.github/**/*.yaml`          |
 | `501-audits.md`               | Audit log and audit report management                            | ❌ On match | `audit/**/*.json`, `audit/**/*.pdf`, `.github/workflows/**/*audit*.yml`, `.github/workflows/**/*version*.yml` |
 | `502-whitelist-branching.md`  | Whitelist config branching strategy (main branch only)           | ❌ On match | `config/whitelist.json`, `config/composerWhitelist.json`                                                      |
 | `503-sc-feature-pr-lifecycle.md` | Canonical SC feature-PR stage order (peer review → BE integration → audit) and automation mapping | ❌ On match | `src/**/*.sol`, `test/**/*.t.sol`, `audit/**/*.json`, `audit/**/*.pdf`                                        |
-| `600-transaction-analysis.md` | Routes concrete tx debugging to the analyze-tx command           | ❌ On match | `**/*`                                                                                                        |
+| `600-transaction-analysis.md` | Routes concrete tx debugging to the analyze-tx command           | ✅ Always   | `**/*`                                                                                                        |
 | `601-healthcheck-invariants.md` | Keep the declarative health-check invariant registry in sync with facet/periphery changes | ❌ On match | `src/Facets/**/*.sol`, `src/Periphery/**/*.sol`, `script/deploy/_targetState.json`                            |

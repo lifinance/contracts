@@ -1,10 +1,13 @@
 ---
 name: finish-rollout
-description: Finishes a production multisig rollout after its timelock ops have executed — verifies execution (MongoDB timelock queue + on-chain isOperationDone), closes the #dev-sc-multisig-proposals Slack thread ("Executed" reply + rocket reaction), syncs the diamond logs for the impacted chains onto the rollout PR, and takes that PR through self-review → ready-for-review → /post-pr-for-review. If the ops are executable but the cron hasn't run yet, it dispatches the Timelock Auto Execution workflow and waits before proceeding. Use when the user says "finish the rollout", "the timelock executed, wrap it up", "close out the deployment", or supplies a #dev-sc-multisig-proposals thread link with finishing intent. This is the tail of `multisig-rollout` (which ends at "timelock ops execute via the scheduled pipeline"); it never executes or cancels timelock ops itself — direct execution stays with the workflow / `execute-pending-timelock-tx.ts`. Requires gh and the Slack MCP server. No lifi-connect tunnel needed.
+description: "Closes out a production multisig rollout once its timelock ops executed: verifies execution, replies Executed in the #dev-sc-multisig-proposals thread and, in deploy mode, syncs diamond logs onto the rollout PR and posts it for review. Use for \"finish the rollout\" or a thread link. Tail of multisig-rollout."
 usage: /finish-rollout <slack thread link>
 ---
 
-# Finish Rollout (LI.FI Contracts)
+# Finish Rollout
+
+The tail of `multisig-rollout`, which ends at "timelock ops execute via the scheduled
+pipeline". Direct execution stays with the workflow / `execute-pending-timelock-tx.ts`.
 
 Input: a `#dev-sc-multisig-proposals` thread link, e.g.
 `https://lifi-protocol.slack.com/archives/C09DKGYQ1GC/p1783082088092039`.
