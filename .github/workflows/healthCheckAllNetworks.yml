@@ -25,6 +25,10 @@
 #   carries only issues, not routine confirmations.
 #   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
 #   shows up as a MISSING message — add a separate cron-liveness monitor if that signal is needed.
+# - Target-state drift: the no-untargeted-live-facets invariant warns once per network that routes
+#   live facets missing from script/deploy/_targetState.json. It is warning-only, so it appears in
+#   the :warning: digest as a single bullet listing the affected networks, and never fails the run.
+#   Each facet's name, deployed version and address are in that network's run log.
 # - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by a
 #   viem fallback transport across the chain's configured endpoints, that transport's retries, and a
 #   one-shot re-verify of each fatal invariant before a network is marked failed.
