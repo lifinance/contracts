@@ -342,8 +342,8 @@ export const describeTargetStateUnavailable = (
  *
  * R4.6 is graded per case, not as a single equality: an upgrade of a facet `main`
  * already targets is the mechanical anchor and a downgrade there refuses, while a
- * first-time add has no entry on `main` by construction — the target-state PR
- * merges only after execution — so it is labeled and allowed. Grading absence as
+ * first-time add has no entry on `main` by construction — `/finish-rollout` adds
+ * it to the rollout PR only after execution — so it is labeled and allowed. Grading absence as
  * a "no" would refuse every honest new-chain rollout.
  * @param calldatas - the proposal's calls, in the order they were passed
  * @param network - network the proposal targets
@@ -483,7 +483,7 @@ export const evaluateTargetStateIntent = async (
         mainVersion: null,
         crossFleetCount: countNetworksDeclaring(read.state, contractName),
         status: 'not-previously-targeted',
-        detail: `${contractName} is not declared for ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
+        detail: `${contractName} is not declared for ${network} in ${PINNED_REF} — expected for a first deployment, since /finish-rollout adds the target-state entry only after execution. Intent rests on the linked ticket and PR.`,
       })
       continue
     }
