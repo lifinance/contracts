@@ -1485,7 +1485,8 @@ export interface IUntargetedLiveFacet {
  * Same `[]`-when-no-entry and unnamed-address rules as {@link findDeprecatedLiveFacets}.
  *
  * @param params - See {@link findDeprecatedLiveFacets}.
- * @returns The untargeted facets with the address the loupe routes them at, core facets included.
+ * @returns The untargeted facets with their deploy-log address (the one the loupe routes them
+ *   at, in the deploy log's spelling), core facets included.
  */
 export function findUntargetedLiveFacets(
   params: ILiveFacetDiffParams
@@ -3842,7 +3843,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     scope: { environments: ['production'], skipTestnet: true },
     readsOnChainFacets: true,
     remediation:
-      'Add the facet to script/deploy/_targetState.json under <network>.production.LiFiDiamond (scriptMaster use case 7), or deprecate it if it should not be live. See docs/TargetState.md.',
+      'Add each facet the run log lists to script/deploy/_targetState.json under <network>.production.LiFiDiamond (scriptMaster use case 7). If it should not be live on that network, remove it from that diamond (scriptMaster use case 12); /deprecate-contract removes it from every network. See docs/TargetState.md.',
     run: async (ctx) => {
       if (ctx.onChainFacets.length === 0) {
         consola.info(
@@ -3877,9 +3878,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
       const facetLog =
         ctx.diamondFacetLog ?? loadDiamondLog(ctx.networkLower)?.Facets ?? null
-      // One line per facet, unlike no-stale-registered-facets: the Slack digest groups
-      // warnings by text with the network masked, so per-facet lines collapse into one
-      // bullet per facet listing every network it is missing on.
+      // Per-facet detail goes to the run log only. The digest masks network and counts, so one
+      // summary warning per network collapses the whole backlog into a single Slack bullet
+      // instead of one per facet crowding the digest's few slots.
       for (const facet of untargeted) {
         const version = resolveRegisteredFacetVersion(
           facet.name,
@@ -3887,16 +3888,19 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           facet.address,
           facetLog
         )
-        ctx.logWarn(
+        consola.warn(
           `${facet.isCore ? 'Core facet' : 'Facet'} ${facet.name} (${
             version === null
               ? `version not recorded in deployments/${ctx.networkLower}.diamond.json`
               : `v${version}`
-          }) is routed on-chain at ${facet.address} but has no ${
-            ctx.networkLower
-          }.production.LiFiDiamond entry in _targetState.json`
+          }) is routed on-chain at ${
+            facet.address
+          } but not listed in target state`
         )
       }
+      ctx.logWarn(
+        `${untargeted.length} live facet(s) missing from ${ctx.networkLower}.production.LiFiDiamond in _targetState.json (names in the run log)`
+      )
     },
   },
   {

@@ -48,6 +48,7 @@ import {
   type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { cachedSourceContractNames } from './safe/diamondRemovalDiff'
 import { type IPendingRegistration } from './safe/pending-registrations'
 import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
@@ -628,6 +629,16 @@ describe('no-untargeted-live-facets invariant', () => {
     })
   }
 
+  it('has a precondition: mantle and sei target AcrossFacetV4 off and GenericSwapFacetV3 on', () => {
+    const state = targetState as TargetState
+    for (const network of ['mantle', 'sei']) {
+      const diamond = state[network]?.production?.LiFiDiamond ?? {}
+      expect(diamond).not.toHaveProperty('AcrossFacetV4')
+      expect(diamond).toHaveProperty('GenericSwapFacetV3')
+    }
+    expect(cachedSourceContractNames().has('AcrossFacetV4')).toBe(true)
+  })
+
   it('is a production-only warning that reads the loupe', () => {
     const inv = invariant('no-untargeted-live-facets')
     expect(inv.severity).toBe('warning')
@@ -636,20 +647,40 @@ describe('no-untargeted-live-facets invariant', () => {
     expect(inv.readsOnChainFacets).toBe(true)
   })
 
-  it('warns once with name, deployed version and address, and never errors', async () => {
+  async function runCapturingRunLog(ctx: IHealthCheckContext): Promise<string> {
+    const printed: string[] = []
+    const warn = consola.warn
+    consola.warn = ((message: unknown) => {
+      printed.push(String(message))
+    }) as typeof consola.warn
+    try {
+      await invariant('no-untargeted-live-facets').run(ctx)
+    } finally {
+      consola.warn = warn
+    }
+    return printed.join('\n')
+  }
+
+  it('warns once per network with the count, and never errors', async () => {
     const ctx = makeDriftCtx('mantle')
-    await invariant('no-untargeted-live-facets').run(ctx)
+    await runCapturingRunLog(ctx)
     expect(ctx.errors).toEqual([])
-    expect(ctx.warnings).toHaveLength(1)
-    expect(ctx.warnings[0]).toContain('Facet AcrossFacetV4 (v1.0.0)')
-    expect(ctx.warnings[0]).toContain(ACROSS)
-    expect(ctx.warnings[0]).toContain('mantle.production.LiFiDiamond')
+    expect(ctx.warnings).toEqual([
+      '1 live facet(s) missing from mantle.production.LiFiDiamond in _targetState.json (names in the run log)',
+    ])
+  })
+
+  it('logs each facet with name, deployed version and address to the run log only', async () => {
+    const ctx = makeDriftCtx('mantle')
+    const runLog = await runCapturingRunLog(ctx)
+    expect(runLog).toContain('Facet AcrossFacetV4 (v1.0.0)')
+    expect(runLog).toContain(ACROSS)
+    expect(ctx.warnings[0]).not.toContain('AcrossFacetV4')
   })
 
   it('says where the version is missing instead of guessing one', async () => {
-    const ctx = makeDriftCtx('mantle', {})
-    await invariant('no-untargeted-live-facets').run(ctx)
-    expect(ctx.warnings[0]).toContain(
+    const runLog = await runCapturingRunLog(makeDriftCtx('mantle', {}))
+    expect(runLog).toContain(
       'version not recorded in deployments/mantle.diamond.json'
     )
   })
@@ -674,11 +705,14 @@ describe('no-untargeted-live-facets invariant', () => {
     expect(ctx.warnings).toEqual([])
   })
 
-  it('collapses into one Slack digest cause per facet across networks', async () => {
+  it('collapses into one Slack digest cause across networks, even when facet versions differ', async () => {
     const results = []
-    for (const network of ['mantle', 'sei']) {
-      const ctx = makeDriftCtx(network)
-      await invariant('no-untargeted-live-facets').run(ctx)
+    const contexts: Array<[string, IHealthCheckContext]> = [
+      ['mantle', makeDriftCtx('mantle')],
+      ['sei', makeDriftCtx('sei', {})],
+    ]
+    for (const [network, ctx] of contexts) {
+      await runCapturingRunLog(ctx)
       results.push({ network, warnings: ctx.warnings })
     }
     const groups = groupWarningsByCause(
@@ -691,7 +725,9 @@ describe('no-untargeted-live-facets invariant', () => {
     )
     expect(groups).toHaveLength(1)
     expect(groups[0]?.networks).toEqual(['mantle', 'sei'])
-    expect(groups[0]?.cause).toContain('AcrossFacetV4')
+    expect(groups[0]?.cause).toBe(
+      '[n] live facet(s) missing from [network].production.LiFiDiamond in _targetState.json (names in the run log)'
+    )
   })
 })
 
