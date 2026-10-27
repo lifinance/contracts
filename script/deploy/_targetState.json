@@ -808,8 +808,9 @@
         "OutputValidator": "latest",
         "Permit2Proxy": "latest",
         "TokenWrapper": "latest",
-        "AcrossFacetPackedV4": "latest",
         "AcrossFacetV4": "latest",
+        "AcrossFacetPackedV4": "latest",
+        "ReceiverAcrossV4": "latest",
         "AcrossV4SwapFacet": "latest",
         "AllBridgeFacet": "latest",
         "DeBridgeDlnFacet": "1.0.0",
@@ -1703,7 +1704,8 @@
         "EcoFacet": "latest",
         "LayerSwapFacet": "latest",
         "NEARIntentsFacet": "latest",
-        "SymbiosisFacet": "latest"
+        "SymbiosisFacet": "latest",
+        "ReceiverOIF": "latest"
       }
     }
   },
@@ -2147,6 +2149,7 @@
         "Permit2Proxy": "latest",
         "TokenWrapper": "latest",
         "AcrossFacetV4": "latest",
+        "ReceiverAcrossV4": "latest",
         "GardenFacet": "latest",
         "GlacisFacet": "latest",
         "PaxosTransitFacet": "latest",
