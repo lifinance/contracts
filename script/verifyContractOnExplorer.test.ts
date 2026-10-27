@@ -135,7 +135,9 @@ describe('verifyContractOnExplorer', () => {
   })
 
   it('refuses gravity under set -u when its key is unset', () => {
-    const result = run('gravity', {}, ['GRAVITY_ETHERSCAN_API_KEY', 'DEBUG'])
+    const result = run('gravity', { DEBUG: 'false' }, [
+      'GRAVITY_ETHERSCAN_API_KEY',
+    ])
 
     expect(result.status).toBe(1)
     expect(result.forgeCalls).toHaveLength(0)
