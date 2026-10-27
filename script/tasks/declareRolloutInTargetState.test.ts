@@ -83,6 +83,13 @@ describe('describeDiamondLogGap', () => {
     expect(describeDiamondLogGap(log, 'Executor', '2.0.0')).toBeNull()
   })
 
+  it('reports a periphery contract the registry resolves to no address', () => {
+    const log = { LiFiDiamond: { Facets: {}, Periphery: { Patcher: '' } } }
+    expect(describeDiamondLogGap(log, 'Patcher', '1.0.0')).toBe(
+      'does not list Patcher'
+    )
+  })
+
   it('reports a facet listed at another version', () => {
     expect(
       describeDiamondLogGap(

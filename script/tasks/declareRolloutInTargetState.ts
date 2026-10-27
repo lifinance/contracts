@@ -108,7 +108,11 @@ export const describeDiamondLogGap = (
   if (log === undefined) return 'could not be read'
   const diamond = isRecord(log) ? log[DIAMOND] : undefined
   if (!isRecord(diamond)) return `has no ${DIAMOND} block`
-  if (isRecord(diamond.Periphery) && contract in diamond.Periphery) return null
+  const peripheryAddress = isRecord(diamond.Periphery)
+    ? diamond.Periphery[contract]
+    : undefined
+  if (typeof peripheryAddress === 'string' && peripheryAddress !== '')
+    return null
 
   const facets = isRecord(diamond.Facets) ? Object.values(diamond.Facets) : []
   const versions = facets.flatMap((facet) =>

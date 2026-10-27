@@ -42,7 +42,8 @@ gate.
 - **A rollout adds a missing key, and removes the key of a facet its cut removed.** The
   version a network runs is `@custom:version`, so rolling a new version out to 40 chains that
   already declare the contract changes no entry. Where a network did not declare it yet — a first deployment, or a
-  contract reaching one more chain — `/finish-rollout` adds it as `"latest"` once every timelock
+  contract reaching one more chain — `/finish-rollout` (deploy mode only; a propose-only
+  rollout adds the key by hand) adds it as `"latest"` once every timelock
   op has executed, via `script/tasks/declareRolloutInTargetState.ts`, and commits it to the
   rollout PR with the diamond logs. That PR merges after execution, which is why the sign-time
   gate grades an absent entry as `not-previously-targeted` instead of refusing it. The script
