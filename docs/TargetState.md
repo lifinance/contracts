@@ -39,17 +39,19 @@ gate.
 
 ## What changes the file, and what does not
 
-- **A rollout adds a missing key and nothing else.** The version a network runs is
-  `@custom:version`, so rolling a new version out to 40 chains that already declare the
-  contract changes no entry. Where a network did not declare it yet — a first deployment, or a
+- **A rollout adds a missing key, and removes the key of a facet its cut removed.** The
+  version a network runs is `@custom:version`, so rolling a new version out to 40 chains that
+  already declare the contract changes no entry. Where a network did not declare it yet — a first deployment, or a
   contract reaching one more chain — `/finish-rollout` adds it as `"latest"` once every timelock
   op has executed, via `script/tasks/declareRolloutInTargetState.ts`, and commits it to the
   rollout PR with the diamond logs. That PR merges after execution, which is why the sign-time
   gate grades an absent entry as `not-previously-targeted` instead of refusing it. The script
   leaves `"latest"` and a pin equal to the executed version unchanged. It refuses a pin that
-  differs, and a network with no `production.LiFiDiamond` block (`/add-network` seeds
-  that), and then writes nothing. `--unpin` replaces a differing pin with `"latest"` when the
-  hold-back is over.
+  differs, a network with no `production.LiFiDiamond` block (`/add-network` seeds that), a
+  network whose regenerated `deployments/<net>.diamond.json` does not show the contract, and
+  a branch that does not contain a freshly fetched `origin/main`, and then writes nothing.
+  `--unpin` replaces a differing pin with `"latest"` when the hold-back is over. A facet the
+  same cut removed has its key deleted by hand, per `/finish-rollout`.
 - **A version bump does not touch it.** A minor fix that is not being rolled out yet changes
   nothing — the contract stays `latest` everywhere and the fleet simply has not caught up.
 - **Adding a contract to a network** adds a key with `"latest"`.

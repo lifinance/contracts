@@ -71,7 +71,7 @@ export const TARGET_STATE_VERSION_LATEST = 'latest'
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
 
 /** Solidity-style contract name, so a read stays inside `src/`. */
-const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+export const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 /** `network → environment → diamond → contract → version`, as `main` declares it. */
 export type PinnedTargetState = Record<

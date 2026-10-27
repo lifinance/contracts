@@ -117,8 +117,15 @@ that's now. Regenerate it from on-chain state:
 
 ```bash
 gh pr checkout <N>
+git fetch origin main
+git merge origin/main
 ./script/tasks/updateDiamondLogs.sh production <network> [<network>...]
 ```
+
+The merge brings in any network or pin `main` added to `_targetState.json` since the rollout PR
+branched. The target-state step below refuses to run on a branch that does not contain a
+freshly fetched `origin/main`. If the merge conflicts, resolve it before going further, and
+never resolve a `_targetState.json` hunk by dropping `main`'s side.
 
 Run each as its own plain command from the repo root — no `&&`, pipes, `bash -c` or `source`.
 In a worktree-isolated session Claude Code refuses any command whose git behavior it can't
@@ -138,8 +145,13 @@ bunx tsx script/tasks/declareRolloutInTargetState.ts --contract <Contract> --ver
 ```
 
 It adds a missing entry as `"latest"` and leaves `"latest"` and a matching pin alone. On exit
-`1` it has written nothing. Act on each refused network:
+`1` it has written nothing. It refuses the whole run when `--contract` is not a contract
+name or the branch does not contain `origin/main`. Act on each refused network:
 
+- `not-in-diamond-log`: the regenerated `deployments/<net>.diamond.json` does not list the
+  contract (a periphery contract by name; a facet by name at `--version`). Either the name or
+  version is wrong, the network is not one the cut reached, or the log was not regenerated.
+  Fix the argument or drop the network; never edit the diamond log to make it pass.
 - `network-not-declared`: the network was never seeded (`/add-network` owns that). Stop and
   report it. Do not create a one-contract network block.
 - `pin-conflict`: a pin other than the executed version. A pin is a deliberate decision, so
@@ -161,6 +173,13 @@ park time stays pruned while its task is still `queued`/`proposed` — the queue
 invariants track the still-routed facet as expected-pending. Restore it if the task retired as
 cancelled and the loupe still routes the facet. `superseded` is loupe-verified gone, so
 delete that entry with the rest of the cut.
+
+A facet the cut's own `FacetCut[]` removed (e.g. `AcrossFacetV3` replaced by `AcrossFacetV4`)
+also loses its key in that network's `production.LiFiDiamond` block of `_targetState.json`, by
+hand in the same commit. Otherwise healthCheck's `facets-registered` and
+`non-core-facets-deployed` invariants expect it back once the PR merges. A drained
+deferred-cleanup removal needs no edit: it was only queued because target state no longer
+declared it.
 
 ## Phase 5 — PR finish (deploy mode only)
 
