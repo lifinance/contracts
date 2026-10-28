@@ -696,7 +696,7 @@
     "safeAddress": "0x1f1b30aD821634FEdCFFf90450faE05663Fd2E07",
     "gasZipChainId": 30,
     "isZkEVM": false,
-    "targetEvmVersion": "cancun",
+    "targetEvmVersion": "london",
     "create3Factory": "0x763f212f355433C59d734C71247d16fCE74D8785",
     "customVerificationFlags": {
       "-e": "verifyContract"

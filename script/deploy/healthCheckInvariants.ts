@@ -3424,6 +3424,23 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'permit2proxy-owner',
+    description: 'Permit2Proxy owner is the refund wallet',
+    severity: 'error',
+    scope: { environments: ['production'], chains: 'evm-only' },
+    remediation:
+      'Redeploy Permit2Proxy (its constructor sets refundWallet as owner) and register the new address, or have the current owner call transferOwnership(refundWallet) and refundWallet call confirmOwnershipTransfer().',
+    run: async (ctx) => {
+      if (ctx.publicClient)
+        await checkOwnership(
+          'Permit2Proxy',
+          ctx.refundWallet,
+          ctx,
+          ctx.publicClient
+        )
+    },
+  },
+  {
     name: 'diamond-owner',
     description:
       'Diamond is owned by the timelock (mainnet) or deployer (testnet)',
