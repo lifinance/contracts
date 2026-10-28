@@ -42,8 +42,11 @@ export const REORG_MARGIN_BLOCKS = 256n
 /** Widest single `eth_getLogs` range tried; shrunk on every rejection. */
 export const MAX_LOG_SPAN = 100_000_000n
 
-/** Narrowest range tried before a network counts as unreadable. */
-export const MIN_LOG_SPAN = 100n
+/**
+ * Narrowest range tried before a network counts as unreadable: below 50 blocks,
+ * the cap some fallback endpoints set (linea's `1rpc.io`).
+ */
+export const MIN_LOG_SPAN = 10n // 10 blocks
 
 /** Factor a refused range shrinks by: few steps from the widest span to the narrowest. */
 const SPAN_SHRINK = 10n
