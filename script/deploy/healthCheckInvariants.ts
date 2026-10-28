@@ -38,6 +38,11 @@ import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
+  loadDeployLog,
+  versionsAtAddress,
+  type DeployLog,
+} from './healthCheckBehindMain'
+import {
   diffFacets,
   getExpectedFacetNames,
   getProtectedNames,
@@ -191,6 +196,11 @@ export interface IHealthCheckContext {
    * test to whatever version the fleet happens to be running.
    */
   diamondFacetLog?: DiamondFacetLog
+  /**
+   * `deployments/_deployments_log_file.json`. Undefined = read from disk (the default); injectable
+   * so the queued-upgrade version check is testable without pinning a test to the fleet's log.
+   */
+  deployLog?: DeployLog | null
   /**
    * Reads a contract's `@custom:version` from this checkout, which is what a `latest` target
    * state entry expects. Undefined = read `src/` (the default); injectable so the target-version
@@ -1899,14 +1909,18 @@ async function resolveTargetFacetVersion(
  * @param contractName - facet name as the target state spells it
  * @param liveVersion - the version the diamond log records at the registered address, if any
  * @param target - the resolved target version
+ * @param isUpgradeQueued - consulted only for a behind facet: true when a queued timelock
+ *   diamondCut registers the facet's deploy-log address and the master deploy log records that
+ *   address at the target's base version, which turns the warning into expected-pending
  * @returns true when the live version equals the target
  */
-function reportFacetVersionDrift(
+async function reportFacetVersionDrift(
   ctx: IHealthCheckContext,
   contractName: string,
   liveVersion: string | null,
-  target: { version: string; label: string }
-): boolean {
+  target: { version: string; label: string },
+  isUpgradeQueued: () => Promise<boolean>
+): Promise<boolean> {
   if (liveVersion === null) {
     ctx.logWarn(
       `${contractName} is registered but the diamond log records no version for it — cannot compare against target ${target.label}`
@@ -1926,9 +1940,13 @@ function reportFacetVersionDrift(
     ctx.logWarn(
       `${contractName} version cannot be compared against the target state: ${versions}`
     )
-  else if (order < 0)
-    ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
-  else if (order > 0)
+  else if (order < 0) {
+    if (await isUpgradeQueued())
+      consola.info(
+        `${contractName} is behind the target state (${versions}) — expected-pending: an upgrade is queued in the timelock`
+      )
+    else ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
+  } else if (order > 0)
     ctx.logWarn(`${contractName} is ahead of the target state: ${versions}`)
   return order === 0
 }
@@ -2638,6 +2656,50 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
+      // A rollout PR moves the target before its cut executes, so a behind facet whose target
+      // build a queued diamondCut already registers is waiting, not drifting. Resolved once, and
+      // only when something is behind, so a network at target never touches the queue.
+      let scheduled:
+        | Map<string, IPendingRegistration[]>
+        | { unreachable: string }
+        | undefined
+      let unreachableReason: string | undefined
+      const isUpgradeQueued = async (
+        contractName: string,
+        liveAddress: string,
+        targetVersion: string
+      ): Promise<boolean> => {
+        scheduled ??= await resolvePendingRegistrations(ctx)
+        if (!(scheduled instanceof Map)) {
+          unreachableReason = scheduled.unreachable
+          return false
+        }
+        const deployed = ctx.deployedContracts[contractName]
+        if (!deployed) return false
+        // A deploy log still naming the live build never logged the target one, so a queued cut
+        // of that address would re-register the build that is behind.
+        if (addressesMatch(String(deployed), liveAddress)) return false
+        const isCutQueued =
+          scheduled
+            .get(String(deployed).toLowerCase())
+            ?.some((record) => record.kind === 'facet-cut') ?? false
+        if (!isCutQueued) return false
+        // A cut queued before the target moved on would land a build that is still behind, and
+        // the sign-time gate may refuse it, so only a queued build at the target version waits.
+        return versionsAtAddress(
+          ctx.deployLog === undefined ? loadDeployLog() : ctx.deployLog,
+          contractName,
+          ctx.networkLower,
+          String(deployed)
+        ).some(
+          (queuedVersion) =>
+            compareContractVersions(
+              baseSemanticVersion(queuedVersion),
+              baseSemanticVersion(targetVersion)
+            ) === 0
+        )
+      }
+
       let matching = 0
       for (const [contractName, declared] of targets) {
         // An unregistered target-state facet is facets-registered's finding, not this one's.
@@ -2663,10 +2725,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             address,
             log
           )
-          if (reportFacetVersionDrift(ctx, contractName, liveVersion, target))
+          if (
+            await reportFacetVersionDrift(
+              ctx,
+              contractName,
+              liveVersion,
+              target,
+              () => isUpgradeQueued(contractName, address, target.version)
+            )
+          )
             matching++
         }
       }
+
+      // As in facets-registered, an unreachable queue suppresses nothing: every behind facet
+      // still warns, and this names the reduced coverage.
+      if (unreachableReason !== undefined)
+        ctx.logWarn(
+          `Timelock queue unreachable — expected-pending downgrade skipped, behind facets reported as behind: ${unreachableReason}`
+        )
 
       if (matching > 0)
         consola.success(

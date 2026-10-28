@@ -81,7 +81,12 @@ One health-check invariant reports against the version without enforcing it:
 `facet-versions-match-target-state` compares each registered facet's version in
 `deployments/<network>.diamond.json` with the expected version (a pin as written, `latest` as the
 checkout's `@custom:version`) and warns when the facet is behind, ahead, or cannot be compared.
-It is a warning, so a network that has not caught up stays green. Because `latest` is read from
+It is a warning, so a network that has not caught up stays green. A behind facet is reported as
+expected-pending instead, with no warning, while a `queued` timelock `diamondCut` on that network's
+diamond registers the facet's deploy-log address ([CONV:HEALTHCHECK-INTENT] in
+`.agents/rules/601-healthcheck-invariants.md`) and `deployments/_deployments_log_file.json`
+records that address at the expected version (base versions compared). A queued cut of a build
+the master log does not record, or records at another version, keeps the warning. Because `latest` is read from
 the checkout the check runs in, the expected version is `main`'s only when the run is on `main`,
 as the daily run is; a run on another branch compares against that branch's source. The warning
 labels the target `(latest)` or `(pinned)`, since the fix for a facet ahead of each differs. The
