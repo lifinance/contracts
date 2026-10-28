@@ -16,11 +16,15 @@ import {
 import type { PublicClient } from 'viem'
 
 import {
+  LogEndpointsFailedError,
+  createLogRangeReader,
   findingsOf,
   jobFails,
   loadWatcherState,
+  logScanFailureReason,
   openWatcherStore,
   readTimelockLogs,
+  type ILogEndpoint,
 } from './timelock-watcher'
 import {
   UNVERIFIED_PAGE_AFTER_RUNS,
@@ -30,6 +34,7 @@ import {
   type IDeliveryState,
 } from './timelock-watcher-alerts'
 import type { INetworkReport } from './timelock-watcher-report'
+import { LogRangeBehindError, advanceScan } from './timelock-watcher-scan'
 
 const dir = mkdtempSync(join(tmpdir(), 'timelock-watcher-test-'))
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
@@ -301,6 +306,149 @@ describe('openWatcherStore', () => {
     expect(store.queue).toEqual(new Map([['base', new Set(['0xabc'])]]))
     expect(touched.length).toBeGreaterThan(0)
     expect(touched.filter((name) => !READ_METHODS.has(name))).toEqual([])
+  })
+})
+
+describe('createLogRangeReader', () => {
+  const TIMELOCK = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29'
+  const SCHEDULED = { address: TIMELOCK, eventName: 'CallScheduled' }
+
+  /** An endpoint at `head` that answers `getLogs` with `answer`, counting its calls. */
+  const endpoint = (
+    host: string,
+    head: bigint,
+    answer: () => unknown[]
+  ): ILogEndpoint & { calls: number } => {
+    const made = {
+      host,
+      calls: 0,
+      reader: {
+        getBlockNumber: async () => head,
+        getLogs: async () => {
+          made.calls++
+          return answer()
+        },
+      } as unknown as PublicClient,
+    }
+    return made
+  }
+  const refusing = (host: string, message: string) =>
+    endpoint(host, 1_000n, () => {
+      throw new Error(message)
+    })
+  const serving = (host: string) => endpoint(host, 1_000n, () => [SCHEDULED])
+
+  const rejectionOf = async (promise: Promise<unknown>): Promise<unknown> => {
+    try {
+      await promise
+    } catch (error) {
+      return error
+    }
+    throw new Error('expected a rejection')
+  }
+
+  it("names each endpoint's host with its own redacted error when every endpoint fails", async () => {
+    const read = createLogRangeReader(
+      [
+        refusing(
+          'lb.drpc.org',
+          'HTTP request failed.\n\nURL: https://lb.drpc.org/ogrpc?network=base&dkey=SECRETKEY'
+        ),
+        refusing(
+          'mainnet.base.org',
+          'request limit reached at https://user:pw@mainnet.base.org/v1/PATHKEY'
+        ),
+        endpoint('base.llamarpc.com', 500n, () => []),
+      ],
+      TIMELOCK
+    )
+    const error = await rejectionOf(read(900n, 999n))
+    expect(error).toBeInstanceOf(LogEndpointsFailedError)
+    const reason = logScanFailureReason(error)
+    expect(reason).toContain('lb.drpc.org: HTTP request failed.')
+    expect(reason).toContain(
+      'mainnet.base.org: request limit reached at [redacted-url]'
+    )
+    expect(reason).toContain(
+      'base.llamarpc.com: the endpoint is at block 500, behind 999'
+    )
+    for (const leaked of [
+      'SECRETKEY',
+      'PATHKEY',
+      'ogrpc',
+      'dkey',
+      '/v1',
+      'user:pw',
+      '://',
+    ])
+      expect(reason).not.toContain(leaked)
+  })
+
+  it('serves a range from the endpoint that answers when only some fail, and keeps using it', async () => {
+    const failing = refusing('mainnet.base.org', 'request limit reached')
+    const working = serving('lb.drpc.org')
+    const read = createLogRangeReader([failing, working], TIMELOCK)
+    expect(await read(1n, 100n)).toEqual([SCHEDULED] as never)
+    expect(await read(101n, 200n)).toEqual([SCHEDULED] as never)
+    expect(failing.calls).toBe(1)
+    expect(working.calls).toBe(2)
+  })
+
+  it('reports a range every endpoint is behind as behind, not as a refusal', async () => {
+    const read = createLogRangeReader(
+      [endpoint('lb.drpc.org', 500n, () => [])],
+      TIMELOCK
+    )
+    const error = await rejectionOf(read(900n, 999n))
+    expect(error).toBeInstanceOf(LogRangeBehindError)
+    expect((error as LogRangeBehindError).head).toBe(500n)
+  })
+
+  it('reads up to the furthest head when one endpoint is partway and another refuses', async () => {
+    const read = createLogRangeReader(
+      [
+        endpoint('lb.drpc.org', 950n, () => []),
+        refusing('mainnet.base.org', 'request limit reached'),
+      ],
+      TIMELOCK
+    )
+    const error = await rejectionOf(read(900n, 999n))
+    expect(error).toBeInstanceOf(LogRangeBehindError)
+    expect((error as LogRangeBehindError).head).toBe(950n)
+    expect((error as LogRangeBehindError).refused).toBe(true)
+  })
+
+  it('leaves a scan with every endpoint failing unreadable, naming each endpoint', async () => {
+    const read = createLogRangeReader(
+      [
+        refusing('lb.drpc.org', 'Invalid parameters were provided'),
+        refusing('rpc.example.org', 'eth_getLogs does not exist'),
+      ],
+      TIMELOCK
+    )
+    const error = await rejectionOf(
+      advanceScan(
+        {
+          timelock: TIMELOCK,
+          operations: {},
+          floor: '0',
+          low: '0',
+          high: '900',
+        },
+        {
+          head: async () => 1_000n,
+          floor: async () => 0n,
+          getLogs: async (from, to) => {
+            await read(from, to)
+            return { scheduled: [], salts: [], cancels: [] }
+          },
+        },
+        10
+      )
+    )
+    expect(logScanFailureReason(error)).toBe(
+      'the log scan failed: every endpoint failed blocks 644-653: lb.drpc.org: Invalid parameters were provided; rpc.example.org: eth_getLogs does not exist'
+    )
   })
 })
 
