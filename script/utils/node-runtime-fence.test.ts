@@ -192,6 +192,11 @@ describe('the Node-runtime fence runs where it has to run', () => {
     )
   })
 
+  it('runs on Node through the tsx loader, which opens no IPC socket', () => {
+    // `bunx tsx` binds a pipe before running, and sandboxes deny that bind.
+    expect(staged).toBe(`node --import tsx ${FENCE_SCRIPT}`)
+  })
+
   it(
     'exits non-zero through that command on a refused module',
     () => {

@@ -226,6 +226,11 @@ describe('the fence runs where it has to run', () => {
     expect(PACKAGE_JSON.scripts['lint:funnel']).toBe(`${STAGED_FENCE} .`)
   })
 
+  it('runs on Node through the tsx loader, which opens no IPC socket', () => {
+    // `bunx tsx` binds a pipe before running, and sandboxes deny that bind.
+    expect(STAGED_FENCE).toBe(`node --import tsx ${FENCE_SCRIPT}`)
+  })
+
   it('runs after the fixers and before the type check in lint-staged', () => {
     // A fixer after the fence would commit code the fence never judged.
     const position = (fragment: string): number =>
