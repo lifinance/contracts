@@ -45,6 +45,13 @@ jobs:
         with:
           persist-credentials: false
 
+      # The fence launches with `node --import`, so it needs a Node the runner
+      # image does not choose (and without Node, Bun's shim would run it instead).
+      - name: Set up Node
+        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: 22
+
       - name: Set up Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
         with:

@@ -7,7 +7,8 @@
  * written into the tree.
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { join, relative } from 'path'
 
 import {
@@ -26,7 +27,7 @@ const REPO_ROOT = join(import.meta.dir, '..', '..')
 const FENCE_SCRIPT = 'script/utils/node-runtime-fence.ts'
 const SHIPPED_PATH = 'script/tasks/someCli.ts'
 
-/** 90 seconds: a tsx run plus a cold bun start, well short of a hang. */
+/** 90 seconds: a cold Node start under the tsx loader, well short of a hang. */
 const TIMEOUT_MS = 90_000
 
 const spawnEnv = (): Record<string, string> => {
@@ -192,10 +193,37 @@ describe('the Node-runtime fence runs where it has to run', () => {
     )
   })
 
-  it('runs on Node through the tsx loader, which opens no IPC socket', () => {
-    // `bunx tsx` binds a pipe before running, and sandboxes deny that bind.
-    expect(staged).toBe(`node --import tsx ${FENCE_SCRIPT}`)
-  })
+  it(
+    'runs where no IPC socket can be bound',
+    () => {
+      if (!staged)
+        throw new Error('package.json lint-staged has no node-runtime entry')
+
+      // Longer than a Unix socket path may be (104 bytes on macOS, 108 on Linux):
+      // a launcher that binds a socket under TMPDIR fails here, as in a sandbox.
+      const parent = mkdtempSync(join(tmpdir(), 'no-socket-'))
+      const longTmp = join(parent, 'a'.repeat(120))
+      mkdirSync(longTmp)
+      try {
+        const result = Bun.spawnSync(
+          [...staged.split(' '), 'script/utils/is-entrypoint.ts'],
+          {
+            cwd: REPO_ROOT,
+            env: { ...spawnEnv(), TMPDIR: longTmp },
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: TIMEOUT_MS,
+          }
+        )
+
+        expect(result.stderr.toString()).not.toContain('listen')
+        expect(result.exitCode).toBe(0)
+      } finally {
+        rmSync(parent, { recursive: true, force: true })
+      }
+    },
+    TIMEOUT_MS
+  )
 
   it(
     'exits non-zero through that command on a refused module',

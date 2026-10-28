@@ -45,11 +45,11 @@ while read -r LOCAL_REF LOCAL_SHA REMOTE_REF REMOTE_SHA; do
 
   # </dev/null so the validator cannot consume the remaining ref lines on stdin
   if [ -n "$BASE" ]; then
-    if ! bunx tsx ./script/utils/validateScripts.ts --base "$BASE" --head "$LOCAL_SHA" </dev/null; then
+    if ! node --import tsx ./script/utils/validateScripts.ts --base "$BASE" --head "$LOCAL_SHA" </dev/null; then
       STATUS=1
     fi
   else
-    if ! bunx tsx ./script/utils/validateScripts.ts --head "$LOCAL_SHA" </dev/null; then
+    if ! node --import tsx ./script/utils/validateScripts.ts --head "$LOCAL_SHA" </dev/null; then
       STATUS=1
     fi
   fi
