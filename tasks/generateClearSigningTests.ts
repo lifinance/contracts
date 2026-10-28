@@ -867,6 +867,28 @@ function selectorOf(test: ITestCase): string | undefined {
   return data?.slice(0, 10).toLowerCase()
 }
 
+/** The VARIANT_CASES label a case's description ends in, if it is a variant. */
+function variantLabelOf(test: ITestCase): string | undefined {
+  const label = test.description.split(' - ').pop() ?? ''
+  return VARIANT_CASES.some((variant) => variant.label === label)
+    ? label
+    : undefined
+}
+
+function variantKey(selector: string, label: string): string {
+  return `${selector} ${label}`
+}
+
+/** Every version of a variant's function: a struct change adds a selector. */
+function variantFormats(
+  formats: Record<string, IDescriptorFormat>,
+  variant: IVariantCase
+): [string, IDescriptorFormat][] {
+  return Object.entries(formats).filter(([formatKey]) =>
+    formatKey.startsWith(`${variant.functionName}(`)
+  )
+}
+
 function readExistingTests(fixturePath: string): ITestCase[] {
   if (!fs.existsSync(fixturePath)) return []
 
@@ -914,15 +936,17 @@ function buildFixture(
   // on; generate only what they do not already cover.
   const tests = existingPath ? readExistingTests(existingPath) : []
   const descriptions = new Set(tests.map((test) => test.description))
-  const variantLabels = new Set(VARIANT_CASES.map((variant) => variant.label))
 
   // A variant case exercises its selector off the happy path; it does not
   // stand in for the base case.
   const covered = new Set<string>()
+  const coveredVariants = new Set<string>()
   for (const test of tests) {
     const selector = selectorOf(test)
-    const label = test.description.split(' - ').pop() ?? ''
-    if (selector && !variantLabels.has(label)) covered.add(selector)
+    if (!selector) continue
+    const label = variantLabelOf(test)
+    if (label) coveredVariants.add(variantKey(selector, label))
+    else covered.add(selector)
   }
 
   const pushCase = (
@@ -932,12 +956,17 @@ function buildFixture(
   ) => {
     const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
     const caseChainId = CHAIN_BY_FUNCTION[abiItem.name] ?? chainId
-    const description = `${abiItem.name} - chain ${caseChainId}${
-      variant ? ` - ${variant.label}` : ''
-    }`
-    // Base cases are deduplicated by selector above: two versions of one
-    // function share a description but not a selector.
-    if (variant && descriptions.has(description)) return
+    let description = `${abiItem.name} - chain ${caseChainId}`
+    if (variant) {
+      const selector = toFunctionSelector(`function ${formatKey}`)
+      // Another version of the function already holds this description, and
+      // applyResults matches rendered cases on it, so the selector tells them
+      // apart. The label stays last so variantLabelOf still finds it.
+      const shared = `${description} - ${variant.label}`
+      description = descriptions.has(shared)
+        ? `${description} - ${selector.toLowerCase()} - ${variant.label}`
+        : shared
+    }
 
     const overrides = variant?.overrides ?? BASE_CASE_OVERRIDES[abiItem.name]
     let rawTx: string
@@ -967,14 +996,16 @@ function buildFixture(
   }
 
   for (const variant of VARIANT_CASES) {
-    const entry = Object.entries(formats).find(([formatKey]) =>
-      formatKey.startsWith(`${variant.functionName}(`)
-    )
-    if (!entry)
+    const entries = variantFormats(formats, variant)
+    if (!entries.length)
       throw new Error(
         `VARIANT_CASES names "${variant.functionName}", which the descriptor has no format for`
       )
-    pushCase(entry[0], entry[1], variant)
+    for (const [formatKey, format] of entries) {
+      const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
+      if (!coveredVariants.has(variantKey(selector, variant.label)))
+        pushCase(formatKey, format, variant)
+    }
   }
 
   return {
@@ -1142,7 +1173,8 @@ function displayedLabels(format: IDescriptorFormat): string[] {
  * Whether a case's rendered labels match what a format displays.
  *
  * A field whose path iterates an array (`_swapData.[].fromAmount`) renders once
- * per element, so its label may repeat; every other field renders exactly once.
+ * per element, so its label may repeat, or be absent for an empty array; every
+ * other field renders exactly once.
  */
 function labelsMatch(format: IDescriptorFormat, asserted: string[]): boolean {
   const displayed = (format.fields ?? []).filter(
@@ -1151,7 +1183,7 @@ function labelsMatch(format: IDescriptorFormat, asserted: string[]): boolean {
   let index = 0
   for (const field of displayed) {
     if (asserted[index] !== field.label) {
-      if (isConditional(field)) continue
+      if (isConditional(field) || field.path.includes('.[]')) continue
       return false
     }
     index++
@@ -1184,13 +1216,25 @@ function checkCoverage(
     throw new Error(`--tests ${testsPath} does not exist`)
 
   const covered = new Map<string, ITestCase[]>()
+  const coveredVariants = new Set<string>()
   for (const test of readExistingTests(testsPath)) {
     const selector = selectorOf(test)
-    if (selector)
-      covered.set(selector, [...(covered.get(selector) ?? []), test])
+    if (!selector) continue
+    covered.set(selector, [...(covered.get(selector) ?? []), test])
+    const label = variantLabelOf(test)
+    if (label) coveredVariants.add(variantKey(selector, label))
   }
 
   const problems: string[] = []
+  for (const variant of VARIANT_CASES)
+    for (const [formatKey] of variantFormats(formats, variant)) {
+      const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
+      if (!coveredVariants.has(variantKey(selector, variant.label)))
+        problems.push(
+          `${formatKey} (${selector}) has no "${variant.label}" variant case`
+        )
+    }
+
   for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
     const tests = covered.get(selector)
