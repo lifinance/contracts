@@ -3,7 +3,9 @@
 /**
  * Report-only timelock watcher: finds every pending operation on every
  * production `LiFiTimelockController` from its logs, re-checks it, and alerts
- * Slack on a mismatch or an unverified finding that lasts three runs.
+ * Slack on a mismatch or an unverified finding that lasts three runs. The job
+ * fails only on a mismatch or an alert it could not deliver; an unreadable
+ * network is an unverified finding, not a failed job.
  *
  * Run by `.github/workflows/timelockWatcher.yml`; runnable locally for a dry run
  * (Slack is only posted from CI). It never cancels, executes or signs anything.
@@ -1120,6 +1122,25 @@ export const findingsOf = (
     })),
   ])
 
+/**
+ * Whether the run fails the job. An unreadable network does not: it is an
+ * unverified network finding, which pages Slack once it lasts three runs.
+ *
+ * @param reports - This run's network reports.
+ * @param deliveryFailed - Whether an alert could not be delivered.
+ * @returns True on an operation or network mismatch or an undelivered alert.
+ */
+export const jobFails = (
+  reports: readonly INetworkReport[],
+  deliveryFailed: boolean
+): boolean =>
+  deliveryFailed ||
+  reports.some(
+    (r) =>
+      r.verdict === 'mismatch' ||
+      r.operations.some((op) => op.verdict === 'mismatch')
+  )
+
 const command = defineCommand({
   meta: {
     name: 'timelock-watcher',
@@ -1304,17 +1325,10 @@ const command = defineCommand({
     consola.log(summary)
 
     const tally = tallyReports(reports)
-    const networkMismatch = reports.some((r) => r.verdict === 'mismatch')
     consola.info(
       `Checked ${tally.watched} of ${tally.networks} network(s): ${tally.operations} pending operation(s), ${tally.byVerdict.mismatch} mismatch, ${tally.byVerdict.unverified} unverified, ${tally.byVerdict.ok} ok; ${tally.unreadable} unreadable, ${tally.uncovered} not covered, ${tally.skipped} skipped`
     )
-    if (
-      tally.unreadable > 0 ||
-      tally.byVerdict.mismatch > 0 ||
-      networkMismatch ||
-      deliveryFailed
-    )
-      process.exit(1)
+    if (jobFails(reports, deliveryFailed)) process.exit(1)
     // A timed-out rebuild keeps running after its network was reported; it must
     // not hold the job open.
     process.exit(0)

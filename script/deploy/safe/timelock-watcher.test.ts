@@ -17,10 +17,18 @@ import type { PublicClient } from 'viem'
 
 import {
   findingsOf,
+  jobFails,
   loadWatcherState,
   openWatcherStore,
   readTimelockLogs,
 } from './timelock-watcher'
+import {
+  UNVERIFIED_PAGE_AFTER_RUNS,
+  decideAlerts,
+  planDelivery,
+  type IAlertRecord,
+  type IDeliveryState,
+} from './timelock-watcher-alerts'
 import type { INetworkReport } from './timelock-watcher-report'
 
 const dir = mkdtempSync(join(tmpdir(), 'timelock-watcher-test-'))
@@ -179,6 +187,82 @@ describe('findingsOf', () => {
   it('emits nothing for no reports', () => {
     expect(findingsOf([])).toEqual([])
   })
+})
+
+describe('jobFails', () => {
+  const report = (overrides: Partial<INetworkReport>): INetworkReport => ({
+    network: 'base',
+    status: 'watched',
+    verdict: 'ok',
+    operations: [],
+    notes: [],
+    ...overrides,
+  })
+  const unreadable = report({
+    network: 'linea',
+    status: 'unreadable',
+    verdict: 'unverified',
+    reason: 'the log scan failed',
+  })
+  const mismatchedOperation = report({
+    operations: [
+      {
+        id: '0xabc',
+        calls: 1,
+        scheduledInBlock: '1',
+        verdict: 'mismatch',
+        checks: [],
+        reasons: ['targets: unknown'],
+        cancelRecommendation: '',
+        notes: [],
+      },
+    ],
+  })
+  const mismatchedNetwork = report({ verdict: 'mismatch' })
+
+  it('passes when some networks are unreadable, nothing mismatches and every alert was delivered', () => {
+    expect(jobFails([report({}), unreadable], false)).toBe(false)
+  })
+
+  it('still pages on an unreadable network, through its unverified finding, after three runs', () => {
+    expect(findingsOf([unreadable])).toEqual([
+      {
+        key: 'linea:network',
+        network: 'linea',
+        verdict: 'unverified',
+        reasons: ['the log scan failed'],
+      },
+    ])
+    let alerts: Record<string, IAlertRecord> = {}
+    let delivery: IDeliveryState = { streaks: {}, held: [] }
+    const paged: number[] = []
+    for (let run = 1; run <= UNVERIFIED_PAGE_AFTER_RUNS; run++) {
+      const now = new Date(Date.UTC(2026, 9, 28, 0, run * 10))
+      const settled = new Set<string>()
+      const decision = decideAlerts(
+        alerts,
+        findingsOf([unreadable]),
+        settled,
+        now
+      )
+      const plan = planDelivery(alerts, decision, delivery, settled, now)
+      if (plan.actionable.some((a) => a.finding.key === 'linea:network'))
+        paged.push(run)
+      alerts = plan.next
+      delivery = plan.delivered
+    }
+    expect(paged).toEqual([UNVERIFIED_PAGE_AFTER_RUNS])
+  })
+
+  for (const [name, reports, deliveryFailed] of [
+    ['an operation mismatch', [mismatchedOperation], false],
+    ['a network mismatch', [mismatchedNetwork], false],
+    ['an undelivered alert', [report({})], true],
+  ] as const)
+    it(`fails on ${name}, with or without unreadable networks`, () => {
+      expect(jobFails(reports, deliveryFailed)).toBe(true)
+      expect(jobFails([...reports, unreadable], deliveryFailed)).toBe(true)
+    })
 })
 
 describe('openWatcherStore', () => {
