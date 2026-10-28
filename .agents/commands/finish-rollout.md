@@ -1,6 +1,6 @@
 ---
 name: finish-rollout
-description: "Closes out a production multisig rollout once its timelock ops executed: verifies execution, replies Executed in the #dev-sc-multisig-proposals thread and, in deploy mode, syncs diamond logs onto the rollout PR and posts it for review. Use for \"finish the rollout\" or a thread link. Tail of multisig-rollout."
+description: "Closes out a production multisig rollout once its timelock ops executed: verifies execution, replies Executed in the #dev-sc-multisig-proposals thread and, in deploy mode, syncs diamond logs and _targetState.json onto the rollout PR and posts it for review. Use for \"finish the rollout\" or a thread link. Tail of multisig-rollout."
 usage: /finish-rollout <slack thread link>
 ---
 
@@ -113,15 +113,22 @@ Reply in the thread with exactly `Executed`, then add the `rocket` reaction to t
 message. Both via the Slack MCP tools; if unavailable, hand the user the exact reply text and
 emoji to post manually — do not use webhooks.
 
-## Phase 4 — Diamond log sync (deploy mode only)
+## Phase 4 — Diamond log and target-state sync (deploy mode only)
 
 The production `deployments/<net>.diamond.json` registry only updates when the cut executes —
 that's now. Regenerate it from on-chain state:
 
 ```bash
 gh pr checkout <N>
+git fetch origin main
+git merge origin/main
 ./script/tasks/updateDiamondLogs.sh production <network> [<network>...]
 ```
+
+The merge brings in any network or pin `main` added to `_targetState.json` since the rollout PR
+branched. The target-state step below refuses to run on a branch that does not contain a
+freshly fetched `origin/main`. If the merge conflicts, resolve it before going further, and
+never resolve a `_targetState.json` hunk by dropping `main`'s side.
 
 Run each as its own plain command from the repo root — no `&&`, pipes, `bash -c` or `source`.
 In a worktree-isolated session Claude Code refuses any command whose git behavior it can't
@@ -130,7 +137,32 @@ The script sources the helpers itself (under bash, so zsh bashism failures don't
 
 The diff MUST show the new contract/version in each impacted `<net>.diamond.json` — this is a
 second, independent execution proof. If it doesn't, that contradicts Phase 2: stop, flag,
-investigate; commit nothing. Otherwise commit the diamond-log diff to the PR branch and push.
+investigate; commit nothing.
+
+Then declare the rollout in `script/deploy/_targetState.json`, for the networks whose
+regenerated diamond log shows the contract. That is the deploy networks, not the extra
+chainId-mapping networks a PolymerCCTP/Frax rollout lists in the thread:
+
+```bash
+bunx tsx script/tasks/declareRolloutInTargetState.ts --contract <Contract> --version <version> --networks <csv>
+```
+
+It adds a missing entry as `"latest"` and leaves `"latest"` and a matching pin alone. On exit
+`1` it has written nothing. It refuses the whole run when `--contract` is not a contract
+name or the branch does not contain `origin/main`. Act on each refused network:
+
+- `not-in-diamond-log`: the regenerated `deployments/<net>.diamond.json` does not list the
+  contract (a periphery contract by name; a facet by name at `--version`). Either the name or
+  version is wrong, the network is not one the cut reached, or the log was not regenerated.
+  Fix the argument or drop the network; never edit the diamond log to make it pass.
+- `network-not-declared`: the network was never seeded (`/add-network` owns that). Stop and
+  report it. Do not create a one-contract network block.
+- `pin-conflict`: a pin other than the executed version. A pin is a deliberate decision, so
+  ask the user whether the hold-back is over. If it is, re-run with `--unpin`, which rewrites
+  it to `"latest"`. If not, leave the pin and drop that network from `--networks`.
+
+Commit the diamond-log diff and any `_targetState.json` diff to the PR branch together, then
+push.
 
 **Removals in the same cut.** `updateDiamondLogs` rebuilds `Facets` from the loupe, so a facet
 the cut removed (a drained deferred-cleanup task rides along as extra `scheduleBatch` elements)
@@ -145,6 +177,13 @@ invariants track the still-routed facet as expected-pending. Restore it if the t
 cancelled and the loupe still routes the facet. `superseded` is loupe-verified gone, so
 delete that entry with the rest of the cut.
 
+A facet the cut's own `FacetCut[]` removed (e.g. `AcrossFacetV3` replaced by `AcrossFacetV4`)
+also loses its key in that network's `production.LiFiDiamond` block of `_targetState.json`, by
+hand in the same commit. Otherwise healthCheck's `facets-registered` and
+`non-core-facets-deployed` invariants expect it back once the PR merges. A drained
+deferred-cleanup removal needs no edit: it was only queued because target state no longer
+declared it.
+
 ## Phase 5 — PR finish (deploy mode only)
 
 1. Self-review the full diff (the local review gate — resolve findings first).
@@ -155,7 +194,8 @@ Whitelist mode skips Phases 4–5: its PR was merged before the rollout started.
 
 ## Phase 6 — Report
 
-Networks with their `executionTxHash`es, Slack reply + reaction confirmation, PR state
+Networks with their `executionTxHash`es, Slack reply + reaction confirmation, target-state
+outcome per network (added / already declared / unpinned / left pinned), PR state
 (commit pushed, ready, posted for review), and any FYI (e.g. unrelated ops still queued on the
 same networks).
 

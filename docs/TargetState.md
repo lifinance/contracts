@@ -39,8 +39,20 @@ gate.
 
 ## What changes the file, and what does not
 
-- **A rollout does not touch it.** The version a network runs is `@custom:version`; rolling
-  a new version out to 40 chains changes no entry.
+- **A rollout adds a missing key, and removes the key of a facet its cut removed.** The
+  version a network runs is `@custom:version`, so rolling a new version out to 40 chains that
+  already declare the contract changes no entry. Where a network did not declare it yet — a first deployment, or a
+  contract reaching one more chain — `/finish-rollout` (deploy mode only; a propose-only
+  rollout adds the key by hand) adds it as `"latest"` once every timelock
+  op has executed, via `script/tasks/declareRolloutInTargetState.ts`, and commits it to the
+  rollout PR with the diamond logs. That PR merges after execution, which is why the sign-time
+  gate grades an absent entry as `not-previously-targeted` instead of refusing it. The script
+  leaves `"latest"` and a pin equal to the executed version unchanged. It refuses a pin that
+  differs, a network with no `production.LiFiDiamond` block (`/add-network` seeds that), a
+  network whose regenerated `deployments/<net>.diamond.json` does not show the contract, and
+  a branch that does not contain a freshly fetched `origin/main`, and then writes nothing.
+  `--unpin` replaces a differing pin with `"latest"` when the hold-back is over. A facet the
+  same cut removed has its key deleted by hand, per `/finish-rollout`.
 - **A version bump does not touch it.** A minor fix that is not being rolled out yet changes
   nothing — the contract stays `latest` everywhere and the fleet simply has not caught up.
 - **Adding a contract to a network** adds a key with `"latest"`.
@@ -51,7 +63,8 @@ gate.
 `scriptMaster.sh` use case **7) Add or update contract entries in \_targetState.json** edits
 entries in bulk and defaults to `"latest"`; its option **3) Add a new network with all
 (not-excluded) contracts** seeds a whole network with `"latest"`. There is no generator and no
-spreadsheet — the file is edited in the repo and reviewed as a diff.
+spreadsheet — the file is edited in the repo, by hand or by the rollout script above, and
+reviewed as a diff.
 
 ## Who reads it
 

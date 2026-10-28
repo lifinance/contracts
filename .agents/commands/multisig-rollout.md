@@ -274,7 +274,7 @@ Safe proposals live on:
 
 ## Phase 9 — Report
 
-Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay — once they have, finish with `/finish-rollout <thread link>`).
+Summarize: networks rolled out (+ failures and their state), proposal nonces, PR URL, Slack thread link, and what remains (team signatures/execution; timelock ops execute via the scheduled pipeline after the delay — once they have, finish with `/finish-rollout <thread link>`; in deploy mode it also adds the `_targetState.json` entry to the rollout PR, while a propose-only rollout adds the key by hand per `docs/TargetState.md`; do not add it in this skill).
 
 ## Failure modes
 

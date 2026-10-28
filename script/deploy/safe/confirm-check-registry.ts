@@ -352,8 +352,8 @@ export const STATUS_MAPPING: Readonly<
     expected: ORDERING_HOLDS,
   },
   // `origin/main` declares nothing for this contract, so nothing was compared.
-  // The common path, not an edge case: the target-state update merges only
-  // after execution, so every first deployment lands here — and so does every
+  // The common path, not an edge case: `/finish-rollout` adds the target-state
+  // entry to the rollout PR only after execution, so every first deployment lands here — and so does every
   // new network for a contract already live elsewhere, since the declaration is
   // keyed per network.
   'not-previously-targeted': {
