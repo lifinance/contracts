@@ -295,11 +295,23 @@ describe('runDeclareRollout', () => {
 
 describe('findMissingMain', () => {
   let repoRoot: string
+  // A git hook exports these, which would point git — here and in findMissingMain — at the
+  // real repository instead of the temporary one.
+  const hookGitVars = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE']
+  let savedGitVars: Record<string, string | undefined>
 
   const git = (...gitArgs: string[]): string => {
     const result = spawnSync(
       'git',
-      ['-c', 'user.name=t', '-c', 'user.email=t@t', ...gitArgs],
+      [
+        '-c',
+        'user.name=t',
+        '-c',
+        'user.email=t@t',
+        '-c',
+        'commit.gpgsign=false',
+        ...gitArgs,
+      ],
       { cwd: repoRoot, encoding: 'utf8' }
     )
     if (result.status !== 0) throw new Error(result.stderr)
@@ -315,12 +327,25 @@ describe('findMissingMain', () => {
     ({ ok: true, revision } as const)
 
   beforeEach(() => {
+    savedGitVars = {}
+    for (const name of hookGitVars) {
+      savedGitVars[name] = process.env[name]
+      delete process.env[name]
+    }
     repoRoot = mkdtempSync(join(tmpdir(), 'declare-rollout-git-'))
     git('init', '-q', '-b', 'main')
   })
 
   afterEach(() => {
     rmSync(repoRoot, { recursive: true, force: true })
+    for (const name of hookGitVars) {
+      const value = savedGitVars[name]
+      if (value === undefined) {
+        delete process.env[name]
+      } else {
+        process.env[name] = value
+      }
+    }
   })
 
   it('passes when HEAD contains main', async () => {
