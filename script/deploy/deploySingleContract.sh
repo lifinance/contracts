@@ -627,7 +627,7 @@ deploySingleContract() {
   fi
 
   # check if contract verification is enabled in config and contract not yet verified according to log file
-  if [[ $VERIFY_CONTRACTS == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
+  if [[ "${VERIFY_CONTRACTS:-}" == "true" && ("$VERIFIED_LOG" == "false" || -z "$VERIFIED_LOG") ]]; then
     # For zkEVM networks, add delay before verification to allow API to index the contract
     # This helps avoid "504 Gateway Time-out" errors when API tries to fetch contract ABI
     if isZkEvmNetwork "$NETWORK"; then
@@ -636,7 +636,7 @@ deploySingleContract() {
     fi
     
     echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS"
-    if [[ $DEBUG == "true" ]]; then
+    if [[ "$DEBUG" == "true" ]]; then
       verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS"
       if [ $? -eq 0 ]; then
         VERIFIED=true
@@ -647,7 +647,7 @@ deploySingleContract() {
         VERIFIED=true
       fi
     fi
-  elif [[ $VERIFY_CONTRACTS == "true" ]]; then
+  elif [[ "${VERIFY_CONTRACTS:-}" == "true" ]]; then
     # The log's VERIFIED flag records the explorer only; Sourcify is checked
     # separately (one lookup when already verified there). The contract may
     # predate the current toolchain, so forge gets the one it was built with.

@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x05AB10ae838235D68Ba0ae4D4120De94982a1e9e": {
+      "0xe787807431A82d3e9460B4F7F5004e65c15fA0FD": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xEdFCAb7871a773aB1a4829Da11bBA4c21E864938": {
         "Name": "AccessManagerFacet",
@@ -33,13 +33,13 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xf6Cc4ca0Ff4bea26554A8090f2cE4088A3A7EeC4": {
+      "0x8C3a475f88f047984De3f982792118d1Da497313": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
-      "0xac02970E1c46015e05d3649143512B1b480aBfe6": {
+      "0x2BB8caC20145C2644a595B565B7C78d19aBb5421": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0xC9e488f2Fa9CB10fE53783Ce83B4A3AeF8C385A1": {
         "Name": "EmergencyPauseFacet",
@@ -56,11 +56,11 @@
       "FeeCollector": "0xa8633C0F6b63D2092e5bF0cb0205CdE38F69a78E",
       "FeeForwarder": "0xC748171a028401BfD0c0F0a757ab4A1F93b00576",
       "GasZipPeriphery": "0x3D7986F13fE3d387D4CEb41cAb9403aB96E040D7",
-      "LiFiDEXAggregator": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xeCCc2Ce02907c1C86B286FB50d1355384F55A298",
       "OutputValidator": "0x4E001D80ED10912530EfdDaC91f09F836FC87782",
       "Patcher": "",
-      "Permit2Proxy": "0x767cEE938DF7d88D3e880Cbfc35C9cAfee882f4d",
+      "Permit2Proxy": "0xe926285a0bAf9d5e076013C2cF01C005DeA7D328",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

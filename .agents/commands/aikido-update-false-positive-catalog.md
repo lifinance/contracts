@@ -1,45 +1,22 @@
 ---
 name: aikido-update-false-positive-catalog
-description: Add a new false positive pattern to the Aikido catalog (.agents/references/aikido-false-positive-catalog.md). Analyzes the flagged file to understand why the finding is a false positive, drafts a catalog entry (matches-when, ignore_reason, sast_context), shows it for confirmation, appends it, and commits. Use when Aikido flags something new on a PR that is clearly a false positive not yet in the catalog.
+description: Adds a new false-positive pattern to .agents/references/aikido-false-positive-catalog.md (matches-when, ignore_reason, sast_context) after user confirmation, so /aikido-address-findings ignores it on future runs. Use when Aikido flags a clear false positive that no catalog pattern covers.
 usage: /aikido-update-false-positive-catalog <file-path> <rule-name> — e.g. /aikido-update-false-positive-catalog script/deploy/foo.ts "NoSQL injection"
 ---
 
 # Aikido Update False Positive Catalog
 
-Adds one new pattern to `.agents/references/aikido-false-positive-catalog.md` so that `aikido-address-findings` will auto-ignore it on all future runs.
-
-No API permissions required — reads code, writes a local file.
-
----
-
-## Inputs
-
-- **file-path**: the file Aikido flagged (required)
-- **rule-name**: the Aikido rule / finding title (required)
-
-If either input is missing, ask for it before proceeding.
-
----
+Local file edit only — no Aikido API permissions needed. Both inputs (`file-path`, `rule-name`) are required; ask for any that is missing.
 
 ## Step 1 — Read the flagged file
 
-Read the file at `<file-path>`. Identify:
+Identify the construct that triggered the rule, why it is safe in this codebase (internal tool, constrained inputs, trusted source, sanitizer wrapper, …), and its directory (`script/`, `tasks/`, `.claude/`, `.github/`, `src/`, …).
 
-- What code triggered the rule (the specific call, pattern, or construct)
-- Why it is safe in this codebase (internal tool, constrained inputs, trusted source, sanitizer wrapper, etc.)
-- Which directory it lives in (`script/`, `tasks/`, `.claude/`, `.github/`, `src/`, etc.)
+## Step 2 — Check for an existing pattern
 
----
+If an entry in `.agents/references/aikido-false-positive-catalog.md` already covers the finding, name it and stop.
 
-## Step 2 — Check for existing patterns
-
-Read `.agents/references/aikido-false-positive-catalog.md`. Check if the finding already matches an existing pattern. If yes, tell the user which pattern covers it and stop — no duplicate needed.
-
----
-
-## Step 3 — Draft the catalog entry
-
-Draft a new entry with this structure:
+## Step 3 — Draft the entry
 
 ```markdown
 ## `<pattern-slug>`
@@ -53,38 +30,16 @@ Draft a new entry with this structure:
 > <same reasoning expanded for Aikido's AutoTriage — plain language, explain all safe wrappers and input sources so the scanner can make the right call>
 ```
 
-Pattern slug: lowercase, underscored, descriptive (e.g. `nosql_mongoEq`, `path_traversal_scripts`).
+Slug: lowercase, underscored, descriptive (e.g. `nosql_mongo_eq`, `path_traversal_scripts`).
 
----
+## Step 4 — Confirm
 
-## Step 4 — Show for confirmation
-
-Present the drafted entry and ask:
-
-```
-New catalog entry for "<rule-name>" in <file-path>:
-
-─────────────────────────────────────
-<full drafted entry>
-─────────────────────────────────────
-
-Add to catalog? (y / edit / n)
-```
-
-- `y` → proceed to step 5
-- `edit` → ask what to change, redraft, loop back
-- `n` → stop, nothing written
-
----
+Show the full drafted entry for `"<rule-name>"` in `<file-path>` and ask `Add to catalog? (y / edit / n)`. `edit` → redraft and ask again; `n` → stop with nothing written.
 
 ## Step 5 — Append and commit
 
-Append the new entry to `.agents/references/aikido-false-positive-catalog.md` before the `## Patterns NOT auto-ignored` section.
+Insert the entry before the `## Patterns NOT auto-ignored` section, then commit:
 
-Commit:
-
-```
+```text
 chore(security): add <pattern-slug> to false positive catalog
 ```
-
-Report: "Pattern `<slug>` added. `aikido-address-findings` will auto-ignore this finding on future runs."

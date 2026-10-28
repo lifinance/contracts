@@ -130,18 +130,18 @@ const sourceWith = (
       holdsImmutablesOffCode: false,
       profiles: [profileNamed('default')],
     }),
-    build: (request: IRebuildRequest): IRebuiltArtifact => {
+    build: async (request: IRebuildRequest): Promise<IRebuiltArtifact> => {
       requests.push(request)
       return {
         runtimeHex: over.runtime ?? EVM_RUNTIME,
         immutableReferences: IMMUTABLE_REFS,
       }
     },
-    git: (args: string[]): string => {
+    git: async (args: string[]): Promise<string> => {
       gitCalls.push(args)
       return ''
     },
-    sourceRemote: () => ({ ok: true, remote: 'origin' }),
+    sourceRemote: async () => ({ ok: true, remote: 'origin' }),
     ...over,
   }
   return { source: createAttestationSource(deps), requests, gitCalls }
@@ -309,7 +309,7 @@ describe('createAttestationSource — the four outcomes stay four', () => {
     // 56 of 98 audit commits are unreachable from any local ref and retrievable
     // by SHA, so a failed fetch says nothing about the deployment.
     const { source } = sourceWith({
-      git: () => {
+      git: async () => {
         throw new Error('fatal: could not read from remote repository')
       },
     })
@@ -333,7 +333,7 @@ describe('createAttestationSource — the four outcomes stay four', () => {
 
   it('errors when the rebuild itself fails', async () => {
     const { source } = sourceWith({
-      build: () => {
+      build: async () => {
         throw new Error('Compiler run failed: pragma rejects 0.8.29')
       },
     })
@@ -370,7 +370,7 @@ describe('createAttestationSource — the four outcomes stay four', () => {
   it('fetches the commit by SHA before rebuilding, and says it did', async () => {
     let present = false
     const { source, gitCalls } = sourceWith({
-      git: (args: string[]): string => {
+      git: async (args: string[]): Promise<string> => {
         gitCalls.push(args)
         if (args[0] === 'cat-file') {
           if (!present) throw new Error('Not a valid object name')
@@ -566,7 +566,7 @@ describe('createAttestationSource — the per-run cache', () => {
     // verdict, because the deployed side is re-read and re-compared every call.
     let attempts = 0
     const { source } = sourceWith({
-      build: (): IRebuiltArtifact => {
+      build: async (): Promise<IRebuiltArtifact> => {
         attempts += 1
         if (attempts === 1) throw new Error('transient toolchain download')
         return {
@@ -801,8 +801,8 @@ describe('falsification — the attested set against real observed code', () => 
 describe('createAttestationSource, source remote', () => {
   it('fetches a missing commit from the remote the network resolves to', async () => {
     const { source, gitCalls } = sourceWith({
-      sourceRemote: () => ({ ok: true, remote: 'tron' }),
-      git: (args: string[]): string => {
+      sourceRemote: async () => ({ ok: true, remote: 'tron' }),
+      git: async (args: string[]): Promise<string> => {
         gitCalls.push(args)
         if (args[0] === 'cat-file' && gitCalls.length === 1)
           throw new Error('Not a valid object name')
@@ -820,7 +820,7 @@ describe('createAttestationSource, source remote', () => {
 
   it('errors with the remedy when the network has no source remote here', async () => {
     const { source, requests } = sourceWith({
-      sourceRemote: () => ({
+      sourceRemote: async () => ({
         ok: false,
         reason: 'this clone has no "tron" remote — git remote add tron …',
       }),
@@ -837,7 +837,7 @@ describe('createAttestationSource, source remote', () => {
     let asked = 0
     const { source } = sourceWith({
       readRecord: async () => ({ ...RECORD, gitCommitHash: '' }),
-      sourceRemote: () => {
+      sourceRemote: async () => {
         asked += 1
         return { ok: false, reason: 'this clone has no "tron" remote' }
       },

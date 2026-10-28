@@ -17,9 +17,9 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
-      "0xd508814ee8475658889a91759481D21816880Ad6": {
+      "0xA15a3ed3F94f397012Ed5a0AE307539B3b821f2e": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x22197947060a617dbf2a4be985b63bD19eEeF092": {
         "Name": "OwnershipFacet",

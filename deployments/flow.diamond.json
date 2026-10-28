@@ -13,13 +13,13 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x86D55f2223b96a0076c4A8a256d6fFb65478096B": {
+      "0xA418201c9D772994b34428C1948d318B992251E3": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+      "0xa44919b475455DC88fAC8ab7Cf5f1C9018651294": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
@@ -29,9 +29,9 @@
         "Name": "DeBridgeDlnFacet",
         "Version": "1.0.1"
       },
-      "0xe850dad9b442b1A7DF8FbbD397dbb7466379A9E8": {
+      "0x83E8F744b5034D75b1C1D70C393db6220Da3a2BB": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x6CeAde381Ac275E96cE52987AFD517114aBecBE5": {
         "Name": "OwnershipFacet",
@@ -68,11 +68,11 @@
       "FeeCollector": "0x954d55105CDF5371224268691FAf6178be5f62F5",
       "FeeForwarder": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
       "GasZipPeriphery": "0x066439558a95B4D2c621829FC876dBc9F7d1ebc1",
-      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x588c00159AED9A9ab258850b33DEDfAC1c794fA1",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
-      "Permit2Proxy": "0x3c6B2E0b7421254846C53c118e24c65d59eAe75e",
+      "Permit2Proxy": "0xAF39813d05CB1667c91A830E634bD7C7274199Cf",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

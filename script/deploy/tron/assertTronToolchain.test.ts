@@ -12,13 +12,15 @@
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 
 import {
   afterEach,
@@ -31,9 +33,13 @@ import {
 
 import {
   FOUNDRY_VERSION_CHECKER,
+  assertSrcArtifactsMatchProfile,
   assertTronToolchainOrThrow,
+  buildForgeArtifactsOrThrow,
+  forgeBuildEnv,
   resetTronToolchainCache,
   spawnFoundryVersionChecker,
+  spawnForgeBuild,
   type ICheckerResult,
 } from './assertTronToolchain'
 
@@ -82,6 +88,21 @@ const spyRunner = (
     calls,
   }
 }
+
+/**
+ * Reads every shipped (non-test) Tron script, for the per-file source guards.
+ *
+ * @returns Each script's repo-relative path and source.
+ */
+const tronScriptSources = (): { path: string; source: string }[] =>
+  ['script/deploy/tron', 'script/deploy/tron/helpers'].flatMap((directory) =>
+    readdirSync(join(REPO_ROOT, directory))
+      .filter((entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts'))
+      .map((entry) => ({
+        path: `${directory}/${entry}`,
+        source: readFileSync(join(REPO_ROOT, directory, entry), 'utf8'),
+      }))
+  )
 
 /**
  * Puts a `forge` of a chosen version on PATH.
@@ -294,6 +315,9 @@ describe('the placement in deployContractWithLogging', () => {
     process.env.PATH = `${forgeStub(PINNED)}:${pathWithoutForge()}`
     const { deployContractWithLogging } = await import('./tronUtils')
     const spy = deployerSpy()
+    // The stub forge builds nothing, so the post-build check of out/ is covered in its own
+    // tests rather than against whatever out/ this checkout holds.
+    buildForgeArtifactsOrThrow({ verify: () => undefined })
 
     // Still a rejection - there is no artifact for that name - but for the later reason,
     // which is what separates "the gate refused" from "the gate was not there".
@@ -367,17 +391,7 @@ describe('the gate is on the Tron seams a deployment cannot avoid', () => {
     // with no gate at all: the definition in tronUtils.ts and an import elsewhere made
     // up the difference. An invariant a file with zero guards cannot fail is an
     // acceptance criterion that encodes the regression it exists to catch.
-    const files = ['script/deploy/tron', 'script/deploy/tron/helpers'].flatMap(
-      (directory) =>
-        readdirSync(join(REPO_ROOT, directory))
-          .filter(
-            (entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts')
-          )
-          .map((entry) => ({
-            path: `${directory}/${entry}`,
-            source: readFileSync(join(REPO_ROOT, directory, entry), 'utf8'),
-          }))
-    )
+    const files = tronScriptSources()
 
     const occurrences = (source: string, needle: string): number =>
       source.split(needle).length - 1
@@ -420,5 +434,409 @@ describe('the gate is on the Tron seams a deployment cannot avoid', () => {
 
     expect(source).toContain('process.cwd()')
     expect(existsSync(join(REPO_ROOT, FOUNDRY_VERSION_CHECKER))).toBe(true)
+  })
+})
+
+describe('buildForgeArtifactsOrThrow', () => {
+  const originalPath = process.env.PATH
+  const noVerify = (): void => undefined
+
+  beforeEach(() => {
+    resetTronToolchainCache()
+    process.env.PATH = `${forgeStub(PINNED)}:${pathWithoutForge()}`
+  })
+  afterEach(() => {
+    process.env.PATH = originalPath
+    resetTronToolchainCache()
+  })
+
+  it('builds and verifies once per process after the toolchain passes', () => {
+    const spy = spyRunner({ status: 0, output: '' })
+    const verified: string[] = []
+    const verify = (root: string): void => {
+      verified.push(root)
+    }
+
+    buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: spy.run, verify })
+    buildForgeArtifactsOrThrow({ repoRoot: REPO_ROOT, build: spy.run, verify })
+
+    expect(spy.calls).toEqual([REPO_ROOT])
+    expect(verified).toEqual([REPO_ROOT])
+  })
+
+  it('does not build with a forge that fails the toolchain check', () => {
+    process.env.PATH = `${forgeStub('0.0.1')}:${pathWithoutForge()}`
+    const spy = spyRunner({ status: 0, output: '' })
+
+    expect(() =>
+      buildForgeArtifactsOrThrow({
+        repoRoot: REPO_ROOT,
+        build: spy.run,
+        verify: noVerify,
+      })
+    ).toThrow(REFUSAL)
+    expect(spy.calls).toEqual([])
+  })
+
+  it('refuses when the build fails, with its output, and builds again next time', () => {
+    const failing = spyRunner({
+      status: 1,
+      output: 'Error: Compiler run failed',
+    })
+
+    expect(() =>
+      buildForgeArtifactsOrThrow({
+        repoRoot: REPO_ROOT,
+        build: failing.run,
+        verify: noVerify,
+      })
+    ).toThrow(
+      /forge build failed.*Nothing has been broadcast.*Compiler run failed/su
+    )
+
+    const passing = spyRunner({ status: 0, output: '' })
+    buildForgeArtifactsOrThrow({
+      repoRoot: REPO_ROOT,
+      build: passing.run,
+      verify: noVerify,
+    })
+    expect(passing.calls).toEqual([REPO_ROOT])
+  })
+
+  it('refuses when the post-build check refuses, and builds again next time', () => {
+    const spy = spyRunner({ status: 0, output: '' })
+
+    expect(() =>
+      buildForgeArtifactsOrThrow({
+        repoRoot: REPO_ROOT,
+        build: spy.run,
+        verify: () => {
+          throw new Error('not built with [profile.default]')
+        },
+      })
+    ).toThrow('not built with [profile.default]')
+
+    buildForgeArtifactsOrThrow({
+      repoRoot: REPO_ROOT,
+      build: spy.run,
+      verify: noVerify,
+    })
+    expect(spy.calls).toEqual([REPO_ROOT, REPO_ROOT])
+  })
+
+  it('checks out/ of the repo root by default', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'tron-forge-build-root-'))
+    mkdirSync(join(repoRoot, 'out'))
+    const spy = spyRunner({ status: 0, output: '' })
+    assertTronToolchainOrThrow({
+      repoRoot,
+      run: () => ({ status: 0, output: '' }),
+      exists: () => true,
+    })
+
+    expect(() =>
+      buildForgeArtifactsOrThrow({
+        repoRoot,
+        build: spy.run,
+      })
+    ).toThrow(`no src/ artifact in ${join(repoRoot, 'out')}`)
+  })
+})
+
+describe('forgeBuildEnv', () => {
+  it('drops every FOUNDRY_* override and pins the default profile', () => {
+    expect(
+      forgeBuildEnv({
+        PATH: '/bin',
+        FOUNDRY_PROFILE: 'solc_floor',
+        FOUNDRY_OPTIMIZER_RUNS: '200',
+      })
+    ).toEqual({ PATH: '/bin', FOUNDRY_PROFILE: 'default' })
+  })
+
+  it('pins the default profile when none is set, so forge cannot take one from .env', () => {
+    expect(forgeBuildEnv({}).FOUNDRY_PROFILE).toBe('default')
+  })
+})
+
+describe('spawnForgeBuild', () => {
+  const originalPath = process.env.PATH
+  afterEach(() => {
+    process.env.PATH = originalPath
+  })
+
+  it('builds everything but tests into out/, under the pinned profile, in the repo root', () => {
+    const stubDirectory = mkdtempSync(join(tmpdir(), 'tron-forge-build-stub-'))
+    const record = join(stubDirectory, 'record')
+    const forge = join(stubDirectory, 'forge')
+    writeFileSync(
+      forge,
+      `#!/bin/bash\necho "cwd=$PWD args=$* profile=[$FOUNDRY_PROFILE]" > '${record}'\n`
+    )
+    chmodSync(forge, 0o755)
+    process.env.PATH = `${stubDirectory}:${pathWithoutForge()}`
+
+    expect(spawnForgeBuild(stubDirectory).status).toBe(0)
+    expect(readFileSync(record, 'utf8').trim()).toBe(
+      `cwd=${realpathSync(
+        stubDirectory
+      )} args=build --skip test/** --out out profile=[default]`
+    )
+  })
+
+  it('reports a forge that cannot be started as a failure', () => {
+    process.env.PATH = pathWithoutForge()
+
+    expect(spawnForgeBuild(REPO_ROOT).status).toBeNull()
+  })
+})
+
+describe('assertSrcArtifactsMatchProfile', () => {
+  const PROFILE = {
+    solcVersion: '0.8.29',
+    evmVersion: 'cancun',
+    optimizerRuns: 1000000,
+    optimizer: true,
+    viaIR: false,
+    bytecodeHash: 'ipfs',
+  }
+  interface ISettings {
+    solc: string
+    evm: string
+    runs: number
+    optimizer?: boolean
+    viaIR?: boolean
+    bytecodeHash?: string
+  }
+  const DEFAULT: ISettings = { solc: '0.8.29', evm: 'cancun', runs: 1000000 }
+  const FLOOR: ISettings = { solc: '0.8.17', evm: 'london', runs: 1000000 }
+
+  const artifact = (source: string, settings: ISettings): string =>
+    JSON.stringify({
+      metadata: {
+        compiler: { version: `${settings.solc}+commit.ab55807c` },
+        settings: {
+          compilationTarget: { [source]: 'X' },
+          evmVersion: settings.evm,
+          optimizer: {
+            enabled: settings.optimizer ?? true,
+            runs: settings.runs,
+          },
+          ...(settings.viaIR === undefined ? {} : { viaIR: settings.viaIR }),
+          metadata: { bytecodeHash: settings.bytecodeHash ?? 'ipfs' },
+        },
+      },
+    })
+
+  /**
+   * Writes a Forge `out/` tree.
+   *
+   * @param files - Path under `out/` mapped to its contents.
+   * @returns The `out/` directory.
+   */
+  const outTree = (files: Record<string, string>): string => {
+    const outRoot = mkdtempSync(join(tmpdir(), 'tron-forge-out-'))
+    for (const [path, contents] of Object.entries(files)) {
+      mkdirSync(dirname(join(outRoot, path)), { recursive: true })
+      writeFileSync(join(outRoot, path), contents)
+    }
+    return outRoot
+  }
+
+  it('passes when every src/ artifact records the profile', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'B.sol/B.json': artifact('src/Periphery/B.sol', DEFAULT),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).not.toThrow()
+  })
+
+  it('refuses a src/ artifact built under another profile, naming it', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'B.sol/B.json': artifact('src/Periphery/B.sol', FLOOR),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+      /1 artifact\(s\).*not built with \[profile\.default\].*Nothing has been broadcast.*B\.sol\/B\.json: solcVersion 0\.8\.17, evmVersion london$/su
+    )
+  })
+
+  it('refuses a src/ artifact built with other optimizer runs', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', { ...DEFAULT, runs: 200 }),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+      'A.sol/A.json: optimizerRuns 200'
+    )
+  })
+
+  it.each([
+    ['the optimizer off', { optimizer: false }, 'optimizer false'],
+    ['viaIR on', { viaIR: true }, 'viaIR true'],
+    ['another bytecode hash', { bytecodeHash: 'none' }, 'bytecodeHash none'],
+  ] as const)(
+    'refuses a src/ artifact built with %s',
+    (_, override, reported) => {
+      const outRoot = outTree({
+        'A.sol/A.json': artifact('src/Facets/A.sol', {
+          ...DEFAULT,
+          ...override,
+        }),
+      })
+
+      expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+        `A.sol/A.json: ${reported}`
+      )
+    }
+  )
+
+  it('passes an artifact that records viaIR off explicitly', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', {
+        ...DEFAULT,
+        viaIR: false,
+      }),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).not.toThrow()
+  })
+
+  const CODE_NO_METADATA = JSON.stringify({
+    abi: [],
+    deployedBytecode: { object: '0x6080' },
+  })
+
+  it('refuses an artifact holding code but no metadata whose source file is in src/', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'B.sol/B.json': CODE_NO_METADATA,
+    })
+    const srcRoot = outTree({ 'Periphery/B.sol': '' })
+
+    expect(() =>
+      assertSrcArtifactsMatchProfile(outRoot, PROFILE, srcRoot)
+    ).toThrow('B.sol/B.json: holds code but records no metadata')
+  })
+
+  it.each([
+    ['no bytecode field', { abi: [] }],
+    ['empty bytecode', { abi: [], deployedBytecode: { object: '0x' } }],
+  ])(
+    'ignores a src/ artifact with no metadata and %s, as forge writes for a contract-less file',
+    (_, contents) => {
+      const outRoot = outTree({
+        'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+        'GenericErrors.sol/GenericErrors.json': JSON.stringify(contents),
+      })
+      const srcRoot = outTree({ 'Errors/GenericErrors.sol': '' })
+
+      expect(() =>
+        assertSrcArtifactsMatchProfile(outRoot, PROFILE, srcRoot)
+      ).not.toThrow()
+    }
+  )
+
+  it('ignores an artifact with no metadata whose source file is not in src/', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'Lib.sol/Lib.json': CODE_NO_METADATA,
+    })
+    const srcRoot = outTree({ 'Facets/A.sol': '' })
+
+    expect(() =>
+      assertSrcArtifactsMatchProfile(outRoot, PROFILE, srcRoot)
+    ).not.toThrow()
+  })
+
+  it('looks for src/ next to out/ by default', () => {
+    const repoRoot = outTree({ 'src/B.sol': '' })
+    const outRoot = join(repoRoot, 'out')
+    mkdirSync(join(outRoot, 'B.sol'), { recursive: true })
+    writeFileSync(join(outRoot, 'B.sol', 'B.json'), CODE_NO_METADATA)
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+      'B.sol/B.json: holds code but records no metadata'
+    )
+  })
+
+  it('refuses a src/ artifact that records no compiler settings', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': JSON.stringify({
+        metadata: { settings: { compilationTarget: { 'src/A.sol': 'A' } } },
+      }),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+      'A.sol/A.json: solcVersion undefined'
+    )
+  })
+
+  it('ignores artifacts compiled from outside src/, and files that are not artifacts', () => {
+    const outRoot = outTree({
+      'A.sol/A.json': artifact('src/Facets/A.sol', DEFAULT),
+      'Test.sol/Test.json': artifact('test/solidity/Test.sol', FLOOR),
+      'Lib.sol/Lib.json': artifact('lib/solmate/Lib.sol', FLOOR),
+      'build-info/abc.json': JSON.stringify({ id: 'abc' }),
+      'A.sol/notes.txt': 'not json',
+      'stray.json': '{}',
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).not.toThrow()
+  })
+
+  it('refuses when no src/ artifact is found', () => {
+    const outRoot = outTree({
+      'Test.sol/Test.json': artifact('test/solidity/Test.sol', DEFAULT),
+    })
+
+    expect(() => assertSrcArtifactsMatchProfile(outRoot, PROFILE)).toThrow(
+      /no src\/ artifact.*Nothing has been broadcast/u
+    )
+  })
+
+  it('refuses when out/ does not exist', () => {
+    const missing = join(outTree({}), 'out')
+
+    expect(() => assertSrcArtifactsMatchProfile(missing, PROFILE)).toThrow(
+      `no src/ artifact in ${missing}`
+    )
+  })
+})
+
+describe('every script that reads Forge artifacts builds them first', () => {
+  it('calls buildForgeArtifactsOrThrow in each file that reads out/', () => {
+    // deploy-safe-tron.ts deploys third-party Safe artifacts that `forge build -C safe/london`
+    // produces, not `out/`; audit-recorded-constructor-args.ts only reads ABIs and deploys
+    // nothing.
+    const exempt = new Set([
+      'script/deploy/tron/deploy-safe-tron.ts',
+      'script/deploy/tron/audit-recorded-constructor-args.ts',
+    ])
+    // Direct reads, and the shared helpers that read out/ on a script's behalf.
+    const artifactReads = [
+      'loadForgeArtifact(',
+      'deployer.deployContract(',
+      'getFacetSelectors(',
+      'proposeDiamondCut(',
+      'OUT_ROOT',
+      "'out'",
+    ]
+    const readsArtifacts = tronScriptSources().filter((file) =>
+      artifactReads.some((read) => file.source.includes(read))
+    )
+
+    const unbuilt = readsArtifacts
+      .filter((file) => !exempt.has(file.path))
+      .filter((file) => !file.source.includes('buildForgeArtifactsOrThrow('))
+      .map((file) => file.path)
+
+    expect(unbuilt).toEqual([])
+    // Paired positive, and no stale exemptions.
+    expect(readsArtifacts.length).toBeGreaterThan(exempt.size)
+    for (const path of exempt)
+      expect(readsArtifacts.map((file) => file.path)).toContain(path)
   })
 })

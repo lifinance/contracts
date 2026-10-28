@@ -37,12 +37,12 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0x9157b6550D1C3209C20aCAd12A2dC57Df34Ca48b": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
-      "0xb8C5408ED5f40ca8df929A50DD36b252B6b39f76": {
-        "Name": "SymbiosisFacet",
+      "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
+        "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
       "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb": {
@@ -65,9 +65,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
@@ -81,13 +81,9 @@
         "Name": "AcrossFacet",
         "Version": "2.0.0"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
-      },
-      "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
-        "Name": "AcrossFacetPackedV4",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -96,11 +92,11 @@
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
-      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "Permit2Proxy": "0x8eEd5E28216C0Bc6F817df40Ae6CA11C2294CC1c",
       "ReceiverAcrossV3": "0xca6e6B692F568055adA0bF72A06D1EBbC938Fb23",
       "ReceiverAcrossV4": "0x33b255b5db44A78c34381f89f1a454bc0Ef49871",
       "ReceiverChainflip": "",

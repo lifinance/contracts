@@ -374,8 +374,10 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
  * @param deps - the corpus
  * @returns Its budget over every attested slot
  */
-export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
-  const git = (args: string[]): string => {
+export const gradeCommitAvailability = async (
+  deps: ICorpusDeps
+): Promise<IGateBudget> => {
+  const git = async (args: string[]): Promise<string> => {
     if (args[0] === 'cat-file') {
       const sha = (args[2] ?? '').replace('^{commit}', '')
       if (deps.hasCommit(sha)) return ''
@@ -386,14 +388,16 @@ export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
     )
   }
 
-  const observations: IShadowObservation[] = deps.slots.map((slot) => {
-    const availability = ensureCommitAvailable(slot.commit, { git })
-    return {
-      slot: slotId(slot),
-      refused: !availability.ok,
-      reason: availability.ok ? '' : availability.reason,
-    }
-  })
+  const observations: IShadowObservation[] = await Promise.all(
+    deps.slots.map(async (slot) => {
+      const availability = await ensureCommitAvailable(slot.commit, { git })
+      return {
+        slot: slotId(slot),
+        refused: !availability.ok,
+        reason: availability.ok ? '' : availability.reason,
+      }
+    })
+  )
 
   const distinct = new Set(deps.slots.map((slot) => slot.commit)).size
   const unreadable = new Set(
@@ -726,7 +730,7 @@ export const runShadowBudget = async (
 ): Promise<IGateBudget[]> => [
   gradeToolchainScope(deps),
   gradeAttestedSet(deps),
-  gradeCommitAvailability(deps),
+  await gradeCommitAvailability(deps),
   gradeCutClassification(deps),
   await gradeFunnelDeployGate(deps),
   ...unreachedGates(deps),

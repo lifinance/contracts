@@ -53,9 +53,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x6F1330cC587a2be7eC61e04ba64267ff90cC0315": {
+      "0x4d71A113Ed3BF6e0c0576cd0e179917c93cd3EDc": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x0FD79C81f1edA84b7fb8878C0795F63566312787": {
         "Name": "AcrossFacetPackedV4",
@@ -77,9 +77,9 @@
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
       },
-      "0x7e9293D6B59A353fdD11C39B62789fea36cEb6DC": {
+      "0x8AE8416Ac8126a2A6b56eAdbae6373D0597aC8d0": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0xD0559AC5e6A5F20b3c3af7fbA02E5d671b9e47ba": {
         "Name": "FraxFacet",
@@ -97,9 +97,9 @@
         "Name": "SquidFacet",
         "Version": "1.0.0"
       },
-      "0xf4E73E2A9cDF1F94579cda3da07aD04031359CB5": {
+      "0x6FC60C42ba4B11f93034d5FEc025Ef1d0c200491": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x113E97921874646413572F2C43562463c378b6f5": {
         "Name": "StargateFacetV2",
@@ -112,11 +112,11 @@
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
       "FeeForwarder": "0x72015d314542457cBB6BF14318d82464E4D413ec",
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
-      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",
       "OutputValidator": "0x5680A31e4b1d2FeceB14376BA9266dA897d18C77",
       "Patcher": "",
-      "Permit2Proxy": "0xE5A89411c7Ef1502123d84ec1F9Da9D8574F4293",
+      "Permit2Proxy": "0x9bC676E8ef3DF0873422137EF96155C5B869e68C",
       "ReceiverAcrossV3": "0xE264aD3F63ccf1399AD704C730d9c9c3847E8177",
       "ReceiverAcrossV4": "0xbEb7c564FF9593634f04e4C39AAbe9a654798dfa",
       "ReceiverChainflip": "",

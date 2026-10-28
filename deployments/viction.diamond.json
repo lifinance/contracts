@@ -33,21 +33,21 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0xD1317DA862AC5C145519E60D24372dc186EF7426": {
+      "0x4ee5Cef91c774F10BC760393EAC52b7ac5b2D3B0": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
-      "0x176f558949e2a7C5217dD9C27Bf7A43c6783ee28": {
+      "0x5e5551ef32416fABD6D56F1470BF363D0A9824af": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.0"
+        "Version": "2.0.0"
       },
       "0xD49c8d84F5bE30b334B7Acc29AD4aB15ab5199fe": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x1c2a47D0867C618179B12D9e159b92Aa8A1617C5": {
+      "0x4f86347504C9Fb5F37B14E3C862992f0A6642753": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       }
     },
     "Periphery": {
@@ -56,11 +56,11 @@
       "FeeCollector": "0xD4B739284A79995D1c2689BF08747b8bF98b57c1",
       "FeeForwarder": "0xBeAA6FCb23f6E0Ec6AceB41Ae502e881A0B101Cc",
       "GasZipPeriphery": "0xCF7C4034025512EdeDAC9AFB77d0Bd03130222b8",
-      "LiFiDEXAggregator": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
       "OutputValidator": "0x7637A106fCcEBffc462D29161A386cFeE6f792FB",
       "Patcher": "",
-      "Permit2Proxy": "0xac08C219Fd4856A33a090503BCbc14733d588588",
+      "Permit2Proxy": "0x406fA3EA6e2E7BFcbDA7B0D7994b44192BB5db7F",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

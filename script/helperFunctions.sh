@@ -17,6 +17,9 @@ set -a
 source .env
 set +a
 
+# Default here, not at each read: set -u callers abort on an unset DEBUG.
+DEBUG="${DEBUG:-false}"
+
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
@@ -1103,9 +1106,13 @@ function saveDiamondFacets() {
         BATCH_ENTRY=$(echo "$BATCH_RESULT" | jq -c --arg ID "${FACET_ADDRESS}::${ENV_TRY}" '[.[] | select(.id == $ID and .found == true)][0].data // empty' 2>/dev/null)
         [[ -z "$BATCH_ENTRY" || "$BATCH_ENTRY" == "null" ]] && continue
         BATCH_NAME=$(echo "$BATCH_ENTRY" | jq -r '.contractName // empty')
-        # Version may be empty for legacy rows; never infer from @custom:version or other deployments
+        # Legacy rows may lack a version: keep the diamond file's, never infer from
+        # @custom:version or other deployments
         BATCH_VERSION=$(echo "$BATCH_ENTRY" | jq -r '.version // empty')
         if [[ -n "$BATCH_NAME" ]]; then
+          if [[ -z "$BATCH_VERSION" && -f "$DIAMOND_FILE" ]]; then
+            BATCH_VERSION=$(jq -r --arg addr "$FACET_ADDRESS" --arg dn "$DIAMOND_NAME" '.[$dn].Facets[$addr].Version // ""' "$DIAMOND_FILE" 2>/dev/null || true)
+          fi
           if [[ "$ENV_TRY" != "$ENVIRONMENT" ]]; then
             echoDebug "saveDiamondFacets: resolved $FACET_ADDRESS ($BATCH_NAME) from ${ENV_TRY} deployment log (requested ${ENVIRONMENT})"
           fi
@@ -1352,6 +1359,18 @@ function saveDiamondPeriphery() {
   EXISTING_PERIPHERY=$(jq -c --arg dn "$DIAMOND_NAME" '.[$dn].Periphery // {}' "$DIAMOND_FILE" 2>/dev/null) || EXISTING_PERIPHERY='{}'
   local EXISTING_COUNT
   EXISTING_COUNT=$(echo "$EXISTING_PERIPHERY" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || EXISTING_COUNT=0
+
+  # PERIPHERY_CONTRACTS follows glob order, which depends on the caller's collation locale.
+  # Keep the order the diamond file already has and add new names in byte order (jq `keys`),
+  # so a sync never moves an entry the file already holds.
+  PERIPHERY_JSON=$(jq -n --argjson new "$PERIPHERY_JSON" --argjson old "$EXISTING_PERIPHERY" '
+      ([$old | keys_unsorted[] | select(. as $k | $new | has($k))]
+        + (($new | keys) - ($old | keys_unsorted))) as $order
+      | reduce $order[] as $k ({}; .[$k] = $new[$k])
+    ' 2>/dev/null) || {
+    warning "[$NETWORK] Failed to order periphery entries, keeping existing Periphery section"
+    PERIPHERY_JSON="$EXISTING_PERIPHERY"
+  }
   local NEW_COUNT
   NEW_COUNT=$(echo "$PERIPHERY_JSON" | jq '[.[] | select(. != "")] | length' 2>/dev/null) || NEW_COUNT=0
 
@@ -2167,6 +2186,16 @@ function verifyContractOnExplorer() {
         fi
         VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
       fi
+    elif [[ "$VERIFICATION_TYPE" = "oklink" ]]; then
+      # forge does not read `verifier` from foundry.toml; without this flag it falls back to Sourcify
+      VERIFY_CMD+=("--verifier" "oklink")
+      if [[ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]] && [ -z "${!API_KEY:-}" ]; then
+        echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
+        return 1
+      fi
+      if [ -n "${!API_KEY:-}" ]; then
+        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
+      fi
     elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
       VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
     elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
@@ -2607,7 +2636,7 @@ function verifyAllUnverifiedContractsInLogFile() {
           if [[ "$VERIFIED" != "true" ]]; then
             echo ""
             echo "[info] trying to verify contract $CONTRACT on $NETWORK with address $ADDRESS...."
-            if [[ "$DEBUG" == *"true"* ]]; then
+            if [[ "$DEBUG" == "true" ]]; then
               verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS"
             else
               verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" "$SOLC_VERSION" "$EVM_VERSION" "$OPTIMIZER_RUNS" 2>/dev/null
@@ -2691,7 +2720,7 @@ function removeFacetFromDiamond() {
     echo "[info] trying to remove $FACET_NAME  from diamond $DIAMOND_ADDRESS - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION)"
 
     # call diamond
-    if [[ "$DEBUG" == *"true"* ]]; then
+    if [[ "$DEBUG" == "true" ]]; then
       universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS"
     else
       universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "$ENCODED_ARGS" >/dev/null 2>&1
@@ -3104,7 +3133,7 @@ function echoDebug() {
   local MESSAGE="$1"
 
   # write message to console if debug flag is set to true
-  if [[ $DEBUG == "true" ]]; then
+  if [[ "$DEBUG" == "true" ]]; then
     printf "$BLUE[debug] %s$NC\n" "$MESSAGE" >&2
   fi
 }
@@ -3967,7 +3996,7 @@ function getPrivateKey() {
   # check environment value
   if [[ "$ENVIRONMENT" == *"staging"* ]]; then
     # check if env variable is set/available
-    if [[ -z "$PRIVATE_KEY" ]]; then
+    if [[ -z "${PRIVATE_KEY:-}" ]]; then
       error "could not find PRIVATE_KEY value in your .env file"
       return 1
     else
@@ -3976,7 +4005,7 @@ function getPrivateKey() {
     fi
   else
     # check if env variable is set/available
-    if [[ -z "$PRIVATE_KEY_PRODUCTION" ]]; then
+    if [[ -z "${PRIVATE_KEY_PRODUCTION:-}" ]]; then
       error "could not find PRIVATE_KEY_PRODUCTION value in your .env file"
       return 1
     else

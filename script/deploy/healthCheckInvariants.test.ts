@@ -25,6 +25,7 @@ import {
   isDeterministicReadFailure,
   RECEIVER_EXECUTOR_GETTERS,
   findDeprecatedLiveFacets,
+  findUntargetedLiveFacets,
   splitByParkedCoverage,
   isStalledParkedClaim,
   collapseOpenParkedTasks,
@@ -47,6 +48,7 @@ import {
   type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { cachedSourceContractNames } from './safe/diamondRemovalDiff'
 import { type IPendingRegistration } from './safe/pending-registrations'
 import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
@@ -528,6 +530,204 @@ describe('findDeprecatedLiveFacets', () => {
       deployedContracts: { AcrossFacetV3: LIVE, AcrossFacetV4: KEEP },
     })
     expect(found.map((f) => f.name)).toEqual(['AcrossFacetV3'])
+  })
+})
+
+describe('findUntargetedLiveFacets', () => {
+  const LIVE = '0x00000000000000000000000000000000000000AA'
+  const KEEP = '0x00000000000000000000000000000000000000bb'
+
+  /** An untargeted facet: routed, in the deploy log, absent from target state, source present. */
+  function base(): Parameters<typeof findUntargetedLiveFacets>[0] {
+    return {
+      networkLower: 'worldchain',
+      environment: EnvironmentEnum.production,
+      onChainFacets: [{ address: LIVE, selectors: ['0xdeadbeef'] }],
+      deployedContracts: { AcrossFacetV4: LIVE },
+      expectedNames: new Set(['GenericSwapFacetV3']),
+      protectedNames: new Set(['DiamondCutFacet']),
+      sourceNames: new Set(['AcrossFacetV4', 'DiamondCutFacet']),
+    }
+  }
+
+  it('flags a routed facet whose source exists but target state omits it', () => {
+    expect(findUntargetedLiveFacets(base())).toEqual([
+      { name: 'AcrossFacetV4', address: LIVE, isCore: false },
+    ])
+  })
+
+  it('flags a core facet missing from target state, marked as core', () => {
+    expect(
+      findUntargetedLiveFacets({
+        ...base(),
+        deployedContracts: { DiamondCutFacet: LIVE },
+      })
+    ).toEqual([{ name: 'DiamondCutFacet', address: LIVE, isCore: true }])
+  })
+
+  it('ignores a facet target state lists', () => {
+    expect(
+      findUntargetedLiveFacets({
+        ...base(),
+        expectedNames: new Set(['AcrossFacetV4']),
+      })
+    ).toEqual([])
+  })
+
+  it('ignores a facet whose source is gone (no-stale-registered-facets owns that)', () => {
+    expect(
+      findUntargetedLiveFacets({ ...base(), sourceNames: new Set() })
+    ).toEqual([])
+  })
+
+  it('ignores a routed address the deploy log cannot name (no-unexpected-facets owns that)', () => {
+    expect(
+      findUntargetedLiveFacets({ ...base(), deployedContracts: {} })
+    ).toEqual([])
+  })
+
+  it('returns nothing when the network has no target-state entry (would flag everything)', () => {
+    expect(
+      findUntargetedLiveFacets({ ...base(), expectedNames: undefined })
+    ).toEqual([])
+  })
+
+  it('reports only the untargeted facet when a listed one is routed alongside it', () => {
+    const found = findUntargetedLiveFacets({
+      ...base(),
+      onChainFacets: [
+        { address: LIVE, selectors: ['0xdeadbeef'] },
+        { address: KEEP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV4: LIVE, GenericSwapFacetV3: KEEP },
+      sourceNames: new Set(['AcrossFacetV4', 'GenericSwapFacetV3']),
+    })
+    expect(found.map((f) => f.name)).toEqual(['AcrossFacetV4'])
+  })
+})
+
+describe('no-untargeted-live-facets invariant', () => {
+  // Real _targetState.json: mantle and sei list GenericSwapFacetV3 but not AcrossFacetV4,
+  // and src/Facets/AcrossFacetV4.sol exists, so routing it there is untargeted drift.
+  const ACROSS = '0x00000000000000000000000000000000000000AA'
+  const SWAP = '0x00000000000000000000000000000000000000bb'
+
+  function makeDriftCtx(
+    networkLower: string,
+    diamondFacetLog: IHealthCheckContext['diamondFacetLog'] = {
+      [ACROSS]: { Name: 'AcrossFacetV4', Version: '1.0.0' },
+    }
+  ): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      networkLower,
+      onChainFacets: [
+        { address: ACROSS, selectors: ['0xdeadbeef'] },
+        { address: SWAP, selectors: ['0xfeedface'] },
+      ],
+      deployedContracts: { AcrossFacetV4: ACROSS, GenericSwapFacetV3: SWAP },
+      diamondFacetLog,
+    })
+  }
+
+  it('has a precondition: mantle and sei target AcrossFacetV4 off and GenericSwapFacetV3 on', () => {
+    const state = targetState as TargetState
+    for (const network of ['mantle', 'sei']) {
+      const diamond = state[network]?.production?.LiFiDiamond ?? {}
+      expect(diamond).not.toHaveProperty('AcrossFacetV4')
+      expect(diamond).toHaveProperty('GenericSwapFacetV3')
+    }
+    expect(cachedSourceContractNames().has('AcrossFacetV4')).toBe(true)
+  })
+
+  it('is a production-only warning that reads the loupe', () => {
+    const inv = invariant('no-untargeted-live-facets')
+    expect(inv.severity).toBe('warning')
+    expect(inv.scope.environments).toEqual(['production'])
+    expect(inv.scope.skipTestnet).toBe(true)
+    expect(inv.readsOnChainFacets).toBe(true)
+  })
+
+  async function runCapturingRunLog(ctx: IHealthCheckContext): Promise<string> {
+    const printed: string[] = []
+    const warn = consola.warn
+    consola.warn = ((message: unknown) => {
+      printed.push(String(message))
+    }) as typeof consola.warn
+    try {
+      await invariant('no-untargeted-live-facets').run(ctx)
+    } finally {
+      consola.warn = warn
+    }
+    return printed.join('\n')
+  }
+
+  it('warns once per network with the count, and never errors', async () => {
+    const ctx = makeDriftCtx('mantle')
+    await runCapturingRunLog(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([
+      '1 live facet(s) missing from mantle.production.LiFiDiamond in _targetState.json (names in the run log)',
+    ])
+  })
+
+  it('logs each facet with name, deployed version and address to the run log only', async () => {
+    const ctx = makeDriftCtx('mantle')
+    const runLog = await runCapturingRunLog(ctx)
+    expect(runLog).toContain('Facet AcrossFacetV4 (v1.0.0)')
+    expect(runLog).toContain(ACROSS)
+    expect(ctx.warnings[0]).not.toContain('AcrossFacetV4')
+  })
+
+  it('says where the version is missing instead of guessing one', async () => {
+    const runLog = await runCapturingRunLog(makeDriftCtx('mantle', {}))
+    expect(runLog).toContain(
+      'version not recorded in deployments/mantle.diamond.json'
+    )
+  })
+
+  it('stays silent when every routed facet is listed', async () => {
+    const ctx = Object.assign(makeDriftCtx('mantle'), {
+      onChainFacets: [{ address: SWAP, selectors: ['0xfeedface'] }],
+    })
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('skips without warning when the loupe read is empty', async () => {
+    const ctx = Object.assign(makeDriftCtx('mantle'), { onChainFacets: [] })
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('skips a network with no production target state', async () => {
+    const ctx = makeDriftCtx('testnet1')
+    await invariant('no-untargeted-live-facets').run(ctx)
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('collapses into one Slack digest cause across networks, even when facet versions differ', async () => {
+    const results = []
+    const contexts: Array<[string, IHealthCheckContext]> = [
+      ['mantle', makeDriftCtx('mantle')],
+      ['sei', makeDriftCtx('sei', {})],
+    ]
+    for (const [network, ctx] of contexts) {
+      await runCapturingRunLog(ctx)
+      results.push({ network, warnings: ctx.warnings })
+    }
+    const groups = groupWarningsByCause(
+      results.map((r) => ({
+        network: r.network,
+        status: 'passed' as const,
+        warnings: r.warnings,
+        detail: '',
+      }))
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0]?.networks).toEqual(['mantle', 'sei'])
+    expect(groups[0]?.cause).toBe(
+      '[n] live facet(s) missing from [network].production.LiFiDiamond in _targetState.json (names in the run log)'
+    )
   })
 })
 
@@ -1703,24 +1903,24 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
     expect(ctx.errors[0]).toContain('.pathUsd.mainnet')
   })
 
-  const bobaPeriphery = collectImmutableBindingChecks(
-    'boba',
+  const robinhoodPeriphery = collectImmutableBindingChecks(
+    'robinhood',
     'production'
   ).find((c) => c.getter === 'SPOKE_POOL_PERIPHERY')
 
-  it('across.json holds an explicit zero periphery for boba (test precondition)', () => {
-    expect(bobaPeriphery?.expectedAddress).toBe(ZERO)
-    expect(bobaPeriphery?.zeroAddressAllowed).toBe(true)
+  it('across.json holds an explicit zero periphery for robinhood (test precondition)', () => {
+    expect(robinhoodPeriphery?.expectedAddress).toBe(ZERO)
+    expect(robinhoodPeriphery?.zeroAddressAllowed).toBe(true)
   })
 
   it('passes a zero binding whose config value is an explicit zero', async () => {
     const acrossChecks = collectImmutableBindingChecks(
-      'boba',
+      'robinhood',
       'production'
     ).filter((c) => c.contractName === 'AcrossV4SwapFacet')
     const ctx = makeFacetCtx(
       'AcrossV4SwapFacet',
-      'boba',
+      'robinhood',
       Object.fromEntries(
         acrossChecks.map((c) => [c.getter, c.expectedAddress ?? ZERO])
       )
@@ -1758,12 +1958,12 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
 
   it('errors when a binding config states as zero holds an address', async () => {
     const acrossChecks = collectImmutableBindingChecks(
-      'boba',
+      'robinhood',
       'production'
     ).filter((c) => c.contractName === 'AcrossV4SwapFacet')
     const ctx = makeFacetCtx(
       'AcrossV4SwapFacet',
-      'boba',
+      'robinhood',
       Object.fromEntries(
         acrossChecks.map((c) => [
           c.getter,
@@ -1778,7 +1978,7 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
 
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain('SPOKE_POOL_PERIPHERY()')
-    expect(ctx.errors[0]).toContain('.boba.spokePoolPeriphery')
+    expect(ctx.errors[0]).toContain('.robinhood.spokePoolPeriphery')
   })
 })
 
@@ -2103,6 +2303,35 @@ describe('receiver-executor-binding registry-first resolution', () => {
     await invariant('receiver-executor-binding').run(ctx)
     expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
     expect(ctx.errors.some((e) => e.includes('ReceiverStargateV2'))).toBe(true)
+  })
+})
+
+describe('permit2proxy-owner', () => {
+  const PERMIT2_PROXY = '0x6666666666666666666666666666666666666666'
+
+  it('errors when Permit2Proxy is not owned by the refund wallet', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { Permit2Proxy: PERMIT2_PROXY },
+      owner: { [PERMIT2_PROXY]: WRONG },
+    })
+    await invariant('permit2proxy-owner').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Permit2Proxy owner is')
+  })
+
+  it('passes when Permit2Proxy is owned by the refund wallet', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { Permit2Proxy: PERMIT2_PROXY },
+      owner: { [PERMIT2_PROXY]: REFUND_WALLET },
+    })
+    await invariant('permit2proxy-owner').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('does nothing when Permit2Proxy is not in the deploy log', async () => {
+    const { ctx } = makeReceiverCtx({})
+    await invariant('permit2proxy-owner').run(ctx)
+    expect(ctx.errors).toEqual([])
   })
 })
 
@@ -3630,6 +3859,7 @@ describe('facet-versions-match-target-state', () => {
   const MAYAN = '0x4682d79DD4D0e7555415841b5151933AF50594A8'
   const UNLOGGED = '0x1111111111111111111111111111111111111111'
   const UNREGISTERED = '0x2222222222222222222222222222222222222222'
+  const DRIFT_DIAMOND = '0xD1A0000000000000000000000000000000000001'
 
   const invariant = HEALTH_CHECK_INVARIANTS.find(
     (i) => i.name === 'facet-versions-match-target-state'
@@ -3647,6 +3877,8 @@ describe('facet-versions-match-target-state', () => {
     registered = Object.keys(diamondFacetLog),
     deployedContracts = {},
     sourceVersions = {},
+    pendingRegistrations = new Map(),
+    deployLog = null,
   }: {
     network?: string
     targets: Record<string, string>
@@ -3654,11 +3886,16 @@ describe('facet-versions-match-target-state', () => {
     registered?: string[]
     deployedContracts?: Record<string, string>
     sourceVersions?: Record<string, string>
+    pendingRegistrations?: IHealthCheckContext['pendingRegistrations']
+    deployLog?: IHealthCheckContext['deployLog']
   }): IHealthCheckContext {
     return Object.assign(makeCtx(), {
       network,
       networkLower: network,
+      diamondAddress: DRIFT_DIAMOND,
       deployedContracts,
+      pendingRegistrations,
+      deployLog,
       targetState: {
         [network]: { production: { LiFiDiamond: targets } },
       } as TargetState,
@@ -4004,5 +4241,277 @@ describe('facet-versions-match-target-state', () => {
       ['optimism'],
       ['polygon'],
     ])
+  })
+
+  describe('queued upgrades', () => {
+    const UPGRADE = '0x3333333333333333333333333333333333333333'
+    const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
+
+    const queued = ({
+      network = 'mainnet',
+      address = UPGRADE,
+      target = DRIFT_DIAMOND,
+      record = { kind: 'facet-cut' },
+    }: {
+      network?: string
+      address?: string
+      target?: string
+      record?: Partial<IPendingRegistration>
+    } = {}): Map<string, Map<string, IPendingRegistration[]>> =>
+      new Map([
+        [
+          network,
+          new Map([
+            [
+              address.toLowerCase(),
+              [
+                {
+                  kind: 'facet-cut',
+                  address: address.toLowerCase(),
+                  operationId: OPERATION_ID,
+                  target: target.toLowerCase(),
+                  ...record,
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+
+    /** A master deploy log recording GenericSwapFacetV3 on mainnet at `version` → `address`. */
+    const masterLog = (
+      version: string,
+      address = UPGRADE
+    ): IHealthCheckContext['deployLog'] => ({
+      GenericSwapFacetV3: {
+        mainnet: { production: { [version]: [{ ADDRESS: address }] } },
+      },
+    })
+
+    /**
+     * GenericSwapFacetV3 live at 1.0.0, target 2.0.0, deploy log pointing at `deployed`, and the
+     * master log recording `deployed` at the target version unless `deployLog` says otherwise.
+     */
+    const behindCtx = (
+      pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+      deployed = UPGRADE,
+      deployLog = masterLog('2.0.0', deployed)
+    ): IHealthCheckContext =>
+      makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: deployed },
+        pendingRegistrations,
+        deployLog,
+      })
+
+    it('reports a behind facet as expected-pending when a queued cut registers its deploy-log address', async () => {
+      const ctx = behindCtx(queued())
+      await invariant.run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toEqual([])
+    })
+
+    it('compares the queued build with the target by base version', async () => {
+      const suffixedLog = behindCtx(queued(), UPGRADE, masterLog('2.0.0-tron'))
+      const suffixedTarget = makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0-tron' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: UPGRADE },
+        pendingRegistrations: queued(),
+        deployLog: masterLog('2.0.0'),
+      })
+      await invariant.run(suffixedLog)
+      await invariant.run(suffixedTarget)
+      expect(suffixedLog.warnings).toEqual([])
+      expect(suffixedTarget.warnings).toEqual([])
+    })
+
+    it('accepts the queued build when any version the master log records for it is the target', async () => {
+      const ctx = behindCtx(queued(), UPGRADE, {
+        GenericSwapFacetV3: {
+          mainnet: {
+            production: {
+              '1.1.0': [{ ADDRESS: UPGRADE }],
+              '2.0.0': [{ ADDRESS: UPGRADE }],
+            },
+          },
+        },
+      })
+      await invariant.run(ctx)
+      expect(ctx.warnings).toEqual([])
+    })
+
+    it('reads the master log only for this network and production', async () => {
+      const otherNetwork = behindCtx(queued(), UPGRADE, {
+        GenericSwapFacetV3: {
+          arbitrum: { production: { '2.0.0': [{ ADDRESS: UPGRADE }] } },
+        },
+      })
+      const stagingOnly = behindCtx(queued(), UPGRADE, {
+        GenericSwapFacetV3: {
+          mainnet: { staging: { '2.0.0': [{ ADDRESS: UPGRADE }] } },
+        },
+      })
+      await invariant.run(otherNetwork)
+      await invariant.run(stagingOnly)
+      expect(otherNetwork.warnings).toHaveLength(1)
+      expect(otherNetwork.warnings[0]).toContain('is behind')
+      expect(stagingOnly.warnings).toHaveLength(1)
+      expect(stagingOnly.warnings[0]).toContain('is behind')
+    })
+
+    // A cut queued before the target moved on lands a build that is still behind.
+    it('still reports behind when the master log records the queued build at another version', async () => {
+      const ctx = behindCtx(queued(), UPGRADE, masterLog('1.1.0'))
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('GenericSwapFacetV3 is behind')
+    })
+
+    it('still reports behind when the master log does not record the queued address', async () => {
+      const unrecorded = behindCtx(
+        queued(),
+        UPGRADE,
+        masterLog('2.0.0', '0xffff000000000000000000000000000000000099')
+      )
+      const unavailable = behindCtx(queued(), UPGRADE, null)
+      await invariant.run(unrecorded)
+      await invariant.run(unavailable)
+      expect(unrecorded.warnings).toHaveLength(1)
+      expect(unrecorded.warnings[0]).toContain('is behind')
+      expect(unavailable.warnings).toHaveLength(1)
+      expect(unavailable.warnings[0]).toContain('is behind')
+    })
+
+    it('still reports behind when the queued cut registers a different address', async () => {
+      const ctx = behindCtx(
+        queued({ address: '0xffff000000000000000000000000000000000099' })
+      )
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('GenericSwapFacetV3 is behind')
+    })
+
+    it('still reports behind when the queued cut targets another diamond', async () => {
+      const ctx = behindCtx(
+        queued({ target: '0xD1A0000000000000000000000000000000000002' })
+      )
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('is behind')
+    })
+
+    it('still reports behind when the queued cut is on another network', async () => {
+      const ctx = behindCtx(queued({ network: 'arbitrum' }))
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('is behind')
+    })
+
+    it('still reports behind when the only queued record is a periphery registration', async () => {
+      const ctx = behindCtx(
+        queued({ record: { kind: 'periphery', peripheryName: 'SomeName' } })
+      )
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('is behind')
+    })
+
+    it('still reports behind when the only queued record is a whitelist entry', async () => {
+      const ctx = behindCtx(
+        queued({
+          record: { kind: 'whitelist', selector: '0xf8989325' as Hex },
+        })
+      )
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('is behind')
+    })
+
+    // A deploy log still naming the live build means the target build was never logged, so a
+    // queued cut of that address re-registers the build that is already behind.
+    it('still reports behind when the deploy-log address is the live, behind build', async () => {
+      const ctx = behindCtx(queued({ address: SWAP }), SWAP)
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('is behind')
+    })
+
+    it('keeps the behind warning and warns once about reduced coverage when the queue is unreachable', async () => {
+      const ctx = makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0', MayanFacet: '2.0.0' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+          [MAYAN]: { Name: 'MayanFacet', Version: '1.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: UPGRADE },
+        pendingRegistrations: { unreachable: 'connect ECONNREFUSED' },
+      })
+      await invariant.run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toHaveLength(3)
+      expect(ctx.warnings.filter((w) => w.includes('is behind'))).toHaveLength(
+        2
+      )
+      const unreachable = ctx.warnings.filter((w) =>
+        w.includes('Timelock queue unreachable')
+      )
+      expect(unreachable).toHaveLength(1)
+      expect(unreachable[0]).toContain('connect ECONNREFUSED')
+    })
+
+    it('leaves ahead and unverifiable reporting unchanged and never consults the queue for them', async () => {
+      let consulted = false
+      const ctx = makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0', MayanFacet: '1.2.2' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: 'v2' },
+          [MAYAN]: { Name: 'MayanFacet', Version: '2.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: UPGRADE, MayanFacet: UPGRADE },
+      })
+      // Defined after the context is built: Object.assign would read the getter while
+      // copying, tripping the flag before the invariant ever runs.
+      Object.defineProperty(ctx, 'pendingRegistrations', {
+        get() {
+          consulted = true
+          return queued()
+        },
+      })
+      await invariant.run(ctx)
+      expect(ctx.warnings).toHaveLength(2)
+      expect(ctx.warnings.some((w) => w.includes('cannot be compared'))).toBe(
+        true
+      )
+      expect(ctx.warnings.some((w) => w.includes('MayanFacet is ahead'))).toBe(
+        true
+      )
+      expect(consulted).toBe(false)
+    })
+
+    it('never consults the queue for a network at target', async () => {
+      let consulted = false
+      const ctx = makeDriftCtx({
+        targets: { GenericSwapFacetV3: '2.0.0' },
+        diamondFacetLog: {
+          [SWAP]: { Name: 'GenericSwapFacetV3', Version: '2.0.0' },
+        },
+        deployedContracts: { GenericSwapFacetV3: UPGRADE },
+      })
+      Object.defineProperty(ctx, 'pendingRegistrations', {
+        get() {
+          consulted = true
+          return queued()
+        },
+      })
+      await invariant.run(ctx)
+      expect(ctx.warnings).toEqual([])
+      expect(consulted).toBe(false)
+    })
   })
 })

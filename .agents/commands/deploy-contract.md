@@ -1,12 +1,14 @@
 ---
 name: deploy-contract
-description: Staging and testnet targets only — a mainnet target goes to `multisig-rollout`, including a bare "deploy <Contract> to <network>" that names no environment. Deploys a facet or periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — CREATE3 deploy, explorer verification, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the allowlist writes for diamond-called periphery. This is the staging/testnet deploy path, and the deploy primitive `multisig-rollout` calls — which is why a production diamond routes there instead: `multisig-rollout` owns the Safe-proposal lifecycle that registration on mainnet requires. Tron (`tron`/`tronshasta`) goes to `deploy-contract-tron` — Foundry cannot deploy there. Requires Foundry, gh, and (production only) lifi-connect for MongoDB.
+description: "Deploys a facet/periphery contract to staging or testnet diamonds (CREATE3, explorer verify, diamondCut/diamondUpdatePeriphery, allowlist writes). Use for \"deploy <Contract> to <testnet>\". Mainnet, even a bare \"deploy X to <network>\" → multisig-rollout; tron/tronshasta → deploy-contract-tron."
 usage: /deploy-contract <ContractName> <network...> [--production]
 ---
 
-# Deploy Contract (LI.FI Contracts)
+# Deploy Contract
 
-Non-interactive deploy of a single contract to N networks via `script/deploy/deployContractToNetworks.sh` (scriptMaster use case 1, repeated). Per network it deploys (CREATE3), verifies on the explorer, and registers in the LiFiDiamond:
+Staging/testnet deploy path, and the deploy primitive `multisig-rollout` calls. A mainnet target — including a bare "deploy <Contract> to <network>" that names no environment — goes to `multisig-rollout`, which owns the Safe-proposal lifecycle mainnet registration requires. Requires Foundry, gh, and (production only) lifi-connect for MongoDB.
+
+Non-interactive deploy of a single contract (the version in the repo) to N networks via `script/deploy/deployContractToNetworks.sh` (scriptMaster use case 1, repeated). Per network it deploys (CREATE3), verifies on the explorer, and registers in the LiFiDiamond:
 
 - **facet** → `diamondCut` (a Safe proposal in production, direct cut in staging)
 - **periphery** → `diamondUpdatePeriphery`
@@ -15,13 +17,6 @@ Non-interactive deploy of a single contract to N networks via `script/deploy/dep
 It stops once the contract is deployed, verified, and registered (production: proposal created carrying the deployer's signature). In the standalone staging path it also lands the resulting deployment-log changes via a draft PR (Phase 4). It never drives hardware-wallet signing or posts to Slack — and in production it leaves the PR to `multisig-rollout`.
 
 See also: `rotate-pauser-wallet` calls this skill to redeploy `EmergencyPauseFacet` with the new pauser when rotating the pauser wallet.
-
-## When to use this vs multisig-rollout
-
-| Situation | Skill |
-|---|---|
-| Staging / testnet / non-governed deploy (terminal) | **this skill** |
-| Production rollout needing Safe proposals signed & shepherded | **`multisig-rollout`** (it calls this skill) |
 
 **Hard rail — don't strand production proposals.** A standalone production deploy creates Safe proposals carrying a single signature and then stops; with no PR, no signing hand-off, and no Slack thread, those proposals sit forgotten below threshold. So: if this is a production deploy (`--production`) and you are **not** running it as a step inside `multisig-rollout`, stop and route the user to `/multisig-rollout`. Only proceed with `--production` here when `multisig-rollout` is driving the full lifecycle around you.
 
@@ -86,7 +81,7 @@ jq -r --arg C "<Companion>" '.LiFiDiamond.Periphery[$C] // "MISSING"' deployment
 
 `notRequiredOn` in the same coupling entry names networks where the companion is deliberately absent — respect it rather than deploying over it.
 
-Resolve this here, at target resolution, rather than relying on the existing tooling: the pipeline's `facetCompanionReminder.ts` is a non-fatal nudge that only checks the flat deploy log, so it falls silent once the companion is deployed even if it was never registered, and it is easily lost in an interleaved multi-network log; the enforcing `facet-required-periphery` health-check invariant only catches the gap after the fact. The reminder was already in place when a ten-chain facet rollout shipped without its receiver and disabled inbound traffic on all ten (EXSC-823).
+Resolve this here rather than relying on `facetCompanionReminder.ts`: it is a non-fatal nudge that only checks the flat deploy log (silent once the companion is deployed, even if never registered), and the `facet-required-periphery` health-check invariant only catches the gap after the fact.
 
 ## Phase 2 — Confirm plan
 
@@ -130,11 +125,8 @@ One MongoDB query loads every record of that contract version. On each listed ne
 
 ## Phase 4 — Commit logs & draft PR (staging path only)
 
-Skip this phase entirely when `multisig-rollout` is driving (production): the
-orchestrator opens one combined PR after capturing proposals, because that body
-needs the per-network Safe nonce table that doesn't exist until then. In the
-standalone staging path the deploy's only leftover is the deployment-log diff,
-and landing it shouldn't be a manual afterthought.
+Skip this phase when `multisig-rollout` is driving (production): it opens one
+combined PR after capturing proposals, since the body needs the Safe nonce table.
 
 1. Collect exactly what the deploy touched — **never `git add -A`**:
 
@@ -157,9 +149,7 @@ and landing it shouldn't be a manual afterthought.
      `diamondCut` (facet) / `diamondUpdatePeriphery` (periphery) / `+ allowlist
      sync, whitelist.json updated` (diamond-called periphery).
 
-`/create-pr` stages only the named files and has a confirm gate, so a routine
-staging deploy isn't force-PR'd — you approve before it pushes. Don't reimplement
-branching/commit/PR plumbing here; `/create-pr` owns it.
+`/create-pr` stages only the named files and has its own confirm gate before it pushes.
 
 ## Output
 
@@ -183,5 +173,5 @@ In production, note the files changed on disk (`deployments/<net>.json`, and `co
 - A network has no diamond → drop it from the list (this skill adds to existing diamonds only).
 - Explorer verification flaky → re-run `bash script/deploy/verifyRolloutContracts.sh <env> <Contract> <version> <network...>` (Phase 3c); it picks up only the records still unverified, and the MongoDB `verified` flag and on-chain verification must both hold.
 - `is not verified on Sourcify` warning (mainnet, non-zkEVM) → the deploy still succeeded, but the ERC-7730 clear-signing sync leaves that network out of the registry descriptor until every facet is on Sourcify. Run the `Retry with:` command from the warning; `https://sourcify.dev/server/v2/contract/<chainId>/<address>` returning 200 confirms it.
-- zkEVM-only target list (zksync/lens/abstract) exits non-zero right after `building zksync artifacts`, with no error in a redirected log → `out/` is missing. The deploy salt comes from the standard artifact (`out/<C>.sol/<C>.json`), which the zk build never writes and `prepareGroupBuild zkevm` (a no-op) never triggers. Run `forge build --skip 'test/**'` first; only the salt/address depends on it, never the deployed bytecode. A mixed group list hides this because london/cancun builds `out/` first.
+- zkEVM-only target list (zksync/abstract) exits non-zero right after `building zksync artifacts`, with no error in a redirected log → `out/` is missing. The deploy salt comes from the standard artifact (`out/<C>.sol/<C>.json`), which the zk build never writes and `prepareGroupBuild zkevm` (a no-op) never triggers. Run `forge build --skip 'test/**'` first; only the salt/address depends on it, never the deployed bytecode. A mixed group list hides this because london/cancun builds `out/` first.
 - `Failed to deploy script` plus a "sufficient funds" warning on a funded deployer → re-run with `DEBUG=true` before chasing balances or RPCs. If the real stderr is ``header validation error: `prevrandao` not set``, the chain's RPC omits `mixHash` and no post-Merge `evm_version` can build the fork environment; set `targetEvmVersion: "london"` so the chain joins the london group (keeps build, deploy and verification consistent). `--legacy`, `--skip-simulation` and `block_prevrandao` do not help. Probe with `cast rpc eth_getBlockByNumber latest false --rpc-url "$R" | tr ',' '\n' | grep -i mixhash`.

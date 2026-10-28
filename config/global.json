@@ -39,7 +39,8 @@
     "0x518ee3D0F8AC59deDAc278859A7B8bc13dA360Dc",
     "0x042727b75C80326F3488a6CEd46775EDCe8f1940",
     "0xe5552E1a40cBcB95b4905d92907336C06681280c",
-    "0x9740A8E0197689d144B19DA4bDc9eF65fEf11Cda"
+    "0x9740A8E0197689d144B19DA4bDc9eF65fEf11Cda",
+    "0x90D57D459D6d4CA614d7958aEAE794C917a80Db7"
   ],
   "coreFacets": [
     "AccessManagerFacet",
@@ -144,10 +145,7 @@
   },
   "whitelistPeripheryNetworks": {
     "LiFiDEXAggregator": [
-      "bob",
-      "lens",
       "lisk",
-      "opbnb",
       "vana",
       "viction",
       "worldchain"

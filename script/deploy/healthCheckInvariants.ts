@@ -38,11 +38,17 @@ import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
+  loadDeployLog,
+  versionsAtAddress,
+  type DeployLog,
+} from './healthCheckBehindMain'
+import {
   diffFacets,
   getExpectedFacetNames,
   getProtectedNames,
   cachedSourceContractNames,
   type IFacetRemoval,
+  type IRemovalDiff,
 } from './safe/diamondRemovalDiff'
 import type { IParkedTask } from './safe/parked-tasks'
 import { type IPendingRegistration } from './safe/pending-registrations'
@@ -190,6 +196,11 @@ export interface IHealthCheckContext {
    * test to whatever version the fleet happens to be running.
    */
   diamondFacetLog?: DiamondFacetLog
+  /**
+   * `deployments/_deployments_log_file.json`. Undefined = read from disk (the default); injectable
+   * so the queued-upgrade version check is testable without pinning a test to the fleet's log.
+   */
+  deployLog?: DeployLog | null
   /**
    * Reads a contract's `@custom:version` from this checkout, which is what a `latest` target
    * state entry expects. Undefined = read `src/` (the default); injectable so the target-version
@@ -341,9 +352,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'avalanche',
       'basesepolia',
       'berachain',
-      'blast',
-      'bob',
-      'boba',
       'celo',
       'cronos',
       'etherlink',
@@ -359,7 +367,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'injective',
       'ink',
       'kaia',
-      'lens',
       'linea',
       'lisk',
       'mantle',
@@ -368,7 +375,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'monad',
       'morph',
       'nibiru',
-      'opbnb',
       'optimismsepolia',
       'plasma',
       'plume',
@@ -382,7 +388,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'stable',
       'telos',
       'tempo',
-      'tron',
       'tronshasta',
       'unichain',
       'vana',
@@ -1466,7 +1471,55 @@ async function readSelectorAllowlist(
  * @returns The deprecated-but-routed facets, each with the selectors the loupe
  *   currently routes to it.
  */
-export function findDeprecatedLiveFacets(params: {
+export function findDeprecatedLiveFacets(
+  params: ILiveFacetDiffParams
+): IFacetRemoval[] {
+  return diffKnownLiveFacets(params)?.removals ?? []
+}
+
+/** A facet the diamond routes and the deploy log names, but target state does not list. */
+export interface IUntargetedLiveFacet {
+  name: string
+  address: string
+  /** On the never-remove allowlist (core facet / diamond machinery). */
+  isCore: boolean
+}
+
+/**
+ * Facets that are routed by the diamond, named by the deploy log and still have
+ * source under `src/`, yet have no key in the network's target state — the live
+ * deployment is ahead of what target state declares. The complement of
+ * {@link findDeprecatedLiveFacets}, which covers the source-gone case.
+ *
+ * Same `[]`-when-no-entry and unnamed-address rules as {@link findDeprecatedLiveFacets}.
+ *
+ * @param params - See {@link findDeprecatedLiveFacets}.
+ * @returns The untargeted facets with their deploy-log address (the one the loupe routes them
+ *   at, in the deploy log's spelling), core facets included.
+ */
+export function findUntargetedLiveFacets(
+  params: ILiveFacetDiffParams
+): IUntargetedLiveFacet[] {
+  const diff = diffKnownLiveFacets(params)
+  if (!diff) return []
+  const addressOf = (name: string): string =>
+    String(params.deployedContracts[name])
+  return [
+    ...diff.driftDetected.map((name) => ({
+      name,
+      address: addressOf(name),
+      isCore: false,
+    })),
+    ...diff.targetStateMissingProtected.map((name) => ({
+      name,
+      address: addressOf(name),
+      isCore: true,
+    })),
+  ]
+}
+
+/** Inputs shared by the live-facet-vs-target-state diffs. */
+export interface ILiveFacetDiffParams {
   networkLower: string
   environment: EnvironmentEnum
   onChainFacets: IOnChainFacet[]
@@ -1474,9 +1527,13 @@ export function findDeprecatedLiveFacets(params: {
   expectedNames: Set<string> | undefined
   protectedNames: Set<string>
   sourceNames: Set<string>
-}): IFacetRemoval[] {
+}
+
+function diffKnownLiveFacets(
+  params: ILiveFacetDiffParams
+): IRemovalDiff | undefined {
   const { expectedNames } = params
-  if (!expectedNames) return []
+  if (!expectedNames) return undefined
 
   const addressToName: Record<string, string> = {}
   for (const [name, address] of Object.entries(params.deployedContracts))
@@ -1499,7 +1556,7 @@ export function findDeprecatedLiveFacets(params: {
     // (`cleanUpProdDiamond`) computes the real held-back set anyway.
     activeSelectors: new Set<string>(),
     sourceNames: params.sourceNames,
-  }).removals
+  })
 }
 
 /**
@@ -1852,14 +1909,18 @@ async function resolveTargetFacetVersion(
  * @param contractName - facet name as the target state spells it
  * @param liveVersion - the version the diamond log records at the registered address, if any
  * @param target - the resolved target version
+ * @param isUpgradeQueued - consulted only for a behind facet: true when a queued timelock
+ *   diamondCut registers the facet's deploy-log address and the master deploy log records that
+ *   address at the target's base version, which turns the warning into expected-pending
  * @returns true when the live version equals the target
  */
-function reportFacetVersionDrift(
+async function reportFacetVersionDrift(
   ctx: IHealthCheckContext,
   contractName: string,
   liveVersion: string | null,
-  target: { version: string; label: string }
-): boolean {
+  target: { version: string; label: string },
+  isUpgradeQueued: () => Promise<boolean>
+): Promise<boolean> {
   if (liveVersion === null) {
     ctx.logWarn(
       `${contractName} is registered but the diamond log records no version for it — cannot compare against target ${target.label}`
@@ -1879,9 +1940,13 @@ function reportFacetVersionDrift(
     ctx.logWarn(
       `${contractName} version cannot be compared against the target state: ${versions}`
     )
-  else if (order < 0)
-    ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
-  else if (order > 0)
+  else if (order < 0) {
+    if (await isUpgradeQueued())
+      consola.info(
+        `${contractName} is behind the target state (${versions}) — expected-pending: an upgrade is queued in the timelock`
+      )
+    else ctx.logWarn(`${contractName} is behind the target state: ${versions}`)
+  } else if (order > 0)
     ctx.logWarn(`${contractName} is ahead of the target state: ${versions}`)
   return order === 0
 }
@@ -2591,6 +2656,50 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
 
+      // A rollout PR moves the target before its cut executes, so a behind facet whose target
+      // build a queued diamondCut already registers is waiting, not drifting. Resolved once, and
+      // only when something is behind, so a network at target never touches the queue.
+      let scheduled:
+        | Map<string, IPendingRegistration[]>
+        | { unreachable: string }
+        | undefined
+      let unreachableReason: string | undefined
+      const isUpgradeQueued = async (
+        contractName: string,
+        liveAddress: string,
+        targetVersion: string
+      ): Promise<boolean> => {
+        scheduled ??= await resolvePendingRegistrations(ctx)
+        if (!(scheduled instanceof Map)) {
+          unreachableReason = scheduled.unreachable
+          return false
+        }
+        const deployed = ctx.deployedContracts[contractName]
+        if (!deployed) return false
+        // A deploy log still naming the live build never logged the target one, so a queued cut
+        // of that address would re-register the build that is behind.
+        if (addressesMatch(String(deployed), liveAddress)) return false
+        const isCutQueued =
+          scheduled
+            .get(String(deployed).toLowerCase())
+            ?.some((record) => record.kind === 'facet-cut') ?? false
+        if (!isCutQueued) return false
+        // A cut queued before the target moved on would land a build that is still behind, and
+        // the sign-time gate may refuse it, so only a queued build at the target version waits.
+        return versionsAtAddress(
+          ctx.deployLog === undefined ? loadDeployLog() : ctx.deployLog,
+          contractName,
+          ctx.networkLower,
+          String(deployed)
+        ).some(
+          (queuedVersion) =>
+            compareContractVersions(
+              baseSemanticVersion(queuedVersion),
+              baseSemanticVersion(targetVersion)
+            ) === 0
+        )
+      }
+
       let matching = 0
       for (const [contractName, declared] of targets) {
         // An unregistered target-state facet is facets-registered's finding, not this one's.
@@ -2616,10 +2725,25 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             address,
             log
           )
-          if (reportFacetVersionDrift(ctx, contractName, liveVersion, target))
+          if (
+            await reportFacetVersionDrift(
+              ctx,
+              contractName,
+              liveVersion,
+              target,
+              () => isUpgradeQueued(contractName, address, target.version)
+            )
+          )
             matching++
         }
       }
+
+      // As in facets-registered, an unreachable queue suppresses nothing: every behind facet
+      // still warns, and this names the reduced coverage.
+      if (unreachableReason !== undefined)
+        ctx.logWarn(
+          `Timelock queue unreachable — expected-pending downgrade skipped, behind facets reported as behind: ${unreachableReason}`
+        )
 
       if (matching > 0)
         consola.success(
@@ -3300,6 +3424,23 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'permit2proxy-owner',
+    description: 'Permit2Proxy owner is the refund wallet',
+    severity: 'error',
+    scope: { environments: ['production'], chains: 'evm-only' },
+    remediation:
+      'Redeploy Permit2Proxy (its constructor sets refundWallet as owner) and register the new address, or have the current owner call transferOwnership(refundWallet) and refundWallet call confirmOwnershipTransfer().',
+    run: async (ctx) => {
+      if (ctx.publicClient)
+        await checkOwnership(
+          'Permit2Proxy',
+          ctx.refundWallet,
+          ctx,
+          ctx.publicClient
+        )
+    },
+  },
+  {
     name: 'diamond-owner',
     description:
       'Diamond is owned by the timelock (mainnet) or deployer (testnet)',
@@ -3781,6 +3922,78 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         consola.success(
           'All stale registered facets are covered by live parked removals'
         )
+    },
+  },
+  {
+    name: 'no-untargeted-live-facets',
+    description:
+      'Every live facet the deploy log names (source still in src/) is listed in target state',
+    // A warning until the existing backlog is backfilled into target state; as an error it
+    // would red most of the fleet daily on drift that predates this check.
+    severity: 'warning',
+    // skipTestnet for the same reason as no-stale-registered-facets: testnets have no
+    // production target state, so the run would early-return anyway.
+    scope: { environments: ['production'], skipTestnet: true },
+    readsOnChainFacets: true,
+    remediation:
+      'Add each facet the run log lists to script/deploy/_targetState.json under <network>.production.LiFiDiamond (scriptMaster use case 7). If it should not be live on that network, remove it from that diamond (scriptMaster use case 12); /deprecate-contract removes it from every network. See docs/TargetState.md.',
+    run: async (ctx) => {
+      if (ctx.onChainFacets.length === 0) {
+        consola.info(
+          'On-chain facet list unavailable; skipping untargeted-facet check'
+        )
+        return
+      }
+      const expectedNames = getExpectedFacetNames(
+        ctx.networkLower,
+        EnvironmentEnum.production
+      )
+      if (!expectedNames) {
+        consola.info(
+          `No LiFiDiamond target-state entry for ${ctx.networkLower}/production; skipping untargeted-facet check`
+        )
+        return
+      }
+
+      const untargeted = findUntargetedLiveFacets({
+        networkLower: ctx.networkLower,
+        environment: EnvironmentEnum.production,
+        onChainFacets: ctx.onChainFacets,
+        deployedContracts: ctx.deployedContracts,
+        expectedNames,
+        protectedNames: getProtectedNames(),
+        sourceNames: cachedSourceContractNames(),
+      })
+      if (untargeted.length === 0) {
+        consola.success('Every live facet is listed in target state')
+        return
+      }
+
+      const facetLog =
+        ctx.diamondFacetLog ?? loadDiamondLog(ctx.networkLower)?.Facets ?? null
+      // Per-facet detail goes to the run log only. The digest masks network and counts, so one
+      // summary warning per network collapses the whole backlog into a single Slack bullet
+      // instead of one per facet crowding the digest's few slots.
+      for (const facet of untargeted) {
+        const version = resolveRegisteredFacetVersion(
+          facet.name,
+          ctx.networkLower,
+          facet.address,
+          facetLog
+        )
+        consola.warn(
+          `${facet.isCore ? 'Core facet' : 'Facet'} ${facet.name} (${
+            version === null
+              ? `version not recorded in deployments/${ctx.networkLower}.diamond.json`
+              : `v${version}`
+          }) is routed on-chain at ${
+            facet.address
+          } but not listed in target state`
+        )
+      }
+      ctx.logWarn(
+        `${untargeted.length} live facet(s) missing from ${ctx.networkLower}.production.LiFiDiamond in _targetState.json (names in the run log)`
+      )
     },
   },
   {

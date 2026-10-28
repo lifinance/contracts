@@ -85,9 +85,9 @@
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "2.0.0"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
         "Name": "LayerSwapFacet",
@@ -117,9 +117,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0x7A5c119ec5dDbF9631cf40f6e5DB28f31d4332a0": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x8f00E690a45e75D7A1A765163829Ad33244a1C33": {
         "Name": "NEARIntentsFacet",
@@ -133,9 +133,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0x8C9dBA771220Ed09580b77F0765e7153fbDE7790": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
         "Name": "GasZipFacet",
@@ -180,7 +180,7 @@
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "0x98dE828723F8aC654B79b8A1BB8E1E5D737F4F42",
-      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "Permit2Proxy": "0x8eEd5E28216C0Bc6F817df40Ae6CA11C2294CC1c",
       "ReceiverAcrossV3": "0x81F35E762B6792Eea8781fC52F72e62235A5C416",
       "ReceiverAcrossV4": "0x07Cc0a0b41641D349240e1988169Fa11b31FC24E",
       "ReceiverChainflip": "0x543733e09D7DD158Ee85024f7e95ff1460ef21D6",

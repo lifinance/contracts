@@ -17,9 +17,9 @@
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
-      "0x7a9Df65E38B92842a6eBcBf3a6D2BFCB6Fb85067": {
+      "0xC13646De7881ed8aB36cF9E010C9d992e0eC3B2D": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.3.1"
+        "Version": "2.0.0"
       },
       "0x3F52301B7028D80427D47A5a7Fa9b70ed768A39B": {
         "Name": "EmergencyPauseFacet",
@@ -29,9 +29,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0xFDAE19e236380BF01B48272508Ed08fDd84bBccD": {
+      "0x65bE4db5A9d3AaF3B08291df31110A89defC795b": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.2"
+        "Version": "2.0.0"
       },
       "0x0ead0f146F587169443D83F67F25A1b8c0748772": {
         "Name": "OwnershipFacet",
@@ -52,6 +52,10 @@
       "0xd524DE642A409E9440346477666F77877Da84fC5": {
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
+      },
+      "0x85458C635299707087a0E4CAD180D1852076cAc6": {
+        "Name": "M0Facet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -60,11 +64,11 @@
       "FeeCollector": "0x4A01A8bb2C374D654681aEef71Cf367b8716F7B1",
       "FeeForwarder": "0xb3AB05AC1e5f7761eC997fde5990E420E501Fe13",
       "GasZipPeriphery": "0xc702A522d2a953306aa7c60aAAb73A68723f4B13",
-      "LiFiDEXAggregator": "0xd74D6f76730d97C5524b79F03Ed0F503C3897e1b",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xd74D6f76730d97C5524b79F03Ed0F503C3897e1b",
       "OutputValidator": "0x0B1f03b79367CFB04245E6999943C05F441fFfEF",
       "Patcher": "",
-      "Permit2Proxy": "0x3e289E1afc7E6f29cBafb8a8C8e4fa2Df846072C",
+      "Permit2Proxy": "0x8fD4DA180dcfa9E798C2b61abE7Ee81F874937c7",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

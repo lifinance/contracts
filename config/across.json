@@ -73,26 +73,6 @@
       "0x4e107a0000db66f0e9fd2039288bf811dd1f9c74"
     ]
   },
-  "blast": {
-    "chainId": 81457,
-    "acrossSpokePool": "0x2D509190Ed0172ba588407D4c2df918F955Cc6E1",
-    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "tokensToApprove": [
-      "0x4300000000000000000000000000000000000004",
-      "0xf7bc58b8d8f97adc129cfc4c9f45ce3c0e1d2692",
-      "0x4300000000000000000000000000000000000003"
-    ]
-  },
-  "boba": {
-    "chainId": 288,
-    "acrossSpokePool": "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
-    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "tokensToApprove": []
-  },
   "bsc": {
     "chainId": 56,
     "acrossSpokePool": "0x4e8E101924eDE233C13e2D8622DC8aED2872d505",
@@ -120,18 +100,8 @@
     "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
     "sponsoredOftSrcPeriphery": "0xFE9D541c92E4e90437C7152A00244886dE37a658",
     "sponsoredCctpSrcPeriphery": "0x1771c470d41b8c39338450C380bf2C080a2CEdD8",
-    "tokensToApprove": ["0x4200000000000000000000000000000000000006"]
-  },
-  "lens": {
-    "chainId": 232,
-    "acrossSpokePool": "0xb234cA484866c811d0e6D3318866F583781ED045",
-    "spokePoolPeriphery": "0x5a148a9260c1f670429361c34d40b477280F01a9",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
     "tokensToApprove": [
-      "0xe5ecd226b3032910ceaa43ba92ee8232f8237553",
-      "0x88f08e304ec4f90d644cec3fb69b8ad414acf884",
-      "0x6bdc36e20d267ff0dd6097799f82e78907105e2f"
+      "0x4200000000000000000000000000000000000006"
     ]
   },
   "linea": {

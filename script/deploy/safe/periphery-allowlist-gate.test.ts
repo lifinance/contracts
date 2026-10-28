@@ -812,7 +812,7 @@ describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
     const verdict = await evaluatePeripheryAllowlist(
       viaTimelock(
         scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
-        'lens'
+        'lisk'
       ),
       chain([])
     )
@@ -821,7 +821,7 @@ describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
     ])
     expect(verdict.findings[0]?.missing).toEqual(LDA_SELECTORS)
     expect(verdict.cleared).toBe(false)
-    expect(rowOf(verdict, 'lens').status).toBe('fail')
+    expect(rowOf(verdict, 'lisk').status).toBe('fail')
     expect(renderPeripheryAllowlistLines(verdict).join('\n')).not.toContain(
       'not whitelisted on'
     )
@@ -831,7 +831,7 @@ describe('evaluatePeripheryAllowlist — whitelistPeripheryNetworks', () => {
     const verdict = await evaluatePeripheryAllowlist(
       viaTimelock(
         scheduleBatch([register('LiFiDEXAggregator', LDA_ADDRESS)]),
-        'LENS'
+        'LISK'
       ),
       chain([])
     )
@@ -1585,10 +1585,10 @@ describe('gate W — configuration pinned at origin/main', () => {
   it('reads the pinned file through the shared blob reader at the anchored commit', async () => {
     const shown: string[] = []
     const git: IPinnedStateGit = {
-      remoteUrl: () => 'https://github.com/lifinance/contracts.git',
-      fetch: () => undefined,
-      revParse: () => 'c0ffee\n',
-      show: (revSpec) => {
+      remoteUrl: async () => 'https://github.com/lifinance/contracts.git',
+      fetch: async () => undefined,
+      revParse: async () => 'c0ffee\n',
+      show: async (revSpec) => {
         shown.push(revSpec)
         return JSON.stringify(globalConfig)
       },
@@ -1596,7 +1596,7 @@ describe('gate W — configuration pinned at origin/main', () => {
     const read = createPinnedBlobReader({ git })
     const verdict = await evaluatePeripheryAllowlist(
       op38(),
-      deps(read(PERIPHERY_CONFIG_REPO_PATH), withoutTokenWrapper())
+      deps(await read(PERIPHERY_CONFIG_REPO_PATH), withoutTokenWrapper())
     )
     expect(shown).toEqual(['c0ffee:config/global.json'])
     expect(verdict.findings[0]?.status).toBe('missing')
@@ -1605,14 +1605,17 @@ describe('gate W — configuration pinned at origin/main', () => {
     const failing = createPinnedBlobReader({
       git: {
         ...git,
-        fetch: () => {
+        fetch: async () => {
           throw new Error('offline')
         },
       },
     })
     const blocked = await evaluatePeripheryAllowlist(
       op38(),
-      deps(failing(PERIPHERY_CONFIG_REPO_PATH), asConfig(), [DEPOSIT, WITHDRAW])
+      deps(await failing(PERIPHERY_CONFIG_REPO_PATH), asConfig(), [
+        DEPOSIT,
+        WITHDRAW,
+      ])
     )
     expect(blocked.findings[0]?.status).toBe('read-failed')
     expect(blocked.findings[0]?.reason).toContain('fetch-failed')

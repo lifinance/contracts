@@ -9,12 +9,10 @@ paths:
 
 ## Bash Deployment Framework
 
-- Start with `#!/bin/bash`; organize into functions (logging, error handling, deployment); keep DRY via helpers.
-- **Use existing helpers**: Source `script/helperFunctions.sh` and `script/playgroundHelpers.sh` for reusable functions (deployment, verification, network queries, logging, etc.). Prefer existing helpers over reimplementing logic.
-- Load env from `.env`; validate required vars early; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
-- Use logging helpers (`echoDebug`, `error`, `warning`, `success`) and `checkFailure`; implement retries for RPC-sensitive steps; avoid inline secrets.
-- Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
-- Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
+- Start with `#!/bin/bash`.
+- **Use existing helpers**: Source `script/helperFunctions.sh` and `script/playgroundHelpers.sh` for reusable functions (deployment, verification, network queries, logging, etc.).
+- Load env from `.env`; update `.env.example` when adding envs; add system deps to `preinstall.sh` when needed.
+- Use logging helpers (`echoDebug`, `error`, `warning`, `success`) and `checkFailure`.
 
 ### Export a ticket before any production deploy [CONV:DEPLOY-TICKET]
 
@@ -70,7 +68,9 @@ Reuse these instead of inline regex for selector/address checks:
 text, so echoing captured output publishes a live credential. Pass it through `redactRpcUrl`
 from `helperFunctions.sh`, or `bgRedactUrl` inside `script/emergency/`, which must not depend
 on `helperFunctions.sh` loading. `getRPCUrl`'s own stdout return stays verbatim — callers
-consume it. Full rule: `[CONV:REDACT-RPC-URL]` in `200-typescript.md`.
+consume it. `script/redactRpcUrl.test.ts` pins the shared bash print paths, but there is no
+bash-wide scan: since `getRPCUrl` returns the endpoint by design, a naive one false-reds on it.
+Full rule: `[CONV:REDACT-RPC-URL]` in `200-typescript.md`.
 
 ### Contract Interaction Helpers
 
@@ -97,7 +97,7 @@ universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "$PRIVAT
 
 You can also call `universalCall`, `universalSend`, `universalSendRaw`, or `universalCode` directly (they are what `universalCast` dispatches to). **Optional private key override**: For `universalSend`, `universalSendRaw`, and `sendOrPropose`, pass a hex private key as the last (optional) argument to use that key instead of `getPrivateKey(NETWORK, ENVIRONMENT)` (e.g. for pauser wallet or old/new owner flows).
 
-**For raw calldata transactions**, use `sendOrPropose` (internally uses `universalCast "sendRaw"` for Tron and EVM staging; EVM production uses propose-to-safe.ts):
+**For raw calldata transactions**, use `sendOrPropose`. Production proposes to the Safe — `propose-to-safe.ts` on EVM, `propose-to-safe-tron.ts` on Tron — unless `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`; staging and testnets send directly via `universalCast "sendRaw"`:
 
 ```bash
 # sendOrPropose NETWORK ENVIRONMENT TARGET CALLDATA [TIMELOCK] [PRIVATE_KEY_OVERRIDE]
@@ -107,12 +107,14 @@ sendOrPropose "$NETWORK" "$ENVIRONMENT" "$TARGET" "$CALLDATA" "true"
 
 ### Routing Behavior for universalCast
 
-| Function | Tron | EVM Production | EVM Staging |
-|----------|------|----------------|-------------|
-| `universalCall` | troncast call | cast call | cast call |
-| `universalSend` | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
-| `universalSendRaw` | troncast send (direct) | (not used) | cast send (direct) |
-| `universalCode` | troncast code | cast code | cast code |
+| Function | Tron Production | Tron Staging | EVM Production | EVM Staging / Testnet |
+|----------|-----------------|--------------|----------------|-----------------------|
+| `universalCall` | troncast call | troncast call | cast call | cast call |
+| `universalSend` | propose-to-safe-tron.ts | troncast send (direct) | propose-to-safe.ts | cast send (direct) |
+| `universalSendRaw` | troncast send (direct) | troncast send (direct) | (not used) | cast send (direct) |
+| `universalCode` | troncast code | troncast code | cast code | cast code |
+
+`universalSend` delegates to `sendOrPropose`, so its production column holds only while `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` is not `true`; with it set, production sends directly too.
 
 ### Consolidate routing predicates [CONV:ROUTING-PREDICATE]
 
@@ -160,14 +162,6 @@ When adding or modifying helper functions, use this consistent documentation for
 function functionName() {
 ```
 
-**Key conventions**:
-
-- Parameter names in UPPERCASE in both documentation and code
-- Use `-` dash separator for parameter descriptions (not `:`)
-- Group optional parameters with `Optional:` prefix
-- Include routing/behavior section for functions with branching logic
-- Provide concrete examples
-
 ## Syntax validation
 
 Validate before proposing any bash change:
@@ -176,12 +170,10 @@ Validate before proposing any bash change:
 2. **Unbound variables** (with `set -euo pipefail`):
    - Use `${VAR:-}` not `$VAR`; `${ARRAY[@]:-}` not `-v ARRAY[@]`
    - Check `${#ARRAY[@]}` before accessing arrays
-3. **Compatibility**: bash 5.0+ (macOS default); avoid bash 4.0-only features
+3. **Compatibility**: `#!/bin/bash` is bash 3.2 on macOS, so new code avoids bash 4 features (`mapfile`/`readarray`, `declare -A`, `${VAR,,}`). The existing `mapfile` calls in `multiNetworkExecution.sh`, `playgroundHelpers.sh` and `verifyRolloutContracts.sh` are not a precedent
 4. **Strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
 
 ### Pitfalls not covered above
 
-- Process substitution: `< <(...)` requires `#!/bin/bash` shebang
-- Conditionals: `[[ ]]` not `[ ]` for bash-specific features
 - Variable case: Use `UPPERCASE` for all variables, including `local` declarations and loop iterators
 - **No `local` shadowing of `.env` globals**: Never declare `local` for variables defined in `.env.example` (e.g. `PRIVATE_KEY`, `PRIVATE_KEY_PRODUCTION`). `local VAR` initializes to empty and shadows the global, so helper functions running in `$(...)` subshells see an empty value instead of the `.env` one. Either omit `local` or use a different name.

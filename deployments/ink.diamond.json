@@ -33,13 +33,13 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0x09d0AD68C55F44ea64A8B758c457ED63a3177b11": {
+      "0x83E8F744b5034D75b1C1D70C393db6220Da3a2BB": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
-      "0x091EBD75fCD19286b082Ce27b955F01816Af16d2": {
+      "0xA418201c9D772994b34428C1948d318B992251E3": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.2.0"
+        "Version": "2.0.0"
       },
       "0x25c869a9126162eaA54C16dB7C9dB74D01fB8ebd": {
         "Name": "EmergencyPauseFacet",
@@ -57,9 +57,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x746E5c2ea5b3C005368645544D4B532255177e5c": {
+      "0xa44919b475455DC88fAC8ab7Cf5f1C9018651294": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x2f257730442765d7A489FaCaEA1bbC905eCBB701": {
         "Name": "StargateFacetV2",
@@ -100,7 +100,7 @@
       "LiFiDEXAggregator": "0x625Dd0c4b003810E355f72B0a301616967e6C986",
       "OutputValidator": "0xb02d5BCA761495d881Bfa5270771941bCba4Cd06",
       "Patcher": "",
-      "Permit2Proxy": "0x1BCd304fDAd1d1D66529159b1Bc8D13C9158D586",
+      "Permit2Proxy": "0xAF39813d05CB1667c91A830E634bD7C7274199Cf",
       "ReceiverAcrossV3": "0x03C0d38939752A266991f887d45c93e5a0181c9A",
       "ReceiverAcrossV4": "0x4D8fAEdf6BeDEc8Fa68a3256015Ef273Ebf4b787",
       "ReceiverChainflip": "",

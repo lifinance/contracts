@@ -79,13 +79,14 @@ describe('buildDeploymentsFromRepo', () => {
     return buildDeploymentsFromRepo(deploymentsDir, networksPath)
   }
 
-  it('keeps only active non-zkEVM mainnets with a diamond address', () => {
+  it('keeps only active non-zkEVM mainnets with a native currency and a diamond address', () => {
     const result = build(
       {
         mainnet: { chainId: 1, status: 'active', type: 'mainnet' },
         arbitrum: { chainId: 42161, type: 'mainnet' },
         sepolia: { chainId: 11155111, status: 'active', type: 'testnet' },
         zksync: { chainId: 324, status: 'active', isZkEVM: true },
+        tempo: { chainId: 4217, status: 'active', nativeCurrency: 'N/A' },
         fantom: { chainId: 250, status: 'inactive' },
         nodiamond: { chainId: 5, status: 'active' },
         badaddress: { chainId: 6, status: 'active' },
@@ -95,6 +96,7 @@ describe('buildDeploymentsFromRepo', () => {
         arbitrum: { LiFiDiamond: DIAMOND },
         sepolia: { LiFiDiamond: DIAMOND },
         zksync: { LiFiDiamond: DIAMOND },
+        tempo: { LiFiDiamond: DIAMOND },
         fantom: { LiFiDiamond: DIAMOND },
         nodiamond: { SomeFacet: FACET },
         badaddress: { LiFiDiamond: '0x1234' },
