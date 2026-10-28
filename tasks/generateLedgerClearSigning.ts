@@ -28,6 +28,7 @@ interface INetworkConfig {
   status?: string
   type?: string
   isZkEVM?: boolean
+  nativeCurrency?: string
 }
 
 export interface IDeployment {
@@ -216,7 +217,8 @@ export function mergeDisplayFormats(
 
 /**
  * Lists the LiFiDiamond deployment of every active mainnet network that is not
- * a zkEVM chain: the set the registry descriptor can carry.
+ * a zkEVM chain and has a native currency: the set the registry descriptor can
+ * carry.
  * @param deploymentsDir - Directory of per-network deployment logs
  * @param networksJsonPath - Path to `config/networks.json`
  * @returns One deployment per chain ID, sorted by chain ID
@@ -244,6 +246,11 @@ export function buildDeploymentsFromRepo(
     // The registry lints with `--require-verified`, which Sourcify can never
     // satisfy for zksolc bytecode, and testnet diamonds do not belong in it.
     if (cfg.type === 'testnet' || cfg.isZkEVM) continue
+
+    // The descriptor shows fees and `@.value` as native currency. A chain
+    // without one (Tempo) charges some of those fees in an ERC-20 instead, so
+    // the descriptor would show the signer the wrong amount.
+    if (cfg.nativeCurrency === 'N/A') continue
 
     const deploymentPath = path.resolve(deploymentsDir, file)
     const data = readJsonFile<Record<string, unknown>>(deploymentPath)
@@ -455,7 +462,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains and, with --lintOutputFilePath, the deployments that lint reports as not verified on Sourcify), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains, chains without a native currency and, with --lintOutputFilePath, the deployments that lint reports as not verified on Sourcify), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {
