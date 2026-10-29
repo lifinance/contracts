@@ -66,6 +66,7 @@ Each amount is `balanceOf(caller) * share / 1e18`, rounded down. `1e18` is 100% 
 - Reverts with `InvalidReceiver` for a zero-address recipient, whatever its share
 - A share that rounds to zero (or a 0 share entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
 - The `FeesForwarded` event carries the computed amounts, in input order
+- With a fee-on-transfer token, the event and the caller's balance reduction carry the computed amount; the recipient receives it net of the token's transfer fee
 - ERC20 only: `address(0)` reverts without error data (the `balanceOf` call has no code to run)
 
 **Using it in `GenericSwapFacetV3`:**

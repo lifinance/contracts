@@ -1637,6 +1637,44 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         vm.stopPrank();
     }
 
+    function test_FeeShareStepAssetSwappedReportsQuotedInputAndNetBalance()
+        public
+    {
+        vm.startPrank(DAI_HOLDER);
+
+        dai.approve(address(genericSwapFacetV3), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            ,
+            ,
+            uint256 amountToReceiver
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
+
+        // fromAmount is the quoted output set off-chain, toAmount the facet's balance after the fee
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit AssetSwapped(
+            bytes32(0),
+            address(feeForwarder),
+            ADDRESS_USDC,
+            ADDRESS_USDC,
+            swapData[1].fromAmount,
+            amountToReceiver,
+            block.timestamp
+        );
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountToReceiver,
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
     // MULTISWAP COLLECT NATIVE FEE AND SWAP TO ERC20
 
     function _produceSwapDataMultiswapNativeFeeAndSwapToERC20()
