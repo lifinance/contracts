@@ -108,6 +108,10 @@ const signatureEntry = (
     .replace(/#x[#0-9a-fA-F]+/g, '0x…')
 }
 
+/** Why a mismatch on a network this run could not read repeats unchanged. */
+export const UNREAD_MISMATCH_REASON =
+  'its network could not be read this run; last seen as a mismatch'
+
 const entriesOf = (signature: string): Set<string> =>
   new Set(signature.split('\n').filter(Boolean))
 
@@ -125,7 +129,7 @@ const entriesOf = (signature: string): Set<string> =>
  * - An operation this run no longer reports, on a network it read completely,
  *   was executed or cancelled: that is announced and its record dropped. A
  *   network that could not be read keeps its records, so its return does not
- *   re-page.
+ *   re-page; a standing mismatch among them still repeats on its throttle.
  *
  * @param previous - Records the last run persisted.
  * @param findings - Everything this run judged.
@@ -222,8 +226,26 @@ export const decideAlerts = (
   for (const [key, record] of Object.entries(previous)) {
     if (seen.has(key)) continue
     const network = networkOfKey(key)
-    if (!settledNetworks.has(network)) next[key] = record
-    else if (
+    if (!settledNetworks.has(network)) {
+      // An unread network reports none of its operations, but a standing
+      // mismatch among them keeps its repeat rather than going quiet.
+      if (
+        record.verdict === 'mismatch' &&
+        record.resolvedAt === undefined &&
+        isDue(record)
+      ) {
+        alerts.push({
+          kind: 'repeat',
+          finding: {
+            key,
+            network,
+            verdict: 'mismatch',
+            reasons: [UNREAD_MISMATCH_REASON],
+          },
+        })
+        next[key] = { ...record, alertedAt: stamp }
+      } else next[key] = record
+    } else if (
       key !== findingKey(network, 'network') &&
       record.resolvedAt === undefined
     )

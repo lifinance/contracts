@@ -13,6 +13,7 @@ import {
   DIGEST_INTERVAL_MS,
   MISMATCH_REALERT_MS,
   UNVERIFIED_PAGE_AFTER_RUNS,
+  UNREAD_MISMATCH_REASON,
   UNVERIFIED_REALERT_MS,
   decideAlerts,
   findingKey,
@@ -397,6 +398,45 @@ describe('decideAlerts: subjects that disappear', () => {
       NOW
     )
     expect(back.alerts).toEqual([])
+  })
+
+  it('repeats a standing mismatch on a network that could not be read, once its throttle ends', () => {
+    const notDue = { [OTHER]: recordAt('mismatch', MISMATCH_REALERT_MS - 1) }
+    expect(decideAlerts(notDue, [], ALL, NOW).alerts).toEqual([])
+
+    const record = recordAt('mismatch', MISMATCH_REALERT_MS)
+    const due = { [OTHER]: record }
+    const decision = decideAlerts(due, [], ALL, NOW)
+    expect(decision.alerts).toEqual([
+      {
+        kind: 'repeat',
+        finding: {
+          key: OTHER,
+          network: 'mainnet',
+          verdict: 'mismatch',
+          reasons: [UNREAD_MISMATCH_REASON],
+        },
+      },
+    ])
+    expect(decision.next[OTHER]).toEqual({
+      ...record,
+      alertedAt: NOW.toISOString(),
+    })
+    const plan = planDelivery(
+      due,
+      decision,
+      { streaks: {}, held: [] },
+      ALL,
+      NOW
+    )
+    expect(plan.actionable.map((a) => a.finding.key)).toEqual([OTHER])
+  })
+
+  it('keeps a due unverified record on a network that could not be read without repeating it', () => {
+    const record = recordAt('unverified', UNVERIFIED_REALERT_MS)
+    const decision = decideAlerts({ [OTHER]: record }, [], ALL, NOW)
+    expect(decision.alerts).toEqual([])
+    expect(decision.next[OTHER]).toEqual(record)
   })
 })
 
