@@ -530,8 +530,10 @@ function nonEvmRecipientField(path: string, type = 'bytes32'): IFacetField {
   return field(path, type, 'Non-EVM Recipient', { visible: unlessZero(type) })
 }
 
+// A 1e18-scaled fraction (1e18 = 100%) shown as a percentage.
+const PERCENT_1E18_PARAMS = { base: '%', decimals: 16 }
 // The output multipliers fold the token decimal difference into the ratio, so
-// a percentage is wrong whenever the two tokens' decimals differ.
+// the percentage is of raw units: a price only when both tokens share decimals.
 const OUTPUT_RATIO_LABEL = 'Output Ratio (raw units)'
 
 // For facets whose real destination or recipient lives in the facet data rather
@@ -592,7 +594,7 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         '_acrossData.outputAmountMultiplier',
         'uint128',
         OUTPUT_RATIO_LABEL,
-        { only: 'swap' }
+        { only: 'swap', format: 'unit', params: PERCENT_1E18_PARAMS }
       ),
       field('_acrossData.receivingAssetId', 'bytes32', 'Token Received'),
       ...bytes32RecipientFields(
@@ -808,7 +810,8 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       field(
         '_lifiIntentData.outputAmountMultiplier',
         'uint128',
-        OUTPUT_RATIO_LABEL
+        OUTPUT_RATIO_LABEL,
+        { format: 'unit', params: PERCENT_1E18_PARAMS }
       ),
       field('_lifiIntentData.outputToken', 'bytes32', 'Token Received'),
       // Becomes the recipient when dstCallSwapData is not empty.

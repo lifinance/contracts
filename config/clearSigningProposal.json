@@ -1607,7 +1607,11 @@
         {
           "path": "_lifiIntentData.outputAmountMultiplier",
           "label": "Output Ratio (raw units)",
-          "format": "raw",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
           "visible": "always"
         },
         {
@@ -3553,7 +3557,11 @@
         {
           "path": "_acrossData.outputAmountMultiplier",
           "label": "Output Ratio (raw units)",
-          "format": "raw",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
           "visible": "always"
         },
         {
@@ -5588,7 +5596,11 @@
         {
           "path": "_lifiIntentData.outputAmountMultiplier",
           "label": "Output Ratio (raw units)",
-          "format": "raw",
+          "format": "unit",
+          "params": {
+            "base": "%",
+            "decimals": 16
+          },
           "visible": "always"
         },
         {
