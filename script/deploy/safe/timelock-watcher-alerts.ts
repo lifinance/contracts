@@ -223,6 +223,19 @@ export const decideAlerts = (
     } else next[finding.key] = { ...record, reasons: union }
   }
 
+  // Skipped networks report an ok network finding and ones outside the run
+  // report none, so only a network the run tried and failed to read is here.
+  const unread = new Set(
+    findings
+      .filter(
+        (f) =>
+          f.key === findingKey(f.network, 'network') &&
+          f.verdict !== 'ok' &&
+          !settledNetworks.has(f.network)
+      )
+      .map((f) => f.network)
+  )
+
   for (const [key, record] of Object.entries(previous)) {
     if (seen.has(key)) continue
     const network = networkOfKey(key)
@@ -230,6 +243,7 @@ export const decideAlerts = (
       // An unread network reports none of its operations, but a standing
       // mismatch among them keeps its repeat rather than going quiet.
       if (
+        unread.has(network) &&
         record.verdict === 'mismatch' &&
         record.resolvedAt === undefined &&
         isDue(record)

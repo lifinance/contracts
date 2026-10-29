@@ -400,14 +400,24 @@ describe('decideAlerts: subjects that disappear', () => {
     expect(back.alerts).toEqual([])
   })
 
+  const unreadNetwork = finding(
+    'unverified',
+    findingKey('mainnet', 'network'),
+    'mainnet'
+  )
+  const operationAlerts = (alerts: readonly IAlertItem[]): IAlertItem[] =>
+    alerts.filter((a) => a.finding.key === OTHER)
+
   it('repeats a standing mismatch on a network that could not be read, once its throttle ends', () => {
     const notDue = { [OTHER]: recordAt('mismatch', MISMATCH_REALERT_MS - 1) }
-    expect(decideAlerts(notDue, [], ALL, NOW).alerts).toEqual([])
+    expect(
+      operationAlerts(decideAlerts(notDue, [unreadNetwork], ALL, NOW).alerts)
+    ).toEqual([])
 
     const record = recordAt('mismatch', MISMATCH_REALERT_MS)
     const due = { [OTHER]: record }
-    const decision = decideAlerts(due, [], ALL, NOW)
-    expect(decision.alerts).toEqual([
+    const decision = decideAlerts(due, [unreadNetwork], ALL, NOW)
+    expect(operationAlerts(decision.alerts)).toEqual([
       {
         kind: 'repeat',
         finding: {
@@ -434,10 +444,26 @@ describe('decideAlerts: subjects that disappear', () => {
 
   it('keeps a due unverified record on a network that could not be read without repeating it', () => {
     const record = recordAt('unverified', UNVERIFIED_REALERT_MS)
-    const decision = decideAlerts({ [OTHER]: record }, [], ALL, NOW)
-    expect(decision.alerts).toEqual([])
+    const decision = decideAlerts(
+      { [OTHER]: record },
+      [unreadNetwork],
+      ALL,
+      NOW
+    )
+    expect(operationAlerts(decision.alerts)).toEqual([])
     expect(decision.next[OTHER]).toEqual(record)
   })
+
+  for (const [name, findings] of [
+    ['skipped', [finding('ok', findingKey('mainnet', 'network'), 'mainnet')]],
+    ['left out of the run', []],
+  ] as const)
+    it(`keeps a due mismatch record on a network ${name} without repeating it`, () => {
+      const record = recordAt('mismatch', MISMATCH_REALERT_MS)
+      const decision = decideAlerts({ [OTHER]: record }, findings, ALL, NOW)
+      expect(operationAlerts(decision.alerts)).toEqual([])
+      expect(decision.next[OTHER]).toEqual(record)
+    })
 })
 
 describe('planDelivery', () => {
