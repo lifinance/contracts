@@ -900,7 +900,7 @@
         "contractName": "FeeForwarder",
         "sourceId": "src/Periphery/FeeForwarder.sol",
         "version": "2.1.0",
-        "closureHash": "0xb9873a400a6e26c42fd7ffb9400c12886f95df42488be8232f3fe974d398d401",
+        "closureHash": "0xa17f5c06ff97dbeba0467e27b7718b3026103283a8aa070191284b5007e39c75",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -920,9 +920,9 @@
           }
         }
       },
-      "maskedHash": "0x3f3931249aa9d86c6d977e1b6861e314f459f2f481ac08beb503e12948d62fad",
+      "maskedHash": "0xd7a87e2717d68a94d1a3eff4e6790ab7a1472fbf0838915e4ce9528d21debac3",
       "lineage": "FeeForwarder@2.1.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 4123
+      "rawByteLength": 4185
     },
     {
       "key": {

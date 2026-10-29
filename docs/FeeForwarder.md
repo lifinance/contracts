@@ -43,18 +43,18 @@ function forwardERC20Fees(
 ### Forwarding ERC20 Fees as a Share of the Output
 
 ```solidity
-/// @notice Forwards bps shares of the caller's ERC20 balance to the specified recipients
+/// @notice Forwards shares of the caller's ERC20 balance to the specified recipients
 /// @param token address of the token being forwarded
-/// @param distributions array of recipients and their shares in basis points
-function forwardERC20FeesBps(
+/// @param distributions array of recipients and their shares out of 1e18
+function forwardERC20FeesShares(
     address token,
-    FeeBpsDistribution[] calldata distributions
+    FeeShareDistribution[] calldata distributions
 )
 ```
 
 Used as a swap step right after the swap that produces `token`, so the fee is a share of the actual output instead of a fixed amount computed off-chain from `toAmountMin`.
 
-Each share is `balanceOf(caller) * bps / 10_000`, rounded down. The balance is read once before the first transfer; whatever the shares leave behind stays with the caller.
+Each amount is `balanceOf(caller) * share / 1e18`, rounded down. `1e18` is 100% and `1e14` is 1 bps, so a share can express fractional bps such as 0.3 or 12.5 bps. The amount is computed with `FixedPointMathLib.fullMulDiv`, so the multiplication cannot overflow. The balance is read once before the first transfer; whatever the shares leave behind stays with the caller.
 
 **Important Notes:**
 
@@ -62,9 +62,9 @@ Each share is `balanceOf(caller) * bps / 10_000`, rounded down. The balance is r
 - Put **all** fees for `token` into a single call. A second call computes its shares from the balance the first one already reduced, so the fees compound
 - The fee base is the caller's full balance of `token`, including any balance it held before the swap (same full-balance pattern as [OutputValidator](OutputValidator.md)). `GenericSwapFacetV3` pays that full balance to the receiver
 - Use it only in `GenericSwapFacetV3`. `SwapperV2` bridge flows credit only the balance increase, so tokens donated to the diamond raise the user's fee and, once the bridged amount drops below `minAmount`, make the route revert
-- Reverts with `InvalidTotalBps(totalBps)` once the running total of the shares passes 10_000 bps; `totalBps` is the running total at that share
+- Reverts with `InvalidTotalShares(totalShares)` once the running total of the shares passes `1e18`; `totalShares` is the running total at that share
 - Reverts with `InvalidReceiver` for a zero-address recipient, whatever its share
-- A share that rounds to zero (or a 0 bps entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
+- A share that rounds to zero (or a 0 share entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
 - The `FeesForwarded` event carries the computed amounts, in input order
 - ERC20 only: `address(0)` reverts without error data (the `balanceOf` call has no code to run)
 
@@ -106,12 +106,12 @@ struct FeeDistribution {
 }
 ```
 
-### FeeBpsDistribution Struct
+### FeeShareDistribution Struct
 
 ```solidity
-struct FeeBpsDistribution {
+struct FeeShareDistribution {
   address recipient; // The address that will receive the fee share
-  uint16 bps; // The share of the caller's balance in basis points (10_000 = 100%)
+  uint64 share; // The share of the caller's balance, out of 1e18 (1e18 = 100%)
 }
 ```
 
@@ -124,7 +124,7 @@ event FeesForwarded(address indexed token, FeeDistribution[] distributions);
 ```
 
 - **token**: The address of the token that was forwarded (address(0) for native tokens)
-- **distributions**: Array of fee distributions that were processed (for `forwardERC20FeesBps`, the computed amounts)
+- **distributions**: Array of fee distributions that were processed (for `forwardERC20FeesShares`, the computed amounts)
 
 **Note**: This event is always emitted, even for empty arrays, as it's outside the distribution loop.
 
@@ -133,9 +133,9 @@ event FeesForwarded(address indexed token, FeeDistribution[] distributions);
 The contract uses minimal error checking for gas optimization:
 
 - **InvalidConfig**: Thrown when constructor receives zero address as owner
-- **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset; checked up front in `forwardERC20FeesBps`)
+- **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset; checked up front in `forwardERC20FeesShares`)
 - **Natural Failures**: Insufficient balance or approvals will cause natural reverts
-- **InvalidTotalBps(totalBps)**: Thrown by `forwardERC20FeesBps` when the shares add up to more than 10_000 bps; carries the running total at the first share past the limit
+- **InvalidTotalShares(totalShares)**: Thrown by `forwardERC20FeesShares` when the shares add up to more than `1e18`; carries the running total at the first share past the limit
 - **InsufficientBalance(required, balance)**: Thrown by `forwardNativeFees` when the distributions sum to more than `msg.value` **and** the contract's own balance was able to cover the shortfall — the invocation is refusing to spend funds its caller did not provide. Without such a balance the failing transfer reverts first with `ETHTransferFailed`, so under-funding surfaces as one of these two errors depending on whether a stray balance is present
 
 ## Security Considerations

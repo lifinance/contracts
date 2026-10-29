@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { FixedPointMathLib } from "solady/utils/FixedPointMathLib.sol";
 import { WithdrawablePeriphery } from "../Helpers/WithdrawablePeriphery.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { InvalidConfig, InvalidReceiver, InsufficientBalance } from "../Errors/GenericErrors.sol";
@@ -26,21 +27,21 @@ contract FeeForwarder is WithdrawablePeriphery {
 
     /// @notice Represents a fee share of the caller's token balance for a recipient
     /// @param recipient The address that will receive the fee share
-    /// @param bps The share of the caller's balance in basis points (10_000 = 100%)
-    struct FeeBpsDistribution {
+    /// @param share The share of the caller's balance, out of 1e18 (1e18 = 100%)
+    struct FeeShareDistribution {
         address recipient;
-        uint16 bps;
+        uint64 share;
     }
 
     /// Constants ///
 
-    uint256 private constant BPS_DENOMINATOR = 10_000;
+    uint256 private constant SHARE_DENOMINATOR = 1e18;
 
     /// Errors ///
 
-    /// @notice Thrown when the bps shares of a call add up to more than 10_000
-    /// @param totalBps The running total at the first share that pushes it past 10_000
-    error InvalidTotalBps(uint256 totalBps);
+    /// @notice Thrown when the shares of a call add up to more than 1e18
+    /// @param totalShares The running total at the first share that pushes it past 1e18
+    error InvalidTotalShares(uint256 totalShares);
 
     /// Events ///
 
@@ -94,39 +95,44 @@ contract FeeForwarder is WithdrawablePeriphery {
         emit FeesForwarded(_token, _distributions);
     }
 
-    /// @notice Forwards bps shares of the caller's ERC20 balance to the specified recipients
+    /// @notice Forwards shares of the caller's ERC20 balance to the specified recipients
     /// @dev Intended as a GenericSwapFacetV3 swap step after the swap that produces `_token`.
     ///      Must not be used in SwapperV2 bridge flows: they credit only the balance increase,
     ///      so tokens donated to the caller raise the user's fee and can make the route revert.
     ///      The caller must have approved this contract to spend the tokens.
     /// @param _token The address of the ERC20 token to forward
-    /// @param _distributions Array of recipients and their shares in basis points
-    function forwardERC20FeesBps(
+    /// @param _distributions Array of recipients and their shares out of 1e18
+    function forwardERC20FeesShares(
         address _token,
-        FeeBpsDistribution[] calldata _distributions
+        FeeShareDistribution[] calldata _distributions
     ) external {
         uint256 balance = IERC20(_token).balanceOf(msg.sender);
 
         uint256 length = _distributions.length;
         FeeDistribution[] memory forwarded = new FeeDistribution[](length);
-        uint256 totalBps;
-        FeeBpsDistribution calldata distribution;
+        uint256 totalShares;
+        FeeShareDistribution calldata distribution;
         for (uint256 i; i < length; ++i) {
             distribution = _distributions[i];
 
             // checked up front: the transfer also rejects it, but only for a non-zero share
             if (distribution.recipient == address(0)) revert InvalidReceiver();
 
-            uint256 bps = distribution.bps;
-            // cannot overflow: the check below keeps totalBps <= 10_000 before each addition
+            uint256 share = distribution.share;
+            // cannot overflow: the check below keeps totalShares <= 1e18 before each addition
             unchecked {
-                totalBps += bps;
+                totalShares += share;
             }
-            // checked before the transfer: past 10_000 the shares exceed the balance and the
+            // checked before the transfer: past 1e18 the shares exceed the balance and the
             // transfer would revert first with a less specific error
-            if (totalBps > BPS_DENOMINATOR) revert InvalidTotalBps(totalBps);
+            if (totalShares > SHARE_DENOMINATOR)
+                revert InvalidTotalShares(totalShares);
 
-            uint256 amount = (balance * bps) / BPS_DENOMINATOR;
+            uint256 amount = FixedPointMathLib.fullMulDiv(
+                balance,
+                share,
+                SHARE_DENOMINATOR
+            );
             forwarded[i] = FeeDistribution(distribution.recipient, amount);
 
             if (amount != 0) {

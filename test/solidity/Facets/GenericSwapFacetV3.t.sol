@@ -30,6 +30,8 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     address internal constant FEE_COLLECTOR =
         0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9;
     address internal constant INTEGRATOR_WALLET = address(0xb33f);
+    // 12.5 bps, out of 1e18
+    uint64 internal constant INTEGRATOR_FEE_SHARE = 0.00125e18;
 
     // -----
 
@@ -122,7 +124,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         );
         genericSwapFacetV3.addAllowedContractSelector(
             address(feeForwarder),
-            feeForwarder.forwardERC20FeesBps.selector
+            feeForwarder.forwardERC20FeesShares.selector
         );
 
         // set facet address in TestBase
@@ -1430,9 +1432,9 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         );
     }
 
-    // MULTISWAP SWAP TO ERC20 THEN FORWARD BPS SHARE OF THE OUTPUT (FeeForwarder)
+    // MULTISWAP SWAP TO ERC20 THEN FORWARD A SHARE OF THE OUTPUT (FeeForwarder)
 
-    function _produceSwapDataSwapToERC20AndForwardERC20FeeBps()
+    function _produceSwapDataSwapToERC20AndForwardERC20FeeShare()
         private
         view
         returns (
@@ -1470,13 +1472,12 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             true
         );
 
-        // Swap2: forward 0.3% of the actual USDC output to an integrator
-        uint16 integratorFeeBps = 30;
-        FeeForwarder.FeeBpsDistribution[]
-            memory distributions = new FeeForwarder.FeeBpsDistribution[](1);
-        distributions[0] = FeeForwarder.FeeBpsDistribution(
+        // Swap2: forward 12.5 bps of the actual USDC output to an integrator
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution(
             INTEGRATOR_WALLET,
-            integratorFeeBps
+            INTEGRATOR_FEE_SHARE
         );
         swapData[1] = LibSwap.SwapData(
             address(feeForwarder),
@@ -1485,18 +1486,18 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             ADDRESS_USDC,
             swapOutput, // quoted output; the share is computed from the balance
             abi.encodeWithSelector(
-                feeForwarder.forwardERC20FeesBps.selector,
+                feeForwarder.forwardERC20FeesShares.selector,
                 ADDRESS_USDC,
                 distributions
             ),
             false
         );
 
-        integratorFee = (swapOutput * integratorFeeBps) / 10_000;
+        integratorFee = (swapOutput * INTEGRATOR_FEE_SHARE) / 1e18;
         amountToReceiver = swapOutput - integratorFee;
     }
 
-    function test_CanSwapToERC20ThenForwardBpsShareOfOutputViaFeeForwarder()
+    function test_CanSwapToERC20ThenForwardShareOfOutputViaFeeForwarder()
         public
     {
         vm.startPrank(DAI_HOLDER);
@@ -1508,7 +1509,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             uint256 amountIn,
             uint256 integratorFee,
             uint256 amountToReceiver
-        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeBps();
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
 
         uint256 integratorBalanceBefore = usdc.balanceOf(INTEGRATOR_WALLET);
         uint256 receiverBalanceBefore = usdc.balanceOf(SOME_WALLET);
@@ -1522,7 +1523,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             ADDRESS_DAI, // fromAssetId,
             ADDRESS_USDC, // toAssetId,
             amountIn, // fromAmount,
-            amountToReceiver // toAmount (swap output minus the bps fee)
+            amountToReceiver // toAmount (swap output minus the fee share)
         );
 
         // minAmountOut is checked after the fee leg, so it is the net amount
@@ -1548,7 +1549,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         assertEq(usdc.balanceOf(address(genericSwapFacetV3)), 0);
     }
 
-    function test_SwapToERC20ThenForwardBpsShareIncludesPreExistingBalance()
+    function test_SwapToERC20ThenForwardShareIncludesPreExistingBalance()
         public
     {
         // the facet pays its full balance to the receiver, so a balance it already held is
@@ -1565,12 +1566,12 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             ,
             uint256 integratorFeeOnOutput,
             uint256 amountToReceiverFromOutput
-        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeBps();
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
 
         uint256 swapOutput = integratorFeeOnOutput +
             amountToReceiverFromOutput;
-        uint256 integratorFee = ((swapOutput + preExistingBalance) * 30) /
-            10_000;
+        uint256 integratorFee = ((swapOutput + preExistingBalance) *
+            INTEGRATOR_FEE_SHARE) / 1e18;
         uint256 amountToReceiver = swapOutput +
             preExistingBalance -
             integratorFee;
@@ -1600,7 +1601,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         assertEq(usdc.balanceOf(address(genericSwapFacetV3)), 0);
     }
 
-    function testRevert_SwapToERC20ThenForwardBpsShareWithGrossMinAmountOut()
+    function testRevert_SwapToERC20ThenForwardShareWithGrossMinAmountOut()
         public
     {
         vm.startPrank(DAI_HOLDER);
@@ -1612,7 +1613,7 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             ,
             uint256 integratorFee,
             uint256 amountToReceiver
-        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeBps();
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
 
         uint256 grossMinAmountOut = amountToReceiver + integratorFee;
 
