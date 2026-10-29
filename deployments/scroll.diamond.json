@@ -77,10 +77,6 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0x9535A1AFd986FA9a2D324657116F02C364edebFf": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
       "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"

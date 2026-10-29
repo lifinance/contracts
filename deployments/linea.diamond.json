@@ -85,10 +85,6 @@
         "Name": "FraxFacet",
         "Version": "1.0.0"
       },
-      "0xf7B252c92e34589a062659417d3a851cc3dF043F": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
       "0x1a9eAdc142Fc447FcE6Da00D23B0691c74B8916B": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.1.0"
