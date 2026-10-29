@@ -530,8 +530,6 @@ function nonEvmRecipientField(path: string, type = 'bytes32'): IFacetField {
   return field(path, type, 'Non-EVM Recipient', { visible: unlessZero(type) })
 }
 
-// A 1e18-scaled fraction (1e18 = 100%) shown as a percentage.
-const PERCENT_1E18_PARAMS = { base: '%', decimals: 16 }
 // The output multipliers fold the token decimal difference into the ratio, so
 // a percentage is wrong whenever the two tokens' decimals differ.
 const OUTPUT_RATIO_LABEL = 'Output Ratio (raw units)'
@@ -624,14 +622,6 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
     amountLabel: {
       swap: 'Minimum to Bridge (surplus: bridged on route 0, refunded on 1-3)',
     },
-  },
-  Across: {
-    fields: [
-      field('_acrossData.relayerFeePct', 'int64', 'Relayer Fee', {
-        format: 'unit',
-        params: PERCENT_1E18_PARAMS,
-      }),
-    ],
   },
   AllBridge: {
     fields: [
