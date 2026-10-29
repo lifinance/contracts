@@ -733,6 +733,29 @@ const networkVerdict = (
     : 'ok'
 
 /**
+ * The report of a network that could not be read to the end.
+ *
+ * @param network - Network name.
+ * @param reason - Why it could not be read.
+ * @param found - What was established before the read failed: the timelock, a
+ *   mismatch already found (the diamond's owner), and the notes saying so.
+ * @returns An unreadable report: a mismatch when one was found, else unverified.
+ */
+export const unreadableReport = (
+  network: string,
+  reason: string,
+  found: { timelock?: string; mismatch?: boolean; notes?: string[] } = {}
+): INetworkReport => ({
+  network,
+  status: 'unreadable',
+  reason,
+  ...(found.timelock ? { timelock: found.timelock } : {}),
+  verdict: found.mismatch ? 'mismatch' : 'unverified',
+  operations: [],
+  notes: found.notes ?? [],
+})
+
+/**
  * Watches one network.
  *
  * @param network - The network, from `config/networks.json`.
@@ -746,15 +769,8 @@ export const watchNetwork = async (
 ): Promise<INetworkReport> => {
   const name = network.name
   const startedAt = Date.now()
-  const unreadable = (reason: string, timelock?: string): INetworkReport => ({
-    network: name,
-    status: 'unreadable',
-    reason,
-    ...(timelock ? { timelock } : {}),
-    verdict: 'unverified',
-    operations: [],
-    notes: [],
-  })
+  const unreadable = (reason: string, timelock?: string): INetworkReport =>
+    unreadableReport(name, reason, timelock ? { timelock } : {})
 
   const pinned = await ctx.readPinned(`deployments/${name}.json`)
   if (!pinned.ok)
@@ -806,6 +822,10 @@ export const watchNetwork = async (
   const notes: string[] = []
   let flagMismatch = false
   let flagUnverified = false
+  // An unreadable network no longer fails the job, so a mismatch found before
+  // the read failed must stay on its report.
+  const unreadableAfterOwner = (reason: string): INetworkReport =>
+    unreadableReport(name, reason, { timelock, mismatch: flagMismatch, notes })
 
   if (diamond)
     try {
@@ -889,7 +909,7 @@ export const watchNetwork = async (
       }
     )
   } catch (error) {
-    return unreadable(logScanFailureReason(error), timelock)
+    return unreadableAfterOwner(logScanFailureReason(error))
   }
   if (floorNote) notes.push(floorNote)
   if (scan.historyError !== undefined)
@@ -921,9 +941,8 @@ export const watchNetwork = async (
     now = latest.timestamp
     latestBlock = latest.number
   } catch (error) {
-    return unreadable(
-      `the latest block could not be read: ${describe(error)}`,
-      timelock
+    return unreadableAfterOwner(
+      `the latest block could not be read: ${describe(error)}`
     )
   }
   try {

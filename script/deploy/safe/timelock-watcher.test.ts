@@ -24,6 +24,7 @@ import {
   logScanFailureReason,
   openWatcherStore,
   readTimelockLogs,
+  unreadableReport,
   type ILogEndpoint,
 } from './timelock-watcher'
 import {
@@ -286,6 +287,52 @@ describe('jobFails', () => {
       expect(jobFails(reports, deliveryFailed)).toBe(true)
       expect(jobFails([...reports, unreadable], deliveryFailed)).toBe(true)
     })
+})
+
+describe('unreadableReport', () => {
+  const OWNER_NOTE =
+    'LiFiDiamond is owned by 0x01, not by the timelock main names; operations on that owner are not watched'
+
+  it('is unverified when nothing was found before the read failed', () => {
+    expect(unreadableReport('linea', 'the log scan failed')).toEqual({
+      network: 'linea',
+      status: 'unreadable',
+      reason: 'the log scan failed',
+      verdict: 'unverified',
+      operations: [],
+      notes: [],
+    })
+  })
+
+  it('keeps an owner mismatch found before the scan failed, so it fails the job and pages at once', () => {
+    const report = unreadableReport('linea', 'the log scan failed', {
+      timelock: '0x02',
+      mismatch: true,
+      notes: [OWNER_NOTE],
+    })
+    expect(report.verdict).toBe('mismatch')
+    expect(report.status).toBe('unreadable')
+    expect(jobFails([report], false)).toBe(true)
+
+    const now = new Date(Date.UTC(2026, 9, 29))
+    const settled = new Set<string>()
+    const decision = decideAlerts({}, findingsOf([report]), settled, now)
+    const plan = planDelivery(
+      {},
+      decision,
+      { streaks: {}, held: [] },
+      settled,
+      now
+    )
+    expect(plan.actionable.map((a) => a.finding)).toEqual([
+      {
+        key: 'linea:network',
+        network: 'linea',
+        verdict: 'mismatch',
+        reasons: ['the log scan failed', OWNER_NOTE],
+      },
+    ])
+  })
 })
 
 describe('openWatcherStore', () => {
