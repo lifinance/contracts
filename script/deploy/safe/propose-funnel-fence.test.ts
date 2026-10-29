@@ -10,7 +10,7 @@
  * through it.
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { extname, join } from 'path'
 
@@ -225,6 +225,40 @@ describe('the fence runs where it has to run', () => {
     expect(STAGED_FENCE).toBeDefined()
     expect(PACKAGE_JSON.scripts['lint:funnel']).toBe(`${STAGED_FENCE} .`)
   })
+
+  it(
+    'runs where no IPC socket can be bound',
+    () => {
+      if (!STAGED_FENCE)
+        throw new Error('package.json lint-staged has no funnel-fence entry')
+
+      // Longer than a Unix socket path may be (104 bytes on macOS, 108 on Linux):
+      // a launcher that binds a socket under TMPDIR fails here, as in a sandbox.
+      const parent = mkdtempSync(join(tmpdir(), 'no-socket-'))
+      const longTmp = join(parent, 'a'.repeat(120))
+      mkdirSync(longTmp)
+      try {
+        const result = Bun.spawnSync(
+          [...STAGED_FENCE.split(' '), 'script/utils/is-entrypoint.ts'],
+          {
+            cwd: REPO_ROOT,
+            env: { ...spawnEnv(), TMPDIR: longTmp },
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: TIMEOUT_MS,
+          }
+        )
+
+        expect(result.exitCode).toBe(0)
+        expect(
+          `${result.stdout.toString()}${result.stderr.toString()}`
+        ).toMatch(/funnel fence: 1 file\(s\) checked, 0 refused/)
+      } finally {
+        rmSync(parent, { recursive: true, force: true })
+      }
+    },
+    TIMEOUT_MS
+  )
 
   it('runs after the fixers and before the type check in lint-staged', () => {
     // A fixer after the fence would commit code the fence never judged.
