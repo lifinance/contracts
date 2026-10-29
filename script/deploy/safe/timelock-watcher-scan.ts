@@ -43,8 +43,8 @@ export const REORG_MARGIN_BLOCKS = 256n
 export const MAX_LOG_SPAN = 100_000_000n
 
 /**
- * Narrowest range tried before a network counts as unreadable: below 50 blocks,
- * the cap some fallback endpoints set (linea's `1rpc.io`).
+ * Narrowest range tried before a network counts as unreadable: below the
+ * 50-block cap some fallback endpoints set.
  */
 export const MIN_LOG_SPAN = 10n // 10 blocks
 

@@ -4,8 +4,9 @@
  * Report-only timelock watcher: finds every pending operation on every
  * production `LiFiTimelockController` from its logs, re-checks it, and alerts
  * Slack on a mismatch or an unverified finding that lasts three runs. The job
- * fails only on a mismatch or an alert it could not deliver; an unreadable
- * network is an unverified finding, not a failed job.
+ * fails on a mismatch, an alert it could not deliver, a crash, or a run that
+ * read no network; one unreadable network is an unverified finding, not a
+ * failed job.
  *
  * Run by `.github/workflows/timelockWatcher.yml`; runnable locally for a dry run
  * (Slack is only posted from CI). It never cancels, executes or signs anything.
@@ -87,6 +88,7 @@ import {
 } from './timelock-watcher-alerts'
 import {
   createRebuildGate,
+  WatcherTimeoutError,
   withTimeout,
   type IRebuildGate,
 } from './timelock-watcher-rebuild'
@@ -301,7 +303,7 @@ export interface ILogEndpoint {
   reader: PublicClient
 }
 
-/** Every endpoint failed a log range; carries each endpoint's redacted error. */
+/** Every endpoint failed a log range; its message names each endpoint's redacted error. */
 export class LogEndpointsFailedError extends Error {
   /**
    * @param fromBlock - First block of the range.
@@ -311,7 +313,7 @@ export class LogEndpointsFailedError extends Error {
   public constructor(
     fromBlock: bigint,
     toBlock: bigint,
-    public readonly failures: readonly string[]
+    failures: readonly string[]
   ) {
     super(
       `every endpoint failed blocks ${fromBlock}-${toBlock}: ${failures.join(
@@ -1187,23 +1189,36 @@ export const findingsOf = (
   ])
 
 /**
- * Whether the run fails the job. An unreadable network does not: it is an
- * unverified network finding, which pages Slack once it lasts three runs.
+ * Whether the run fails the job. One unreadable network does not: it is an
+ * unverified network finding, which pages Slack once it lasts three runs. A
+ * watcher crash does, and so does a run where no network could be read, since
+ * both point at the watcher or its inputs rather than at one network's RPCs.
  *
  * @param reports - This run's network reports.
  * @param deliveryFailed - Whether an alert could not be delivered.
- * @returns True on an operation or network mismatch or an undelivered alert.
+ * @returns True on an operation or network mismatch, an undelivered alert, a
+ *   watcher crash, or every readable network being unreadable.
  */
 export const jobFails = (
   reports: readonly INetworkReport[],
   deliveryFailed: boolean
-): boolean =>
-  deliveryFailed ||
-  reports.some(
-    (r) =>
-      r.verdict === 'mismatch' ||
-      r.operations.some((op) => op.verdict === 'mismatch')
+): boolean => {
+  const readable = reports.filter(
+    (r) => r.status === 'watched' || r.status === 'unreadable'
   )
+  const noneRead =
+    readable.length > 0 && readable.every((r) => r.status === 'unreadable')
+  return (
+    deliveryFailed ||
+    noneRead ||
+    reports.some(
+      (r) =>
+        r.crashed === true ||
+        r.verdict === 'mismatch' ||
+        r.operations.some((op) => op.verdict === 'mismatch')
+    )
+  )
+}
 
 const command = defineCommand({
   meta: {
@@ -1319,6 +1334,9 @@ const command = defineCommand({
               network: n.name,
               status: 'unreadable' as const,
               reason: `the watcher failed on this network: ${describe(error)}`,
+              ...(error instanceof WatcherTimeoutError
+                ? {}
+                : { crashed: true as const }),
               verdict: 'unverified' as const,
               operations: [],
               notes: [],

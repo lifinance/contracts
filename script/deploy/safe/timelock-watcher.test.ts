@@ -229,6 +229,24 @@ describe('jobFails', () => {
     expect(jobFails([report({}), unreadable], false)).toBe(false)
   })
 
+  it('fails when the watcher crashed on a network', () => {
+    expect(
+      jobFails([report({}), { ...unreadable, crashed: true }], false)
+    ).toBe(true)
+  })
+
+  it('fails when no network could be read, ignoring skipped and uncovered ones', () => {
+    const skipped = report({ network: 'zksync', status: 'skipped' })
+    const uncovered = report({
+      network: 'tron',
+      status: 'uncovered',
+      verdict: 'unverified',
+    })
+    expect(jobFails([unreadable, skipped, uncovered], false)).toBe(true)
+    expect(jobFails([skipped, uncovered], false)).toBe(false)
+    expect(jobFails([], false)).toBe(false)
+  })
+
   it('still pages on an unreadable network, through its unverified finding, after three runs', () => {
     expect(findingsOf([unreadable])).toEqual([
       {
