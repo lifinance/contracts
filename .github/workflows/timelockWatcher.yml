@@ -27,9 +27,10 @@
 #       consecutive runs, or a missed queued operation (at once on a network already alerted
 #       unverified, otherwise as a new unverified finding). Resolutions and standing unverified
 #       repeats ride along with the next post, or go out as a digest 24 hours after the last post
-#     * The job fails when a network could not be read, an operation or network mismatches, or an
-#       alert could not be delivered; a crashed, cancelled or undelivered run posts its own notice
-#       naming the failing step and its first error line
+#     * The job fails when an operation or network mismatches, or an alert could not be delivered;
+#       a network that could not be read does not fail it, since it is an unverified finding that
+#       pages after three consecutive runs. A crashed, cancelled or undelivered run posts its own
+#       notice naming the failing step and its first error line
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_WATCHER (optional; "false" pauses scheduled runs)
 #     * secrets.MONGODB_URI (non-sensitive cluster: RPC endpoints, the execution queue, sign-time

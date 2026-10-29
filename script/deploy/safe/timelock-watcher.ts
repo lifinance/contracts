@@ -3,7 +3,10 @@
 /**
  * Report-only timelock watcher: finds every pending operation on every
  * production `LiFiTimelockController` from its logs, re-checks it, and alerts
- * Slack on a mismatch or an unverified finding that lasts three runs.
+ * Slack on a mismatch or an unverified finding that lasts three runs. The job
+ * fails on a mismatch, an alert it could not deliver, a crash, or a run that
+ * read no network; one unreadable network is an unverified finding, not a
+ * failed job.
  *
  * Run by `.github/workflows/timelockWatcher.yml`; runnable locally for a dry run
  * (Slack is only posted from CI). It never cancels, executes or signs anything.
@@ -85,6 +88,7 @@ import {
 } from './timelock-watcher-alerts'
 import {
   createRebuildGate,
+  WatcherTimeoutError,
   withTimeout,
   type IRebuildGate,
 } from './timelock-watcher-rebuild'
@@ -293,32 +297,140 @@ const describe = (error: unknown): string =>
     .split('\n')[0]
     ?.slice(0, 300) ?? 'unknown error'
 
+/** One `eth_getLogs` endpoint, tagged by its host: the only part of its URL a report may name. */
+export interface ILogEndpoint {
+  host: string
+  reader: PublicClient
+}
+
+/** Every endpoint failed a log range; its message names each endpoint's redacted error. */
+export class LogEndpointsFailedError extends Error {
+  /**
+   * @param fromBlock - First block of the range.
+   * @param toBlock - Last block of the range.
+   * @param failures - One `host: error` entry per endpoint, already redacted.
+   */
+  public constructor(
+    fromBlock: bigint,
+    toBlock: bigint,
+    failures: readonly string[]
+  ) {
+    super(
+      `every endpoint failed blocks ${fromBlock}-${toBlock}: ${failures.join(
+        '; '
+      )}`
+    )
+    this.name = 'LogEndpointsFailedError'
+  }
+}
+
+/**
+ * The reason an unreadable network gives for a failed log scan.
+ *
+ * @param error - What the scan threw.
+ * @returns A redacted, single-line reason.
+ */
+export const logScanFailureReason = (error: unknown): string =>
+  `the log scan failed: ${
+    error instanceof LogEndpointsFailedError ? error.message : describe(error)
+  }`
+
 /**
  * One client per endpoint, for `eth_getLogs` only. An endpoint that refuses a
  * range is not retried behind the fallback transport's back-off on every call:
  * the scan moves to the endpoint that last answered and stays there.
  */
-const createLogReaders = (chain: Chain): PublicClient[] =>
+const createLogEndpoints = (chain: Chain): ILogEndpoint[] =>
   chain.rpcUrls.default.http.flatMap((rpcUrl) => {
     try {
       const config = getTransportConfigFromRpcUrl(rpcUrl)
       return [
-        timeboxed(
-          createPublicClient({
-            chain,
-            transport: http(config.url, {
-              ...(config.fetchOptions
-                ? { fetchOptions: config.fetchOptions }
-                : {}),
-              retryCount: 1,
-            }),
-          }) as PublicClient
-        ),
+        {
+          host: new URL(config.url).hostname,
+          reader: timeboxed(
+            createPublicClient({
+              chain,
+              transport: http(config.url, {
+                ...(config.fetchOptions
+                  ? { fetchOptions: config.fetchOptions }
+                  : {}),
+                retryCount: 1,
+              }),
+            }) as PublicClient
+          ),
+        },
       ]
     } catch {
       return []
     }
   })
+
+/**
+ * Reads log ranges from the first endpoint that serves them, starting at the
+ * one that last answered.
+ *
+ * @param endpoints - The network's `eth_getLogs` endpoints.
+ * @param timelock - The timelock whose logs to read.
+ * @returns A reader of one range's timelock logs.
+ * @throws {LogRangeBehindError} When no endpoint has reached the range's end
+ *   and none refused it, or one has reached part of it.
+ * @throws {LogEndpointsFailedError} When every endpoint failed the range.
+ */
+export const createLogRangeReader = (
+  endpoints: readonly ILogEndpoint[],
+  timelock: Address
+) => {
+  let preferred = 0
+  // An endpoint that answers eth_getLogs only up to its own head, without an
+  // error, would let the scan record blocks it never saw as covered.
+  const heads = new Map<number, bigint>()
+  return async (fromBlock: bigint, toBlock: bigint) => {
+    const failures: string[] = []
+    let lastError: unknown
+    let furthest = -1n
+    let refused = false
+    for (let k = 0; k < endpoints.length; k++) {
+      const at = (preferred + k) % endpoints.length
+      const { host, reader } = endpoints[at] as ILogEndpoint
+      try {
+        let head = heads.get(at)
+        if (head === undefined || head < toBlock) {
+          head = await reader.getBlockNumber()
+          heads.set(at, head)
+        }
+        if (head < toBlock) {
+          if (head > furthest) furthest = head
+          throw new LogRangeBehindError(
+            `the endpoint is at block ${head}, behind ${toBlock}`,
+            head
+          )
+        }
+        const logs = await readTimelockLogs(
+          reader,
+          timelock,
+          fromBlock,
+          toBlock
+        )
+        preferred = at
+        return logs
+      } catch (error) {
+        lastError = error
+        if (!(error instanceof LogRangeBehindError)) refused = true
+        failures.push(`${host}: ${describe(error)}`)
+      }
+    }
+    // An endpoint that has reached part of the range can serve it up to its
+    // head, whatever the others did; the next range narrows from there.
+    if (furthest >= fromBlock)
+      throw new LogRangeBehindError(
+        `no endpoint served the range; the furthest is at block ${furthest}`,
+        furthest,
+        refused
+      )
+    if (!refused) throw lastError
+    throw new LogEndpointsFailedError(fromBlock, toBlock, failures)
+  }
+}
 
 /**
  * Reads one range of a timelock's schedule, salt and cancel logs.
@@ -621,6 +733,29 @@ const networkVerdict = (
     : 'ok'
 
 /**
+ * The report of a network that could not be read to the end.
+ *
+ * @param network - Network name.
+ * @param reason - Why it could not be read.
+ * @param found - What was established before the read failed: the timelock, a
+ *   mismatch already found (the diamond's owner), and the notes saying so.
+ * @returns An unreadable report: a mismatch when one was found, else unverified.
+ */
+export const unreadableReport = (
+  network: string,
+  reason: string,
+  found: { timelock?: string; mismatch?: boolean; notes?: string[] } = {}
+): INetworkReport => ({
+  network,
+  status: 'unreadable',
+  reason,
+  ...(found.timelock ? { timelock: found.timelock } : {}),
+  verdict: found.mismatch ? 'mismatch' : 'unverified',
+  operations: [],
+  notes: found.notes ?? [],
+})
+
+/**
  * Watches one network.
  *
  * @param network - The network, from `config/networks.json`.
@@ -634,15 +769,8 @@ export const watchNetwork = async (
 ): Promise<INetworkReport> => {
   const name = network.name
   const startedAt = Date.now()
-  const unreadable = (reason: string, timelock?: string): INetworkReport => ({
-    network: name,
-    status: 'unreadable',
-    reason,
-    ...(timelock ? { timelock } : {}),
-    verdict: 'unverified',
-    operations: [],
-    notes: [],
-  })
+  const unreadable = (reason: string, timelock?: string): INetworkReport =>
+    unreadableReport(name, reason, timelock ? { timelock } : {})
 
   const pinned = await ctx.readPinned(`deployments/${name}.json`)
   if (!pinned.ok)
@@ -675,11 +803,11 @@ export const watchNetwork = async (
     }
 
   let client: PublicClient
-  let logReaders: PublicClient[]
+  let logEndpoints: ILogEndpoint[]
   try {
     const chain = getViemChainForNetworkName(name)
-    logReaders = createLogReaders(chain)
-    if (logReaders.length === 0)
+    logEndpoints = createLogEndpoints(chain)
+    if (logEndpoints.length === 0)
       throw new Error('no RPC endpoint can serve eth_getLogs')
     client = timeboxed(
       createPublicClient({
@@ -694,6 +822,10 @@ export const watchNetwork = async (
   const notes: string[] = []
   let flagMismatch = false
   let flagUnverified = false
+  // An unreadable network no longer fails the job, so a mismatch found before
+  // the read failed must stay on its report.
+  const unreadableAfterOwner = (reason: string): INetworkReport =>
+    unreadableReport(name, reason, { timelock, mismatch: flagMismatch, notes })
 
   if (diamond)
     try {
@@ -722,10 +854,7 @@ export const watchNetwork = async (
   }
 
   const previous = initialScanState(ctx.state.networks[name], timelock)
-  let preferredReader = 0
-  // An endpoint that answers eth_getLogs only up to its own head, without an
-  // error, would let the scan record blocks it never saw as covered.
-  const readerHeads = new Map<number, bigint>()
+  const readLogRange = createLogRangeReader(logEndpoints, timelock)
   let scan: Awaited<ReturnType<typeof advanceScan>>
   let floorNote: string | undefined
   try {
@@ -751,48 +880,7 @@ export const watchNetwork = async (
           }
         },
         getLogs: async (fromBlock, toBlock) => {
-          let logs: Awaited<ReturnType<typeof readTimelockLogs>> | undefined
-          let lastError: unknown
-          let furthest = -1n
-          let refusal: unknown
-          for (let k = 0; k < logReaders.length && !logs; k++) {
-            const at = (preferredReader + k) % logReaders.length
-            const reader = logReaders[at] as PublicClient
-            try {
-              let readerHead = readerHeads.get(at)
-              if (readerHead === undefined || readerHead < toBlock) {
-                readerHead = await reader.getBlockNumber()
-                readerHeads.set(at, readerHead)
-              }
-              if (readerHead < toBlock) {
-                if (readerHead > furthest) furthest = readerHead
-                throw new LogRangeBehindError(
-                  `the endpoint is at block ${readerHead}, behind ${toBlock}`,
-                  readerHead
-                )
-              }
-              logs = await readTimelockLogs(
-                reader,
-                timelock,
-                fromBlock,
-                toBlock
-              )
-              preferredReader = at
-            } catch (error) {
-              lastError = error
-              if (!(error instanceof LogRangeBehindError)) refusal = error
-            }
-          }
-          // An endpoint that has reached part of the range can serve it up to its
-          // head, whatever the others did; the next range narrows from there.
-          if (!logs)
-            throw furthest >= fromBlock
-              ? new LogRangeBehindError(
-                  `no endpoint served the range; the furthest is at block ${furthest}`,
-                  furthest,
-                  refusal !== undefined
-                )
-              : refusal ?? lastError
+          const logs = await readLogRange(fromBlock, toBlock)
           const scheduled = []
           const salts = []
           const cancels = []
@@ -821,7 +909,7 @@ export const watchNetwork = async (
       }
     )
   } catch (error) {
-    return unreadable(`the log scan failed: ${describe(error)}`, timelock)
+    return unreadableAfterOwner(logScanFailureReason(error))
   }
   if (floorNote) notes.push(floorNote)
   if (scan.historyError !== undefined)
@@ -853,9 +941,8 @@ export const watchNetwork = async (
     now = latest.timestamp
     latestBlock = latest.number
   } catch (error) {
-    return unreadable(
-      `the latest block could not be read: ${describe(error)}`,
-      timelock
+    return unreadableAfterOwner(
+      `the latest block could not be read: ${describe(error)}`
     )
   }
   try {
@@ -1120,6 +1207,38 @@ export const findingsOf = (
     })),
   ])
 
+/**
+ * Whether the run fails the job. One unreadable network does not: it is an
+ * unverified network finding, which pages Slack once it lasts three runs. A
+ * watcher crash does, and so does a run where no network could be read, since
+ * both point at the watcher or its inputs rather than at one network's RPCs.
+ *
+ * @param reports - This run's network reports.
+ * @param deliveryFailed - Whether an alert could not be delivered.
+ * @returns True on an operation or network mismatch, an undelivered alert, a
+ *   watcher crash, or every readable network being unreadable.
+ */
+export const jobFails = (
+  reports: readonly INetworkReport[],
+  deliveryFailed: boolean
+): boolean => {
+  const readable = reports.filter(
+    (r) => r.status === 'watched' || r.status === 'unreadable'
+  )
+  const noneRead =
+    readable.length > 0 && readable.every((r) => r.status === 'unreadable')
+  return (
+    deliveryFailed ||
+    noneRead ||
+    reports.some(
+      (r) =>
+        r.crashed === true ||
+        r.verdict === 'mismatch' ||
+        r.operations.some((op) => op.verdict === 'mismatch')
+    )
+  )
+}
+
 const command = defineCommand({
   meta: {
     name: 'timelock-watcher',
@@ -1234,6 +1353,9 @@ const command = defineCommand({
               network: n.name,
               status: 'unreadable' as const,
               reason: `the watcher failed on this network: ${describe(error)}`,
+              ...(error instanceof WatcherTimeoutError
+                ? {}
+                : { crashed: true as const }),
               verdict: 'unverified' as const,
               operations: [],
               notes: [],
@@ -1304,17 +1426,10 @@ const command = defineCommand({
     consola.log(summary)
 
     const tally = tallyReports(reports)
-    const networkMismatch = reports.some((r) => r.verdict === 'mismatch')
     consola.info(
       `Checked ${tally.watched} of ${tally.networks} network(s): ${tally.operations} pending operation(s), ${tally.byVerdict.mismatch} mismatch, ${tally.byVerdict.unverified} unverified, ${tally.byVerdict.ok} ok; ${tally.unreadable} unreadable, ${tally.uncovered} not covered, ${tally.skipped} skipped`
     )
-    if (
-      tally.unreadable > 0 ||
-      tally.byVerdict.mismatch > 0 ||
-      networkMismatch ||
-      deliveryFailed
-    )
-      process.exit(1)
+    if (jobFails(reports, deliveryFailed)) process.exit(1)
     // A timed-out rebuild keeps running after its network was reported; it must
     // not hold the job open.
     process.exit(0)

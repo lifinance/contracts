@@ -108,6 +108,10 @@ const signatureEntry = (
     .replace(/#x[#0-9a-fA-F]+/g, '0x…')
 }
 
+/** Why a mismatch on a network this run could not read repeats unchanged. */
+export const UNREAD_MISMATCH_REASON =
+  'its network could not be read this run; last seen as a mismatch'
+
 const entriesOf = (signature: string): Set<string> =>
   new Set(signature.split('\n').filter(Boolean))
 
@@ -125,7 +129,7 @@ const entriesOf = (signature: string): Set<string> =>
  * - An operation this run no longer reports, on a network it read completely,
  *   was executed or cancelled: that is announced and its record dropped. A
  *   network that could not be read keeps its records, so its return does not
- *   re-page.
+ *   re-page; a standing mismatch among them still repeats on its throttle.
  *
  * @param previous - Records the last run persisted.
  * @param findings - Everything this run judged.
@@ -219,11 +223,43 @@ export const decideAlerts = (
     } else next[finding.key] = { ...record, reasons: union }
   }
 
+  // Skipped networks report an ok network finding and ones outside the run
+  // report none, so only a network the run tried and failed to read is here.
+  const unread = new Set(
+    findings
+      .filter(
+        (f) =>
+          f.key === findingKey(f.network, 'network') &&
+          f.verdict !== 'ok' &&
+          !settledNetworks.has(f.network)
+      )
+      .map((f) => f.network)
+  )
+
   for (const [key, record] of Object.entries(previous)) {
     if (seen.has(key)) continue
     const network = networkOfKey(key)
-    if (!settledNetworks.has(network)) next[key] = record
-    else if (
+    if (!settledNetworks.has(network)) {
+      // An unread network reports none of its operations, but a standing
+      // mismatch among them keeps its repeat rather than going quiet.
+      if (
+        unread.has(network) &&
+        record.verdict === 'mismatch' &&
+        record.resolvedAt === undefined &&
+        isDue(record)
+      ) {
+        alerts.push({
+          kind: 'repeat',
+          finding: {
+            key,
+            network,
+            verdict: 'mismatch',
+            reasons: [UNREAD_MISMATCH_REASON],
+          },
+        })
+        next[key] = { ...record, alertedAt: stamp }
+      } else next[key] = record
+    } else if (
       key !== findingKey(network, 'network') &&
       record.resolvedAt === undefined
     )
@@ -275,9 +311,12 @@ const isActionable = (alert: IAlertItem): boolean => {
   if (alert.kind === 'resolved') return false
   if (alert.finding.verdict === 'mismatch') return true
   if (alert.kind === 'new') return true
-  // Under a standing unverified verdict, a change is a new coverage note: the
-  // log scan missed an operation the queue holds.
-  return alert.kind === 'changed' && alert.previous === 'unverified'
+  if (alert.kind !== 'changed') return false
+  // A mismatch stepping down most often means its network became unreadable,
+  // which no longer fails the job, so this page is the last word on it. Under a
+  // standing unverified verdict, a change is a new coverage note: the log scan
+  // missed an operation the queue holds.
+  return alert.previous === 'mismatch' || alert.previous === 'unverified'
 }
 
 /**

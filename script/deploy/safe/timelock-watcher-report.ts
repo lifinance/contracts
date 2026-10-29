@@ -32,6 +32,8 @@ export interface INetworkReport {
   status: TNetworkStatus
   /** Why a network is skipped, unreadable or uncovered, or what limits it. */
   reason?: string
+  /** Set when the watcher threw on this network rather than timing out. */
+  crashed?: true
   timelock?: string
   verdict: TWatcherVerdict
   scan?: {
