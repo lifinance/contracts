@@ -35,53 +35,6 @@
     },
     {
       "key": {
-        "contractName": "AcrossFacet",
-        "sourceId": "src/Facets/AcrossFacet.sol",
-        "version": "2.0.0",
-        "closureHash": "0x7c9c31b843899992506a21f5462e0f2c11c55336f565ad932d8f61632e5490e6",
-        "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
-        "settingsSource": "artifact",
-        "solcVersion": "0.8.29+commit.ab55807c"
-      },
-      "build": {
-        "repo": "contracts",
-        "profile": "default",
-        "hashedSettings": {
-          "evmVersion": "cancun",
-          "libraries": {},
-          "metadata": {
-            "bytecodeHash": "ipfs"
-          },
-          "optimizer": {
-            "enabled": true,
-            "runs": 1000000
-          }
-        }
-      },
-      "maskedHash": "0xa527f50cce4ba77e2e071d39195adc4ef45aeaee186611ef08c894bc15b22ae1",
-      "lineage": "AcrossFacet@2.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 7497,
-      "immutableOffsets": [
-        {
-          "start": 1434,
-          "length": 32
-        },
-        {
-          "start": 1477,
-          "length": 32
-        },
-        {
-          "start": 1655,
-          "length": 32
-        },
-        {
-          "start": 1698,
-          "length": 32
-        }
-      ]
-    },
-    {
-      "key": {
         "contractName": "AcrossFacetPackedV4",
         "sourceId": "src/Facets/AcrossFacetPackedV4.sol",
         "version": "1.0.0",

@@ -1,13 +1,13 @@
 /**
  * `configData` keys are written as `deployRequirements.json` writes them. They
- * look like constructor parameters but are free-form labels — `AcrossFacet`
- * files `_wrappedNativeAddress` for a parameter called `_wrappedNative` — which
- * is why the matcher below is a suggester and not a gate.
+ * look like constructor parameters but are free-form labels — the since-removed
+ * `AcrossFacet` filed `_wrappedNativeAddress` for a parameter called
+ * `_wrappedNative` — which is why the matcher below is a suggester and not a gate.
  *
  * Declaration names are the naming conventions the heuristic has to bridge, not
  * a transcript of `src/`; the AcrossFacet case below is the one fixture that
- * carries that contract's real names, and it is deliberately the case where the
- * heuristic only half-succeeds.
+ * carries that removed contract's real names, and it is deliberately the case
+ * where the heuristic only half-succeeds.
  */
 
 import {

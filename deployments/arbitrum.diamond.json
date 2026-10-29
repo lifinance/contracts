@@ -37,10 +37,6 @@
         "Name": "SupersetFacet",
         "Version": "1.1.0"
       },
-      "0xBeE13d99dD633fEAa2a0935f00CbC859F8305FA7": {
-        "Name": "AcrossFacet",
-        "Version": "2.0.0"
-      },
       "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"

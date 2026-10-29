@@ -31,9 +31,9 @@ const declared = (
 })
 
 /**
- * AcrossFacet's real entries, verbatim. Neither carries #2213's `getter` — that
- * field appears on 8 contracts and AcrossFacet is not one of them, and it could
- * not be: `spokePool` is `private`, so no on-chain getter exists to name.
+ * The entries the since-removed AcrossFacet v2.0.0 carried, verbatim. Neither
+ * carries #2213's `getter`, and neither could: `spokePool` was `private`, so no
+ * on-chain getter existed to name.
  */
 const CONFIG_DATA = {
   _spokePool: {

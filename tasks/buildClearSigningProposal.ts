@@ -625,14 +625,6 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
       swap: 'Minimum to Bridge (surplus: bridged on route 0, refunded on 1-3)',
     },
   },
-  Across: {
-    fields: [
-      field('_acrossData.relayerFeePct', 'int64', 'Relayer Fee', {
-        format: 'unit',
-        params: PERCENT_1E18_PARAMS,
-      }),
-    ],
-  },
   AllBridge: {
     fields: [
       ...bytes32RecipientFields(
