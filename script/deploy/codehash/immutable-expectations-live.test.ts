@@ -45,7 +45,7 @@ const slot = (name: string, value: string) => ({
 const price = (observed: ReturnType<typeof slot>[]) =>
   priceImmutables(
     {
-      contractName: 'AcrossFacet',
+      contractName: 'AcrossFacetV4',
       observed,
       network: 'mainnet',
       environment: 'production',
@@ -57,7 +57,7 @@ describe('layer 2 against the repo’s own expectation files', () => {
   const SPOKE_POOL = '0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5'
 
   it('verifies a slot holding the address config declares', () => {
-    const result = price([slot('spokePool', SPOKE_POOL)])
+    const result = price([slot('SPOKEPOOL', SPOKE_POOL)])
 
     expect(result.decided).toBe(true)
     if (!result.decided) return
@@ -69,12 +69,12 @@ describe('layer 2 against the repo’s own expectation files', () => {
 
   it('refuses a slot holding any other address', () => {
     const result = price([
-      slot('spokePool', '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'),
+      slot('SPOKEPOOL', '0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef'),
     ])
 
     expect(result.decided).toBe(true)
     if (!result.decided) return
-    expect(result.disagreements.map((one) => one.name)).toEqual(['spokePool'])
+    expect(result.disagreements.map((one) => one.name)).toEqual(['SPOKEPOOL'])
     expect(result.disagreeingByteCount).toBe(32)
   })
 
@@ -242,8 +242,8 @@ describe('layer 2 across the deployments this repo records', () => {
 
   it('keeps blocking an absent key the requirement does not let deploy zero', () => {
     const slotted = graded(
-      'AcrossFacet',
-      'spokePool',
+      'AcrossFacetV4',
+      'SPOKEPOOL',
       'abstract',
       `0x${'0'.repeat(40)}`
     )

@@ -7,7 +7,6 @@
 ## Facets
 
 - [Access Manager Facet](./AccessManagerFacet.md)
-- [Across Facet](./AcrossFacet.md)
 - [Across Facet Packed V4](./AcrossFacetPackedV4.md)
 - [Across Facet V4](./AcrossFacetV4.md)
 - [Across V4 Swap Facet](./AcrossV4SwapFacet.md)

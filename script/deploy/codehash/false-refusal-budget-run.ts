@@ -716,7 +716,7 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
         'the tron deployment log stores base58, and the tron funnel supplies a reader built from a live TronWeb instance, which this offline run does not construct',
       ],
     ]),
-    deprecatedContracts: new Set(['GenericSwapFacet']),
+    deprecatedContracts: new Set(['AcrossFacet', 'GenericSwapFacet']),
   }
 }
 
