@@ -503,14 +503,14 @@ describe('planDelivery', () => {
     expect(result.delivered.held.map((a) => a.kind)).toEqual(['repeat'])
   })
 
-  it('holds a mismatch stepping down to unverified', () => {
+  it('pages a mismatch stepping down to unverified, inside the digest interval', () => {
     const result = plan(
       { [KEY]: recordAt('mismatch', 60_000) },
       [finding('unverified')],
       { streaks: {}, held: [], lastPostAt: NOW.toISOString() }
     )
-    expect(result.actionable).toEqual([])
-    expect(result.delivered.held[0]?.previous).toBe('mismatch')
+    expect(result.actionable.map((a) => a.previous)).toEqual(['mismatch'])
+    expect(result.delivered.held).toEqual([])
   })
 
   it('pages a new note under a standing unverified verdict', () => {

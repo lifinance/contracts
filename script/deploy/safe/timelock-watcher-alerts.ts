@@ -275,9 +275,12 @@ const isActionable = (alert: IAlertItem): boolean => {
   if (alert.kind === 'resolved') return false
   if (alert.finding.verdict === 'mismatch') return true
   if (alert.kind === 'new') return true
-  // Under a standing unverified verdict, a change is a new coverage note: the
-  // log scan missed an operation the queue holds.
-  return alert.kind === 'changed' && alert.previous === 'unverified'
+  if (alert.kind !== 'changed') return false
+  // A mismatch stepping down most often means its network became unreadable,
+  // which no longer fails the job, so this page is the last word on it. Under a
+  // standing unverified verdict, a change is a new coverage note: the log scan
+  // missed an operation the queue holds.
+  return alert.previous === 'mismatch' || alert.previous === 'unverified'
 }
 
 /**
