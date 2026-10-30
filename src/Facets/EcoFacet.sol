@@ -12,7 +12,7 @@ import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
 import { Validatable } from "lifi/Helpers/Validatable.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -183,6 +183,16 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         // which is also the amount funded into the reward in `_startBridge`.
         _verifySignature(_bridgeData, _ecoData);
         _validateEcoData(_bridgeData, _ecoData);
+
+        // The positive-slippage refund and the reward both spend
+        // sendingAssetId, so a different final swap asset would pay them from
+        // stray diamond balance. An empty array is left to _depositAndSwap,
+        // which reverts NoSwapDataProvided.
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) revert InformationMismatch();
 
         uint256 actualAmountAfterSwap = _depositAndSwap(
             _bridgeData.transactionId,

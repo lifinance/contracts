@@ -9,7 +9,7 @@ import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { TestWhitelistManagerBase } from "test/solidity/utils/TestWhitelistManagerBase.sol";
 import { TestEcoBackendSig } from "test/solidity/utils/TestEcoBackendSig.sol";
@@ -273,6 +273,51 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.expectRevert(InvalidCallData.selector);
 
         _swapAndStartEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev A direct-bridge signature reused on the swap path with a final swap
+    ///      into another asset must not let positive slippage pay out stray
+    ///      bridge-token balance held by the diamond.
+    function testRevert_SwapAndBridgeFinalAssetMismatch() public {
+        deal(ADDRESS_USDC, _facetTestContractAddress, 1_000 * 10 ** 6);
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: 1,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    1,
+                    1,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        usdc.approve(_facetTestContractAddress, 1);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        ecoFacet.swapAndStartBridgeTokensViaEco{ value: 1 ether }(
+            bridgeData,
+            swapData,
+            ecoData
+        );
 
         vm.stopPrank();
     }
