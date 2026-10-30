@@ -246,7 +246,7 @@
       "ERC20Proxy": "0xF6d5cf7a12d89BC0fD34E27d2237875b564A6ADf",
       "Executor": "0x23f882bA2fa54A358d8599465EB471f58Cc26751",
       "FeeCollector": "0x7F8E9bEBd1Dea263A36a6916B99bd84405B9654a",
-      "FeeForwarder": "0x7C1923FbD89154156DE2220870C834B141bA8c49",
+      "FeeForwarder": "0xa2D9Ae5f8b6Df22a40158a54B4d533E53432cba5",
       "GasZipPeriphery": "",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "",
