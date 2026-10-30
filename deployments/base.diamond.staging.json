@@ -81,21 +81,17 @@
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
-      "0x5C811dE2E64aD6660a464dAD65FF17669C175989": {
-        "Name": "EcoFacet",
-        "Version": "1.2.0"
-      },
       "0x401Aaf6A650A17677821E665838367EBD5bE77BD": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
       },
-      "0x4024f93ac23e00EfC85371fe0a69922C82EbdF88": {
-        "Name": "EcoFacet",
-        "Version": "2.0.0"
-      },
       "0x2C5F02b087F719c74D715a2771Fb908ec08F9D72": {
         "Name": "CentrifugeFacet",
         "Version": "1.0.0"
+      },
+      "0x7a73f6571EaD8e123c51Ac02688AcDf703B004e1": {
+        "Name": "EcoFacet",
+        "Version": "3.0.0"
       },
       "0xa28ae3C42E0CAA03c8F19dBAa24FD4BCF9e0a5b8": {
         "Name": "M0Facet",

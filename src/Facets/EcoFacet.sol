@@ -2,31 +2,39 @@
 pragma solidity ^0.8.17;
 
 import { ECDSA } from "solady/utils/ECDSA.sol";
-import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IEcoPortal } from "../Interfaces/IEcoPortal.sol";
-import { LibAsset } from "../Libraries/LibAsset.sol";
-import { LibSwap } from "../Libraries/LibSwap.sol";
-import { LibBytes } from "../Libraries/LibBytes.sol";
-import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
-import { SwapperV2 } from "../Helpers/SwapperV2.sol";
-import { Validatable } from "../Helpers/Validatable.sol";
-import { LiFiData } from "../Helpers/LiFiData.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
+import { LibAsset } from "lifi/Libraries/LibAsset.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
+import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
+import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
+import { Validatable } from "lifi/Helpers/Validatable.sol";
+import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "../Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Provides functionality for bridging through Eco Protocol
-/// @dev The `encodedRoute` and `prover` are opaque, backend-supplied parameters
-///      whose full contents cannot be reconstructed and validated on-chain (the
-///      route encodes destination calls the facet does not interpret, and a
-///      malicious prover could mark an intent fulfilled without paying out). Both
-///      are therefore gated by a backend EIP-712 signature (see `_verifySignature`)
-///      that commits to the bridge parameters, the prover, and a hash of the
-///      encoded route. The on-chain receiver cross-checks in `_validateEcoData`
-///      are retained as defense in depth; integrators must understand that the
-///      destination receiver is not purely enforced on-chain for these flows.
-/// @custom:version 2.0.0
+/// @dev The `encodedRoute`, `intentDestination` and `prover` are opaque,
+///      backend-supplied parameters whose contents the facet does not
+///      validate on-chain: the route encodes destination calls the facet does
+///      not interpret (a CCTP burn, a HyperCore deposit, a second Eco intent),
+///      `intentDestination` is the Eco chain ID the route executes on (the
+///      source chain for CCTP routes, HyperEVM for HyperCore), and a
+///      malicious prover could mark an intent fulfilled without paying out.
+///      All three are gated by a backend EIP-712 signature (see
+///      `_verifySignature`) that commits to the bridge parameters, the prover,
+///      the intent destination and a hash of the encoded route. For EVM
+///      destinations the receiver is therefore enforced only by the backend
+///      signature, not on-chain. For Solana and Tron the facet additionally
+///      checks that the route pays `nonEVMReceiver`/`solanaATA`, and requires
+///      `intentDestination` to be Eco's ID for that chain exactly when
+///      `bridgeData.destinationChainId` is Solana or Tron.
+///      This contract is not intended to custody user funds; any balance is
+///      transient within a single transaction.
+/// @custom:version 3.0.0
 contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// Errors ///
 
@@ -39,22 +47,24 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     IEcoPortal public immutable PORTAL;
     /// @notice Backend signer authorized to sign the EcoPayload
     address internal immutable BACKEND_SIGNER;
-    uint64 private constant ECO_CHAIN_ID_TRON = 728126428;
-    uint64 private constant ECO_CHAIN_ID_SOLANA = 1399811149;
 
-    // EIP-712 typehash: keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
+    // EIP-712 typehash: keccak256("EcoPayload(bytes32 transactionId,address sendingAssetId,uint256 minAmount,uint256 destinationChainId,address receiver,bytes32 nonEVMReceiverHash,uint64 intentDestination,bytes32 encodedRouteHash,address prover,address refundRecipient,uint64 rewardDeadline,bytes32 solanaATA,uint256 deadline)")
     bytes32 private constant ECO_PAYLOAD_TYPEHASH =
-        0xa3243df568679887ffddc8c7d34cf0bd57b0a8d9430c7044d28def7369fd7881;
+        0x5eab41fdaef699ef7c6516a09842972b29e6319a531c00a7f90ab2292d78d9d8;
 
     /// Constants ///
 
     uint256 private constant NATIVE_REWARD_AMOUNT = 0;
     bool private constant ALLOW_PARTIAL_FILL = false;
+    uint64 private constant ECO_CHAIN_ID_SOLANA = 1399811149;
+    uint64 private constant ECO_CHAIN_ID_TRON = 728126428;
     uint256 private constant SOLANA_ENCODED_ROUTE_LENGTH = 319;
     uint256 private constant SOLANA_RECEIVER_OFFSET = 251;
     uint256 private constant SOLANA_RECEIVER_END = 283;
     uint256 private constant SOLANA_ADDRESS_MIN_LENGTH = 32;
     uint256 private constant SOLANA_ADDRESS_MAX_LENGTH = 44;
+    /// @dev `transfer(address,uint256)`: 4-byte selector plus two words
+    uint256 private constant TRANSFER_CALL_LENGTH = 68;
 
     /// Types ///
 
@@ -78,25 +88,32 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     /// @notice Represents a single contract call to be executed
     /// @dev Used within Route to define execution sequence
     /// @param target Address of the contract to call
-    /// @param callData Encoded function call data
+    /// @param data Encoded function call data
+    /// @param value Native value sent with the call
     struct Call {
         address target;
-        bytes callData;
+        bytes data;
+        uint256 value;
     }
 
     /// @dev Eco specific parameters
     /// @param nonEVMReceiver Destination address for non-EVM chains (bytes format)
     /// @param prover Address of the prover contract for validation
     /// @param rewardDeadline Timestamp for reward claim eligibility
+    /// @param intentDestination Eco chain ID the route executes on, which
+    ///        differs from `bridgeData.destinationChainId` for CCTP (source
+    ///        chain), HyperCore (HyperEVM), Solana and Tron routes
     /// @param encodedRoute Encoded route data containing destination chain routing information
     /// @param solanaATA Associated Token Account address for Solana bridging (bytes32)
-    /// @param refundRecipient Address that will receive refunds if the intent expires unfulfilled
+    /// @param refundRecipient Address that receives source-chain leftovers and
+    ///        the reward refund if the intent expires unfulfilled
     /// @param deadline Timestamp after which the backend signature is no longer valid
     /// @param signature Backend EIP-712 signature over the EcoPayload authorizing this bridge
     struct EcoData {
         bytes nonEVMReceiver;
         address prover;
         uint64 rewardDeadline;
+        uint64 intentDestination;
         bytes encodedRoute;
         bytes32 solanaATA;
         address refundRecipient;
@@ -145,10 +162,6 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
     }
 
     /// @notice Swaps and bridges tokens via Eco Protocol
-    /// @dev TODO (next iteration): unused swap leftovers and excess native below are refunded
-    ///      to msg.sender (which may be a relayer), not _ecoData.refundRecipient, unlike the
-    ///      positive slippage refund further down, which already uses refundRecipient. Align
-    ///      the two msg.sender-based refunds to refundRecipient as well.
     /// @param _bridgeData Bridge data containing core parameters
     /// @param _swapData Array of swap data for source swaps
     /// @param _ecoData Eco-specific parameters for the bridge
@@ -160,7 +173,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         external
         payable
         nonReentrant
-        refundExcessNative(payable(msg.sender))
+        refundExcessNative(payable(_ecoData.refundRecipient))
         containsSourceSwaps(_bridgeData)
         validateBridgeData(_bridgeData)
         doesNotContainDestinationCalls(_bridgeData)
@@ -171,11 +184,21 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         _verifySignature(_bridgeData, _ecoData);
         _validateEcoData(_bridgeData, _ecoData);
 
+        // The positive-slippage refund and the reward both spend
+        // sendingAssetId, so a different final swap asset would pay them from
+        // stray diamond balance. An empty array is left to _depositAndSwap,
+        // which reverts NoSwapDataProvided.
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) revert InformationMismatch();
+
         uint256 actualAmountAfterSwap = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
-            payable(msg.sender)
+            payable(_ecoData.refundRecipient)
         );
 
         if (actualAmountAfterSwap > _bridgeData.minAmount) {
@@ -197,7 +220,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         ILiFi.BridgeData memory _bridgeData,
         EcoData calldata _ecoData,
         uint256 totalAmount
-    ) private view returns (IEcoPortal.Reward memory) {
+    ) private pure returns (IEcoPortal.Reward memory) {
         IEcoPortal.TokenAmount[]
             memory rewardTokens = new IEcoPortal.TokenAmount[](1);
         rewardTokens[0] = IEcoPortal.TokenAmount({
@@ -227,20 +250,8 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             totalAmount
         );
 
-        uint64 destination;
-        if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_TRON) {
-            destination = ECO_CHAIN_ID_TRON;
-        } else if (_bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
-            destination = ECO_CHAIN_ID_SOLANA;
-        } else {
-            if (_bridgeData.destinationChainId > type(uint64).max) {
-                revert InvalidConfig();
-            }
-            destination = uint64(_bridgeData.destinationChainId);
-        }
-
         bytes32 intentHash = _getIntentHash(
-            destination,
+            _ecoData.intentDestination,
             _ecoData.encodedRoute,
             reward
         );
@@ -256,7 +267,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         );
 
         PORTAL.publishAndFund(
-            destination,
+            _ecoData.intentDestination,
             _ecoData.encodedRoute,
             reward,
             ALLOW_PARTIAL_FILL
@@ -284,15 +295,32 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
         EcoData calldata _ecoData
     ) private view {
         if (_ecoData.prover == address(0)) revert InvalidConfig();
-        if (_ecoData.refundRecipient == address(0)) revert InvalidConfig();
+        if (_ecoData.refundRecipient == address(0)) revert InvalidCallData();
         if (_ecoData.rewardDeadline <= block.timestamp) {
             revert InvalidConfig();
         }
+        if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
+        if (_ecoData.intentDestination == 0) revert InvalidConfig();
 
         bool isSolanaDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_SOLANA;
         bool isTronDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_TRON;
+
+        // Validatable's same-network check compares against LI.FI's custom
+        // Tron ID, which never equals Tron's runtime chain ID
+        if (isTronDestination && block.chainid == ECO_CHAIN_ID_TRON) {
+            revert CannotBridgeToSameNetwork();
+        }
+
+        // The Solana/Tron receiver checks below are selected by
+        // destinationChainId, so the intent must be published to the same chain
+        if (
+            isSolanaDestination !=
+            (_ecoData.intentDestination == ECO_CHAIN_ID_SOLANA) ||
+            isTronDestination !=
+            (_ecoData.intentDestination == ECO_CHAIN_ID_TRON)
+        ) revert InvalidConfig();
 
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
             if (isSolanaDestination) {
@@ -304,72 +332,45 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 ) revert InvalidReceiver();
                 _validateSolanaReceiver(_ecoData);
             } else if (isTronDestination) {
-                if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
                 if (_ecoData.nonEVMReceiver.length != 32)
                     revert InvalidReceiver();
                 _validateTronReceiver(_ecoData);
             } else {
                 revert InvalidConfig();
             }
-        } else {
-            if (_ecoData.encodedRoute.length == 0) revert InvalidConfig();
-
-            // A concrete receiver is only valid for EVM destinations; non-EVM
-            // chains must use the NON_EVM_ADDRESS sentinel path above.
-            if (isSolanaDestination || isTronDestination) {
-                revert InvalidReceiver();
-            }
-
-            if (
-                _decodeRouteReceiver(_ecoData.encodedRoute) !=
-                _bridgeData.receiver
-            ) {
-                revert InvalidReceiver();
-            }
+        } else if (isSolanaDestination || isTronDestination) {
+            // Non-EVM chains must use the NON_EVM_ADDRESS sentinel path above
+            revert InvalidReceiver();
         }
-    }
-
-    /// @dev Decodes the Route struct and returns the recipient of its final
-    ///      ERC20/TRC20 `transfer` call, the address the destination tokens are
-    ///      sent to. Used to cross-check the caller-supplied receiver.
-    function _decodeRouteReceiver(
-        bytes calldata encodedRoute
-    ) private pure returns (address routeReceiver) {
-        Route memory route = abi.decode(encodedRoute, (Route));
-        if (route.calls.length == 0) revert InvalidReceiver();
-
-        // The last call must be a well-formed transfer(address,uint256): a
-        // 4-byte selector + two 32-byte words. Enforcing the length and selector
-        // before reading the address prevents a shorter or unrelated final call
-        // from yielding a bogus receiver that still satisfies the cross-check.
-        bytes memory lastCallData = route
-            .calls[route.calls.length - 1]
-            .callData;
-        if (lastCallData.length < 68) revert InvalidReceiver();
-
-        bytes4 selector;
-        bytes32 receiverWord;
-        assembly {
-            selector := mload(add(lastCallData, 32))
-            // Load the address word from offset 36 (32-byte length + 4-byte selector)
-            receiverWord := mload(add(lastCallData, 36))
-        }
-        if (selector != IERC20.transfer.selector) revert InvalidReceiver();
-
-        routeReceiver = LibBytes.toAddressUnchecked(receiverWord);
     }
 
     /// @dev Tron uses the same Route struct encoding as EVM chains, so the real
     ///      recipient lives in the route. nonEVMReceiver carries that recipient
-    ///      as a 32-byte left-padded address and is cross-checked against it.
+    ///      as a 32-byte left-padded address and must receive the route's final
+    ///      TRC20 `transfer`.
     function _validateTronReceiver(EcoData calldata _ecoData) private pure {
-        address nonEVMReceiver = LibBytes.toAddress(
-            bytes32(_ecoData.nonEVMReceiver[0:32])
-        );
-        if (nonEVMReceiver == address(0)) revert InvalidNonEVMReceiver();
-        if (nonEVMReceiver != _decodeRouteReceiver(_ecoData.encodedRoute)) {
+        bytes32 nonEVMReceiver = bytes32(_ecoData.nonEVMReceiver[0:32]);
+        if (LibBytes.toAddress(nonEVMReceiver) == address(0)) {
+            revert InvalidNonEVMReceiver();
+        }
+
+        Route memory route = abi.decode(_ecoData.encodedRoute, (Route));
+        if (route.calls.length == 0) revert InvalidReceiver();
+        bytes memory lastCallData = route.calls[route.calls.length - 1].data;
+        if (lastCallData.length < TRANSFER_CALL_LENGTH) {
             revert InvalidReceiver();
         }
+
+        bytes32 recipient;
+        // Memory `bytes` cannot be sliced, so the first argument is read
+        // directly: skip the 32-byte length prefix and the 4-byte selector
+        assembly {
+            recipient := mload(add(lastCallData, 36))
+        }
+        if (
+            bytes4(lastCallData) != IERC20.transfer.selector ||
+            recipient != nonEVMReceiver
+        ) revert InvalidReceiver();
     }
 
     function _validateSolanaReceiver(EcoData calldata _ecoData) private pure {
@@ -434,6 +435,7 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
                 _bridgeData.destinationChainId,
                 _bridgeData.receiver,
                 keccak256(_ecoData.nonEVMReceiver),
+                _ecoData.intentDestination,
                 keccak256(_ecoData.encodedRoute),
                 _ecoData.prover,
                 _ecoData.refundRecipient,
