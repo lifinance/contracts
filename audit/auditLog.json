@@ -772,6 +772,14 @@
       "auditReportPath": "./audit/reports/2026.10.13_M0Facet(v1.0.0).pdf",
       "auditCommitHash": "787b2517f8113be9ce4e969beb5aad40c5e29352",
       "finalCommitHash": "1e1065a970e2231333ec3f3aaae73a9417d06a68"
+    },
+    "audit20261030": {
+      "auditCompletedOn": "30.10.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.10.30_FeeForwarder(v2.1.0).pdf",
+      "auditCommitHash": "b1d029d2524a50f9d602459c606241ca36de13f8",
+      "finalCommitHash": "ba8f295b55b91a4047a0dbe465b2dea495387532"
     }
   },
   "auditedContracts": {
@@ -882,7 +890,8 @@
     },
     "FeeForwarder": {
       "1.0.0": ["audit20251015"],
-      "2.0.0": ["audit20260818"]
+      "2.0.0": ["audit20260818"],
+      "2.1.0": ["audit20261030"]
     },
     "FraxFacet": {
       "1.0.0": ["audit20260820"]
