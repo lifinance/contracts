@@ -73,6 +73,10 @@
         "signature": "forwardERC20Fees(address,(address,uint256)[])"
       },
       {
+        "selector": "0x39db035e",
+        "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
+      },
+      {
         "selector": "0x0e8ae67f",
         "signature": "forwardNativeFees((address,uint256)[])"
       }
