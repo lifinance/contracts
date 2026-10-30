@@ -1688,24 +1688,124 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     function testRevert_SwapAndBridgeTamperedReceiver() public {
         EcoFacet.EcoData memory ecoData = _getSignedEcoData();
         bridgeData.receiver = address(0xBEEF);
-        bridgeData.hasSourceSwaps = true;
-
-        // Never executed: the signature check reverts before the swap.
-        delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: ADDRESS_USDC,
-                fromAmount: 1,
-                callData: "",
-                requiresDeposit: true
-            })
-        );
+        _setUnexecutedSwapData();
 
         vm.expectRevert(InvalidSignature.selector);
         ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    function testRevert_SwapAndBridgeSignatureFromUnauthorizedSigner() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.signature = _signEcoDataWith(0xBAD5169, bridgeData, ecoData);
+        _setUnexecutedSwapData();
+
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    function testRevert_SwapAndBridgeSignatureExpired() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.deadline = block.timestamp - 1;
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        _setUnexecutedSwapData();
+
+        vm.expectRevert(EcoFacet.SignatureExpired.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    function testRevert_TamperedNonEVMReceiver() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.nonEVMReceiver = abi.encode(address(0xBEEF));
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedSolanaATA() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.solanaATA = bytes32(uint256(1));
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedSendingAssetId() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedTransactionId() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.transactionId = keccak256("tampered");
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedDeadline() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.deadline += 1;
+        _expectInvalidSignature(ecoData);
+    }
+
+    /// @dev For EVM destinations `nonEVMReceiver` and `solanaATA` are not
+    ///      validated but stay signed (see the tamper tests above).
+    function test_EVMDestinationIgnoresSignedNonEVMFields() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.minAmount = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.nonEVMReceiver = abi.encode(address(0xBEEF));
+        ecoData.solanaATA = bytes32(uint256(1));
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev The Tron check only matches the final call's selector and
+    ///      recipient. A signed route that pays someone else earlier and ends
+    ///      with a zero transfer to `nonEVMReceiver` passes; the backend
+    ///      signature is the control against such routes.
+    function test_TronSignedRouteWithDecoyFinalTransferPasses() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.minAmount = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](2);
+        calls[0] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            data: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                address(0xBEEF),
+                bridgeData.minAmount
+            ),
+            value: 0
+        });
+        calls[1] = EcoFacet.Call({
+            target: address(0xCAFE),
+            data: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                USER_RECEIVER,
+                0
+            ),
+            value: 1
+        });
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.nonEVMReceiver = abi.encode(USER_RECEIVER);
+        ecoData.encodedRoute = _encodeRoute(
+            calls,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
     }
 
     function testRevert_ZeroIntentDestination() public {
@@ -1758,21 +1858,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     function testRevert_SwapAndBridgeTronToTron() public {
         vm.chainId(ECO_CHAIN_ID_TRON);
         EcoFacet.EcoData memory ecoData = _getSignedTronEcoData();
-        bridgeData.hasSourceSwaps = true;
-
-        // Never executed: the same-network check reverts before the swap.
-        delete swapData;
-        swapData.push(
-            LibSwap.SwapData({
-                callTo: address(uniswap),
-                approveTo: address(uniswap),
-                sendingAssetId: ADDRESS_DAI,
-                receivingAssetId: ADDRESS_USDC,
-                fromAmount: 1,
-                callData: "",
-                requiresDeposit: true
-            })
-        );
+        _setUnexecutedSwapData();
 
         vm.prank(USER_SENDER);
         vm.expectRevert(CannotBridgeToSameNetwork.selector);
@@ -2061,6 +2147,24 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         EcoFacet.EcoData memory ecoData = _getValidEcoData();
         ecoData.signature = _signEcoData(bridgeData, ecoData);
         return ecoData;
+    }
+
+    /// @dev For tests that revert before `_depositAndSwap`, so the swap is
+    ///      never executed
+    function _setUnexecutedSwapData() internal {
+        bridgeData.hasSourceSwaps = true;
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: 1,
+                callData: "",
+                requiresDeposit: true
+            })
+        );
     }
 
     function _getSignedTronEcoData()
