@@ -12,7 +12,7 @@ import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
 import { Validatable } from "lifi/Helpers/Validatable.sol";
 import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature } from "lifi/Errors/GenericErrors.sol";
 
 /// @title EcoFacet
 /// @author LI.FI (https://li.fi)
@@ -306,6 +306,12 @@ contract EcoFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             LIFI_CHAIN_ID_SOLANA;
         bool isTronDestination = _bridgeData.destinationChainId ==
             LIFI_CHAIN_ID_TRON;
+
+        // Validatable's same-network check compares against LI.FI's custom
+        // Tron ID, which never equals Tron's runtime chain ID
+        if (isTronDestination && block.chainid == ECO_CHAIN_ID_TRON) {
+            revert CannotBridgeToSameNetwork();
+        }
 
         // The Solana/Tron receiver checks below are selected by
         // destinationChainId, so the intent must be published to the same chain

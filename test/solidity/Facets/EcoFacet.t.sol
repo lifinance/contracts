@@ -9,7 +9,7 @@ import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
 import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { CannotBridgeToSameNetwork, InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { TestWhitelistManagerBase } from "test/solidity/utils/TestWhitelistManagerBase.sol";
 import { TestEcoBackendSig } from "test/solidity/utils/TestEcoBackendSig.sol";
@@ -1745,6 +1745,41 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         _expectSignedInvalidConfig(ecoData);
     }
 
+    function testRevert_TronToTron() public {
+        vm.chainId(ECO_CHAIN_ID_TRON);
+        EcoFacet.EcoData memory ecoData = _getSignedTronEcoData();
+
+        vm.prank(USER_SENDER);
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+    }
+
+    function testRevert_SwapAndBridgeTronToTron() public {
+        vm.chainId(ECO_CHAIN_ID_TRON);
+        EcoFacet.EcoData memory ecoData = _getSignedTronEcoData();
+        bridgeData.hasSourceSwaps = true;
+
+        // Never executed: the same-network check reverts before the swap.
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: 1,
+                callData: "",
+                requiresDeposit: true
+            })
+        );
+
+        vm.prank(USER_SENDER);
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
     /// @dev Native the swap leaves unspent and `msg.value` above the swap's
     ///      `fromAmount` both go to `refundRecipient`, not to the caller
     ///      (who may be a relayer or proxy).
@@ -2026,6 +2061,17 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         EcoFacet.EcoData memory ecoData = _getValidEcoData();
         ecoData.signature = _signEcoData(bridgeData, ecoData);
         return ecoData;
+    }
+
+    function _getSignedTronEcoData()
+        internal
+        returns (EcoFacet.EcoData memory ecoData)
+    {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        ecoData = _getValidEcoData();
+        ecoData.nonEVMReceiver = abi.encode(USER_RECEIVER);
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
     }
 
     function _expectInvalidSignature(
