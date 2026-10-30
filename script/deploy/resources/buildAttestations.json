@@ -350,6 +350,35 @@
     },
     {
       "key": {
+        "contractName": "AttestedBridgeFacet",
+        "sourceId": "src/Facets/AttestedBridgeFacet.sol",
+        "version": "1.0.0",
+        "closureHash": "0xc06f1b3935af2bdefed6bcfab405548534c17b4b72a04a2c5f73d16acb9aae77",
+        "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
+        "settingsSource": "artifact",
+        "solcVersion": "0.8.29+commit.ab55807c"
+      },
+      "build": {
+        "repo": "contracts",
+        "profile": "default",
+        "hashedSettings": {
+          "evmVersion": "cancun",
+          "libraries": {},
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "optimizer": {
+            "enabled": true,
+            "runs": 1000000
+          }
+        }
+      },
+      "maskedHash": "0x6ae0188a9e4d8cdb60f5447d6d59bceb3c54a0011005e0804c784705d7f3be54",
+      "lineage": "AttestedBridgeFacet@1.0.0 (default: solc 0.8.29, cancun)",
+      "rawByteLength": 2037
+    },
+    {
+      "key": {
         "contractName": "CalldataVerificationFacet",
         "sourceId": "src/Facets/CalldataVerificationFacet.sol",
         "version": "2.0.0",
