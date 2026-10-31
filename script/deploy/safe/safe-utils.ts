@@ -1407,8 +1407,8 @@ export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
     doc.timestamp instanceof Date
       ? doc.timestamp.toISOString()
       : typeof doc.timestamp === 'string'
-      ? doc.timestamp
-      : ''
+        ? doc.timestamp
+        : ''
 
   const summary: IProposalSummary = {
     network: doc.network,
@@ -1651,8 +1651,8 @@ function sanitizeOverride(
     ...(overrideReason
       ? { reason: overrideReason }
       : fallbackReason
-      ? { reason: fallbackReason }
-      : {}),
+        ? { reason: fallbackReason }
+        : {}),
   }
 }
 
@@ -2280,8 +2280,8 @@ export const parseAccountIndex = (raw: number | string | undefined): number => {
     typeof value === 'number'
       ? value
       : typeof value === 'string' && value.trim() !== ''
-      ? Number(value)
-      : NaN
+        ? Number(value)
+        : NaN
 
   if (!Number.isInteger(parsed) || parsed < 0)
     throw new Error(
@@ -2655,9 +2655,8 @@ export async function getNetworksWithActionableTransactions(
   rpcUrl?: string
 ): Promise<string[]> {
   // First, get all networks with pending transactions
-  const networksWithPendingTxs = await getNetworksWithPendingTransactions(
-    pendingTransactions
-  )
+  const networksWithPendingTxs =
+    await getNetworksWithPendingTransactions(pendingTransactions)
 
   if (networksWithPendingTxs.length === 0) return []
 

@@ -177,8 +177,8 @@ export const evaluatePreBroadcastGate = (
     blockFindings.length > 0
       ? 'BLOCK'
       : holdFindings.length > 0
-      ? 'HOLD'
-      : 'PROCEED'
+        ? 'HOLD'
+        : 'PROCEED'
 
   const coverage = describeCoverage(input)
   const reason =
@@ -187,8 +187,8 @@ export const evaluatePreBroadcastGate = (
           alerts.length > 0 ? ', with alerts' : ''
         }`
       : disposition === 'BLOCK'
-      ? `${blockFindings.length} proven integrity failure(s): ${blockFindings[0]} — ${coverage}`
-      : `${holdFindings.length} thing(s) could not be verified: ${holdFindings[0]} — ${coverage}`
+        ? `${blockFindings.length} proven integrity failure(s): ${blockFindings[0]} — ${coverage}`
+        : `${holdFindings.length} thing(s) could not be verified: ${holdFindings[0]} — ${coverage}`
 
   return {
     disposition,

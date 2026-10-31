@@ -450,8 +450,8 @@ export const advanceScan = async (
     high === undefined
       ? head
       : high > REORG_MARGIN_BLOCKS
-      ? high - REORG_MARGIN_BLOCKS
-      : 0n
+        ? high - REORG_MARGIN_BLOCKS
+        : 0n
   const forwardBudget: IBudget = {
     left: Number.MAX_SAFE_INTEGER,
     ...(history.until !== undefined ? { until: history.until } : {}),

@@ -439,7 +439,7 @@ const cmd = defineCommand({
       toDisplayRow(
         row,
         checkOnChain
-          ? doneByKey.get(statusKey(row.network, row.operationId)) ?? null
+          ? (doneByKey.get(statusKey(row.network, row.operationId)) ?? null)
           : undefined,
         checkOnChain
           ? readyByKey.get(statusKey(row.network, row.operationId))

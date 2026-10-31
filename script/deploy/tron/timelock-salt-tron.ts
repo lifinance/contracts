@@ -36,7 +36,7 @@ const toHex32 = (value: unknown): Hex => {
   const raw =
     typeof value === 'string'
       ? value
-      : (value as { toString?: () => string })?.toString?.() ?? ''
+      : ((value as { toString?: () => string })?.toString?.() ?? '')
   const stripped = raw.startsWith('0x') ? raw.slice(2) : raw
   if (!/^[0-9a-fA-F]{64}$/.test(stripped))
     throw new Error(
@@ -50,7 +50,7 @@ const toBigInt = (value: unknown): bigint => {
   const raw =
     typeof value === 'string'
       ? value
-      : (value as { toString?: () => string })?.toString?.() ?? ''
+      : ((value as { toString?: () => string })?.toString?.() ?? '')
   if (!/^\d+$/.test(raw))
     throw new Error(
       `Timelock returned an unreadable timestamp: ${String(value)}`

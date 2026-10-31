@@ -456,7 +456,7 @@ describe('selectBlockedNeedingAlert', () => {
       blockedReason: 'obsolete folded removals',
       safeTxHash: '0xdead',
       ...overrides,
-    } as ITimelockQueueDoc)
+    }) as ITimelockQueueDoc
 
   it('alerts on a ready blocked op that has never been alerted', () => {
     const out = selectBlockedNeedingAlert(

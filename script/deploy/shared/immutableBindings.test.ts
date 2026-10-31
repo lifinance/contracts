@@ -777,7 +777,7 @@ describe('liveVersionPredatingGetter', () => {
     ({
       contractName: 'GenericSwapFacetV3',
       getterSinceVersion,
-    } as IImmutableBindingCheck)
+    }) as IImmutableBindingCheck
 
   it('names the live version of a build older than the one that introduced the getter', () => {
     // The version comes back rather than a flag so the run log can say which build it skipped.

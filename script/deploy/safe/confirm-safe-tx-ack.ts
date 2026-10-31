@@ -255,7 +255,7 @@ export const rollUpQueue = (outcomes: INetworkOutcome[]): IQueueSummary => {
       // A group only exists because an outcome created it, so it is never empty.
       const [first, ...rest] = [...perProposal.values()] as [
         INetworkOutcome,
-        ...INetworkOutcome[]
+        ...INetworkOutcome[],
       ]
       const entries = [first, ...rest]
       const bySignatureCount = new Map<number, number>()
