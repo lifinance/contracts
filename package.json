@@ -37,7 +37,7 @@
     "plop": "^3.1.2",
     "prettier": "^2.6.0",
     "prettier-plugin-solidity": "^1.0.0-beta.19",
-    "solhint": "^5.0.5",
+    "solhint": "^6.2.5",
     "solhint-plugin-prettier": "^0.0.5",
     "tsc-files": "^1.1.4",
     "tsx": "4.23.13",
