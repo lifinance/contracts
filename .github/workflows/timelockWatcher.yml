@@ -78,7 +78,7 @@ jobs:
     steps:
       - name: Checkout repository
         id: checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Gate K checks out each recorded deployment commit to rebuild it.
           fetch-depth: 0
@@ -103,7 +103,7 @@ jobs:
 
       - name: Setup Bun
         id: bun
-        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
 
@@ -133,7 +133,7 @@ jobs:
 
       - name: Restore watcher state
         id: restore
-        uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: timelock-watcher-state.json
           # Never an exact hit: every run saves under its own key, and the newest prefix match
@@ -169,7 +169,7 @@ jobs:
         id: save
         # Saved on failure too: a run that read ten networks and lost one keeps the progress it made.
         if: always() && hashFiles('timelock-watcher-state.json') != ''
-        uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: timelock-watcher-state.json
           key: timelock-watcher-state-${{ github.run_id }}-${{ github.run_attempt }}
@@ -247,7 +247,7 @@ jobs:
       # Download with: `gh run download <run-id> -n timelock-watcher-logs`
       - name: Upload watcher log
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: timelock-watcher-logs
           path: |

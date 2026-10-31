@@ -68,12 +68,12 @@ jobs:
         # No submodules: the sync reads only `deployments/`, `config/` and the
         # proposal JSON. It never compiles Solidity, so the Foundry deps in `lib/`
         # would be a multi-minute clone for nothing.
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false # do not leave repo auth on the runner for later steps; sync uses LEDGER_SYNC_TOKEN explicitly
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
 
@@ -84,7 +84,7 @@ jobs:
         # erc7730 pins `Requires-Python >=3.12,<3.13`, so the formatter only
         # installs on 3.12 — pin it explicitly rather than trust the runner's
         # default Python (which drifts and would break the install without notice).
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
 
@@ -111,7 +111,7 @@ jobs:
         # GitHub's own well-tested clone path and handles auth setup robustly
         # — it also persists `http.https://github.com/.extraheader` inside
         # the cloned repo so the later push to origin authenticates.
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }}
           token: ${{ secrets.LEDGER_SYNC_TOKEN }}
