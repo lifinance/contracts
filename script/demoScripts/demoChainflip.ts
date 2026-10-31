@@ -152,8 +152,8 @@ async function main() {
   const tokenToApprove = withDestinationCall
     ? zeroAddress
     : withSwap
-      ? ADDRESS_USDT_ARB
-      : ADDRESS_USDC_ARB
+    ? ADDRESS_USDT_ARB
+    : ADDRESS_USDC_ARB
 
   console.info(
     `\nBridge ${

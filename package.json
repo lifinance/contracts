@@ -146,7 +146,7 @@
   },
   "lint-staged": {
     "*.{ts,js}": [
-      "oxfmt",
+      "oxfmt --no-error-on-unmatched-pattern",
       "oxlint --type-aware --fix --no-error-on-unmatched-pattern",
       "bunx tsx script/deploy/safe/funnel-fence.ts",
       "bunx tsx script/utils/node-runtime-fence.ts",
