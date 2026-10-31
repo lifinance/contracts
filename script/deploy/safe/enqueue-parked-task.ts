@@ -27,7 +27,7 @@ import {
   type IParkedTaskInput,
 } from './parked-tasks'
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 /** Resolves the enqueuer identity from git; falls back to `unknown` off a checkout. */
 function resolveEnqueuer(): string {

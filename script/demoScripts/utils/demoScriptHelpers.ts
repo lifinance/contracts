@@ -44,7 +44,7 @@ import {
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 
-config()
+config({ quiet: true })
 
 export const DEV_WALLET_ADDRESS = globalConfig.devWallet
 

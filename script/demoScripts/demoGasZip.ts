@@ -15,7 +15,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // #region ABIs
 const GAS_ZIP__FACET_ABI = gasZipFacetArtifact.abi as Narrow<

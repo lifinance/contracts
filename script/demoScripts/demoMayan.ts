@@ -16,7 +16,7 @@ import {
   type MayanFacet,
 } from '../../typechain'
 
-config()
+config({ quiet: true })
 
 // -----------------------------------------------------------------------------
 // Verified staging transaction

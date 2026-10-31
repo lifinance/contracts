@@ -61,7 +61,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-dotenvConfig()
+dotenvConfig({ quiet: true })
 
 const ERC20_ABI = erc20Artifact.abi as Abi
 const CENTRIFUGE_FACET_ABI = centrifugeFacetArtifact.abi as Abi

@@ -134,7 +134,7 @@ import {
   zeroPadAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // M0's own chain id for Solana; the facet translates LIFI_CHAIN_ID_SOLANA into it.
 const M0_CHAIN_ID_SOLANA = 1399811149

@@ -16,7 +16,7 @@ import {
   type IRpcEndpoint,
 } from './rpcEndpoints'
 
-config()
+config({ quiet: true })
 
 async function fetchRpcEndpoints(environment: string): Promise<{
   [network: string]: IRpcEndpoint[]

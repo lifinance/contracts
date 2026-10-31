@@ -29,7 +29,7 @@ import {
   parseAmountToHumanReadable,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // Successful Transactions
 // wstETH > stETH (via GenericSwapFacetV3): https://optimistic.etherscan.io/tx/0x4622d4ad989b07caae12588bab5e7e9dc8cc3cfa7eae33c3fa520a256cdbcaa2

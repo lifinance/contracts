@@ -18,7 +18,7 @@ import {
   ensureBalanceAndAllowanceToDiamond,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // Example successful transaction hashes
 // Native ETH bridge (ETH -> USDC on Base): https://app.blocksec.com/explorer/tx/eth/0x82f4d880a6b55437666a25c013885c7ef7f8837d56c395bd9b58c6d1aba4901f

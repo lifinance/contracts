@@ -39,7 +39,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // ==========================================================================================================
 // AcrossV4SwapFacet demo script (calldata-focused)
