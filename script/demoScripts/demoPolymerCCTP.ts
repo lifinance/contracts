@@ -295,8 +295,8 @@ async function main() {
   const destChainName = BRIDGE_TO_SOLANA
     ? 'Solana'
     : SRC_CHAIN === 'arbitrum'
-    ? 'Optimism'
-    : 'Arbitrum'
+      ? 'Optimism'
+      : 'Arbitrum'
   consola.info(
     `📤 Source Chain: ${sourceChainName} (Chain ID: ${sourceChainId})`
   )
@@ -462,7 +462,7 @@ async function main() {
             startBridgeTokensViaPolymerCCTP: (
               args: [
                 ILiFi.BridgeDataStruct,
-                PolymerCCTPFacet.PolymerCCTPDataStruct
+                PolymerCCTPFacet.PolymerCCTPDataStruct,
               ]
             ) => Promise<`0x${string}`>
           }
@@ -485,8 +485,8 @@ async function main() {
         BRIDGE_TO_SOLANA
           ? 'Solana'
           : SRC_CHAIN === 'arbitrum'
-          ? 'Optimism'
-          : 'Arbitrum'
+            ? 'Optimism'
+            : 'Arbitrum'
       }`
     )
     consola.info('')

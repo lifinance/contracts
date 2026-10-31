@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 # This hook uses bash-only features (process substitution `< <(...)`, array
-# `+=`, `[[ ]]`). husky v8's `.husky/_/husky.sh` re-execs hooks under `sh -e
-# "$0"`, which on macOS is bash-in-POSIX-mode — bash-only syntax fails to
-# parse inside function bodies, and the error fires AFTER git has already
-# accepted the commit, so bad commits slip through silently.
+# `+=`, `[[ ]]`). husky 9's `.husky/_/h` runs hooks as `sh -e <hook>`, which
+# on macOS is bash-in-POSIX-mode — bash-only syntax fails to parse inside
+# function bodies, and the error fires AFTER git has already accepted the
+# commit, so bad commits slip through silently.
 #
-# We bypass the broken re-exec by replicating the small bits of husky.sh
-# init we actually need (HUSKY=0 skip, ~/.huskyrc) and re-execing under
-# `bash -e` instead of `sh -e`.
+# So re-exec once under `bash -e`. husky 9's wrapper already honours HUSKY=0
+# and sources ~/.config/husky/init.sh; the checks below cover direct runs and
+# keep sourcing the legacy ~/.huskyrc, which husky 9 only warns about.
 [ "$HUSKY" = "0" ] && exit 0
-if [ -z "$husky_skip_init" ]; then
-  readonly husky_skip_init=1
-  export husky_skip_init
+if [ -z "$LIFI_HOOK_BASH" ]; then
+  export LIFI_HOOK_BASH=1
   [ -f ~/.huskyrc ] && . ~/.huskyrc
   exec bash -e "$0" "$@"
 fi
@@ -205,6 +204,7 @@ filter_output() {
       # Show only the actual error content, filter out all lint-staged status noise
       # Keep: file paths, line numbers, error messages, warnings, problem counts
       echo "$content" | grep -vE "\[(STARTED|COMPLETED|SKIPPED|FAILED)\]" | \
+        grep -vE "^[[:space:]]*(⋯|✔) " | \
         grep -vE "Preparing lint-staged" | \
         grep -vE "Running tasks" | \
         grep -vE "Applying modifications" | \

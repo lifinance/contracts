@@ -1262,7 +1262,7 @@ function tryGetAddress(value: string): Address | null {
  */
 export function isDeterministicReadFailure(error: unknown): boolean {
   const seen = new Set<unknown>()
-  for (let current = error; current && !seen.has(current); ) {
+  for (let current = error; current && !seen.has(current);) {
     seen.add(current)
     const candidate = current as {
       name?: unknown
@@ -1969,9 +1969,8 @@ function fetchPendingRegistrationsByNetwork(): Promise<
 > {
   return (pendingRegistrationsPromise ??= (async () => {
     try {
-      const { listPendingRegistrationsByNetwork } = await import(
-        './safe/pending-registrations'
-      )
+      const { listPendingRegistrationsByNetwork } =
+        await import('./safe/pending-registrations')
       return await listPendingRegistrationsByNetwork()
     } catch (error: unknown) {
       pendingRegistrationsPromise = undefined
@@ -3041,7 +3040,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
         // Tron addresses are base58 and case-sensitive; only EVM hex gets checksum-normalized.
         const normalize = (address: string): string =>
-          ctx.isTron ? address : tryGetAddress(address) ?? address
+          ctx.isTron ? address : (tryGetAddress(address) ?? address)
         if (normalize(String(logged)) !== normalize(onChain))
           ctx.logWarn(
             `${name}: the deploy log has ${String(
@@ -3251,7 +3250,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         }
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.stack ?? error.message : String(error)
+          error instanceof Error
+            ? (error.stack ?? error.message)
+            : String(error)
         ctx.logError(`Whitelist configuration not available: ${errorMessage}`)
       }
     },

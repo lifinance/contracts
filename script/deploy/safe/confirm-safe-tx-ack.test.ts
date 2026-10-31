@@ -426,7 +426,7 @@ describe('rollUpQueue / renderQueueSummary', () => {
       string,
       string,
       string,
-      ...string[]
+      ...string[],
     ]
     return {
       lines,

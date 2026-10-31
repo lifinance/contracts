@@ -158,7 +158,7 @@ describe('getFallbackTransportForChain', () => {
     ({
       name: 'TestChain',
       rpcUrls: { default: { http } },
-    } as unknown as Chain)
+    }) as unknown as Chain
 
   /**
    * The endpoint URLs a transport would actually call, in order.

@@ -240,7 +240,7 @@ describe('codehashFromArgs', () => {
     ['code-byte-length'],
     ['masked-byte-count'],
   ] as [
-    'codehash' | 'masked-codehash' | 'code-byte-length' | 'masked-byte-count'
+    'codehash' | 'masked-codehash' | 'code-byte-length' | 'masked-byte-count',
   ][])('records nothing when only %s is missing', (missing) => {
     const decision = codehashFromArgs({ ...args, [missing]: undefined })
 

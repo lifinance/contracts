@@ -749,7 +749,7 @@ const cli = defineCommand({
                 writeArgs: [
                   ILiFi.BridgeDataStruct,
                   LibSwap.SwapDataStruct[],
-                  M0Facet.M0DataStruct
+                  M0Facet.M0DataStruct,
                 ]
               ) => Promise<Hex>
             }

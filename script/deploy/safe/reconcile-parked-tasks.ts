@@ -324,7 +324,7 @@ export function shouldCancelDeprecated(
  * @returns `live` tasks for the on-chain path, `deprecated` ones for abandonment.
  */
 export function partitionByNetworkStatus<
-  T extends Pick<IParkedTask, 'network'>
+  T extends Pick<IParkedTask, 'network'>,
 >(
   tasks: readonly T[],
   activeNetworks: ReadonlySet<string>
@@ -1024,8 +1024,8 @@ async function reconcileAll(
           removableAddresses.has(address) && !nameMismatch
             ? true
             : refusalReason !== undefined
-            ? false
-            : undefined
+              ? false
+              : undefined
         const decision = reconcileDecision(task, {
           facetPresentOnChain: presentOnChain,
           proposalStatus,

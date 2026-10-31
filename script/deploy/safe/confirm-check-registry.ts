@@ -195,19 +195,19 @@ export const storageAuthorityCheckResult = (
       entry.readError !== undefined || entry.liveValue === undefined
         ? 'error'
         : entry.expectedValue === undefined
-        ? 'error'
-        : entry.liveValue.trim().toLowerCase() !==
-          entry.expectedValue.trim().toLowerCase()
-        ? 'fail'
-        : 'pass'
+          ? 'error'
+          : entry.liveValue.trim().toLowerCase() !==
+              entry.expectedValue.trim().toLowerCase()
+            ? 'fail'
+            : 'pass'
 
     if (entryStatus !== 'pass')
       failing.push(
         entry.readError !== undefined
           ? `${entry.label}: NOT READ — ${entry.readError}`
           : entry.expectedValue === undefined
-          ? `${entry.label}: main declares nothing to judge ${entry.liveValue} against`
-          : `${entry.label}: holds ${entry.liveValue}, main declares ${entry.expectedValue}`
+            ? `${entry.label}: main declares nothing to judge ${entry.liveValue} against`
+            : `${entry.label}: holds ${entry.liveValue}, main declares ${entry.expectedValue}`
       )
 
     status = worstOf(status, entryStatus)
@@ -218,7 +218,7 @@ export const storageAuthorityCheckResult = (
     const entryAnchor =
       entry.readError !== undefined || entry.liveValue === undefined
         ? 'A-UNRESOLVED'
-        : expectationAnchors.get(entry.label) ?? 'A-UNRESOLVED'
+        : (expectationAnchors.get(entry.label) ?? 'A-UNRESOLVED')
     if (rank < worstRank) {
       worstRank = rank
       anchor = entryAnchor
@@ -694,12 +694,12 @@ const peripheryRowStatus = (
   finding.status === 'missing'
     ? 'fail'
     : finding.status === 'read-failed'
-    ? 'error'
-    : finding.expected.length === 0 || finding.status === 'deregistration'
-    ? 'not-applicable'
-    : PERIPHERY_STATUSES_CLEARED.has(finding.status)
-    ? 'pass'
-    : 'error'
+      ? 'error'
+      : finding.expected.length === 0 || finding.status === 'deregistration'
+        ? 'not-applicable'
+        : PERIPHERY_STATUSES_CLEARED.has(finding.status)
+          ? 'pass'
+          : 'error'
 
 /**
  * Reduces gate W's verdict to the one row the ledger holds.
@@ -758,8 +758,8 @@ export const peripheryAllowlistCheckResult = (
     status === 'error'
       ? 'A-UNRESOLVED'
       : graded.some((finding) => finding.observed !== undefined)
-      ? 'A-CHAIN'
-      : 'A-MAIN'
+        ? 'A-CHAIN'
+        : 'A-MAIN'
   const details = [
     ...(status === 'fail' ? [peripheryAllowlistRemedy(network)] : []),
     ...(drift === undefined ? [] : [drift]),
@@ -1701,42 +1701,42 @@ export const proposalCheckResults = (
     verdicts.executability
       ? executabilityCheckResult(verdicts.executability, network)
       : verdicts.executabilityOutOfScope
-      ? {
-          checkId: EXECUTABILITY_CHECK_ID,
-          network,
-          status: 'needs-ack',
-          expected:
+        ? {
+            checkId: EXECUTABILITY_CHECK_ID,
+            network,
+            status: 'needs-ack',
+            expected:
+              'every payload simulated against the state it will execute in',
+            actual: verdicts.executabilityOutOfScope,
+            anchor: 'A-DOCUMENTED',
+          }
+        : unresolved(
+            EXECUTABILITY_CHECK_ID,
+            network,
             'every payload simulated against the state it will execute in',
-          actual: verdicts.executabilityOutOfScope,
-          anchor: 'A-DOCUMENTED',
-        }
-      : unresolved(
-          EXECUTABILITY_CHECK_ID,
-          network,
-          'every payload simulated against the state it will execute in',
-          'no simulation was attempted for this proposal'
-        ),
+            'no simulation was attempted for this proposal'
+          ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
       : verdicts.rpcQuorumOutOfScope
-      ? {
-          checkId: RPC_QUORUM_CHECK_ID,
-          network,
-          status: 'needs-ack',
-          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
-          actual: verdicts.rpcQuorumOutOfScope,
-          anchor: 'A-DOCUMENTED',
-        }
-      : {
-          checkId: RPC_QUORUM_CHECK_ID,
-          network,
-          // Report-only, so an unmade read is an acknowledgement and not the
-          // `error` every other unmade check here records: this gate must not
-          // block a run on the fleet's missing endpoint redundancy.
-          status: 'needs-ack',
-          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
-          actual: 'no quorum read was made for this proposal',
-          anchor: 'A-UNRESOLVED',
-        },
+        ? {
+            checkId: RPC_QUORUM_CHECK_ID,
+            network,
+            status: 'needs-ack',
+            expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+            actual: verdicts.rpcQuorumOutOfScope,
+            anchor: 'A-DOCUMENTED',
+          }
+        : {
+            checkId: RPC_QUORUM_CHECK_ID,
+            network,
+            // Report-only, so an unmade read is an acknowledgement and not the
+            // `error` every other unmade check here records: this gate must not
+            // block a run on the fleet's missing endpoint redundancy.
+            status: 'needs-ack',
+            expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+            actual: 'no quorum read was made for this proposal',
+            anchor: 'A-UNRESOLVED',
+          },
   ]
 }

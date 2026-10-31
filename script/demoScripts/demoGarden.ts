@@ -150,8 +150,8 @@ const main = defineCommand({
           isNative
             ? 'ETH -> USDC (converted on destination)'
             : withSwap
-            ? 'WETH -> USDC'
-            : 'USDC'
+              ? 'WETH -> USDC'
+              : 'USDC'
         }`
       )
       consola.info(`Amount: ${amountStr} ${isNative ? 'ETH' : 'USDC'}`)

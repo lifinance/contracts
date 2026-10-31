@@ -23,6 +23,7 @@ on:
 permissions:
   contents: read # required to fetch repository contents
   security-events: write # required to upload SARIF results to GitHub Code Scanning
+  pull-requests: read # required by dorny/paths-filter to read changed files on PRs
 
 jobs:
   static-analysis:
@@ -32,29 +33,31 @@ jobs:
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Get added, renamed, modified Solidity Files
         id: changed-files
-        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          files: |
-            src/**/*.sol
+          list-files: shell
+          filters: |
+            sol:
+              - added|copied|modified|renamed: 'src/**/*.sol'
 
       - name: Convert Changed Files to Args
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.sol == 'true'
         id: format-args
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.sol_files }}
         run: |
           args=$(echo "$ALL_CHANGED_FILES" | xargs -n 1 printf -- "-p %s ")
           echo "ARGS=$args" >> $GITHUB_ENV
 
       - name: Run Olympix Integrated Security
         id: olympix
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.sol == 'true'
         uses: olympix/integrated-security@79cbce2446c47a8381bef23d09528e9ef08cc066 # main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
@@ -63,7 +66,7 @@ jobs:
 
       - name: Verify Olympix produced a SARIF report
         id: sarif-check
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.sol == 'true'
         env:
           OLYMPIX_OUTCOME: ${{ steps.olympix.outcome }}
         run: |
@@ -85,7 +88,7 @@ jobs:
           fi
 
       - name: Upload Result to GitHub Code Scanning
-        if: steps.changed-files.outputs.any_changed == 'true' && steps.sarif-check.outputs.sarif_exists == 'true'
-        uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
+        if: steps.changed-files.outputs.sol == 'true' && steps.sarif-check.outputs.sarif_exists == 'true'
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: olympix.sarif

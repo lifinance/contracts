@@ -78,7 +78,7 @@ runs:
       # This step is the SOLE owner of ~/.foundry/cache/rpc — the toolchain cache below does not
       # cover it and foundry-toolchain's own caching is off. When two actions cache overlapping
       # paths the one restoring last wins, so a staler superset silently discards fresher state.
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.foundry/cache/rpc
         # `refresh` is empty unless rpc-cache-refresh is on, in which case it makes this key
@@ -94,7 +94,7 @@ runs:
       # matching install and skip the download on a cache hit. Version is folded into
       # the cache key so a foundry bump invalidates the cache automatically and we
       # never mix solc binaries across foundry versions.
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         # Enumerated rather than all of ~/.foundry, which also holds cache/rpc: a
         # superset path would make this the last writer over the RPC state above.
@@ -108,7 +108,7 @@ runs:
           foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-
 
     - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+      uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
       with:
         version: ${{ steps.pin.outputs.version }}
         # Its built-in cache covers ~/.foundry/cache with a key of
@@ -117,7 +117,7 @@ runs:
         cache: false
 
     - name: Cache forge build artifacts (cache/, out/)
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           cache

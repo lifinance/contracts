@@ -21,7 +21,7 @@ const messageOf = (error: unknown): string =>
  */
 export const guardErrorDetail = (error: unknown): string =>
   redactUrls(
-    error instanceof Error ? error.stack ?? error.message : String(error)
+    error instanceof Error ? (error.stack ?? error.message) : String(error)
   )
 
 /**

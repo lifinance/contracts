@@ -397,8 +397,8 @@ async function decodeCall(
   const functionName =
     local?.source === 'diamond.json'
       ? local.name
-      : local?.signature ??
-        (await resolveSelectorsViaFourByte([selector])).get(selector)
+      : (local?.signature ??
+        (await resolveSelectorsViaFourByte([selector])).get(selector))
 
   const candidates = []
   if (functionName) {
@@ -788,12 +788,12 @@ async function whitelistLines(
     whitelisted === true
       ? trustedMarkup('Whitelist ')
       : whitelisted === false
-      ? trustedMarkup('Un-whitelist ')
-      : concatPrintable(
-          trustedMarkup('set whitelisted='),
-          quoted(whitelisted, GREEN),
-          trustedMarkup(' on ')
-        )
+        ? trustedMarkup('Un-whitelist ')
+        : concatPrintable(
+            trustedMarkup('set whitelisted='),
+            quoted(whitelisted, GREEN),
+            trustedMarkup(' on ')
+          )
   const count = Math.max(contracts.length, selectors.length)
   lines.unshift(
     `${pre}${called}${color(GREY, trustedMarkup(' · '))}${verb}${color(

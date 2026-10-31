@@ -231,7 +231,7 @@ describe('the fence runs where it has to run', () => {
     const position = (fragment: string): number =>
       LINT_STAGED_TS.findIndex((command) => command.includes(fragment))
 
-    expect(position('prettier --write')).toBe(0)
+    expect(position('oxfmt')).toBe(0)
     expect(position('oxlint')).toBe(1)
     expect(position(FENCE_SCRIPT)).toBe(2)
     expect(position('script/utils/node-runtime-fence.ts')).toBe(3)

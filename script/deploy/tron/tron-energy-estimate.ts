@@ -65,7 +65,10 @@ const realSleep = (ms: number): Promise<void> =>
  * not, and retrying it only spends the operator's time before the same refusal.
  */
 export class TronEstimateError extends Error {
-  public constructor(message: string, public readonly retryable: boolean) {
+  public constructor(
+    message: string,
+    public readonly retryable: boolean
+  ) {
     super(message)
     this.name = 'TronEstimateError'
   }

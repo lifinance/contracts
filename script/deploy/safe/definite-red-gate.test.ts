@@ -116,7 +116,7 @@ const target = (
     excludedByteCount: 32,
     pricedByteCount: 32,
     immutables: { status, detail: `${address}: ${status}` },
-  } as ITargetVerdict)
+  }) as ITargetVerdict
 
 const gateWith = (targets: ITargetVerdict[]): ICodehashSignGate => ({
   blocksSigning: false,

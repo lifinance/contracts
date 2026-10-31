@@ -4,6 +4,12 @@
   "editor.codeActionsOnSave": {
     "source.fixAll": true
   },
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
   "solidity.linter": "solhint",
   "solidity.defaultCompiler": "remote",
   "solidity.compileUsingRemoteVersion": "v0.8.7+commit.e28d00a7",

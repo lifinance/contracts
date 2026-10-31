@@ -414,7 +414,7 @@ const cli = defineCommand({
                 args: [
                   ILiFi.BridgeDataStruct,
                   LibSwap.SwapDataStruct[],
-                  SupersetFacet.SupersetDataStruct
+                  SupersetFacet.SupersetDataStruct,
                 ],
                 options?: { value: bigint }
               ) => Promise<Hex>

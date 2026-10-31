@@ -315,8 +315,8 @@ function printSummary(results: INetworkRunResult[]): void {
       r.status === 'proposed'
         ? green('proposed')
         : r.status === 'skipped'
-        ? yellow('skipped ')
-        : red('failed  ')
+          ? yellow('skipped ')
+          : red('failed  ')
     consola.info(`  ${pad}  ${tag}  ${r.detail}`)
   }
   const failed = results.filter((r) => r.status === 'failed').length
@@ -591,8 +591,8 @@ function printCheckTable(results: ICheckResult[]): void {
       r.status === 'OK'
         ? green('OK    ')
         : r.status === 'DIFF'
-        ? yellow('DIFF  ')
-        : red('FAILED')
+          ? yellow('DIFF  ')
+          : red('FAILED')
 
     const th =
       r.threshold !== undefined

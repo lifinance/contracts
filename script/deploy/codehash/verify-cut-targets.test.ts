@@ -554,7 +554,7 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
       }),
       attestationsFor: async () => ({ builds: [attested(HASH)] }),
       ...over,
-    } as IVerifyCutDeps)
+    }) as IVerifyCutDeps
 
   const zkReport = (over: Partial<IVerifyCutDeps> = {}) =>
     verifyCutTargets(

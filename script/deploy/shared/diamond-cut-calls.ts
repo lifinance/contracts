@@ -201,8 +201,8 @@ const unwrapperFor = (
   selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
     ? decodeScheduleBatch
     : selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()
-    ? decodeSchedule
-    : undefined
+      ? decodeSchedule
+      : undefined
 
 /** One call a proposal really makes, after every timelock envelope is opened. */
 export interface IScheduledCall {
@@ -372,8 +372,8 @@ export const collectLeafCalls = (
       selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
         ? decodeScheduleBatch
         : selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()
-        ? decodeSchedule
-        : undefined
+          ? decodeSchedule
+          : undefined
 
     if (unwrap) {
       if (depth >= MAX_UNWRAP_DEPTH) {
