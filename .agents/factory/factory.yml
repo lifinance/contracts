@@ -43,7 +43,7 @@ repo:
     # No separate lint command: the lint-staged suite below runs the branch's own pre-commit lint (the main
     # linter and both AST fences) over the whole branch, so it follows a change of linter.
     lint: null
-    format: [bunx, prettier, --check]
+    format: [bunx, oxfmt, --check]
     test: [bun, test]
     code_pattern: '\.(ts|js|tsx)$'
     test_pattern: '\.test\.ts$'

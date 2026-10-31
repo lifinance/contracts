@@ -15,7 +15,7 @@ are embedded in rule files.
 
 | Task | Command |
 |---|---|
-| Format | `bunx prettier --write <file>` (scoped; `bun format:fix` rewrites the whole tree) |
+| Format | `bunx oxfmt <file>` (TS/JS), `bunx prettier --write <file>` (Solidity) (scoped; `bun format:fix` rewrites the whole tree) |
 | Lint | `bunx oxlint --type-aware <file>` (TS/JS) |
 | Test (Solidity) | `bun run test` (bare `bun test` runs Bun's own test runner) |
 | Test (TypeScript) | `bun test:ts` |
