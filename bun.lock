@@ -4,7 +4,7 @@
   "workspaces": {
     "": {
       "dependencies": {
-        "@arbitrum/sdk": "^3.0.0",
+        "@arbitrum/sdk": "^4.1.0",
         "@cowprotocol/cow-sdk": "^5.10.3",
         "@ethersproject/abi": "^5.8.0",
         "@ledgerhq/hw-app-eth": "^6.43.0",
@@ -69,7 +69,7 @@
 
     "@adraffy/ens-normalize": ["@adraffy/ens-normalize@1.10.1", "", {}, "sha512-96Z2IP3mYmF1Xg2cDm8f1gWGf/HUVedQ3FMifV4kG/PQ4yEP51xDtRAEfhVNt5f/uzpNkZHwWQuUcu6D6K+Ekw=="],
 
-    "@arbitrum/sdk": ["@arbitrum/sdk@3.7.3", "", { "dependencies": { "@ethersproject/address": "^5.0.8", "@ethersproject/bignumber": "^5.1.1", "@ethersproject/bytes": "^5.0.8", "async-mutex": "^0.4.0", "ethers": "^5.1.0" } }, "sha512-7nyPm7032+RyjfIFpJf7EKN6EQTtjEzGGemz6NgFzEFLmKj1q+QMRVj9yYKVjIM2lPMKh7Qv+DX6emsxy/5FdQ=="],
+    "@arbitrum/sdk": ["@arbitrum/sdk@4.1.0", "", { "dependencies": { "@ethersproject/address": "^5.0.8", "@ethersproject/bignumber": "^5.1.1", "@ethersproject/bytes": "^5.0.8", "async-mutex": "^0.4.0", "ethers": "^5.1.0" } }, "sha512-OIGxZj4DHROejCjSkaZEOcHhRktZGMhLAPA+Cyymlp1z7KdWaeN2DW85i6yd2Ks7QeZkv2EvwcBKOJnxoSI5tQ=="],
 
     "@assemblyscript/loader": ["@assemblyscript/loader@0.9.4", "", {}, "sha512-HazVq9zwTVwGmqdwYzu7WyQ6FQVZ7SwET0KKQuKm55jD0IfUpZgN0OPIiZG3zV1iSrVYcN0bdwLRXI/VNCYsUA=="],
 

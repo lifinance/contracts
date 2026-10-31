@@ -126,7 +126,7 @@
     "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts"
   },
   "dependencies": {
-    "@arbitrum/sdk": "^3.0.0",
+    "@arbitrum/sdk": "^4.1.0",
     "@cowprotocol/cow-sdk": "^5.10.3",
     "@ethersproject/abi": "^5.8.0",
     "@ledgerhq/hw-app-eth": "^6.43.0",

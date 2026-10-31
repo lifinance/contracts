@@ -1,5 +1,7 @@
-import { RetryableDataTools } from '@arbitrum/sdk'
-import { L1ToL2MessageGasEstimator } from '@arbitrum/sdk/dist/lib/message/L1ToL2MessageGasEstimator'
+import {
+  ParentToChildMessageGasEstimator,
+  RetryableDataTools,
+} from '@arbitrum/sdk'
 import chalk from 'chalk'
 import {
   providers,
@@ -58,7 +60,7 @@ async function main() {
   )
   const l2Provider = new providers.FallbackProvider([l2JsonProvider])
 
-  const gasEstimator = new L1ToL2MessageGasEstimator(l2Provider)
+  const gasEstimator = new ParentToChildMessageGasEstimator(l2Provider)
 
   let wallet = Wallet.fromMnemonic(<string>process.env.MNEMONIC)
   wallet = wallet.connect(l1Provider)
