@@ -42,7 +42,7 @@
     "tsc-files": "^1.1.4",
     "tsx": "4.23.13",
     "typechain": "^8.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^6.0.3"
   },
   "overrides": {
     "protobufjs": "7.6.6",
