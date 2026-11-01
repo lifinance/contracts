@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
+import { TestBaseFacet } from "test/solidity/utils/TestBaseFacet.sol";
 import { ERC20 } from "lib/solmate/src/tokens/ERC20.sol";
 import { IERC20 } from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import { LibSwap } from "../../../src/Libraries/LibSwap.sol";
-import { EcoFacet } from "../../../src/Facets/EcoFacet.sol";
-import { IEcoPortal } from "../../../src/Interfaces/IEcoPortal.sol";
-import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "../../../src/Errors/GenericErrors.sol";
-import { LibBytes } from "../../../src/Libraries/LibBytes.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { TestEcoBackendSig } from "../utils/TestEcoBackendSig.sol";
+import { LibSwap } from "lifi/Libraries/LibSwap.sol";
+import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
+import { IEcoPortal } from "lifi/Interfaces/IEcoPortal.sol";
+import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
+import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { CannotBridgeToSameNetwork, InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidSignature, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
+import { TestWhitelistManagerBase } from "test/solidity/utils/TestWhitelistManagerBase.sol";
+import { TestEcoBackendSig } from "test/solidity/utils/TestEcoBackendSig.sol";
 
 contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
     constructor(
@@ -23,11 +24,92 @@ contract TestEcoFacet is EcoFacet, TestWhitelistManagerBase {
 contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
     TestEcoFacet internal ecoFacet;
     address internal constant PORTAL =
-        0xB5e58A8206473Df3Ab9b8DDd3B0F84c0ba68F8b5;
+        0xEC000769A73b70e16f361a442292500b3BCf4A85;
     uint256 internal constant TOKEN_SOLVER_REWARD = 10 * 10 ** 6; // 10 USDC (6 decimals)
+    uint64 internal constant ECO_CHAIN_ID_TRON = 728126428;
+    uint64 internal constant ECO_CHAIN_ID_SOLANA = 1399811149;
+    address internal constant TOKEN_MESSENGER =
+        0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d;
+    uint256 internal constant ARBITRUM_CHAIN_ID = 42161;
+    uint32 internal constant ARBITRUM_CCTP_DOMAIN = 3;
+    uint32 internal constant CCTP_FAST_FINALITY_THRESHOLD = 1000;
+    /// @dev maxFee = amount / 1000 (10 bps), above Circle's fast-transfer minimum
+    uint256 internal constant CCTP_MAX_FEE_DIVISOR = 1000;
+    uint64 internal constant HYPEREVM_CHAIN_ID = 999;
+    address internal constant HYPERCORE_ROUTE_RECEIVER =
+        0x86DBd094BC7436BD106C53a6a137Ab0Ab810A6A9;
+    /// @dev encodedRoute of Arbitrum tx 0x7d7a7e2e6866ee087f26005dcb9715818df23bfc983789bd6f841091e4adbef4
+    ///      (Eco quote to HyperCore): approve + CoreDepositWallet.depositFor.
+    bytes internal constant HYPERCORE_PRODUCTION_ROUTE =
+        hex"0000000000000000000000000000000000000000000000000000000000000020"
+        hex"ec00ec00ec00ec00ec00ec00ec00ec00aaaf8940ec75ab10853ffaf8da8624ab"
+        hex"000000000000000000000000000000000000000000000000000000006ab275de"
+        hex"000000000000000000000000ec000064576f9c95a8623bc0eff3db6d296ea6df"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000000000000000000000000000000000000000000000c0"
+        hex"0000000000000000000000000000000000000000000000000000000000000120"
+        hex"0000000000000000000000000000000000000000000000000000000000000001"
+        hex"000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f"
+        hex"00000000000000000000000000000000000000000000000000000000002c1d3e"
+        hex"0000000000000000000000000000000000000000000000000000000000000002"
+        hex"0000000000000000000000000000000000000000000000000000000000000040"
+        hex"0000000000000000000000000000000000000000000000000000000000000120"
+        hex"000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f"
+        hex"0000000000000000000000000000000000000000000000000000000000000060"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000044"
+        hex"095ea7b30000000000000000000000006b9e773128f453f5c2c60935ee2de2cb"
+        hex"c5390a2400000000000000000000000000000000000000000000000000000000"
+        hex"002c1d3e00000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000006b9e773128f453f5c2c60935ee2de2cbc5390a24"
+        hex"0000000000000000000000000000000000000000000000000000000000000060"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000064"
+        hex"c23c545a00000000000000000000000086dbd094bc7436bd106c53a6a137ab0a"
+        hex"b810a6a900000000000000000000000000000000000000000000000000000000"
+        hex"002c1d3e00000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000000";
+    address internal constant CCTP_QUOTE_RECEIVER = address(2);
+    uint256 internal constant CCTP_QUOTE_AMOUNT = 5_000_000;
+    /// @dev encodedRoute of a CCTP fulfillment quote from Eco's open quoting
+    ///      service (quotes.eco.com, 2026-10-12): 5 USDC Base -> Arbitrum to
+    ///      CCTP_QUOTE_RECEIVER; approve + depositForBurn(domain 3, maxFee 650).
+    bytes internal constant CCTP_QUOTE_ROUTE =
+        hex"0000000000000000000000000000000000000000000000000000000000000020"
+        hex"ec00ec00ec00ec00ec00ec00ec00ec00ef125e648c1dcd7689ded5a790a11a4d"
+        hex"000000000000000000000000000000000000000000000000000000006accea4f"
+        hex"000000000000000000000000ec000769a73b70e16f361a442292500b3bcf4a85"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000000000000000000000000000000000000000000000c0"
+        hex"0000000000000000000000000000000000000000000000000000000000000120"
+        hex"0000000000000000000000000000000000000000000000000000000000000001"
+        hex"000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        hex"00000000000000000000000000000000000000000000000000000000004c4b40"
+        hex"0000000000000000000000000000000000000000000000000000000000000002"
+        hex"0000000000000000000000000000000000000000000000000000000000000040"
+        hex"0000000000000000000000000000000000000000000000000000000000000120"
+        hex"000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda02913"
+        hex"0000000000000000000000000000000000000000000000000000000000000060"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000044"
+        hex"095ea7b300000000000000000000000028b5a0e9c621a5badaa536219b3a228c"
+        hex"8168cf5d00000000000000000000000000000000000000000000000000000000"
+        hex"004c4b4000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000000028b5a0e9c621a5badaa536219b3a228c8168cf5d"
+        hex"0000000000000000000000000000000000000000000000000000000000000060"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"00000000000000000000000000000000000000000000000000000000000000e4"
+        hex"8e0250ee00000000000000000000000000000000000000000000000000000000"
+        hex"004c4b4000000000000000000000000000000000000000000000000000000000"
+        hex"0000000300000000000000000000000000000000000000000000000000000000"
+        hex"00000002000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54"
+        hex"bda0291300000000000000000000000000000000000000000000000000000000"
+        hex"0000000000000000000000000000000000000000000000000000000000000000"
+        hex"0000028a00000000000000000000000000000000000000000000000000000000"
+        hex"000003e800000000000000000000000000000000000000000000000000000000";
 
     function setUp() public {
-        customBlockNumberForForking = 35717845;
+        customBlockNumberForForking = 52500000;
         customRpcUrlForForking = "ETH_NODE_URI_BASE";
         initTestBase();
         addLiquidity(
@@ -140,6 +222,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -150,6 +233,91 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         // Should revert when trying to bridge native tokens
         vm.expectRevert(NativeAssetNotSupported.selector);
         _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_SwapAndBridgeRefundRecipientZeroAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.refundRecipient = address(0);
+
+        dai.approve(_facetTestContractAddress, amountIn);
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        _swapAndStartEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev A direct-bridge signature reused on the swap path with a final swap
+    ///      into another asset must not let positive slippage pay out stray
+    ///      bridge-token balance held by the diamond.
+    function testRevert_SwapAndBridgeFinalAssetMismatch() public {
+        deal(ADDRESS_USDC, _facetTestContractAddress, 1_000 * 10 ** 6);
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: 1,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    1,
+                    1,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        usdc.approve(_facetTestContractAddress, 1);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        ecoFacet.swapAndStartBridgeTokensViaEco{ value: 1 ether }(
+            bridgeData,
+            swapData,
+            ecoData
+        );
 
         vm.stopPrank();
     }
@@ -197,6 +365,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -369,6 +538,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: solanaAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: solanaEncodedRoute,
             solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2,
             refundRecipient: USER_SENDER,
@@ -416,6 +586,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(USER_RECEIVER),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -459,6 +630,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(address(0x9999)),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -492,6 +664,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encodePacked(USER_RECEIVER), // 20 bytes, not 32
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -532,6 +705,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encodePacked(dirtyReceiver),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -572,6 +746,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(address(0)),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -608,11 +783,12 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
         calls[0] = EcoFacet.Call({
             target: bridgeData.sendingAssetId,
-            callData: abi.encodeWithSelector(
+            data: abi.encodeWithSelector(
                 IERC20.approve.selector,
                 USER_RECEIVER,
                 bridgeData.minAmount
-            )
+            ),
+            value: 0
         });
 
         EcoFacet.Route memory route = EcoFacet.Route({
@@ -628,6 +804,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(USER_RECEIVER),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: abi.encode(route),
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -665,10 +842,11 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
         calls[0] = EcoFacet.Call({
             target: bridgeData.sendingAssetId,
-            callData: abi.encodeWithSelector(
+            data: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 USER_RECEIVER
-            )
+            ),
+            value: 0
         });
 
         EcoFacet.Route memory route = EcoFacet.Route({
@@ -684,6 +862,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(USER_RECEIVER),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: abi.encode(route),
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -732,6 +911,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(USER_RECEIVER),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: abi.encode(route),
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -766,6 +946,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tronEncodedRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -794,6 +975,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: "", // Missing encodedRoute (now required for all chains)
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -811,9 +993,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_NonEVMAddressWithoutNonEVMReceiver()
-        public
-    {
+    function testRevert_NonEVMAddressWithoutNonEVMReceiver() public {
         // Test for InvalidReceiver error when NON_EVM_ADDRESS is set but nonEVMReceiver is empty
         vm.startPrank(USER_SENDER);
 
@@ -826,6 +1006,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "", // Empty nonEVMReceiver should trigger InvalidReceiver
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: hex"0102030405060708090a0b0c0d0e0f10",
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -845,180 +1026,6 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidReceiver_RouteReceiverMismatch() public {
-        // Test for InvalidReceiver error when the receiver in the route doesn't match bridgeData.receiver
-        // This triggers line 291 in EcoFacet.sol
-        vm.startPrank(USER_SENDER);
-
-        // Set up bridge data for an EVM chain
-        bridgeData.destinationChainId = 10; // Optimism
-        bridgeData.receiver = USER_RECEIVER; // Set to USER_RECEIVER
-
-        // Create a route with a DIFFERENT receiver address to trigger the mismatch
-        address wrongReceiver = address(0x9999);
-        bytes memory routeWithWrongReceiver = _createEncodedRoute(
-            wrongReceiver, // Different receiver than bridgeData.receiver
-            bridgeData.sendingAssetId,
-            bridgeData.minAmount
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: "",
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: routeWithWrongReceiver, // Route has different receiver
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Expect InvalidReceiver revert from line 291
-        vm.expectRevert(InvalidReceiver.selector);
-
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_chainIdExceedsUint64Max() public {
-        vm.startPrank(USER_SENDER);
-
-        ILiFi.BridgeData memory overflowBridgeData = bridgeData;
-        overflowBridgeData.destinationChainId = uint256(type(uint64).max) + 1;
-
-        // Use the helper to create a properly encoded route
-        bytes memory validRoute = _createEncodedRoute(
-            USER_RECEIVER,
-            ADDRESS_USDC,
-            overflowBridgeData.minAmount
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: bytes(""),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: validRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        overflowBridgeData.minAmount =
-            overflowBridgeData.minAmount +
-            TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, overflowBridgeData.minAmount);
-
-        vm.expectRevert(InvalidConfig.selector);
-        _startEco(overflowBridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function test_ChainIdAtUint64Boundary() public {
-        vm.startPrank(USER_SENDER);
-
-        ILiFi.BridgeData memory boundaryBridgeData = bridgeData;
-        boundaryBridgeData.destinationChainId = type(uint64).max;
-        boundaryBridgeData.sendingAssetId = ADDRESS_USDC;
-        boundaryBridgeData.minAmount = 100 * 10 ** 6;
-
-        bytes memory validRoute = _createEncodedRoute(
-            USER_RECEIVER,
-            ADDRESS_USDC,
-            boundaryBridgeData.minAmount
-        );
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: bytes(""),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: validRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        boundaryBridgeData.minAmount =
-            boundaryBridgeData.minAmount +
-            TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, boundaryBridgeData.minAmount);
-
-        _startEco(boundaryBridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_InvalidABIEncodedRoute() public {
-        vm.startPrank(USER_SENDER);
-
-        // Set up for an EVM chain
-        bridgeData.destinationChainId = 10; // Optimism
-
-        // Create data that cannot be ABI decoded as a Route struct
-        bytes
-            memory invalidRoute = hex"0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445";
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: bytes(""),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: invalidRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Will revert during ABI decode attempt
-        vm.expectRevert();
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
-    function testRevert_RouteTooShortForABIDecode() public {
-        vm.startPrank(USER_SENDER);
-
-        bridgeData.destinationChainId = 10; // Optimism
-
-        // Create data that's too short to be a valid ABI-encoded Route
-        bytes memory tooShortRoute = hex"a9059cbb"; // Only 4 bytes
-
-        EcoFacet.EcoData memory ecoData = EcoFacet.EcoData({
-            nonEVMReceiver: bytes(""),
-            prover: address(0x1234),
-            rewardDeadline: uint64(block.timestamp + 2 days),
-            encodedRoute: tooShortRoute,
-            solanaATA: bytes32(0),
-            refundRecipient: USER_SENDER,
-            deadline: block.timestamp + 1 hours,
-            signature: ""
-        });
-
-        bridgeData.minAmount = bridgeData.minAmount + TOKEN_SOLVER_REWARD;
-
-        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
-
-        // Will revert during ABI decode attempt
-        vm.expectRevert();
-        _startEco(bridgeData, ecoData);
-
-        vm.stopPrank();
-    }
-
     function testRevert_TronWithInvalidRoute() public {
         vm.startPrank(USER_SENDER);
 
@@ -1033,6 +1040,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: abi.encode(USER_RECEIVER),
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: invalidTronRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -1067,6 +1075,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -1124,8 +1133,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
 
     // The signature commits to keccak256(encodedRoute), so a caller cannot swap
     // in a different route after signing - even one that still pays the correct
-    // receiver and would pass the on-chain receiver cross-check (audit finding:
-    // unverified route contents).
+    // receiver (audit finding: unverified route contents).
     function testRevert_TamperedEncodedRoute() public {
         vm.startPrank(USER_SENDER);
 
@@ -1166,7 +1174,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function test_IsEVMChainCalledWithSolanaChainId() public {
+    function testRevert_SolanaWithEVMReceiver() public {
         vm.startPrank(USER_SENDER);
 
         // Set destination to Solana but use EVM receiver (invalid config, but covers the branch)
@@ -1184,6 +1192,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -1201,7 +1210,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_EmptyNonEVMReceiver() public {
+    function testRevert_SolanaEmptyNonEVMReceiver() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1214,6 +1223,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: solanaRoute,
             solanaATA: bytes32(uint256(1)),
             refundRecipient: USER_SENDER,
@@ -1231,7 +1241,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_TooLongNonEVMReceiver() public {
+    function testRevert_SolanaNonEVMReceiverTooLong() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1249,6 +1259,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: solanaRoute,
             solanaATA: bytes32(uint256(1)),
             refundRecipient: USER_SENDER,
@@ -1266,7 +1277,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_SolanaRouteValidation_RouteTooShort() public {
+    function testRevert_SolanaRouteTooShort() public {
         vm.startPrank(USER_SENDER);
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
@@ -1281,6 +1292,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: solanaAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: tooShortRoute,
             solanaATA: bytes32(uint256(1)),
             refundRecipient: USER_SENDER,
@@ -1317,6 +1329,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: solanaEncodedRoute,
             solanaATA: bytes32(0), // Set to zero - should revert
             refundRecipient: USER_SENDER,
@@ -1356,6 +1369,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: solanaAddress, // Required for NON_EVM_ADDRESS
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: solanaEncodedRoute,
             solanaATA: bytes32(uint256(0x123456789abcdef)), // Different ATA that doesn't match the route
             refundRecipient: USER_SENDER,
@@ -1389,6 +1403,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: address(0),
@@ -1400,7 +1415,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(InvalidCallData.selector);
         _startEco(bridgeData, ecoData);
 
         vm.stopPrank();
@@ -1421,6 +1436,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: customRefundRecipient,
@@ -1466,39 +1482,635 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
         vm.stopPrank();
     }
 
+    /// @dev EXSC-1089: the production HyperCore route executes on HyperEVM,
+    ///      so its intent is published there while the bridge reports 1337.
+    function test_BridgeToHyperCoreWithProductionRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
+        bridgeData.receiver = HYPERCORE_ROUTE_RECEIVER;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            HYPERCORE_PRODUCTION_ROUTE,
+            HYPEREVM_CHAIN_ID
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                HYPEREVM_CHAIN_ID,
+                HYPERCORE_PRODUCTION_ROUTE,
+                _expectedReward(ecoData),
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev A CCTP route burns on the source chain, so its intent is
+    ///      published to the source chain while the bridge reports the chain
+    ///      the receiver is paid on.
+    function test_BridgeViaCCTPWithEcoQuoteRoute() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        bridgeData.receiver = CCTP_QUOTE_RECEIVER;
+        bridgeData.minAmount = CCTP_QUOTE_AMOUNT;
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            CCTP_QUOTE_ROUTE,
+            uint64(block.chainid)
+        );
+        IEcoPortal.Reward memory reward = _expectedReward(ecoData);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(block.chainid),
+                CCTP_QUOTE_ROUTE,
+                reward,
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+
+        assertEq(
+            uint8(
+                IEcoPortal(PORTAL).getRewardStatus(
+                    _intentHash(
+                        uint64(block.chainid),
+                        CCTP_QUOTE_ROUTE,
+                        reward
+                    )
+                )
+            ),
+            uint8(IEcoPortal.Status.Funded)
+        );
+    }
+
+    function test_SwapAndBridgeViaCCTPPublishesIntentOnSourceChain() public {
+        vm.startPrank(USER_SENDER);
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapExactTokensForTokens.selector,
+                    amountIn,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.destinationChainId = ARBITRUM_CHAIN_ID;
+        bytes memory route = _createCCTPRoute();
+        EcoFacet.EcoData memory ecoData = _ecoDataWithRoute(
+            route,
+            uint64(block.chainid)
+        );
+        IEcoPortal.Reward memory reward = _expectedReward(ecoData);
+        uint256 daiBefore = dai.balanceOf(USER_SENDER);
+
+        dai.approve(_facetTestContractAddress, amountIn);
+
+        vm.expectCall(
+            PORTAL,
+            abi.encodeWithSelector(
+                IEcoPortal.publishAndFund.selector,
+                uint64(block.chainid),
+                route,
+                reward,
+                false
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _swapAndStartEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+
+        assertEq(
+            uint8(
+                IEcoPortal(PORTAL).getRewardStatus(
+                    _intentHash(uint64(block.chainid), route, reward)
+                )
+            ),
+            uint8(IEcoPortal.Status.Funded)
+        );
+        assertEq(dai.balanceOf(USER_SENDER), daiBefore - amountIn);
+        assertEq(usdc.balanceOf(_facetTestContractAddress), 0);
+        assertEq(dai.balanceOf(_facetTestContractAddress), 0);
+    }
+
+    // The signature commits to intentDestination, so a caller cannot publish
+    // the intent to a chain other than the one the backend signed for.
+    function testRevert_TamperedIntentDestination() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.minAmount = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+
+        ecoData.intentDestination = uint64(block.chainid);
+
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    // For EVM destinations the signature is the only receiver control, so
+    // each signed bridge parameter must invalidate it when changed.
+    function testRevert_TamperedReceiver() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.receiver = address(0xBEEF);
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedDestinationChainId() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.destinationChainId = 137;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedMinAmount() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.minAmount -= 1;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedRefundRecipient() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.refundRecipient = address(0xBEEF);
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedRewardDeadline() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.rewardDeadline += 1;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_SwapAndBridgeTamperedReceiver() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.receiver = address(0xBEEF);
+        _setUnexecutedSwapData();
+
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    function testRevert_SwapAndBridgeSignatureFromUnauthorizedSigner() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.signature = _signEcoDataWith(0xBAD5169, bridgeData, ecoData);
+        _setUnexecutedSwapData();
+
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    function testRevert_SwapAndBridgeSignatureExpired() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.deadline = block.timestamp - 1;
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        _setUnexecutedSwapData();
+
+        vm.expectRevert(EcoFacet.SignatureExpired.selector);
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    function testRevert_TamperedNonEVMReceiver() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.nonEVMReceiver = abi.encode(address(0xBEEF));
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedSolanaATA() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.solanaATA = bytes32(uint256(1));
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedSendingAssetId() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.sendingAssetId = ADDRESS_DAI;
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedTransactionId() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        bridgeData.transactionId = keccak256("tampered");
+        _expectInvalidSignature(ecoData);
+    }
+
+    function testRevert_TamperedDeadline() public {
+        EcoFacet.EcoData memory ecoData = _getSignedEcoData();
+        ecoData.deadline += 1;
+        _expectInvalidSignature(ecoData);
+    }
+
+    /// @dev For EVM destinations `nonEVMReceiver` and `solanaATA` are not
+    ///      validated but stay signed (see the tamper tests above).
+    function test_EVMDestinationIgnoresSignedNonEVMFields() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.minAmount = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.nonEVMReceiver = abi.encode(address(0xBEEF));
+        ecoData.solanaATA = bytes32(uint256(1));
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    /// @dev The Tron check only matches the final call's selector and
+    ///      recipient. A signed route that pays someone else earlier and ends
+    ///      with a zero transfer to `nonEVMReceiver` passes; the backend
+    ///      signature is the control against such routes.
+    function test_TronSignedRouteWithDecoyFinalTransferPasses() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.minAmount = defaultUSDCAmount + TOKEN_SOLVER_REWARD;
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](2);
+        calls[0] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            data: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                address(0xBEEF),
+                bridgeData.minAmount
+            ),
+            value: 0
+        });
+        calls[1] = EcoFacet.Call({
+            target: address(0xCAFE),
+            data: abi.encodeWithSelector(
+                IERC20.transfer.selector,
+                USER_RECEIVER,
+                0
+            ),
+            value: 1
+        });
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.nonEVMReceiver = abi.encode(USER_RECEIVER);
+        ecoData.encodedRoute = _encodeRoute(
+            calls,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount
+        );
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
+
+        _startEco(bridgeData, ecoData);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ZeroIntentDestination() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = 0;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    // The Solana/Tron receiver checks are selected by destinationChainId, so a
+    // signed payload must not publish to Solana/Tron under another chain ID
+    // (which would skip them) or the other way round.
+    function testRevert_EVMDestinationWithSolanaIntentDestination() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = ECO_CHAIN_ID_SOLANA;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_EVMDestinationWithTronIntentDestination() public {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = ECO_CHAIN_ID_TRON;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_SolanaDestinationWithEVMIntentDestination() public {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = 10;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_TronDestinationWithSolanaIntentDestination() public {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.intentDestination = ECO_CHAIN_ID_SOLANA;
+        _expectSignedInvalidConfig(ecoData);
+    }
+
+    function testRevert_TronToTron() public {
+        vm.chainId(ECO_CHAIN_ID_TRON);
+        EcoFacet.EcoData memory ecoData = _getSignedTronEcoData();
+
+        vm.prank(USER_SENDER);
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        ecoFacet.startBridgeTokensViaEco(bridgeData, ecoData);
+    }
+
+    function testRevert_SwapAndBridgeTronToTron() public {
+        vm.chainId(ECO_CHAIN_ID_TRON);
+        EcoFacet.EcoData memory ecoData = _getSignedTronEcoData();
+        _setUnexecutedSwapData();
+
+        vm.prank(USER_SENDER);
+        vm.expectRevert(CannotBridgeToSameNetwork.selector);
+
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+    }
+
+    /// @dev Native the swap leaves unspent and `msg.value` above the swap's
+    ///      `fromAmount` both go to `refundRecipient`, not to the caller
+    ///      (who may be a relayer or proxy).
+    function test_SwapAndBridgeRefundsExcessNativeToRefundRecipient() public {
+        vm.startPrank(USER_SENDER);
+
+        address refundRecipient = address(0xABCD);
+        uint256 excessNative = 1 ether;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: amountIn + excessNative,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    bridgeData.minAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.refundRecipient = refundRecipient;
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        uint256 senderBefore = USER_SENDER.balance;
+
+        ecoFacet.swapAndStartBridgeTokensViaEco{
+            value: amountIn + 2 * excessNative
+        }(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+
+        assertEq(refundRecipient.balance, 2 * excessNative);
+        assertEq(
+            USER_SENDER.balance,
+            senderBefore - amountIn - 2 * excessNative
+        );
+        assertEq(_facetTestContractAddress.balance, 0);
+    }
+
+    function test_SwapAndBridgeRefundsUnusedERC20InputToRefundRecipient()
+        public
+    {
+        ecoFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactTokens.selector
+        );
+        vm.startPrank(USER_SENDER);
+
+        address refundRecipient = address(0xABCD);
+        uint256 unusedInput = 1 ether;
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256 amountIn = uniswap.getAmountsIn(bridgeData.minAmount, path)[0];
+        uint256 fromAmount = amountIn + unusedInput;
+        deal(ADDRESS_WRAPPED_NATIVE, USER_SENDER, fromAmount);
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_WRAPPED_NATIVE,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: fromAmount,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactTokens.selector,
+                    bridgeData.minAmount,
+                    fromAmount,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        bridgeData.hasSourceSwaps = true;
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.refundRecipient = refundRecipient;
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        IERC20(ADDRESS_WRAPPED_NATIVE).approve(
+            _facetTestContractAddress,
+            fromAmount
+        );
+
+        ecoFacet.swapAndStartBridgeTokensViaEco(bridgeData, swapData, ecoData);
+
+        vm.stopPrank();
+
+        assertEq(
+            IERC20(ADDRESS_WRAPPED_NATIVE).balanceOf(refundRecipient),
+            unusedInput
+        );
+        assertEq(IERC20(ADDRESS_WRAPPED_NATIVE).balanceOf(USER_SENDER), 0);
+        assertEq(
+            IERC20(ADDRESS_WRAPPED_NATIVE).balanceOf(
+                _facetTestContractAddress
+            ),
+            0
+        );
+    }
+
+    /// @dev Eco's CCTP fulfillment route: approve TokenMessengerV2, then burn
+    ///      the bridged amount to Arbitrum for USER_RECEIVER.
+    function _createCCTPRoute() internal view returns (bytes memory) {
+        EcoFacet.Call[] memory calls = new EcoFacet.Call[](2);
+        calls[0] = EcoFacet.Call({
+            target: bridgeData.sendingAssetId,
+            data: abi.encodeWithSelector(
+                IERC20.approve.selector,
+                TOKEN_MESSENGER,
+                bridgeData.minAmount
+            ),
+            value: 0
+        });
+        calls[1] = EcoFacet.Call({
+            target: TOKEN_MESSENGER,
+            data: abi.encodeCall(
+                ITokenMessenger.depositForBurn,
+                (
+                    bridgeData.minAmount,
+                    ARBITRUM_CCTP_DOMAIN,
+                    LibBytes.toBytes32(USER_RECEIVER),
+                    bridgeData.sendingAssetId,
+                    bytes32(0),
+                    bridgeData.minAmount / CCTP_MAX_FEE_DIVISOR,
+                    CCTP_FAST_FINALITY_THRESHOLD
+                )
+            ),
+            value: 0
+        });
+        return
+            _encodeRoute(
+                calls,
+                bridgeData.sendingAssetId,
+                bridgeData.minAmount
+            );
+    }
+
+    function _ecoDataWithRoute(
+        bytes memory _encodedRoute,
+        uint64 _intentDestination
+    ) internal view returns (EcoFacet.EcoData memory ecoData) {
+        ecoData = _getValidEcoData();
+        ecoData.encodedRoute = _encodedRoute;
+        ecoData.intentDestination = _intentDestination;
+    }
+
+    /// @dev Mirrors the Portal's intent hash
+    function _intentHash(
+        uint64 _destination,
+        bytes memory _route,
+        IEcoPortal.Reward memory _reward
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                abi.encodePacked(
+                    _destination,
+                    keccak256(_route),
+                    keccak256(abi.encode(_reward))
+                )
+            );
+    }
+
+    /// @dev Eco chain ID the backend signs for a plain route to
+    ///      `bridgeData.destinationChainId`
+    function _defaultIntentDestination() internal view returns (uint64) {
+        if (bridgeData.destinationChainId == LIFI_CHAIN_ID_SOLANA) {
+            return ECO_CHAIN_ID_SOLANA;
+        }
+        if (bridgeData.destinationChainId == LIFI_CHAIN_ID_TRON) {
+            return ECO_CHAIN_ID_TRON;
+        }
+        return uint64(bridgeData.destinationChainId);
+    }
+
+    function _expectedReward(
+        EcoFacet.EcoData memory _ecoData
+    ) internal view returns (IEcoPortal.Reward memory) {
+        IEcoPortal.TokenAmount[]
+            memory rewardTokens = new IEcoPortal.TokenAmount[](1);
+        rewardTokens[0] = IEcoPortal.TokenAmount({
+            token: bridgeData.sendingAssetId,
+            amount: bridgeData.minAmount
+        });
+        return
+            IEcoPortal.Reward({
+                creator: _ecoData.refundRecipient,
+                prover: _ecoData.prover,
+                deadline: _ecoData.rewardDeadline,
+                nativeAmount: 0,
+                tokens: rewardTokens
+            });
+    }
+
     function _createEncodedRoute(
         address receiver,
         address token,
         uint256 amount
     ) internal view returns (bytes memory) {
-        // Create token array for the route
-        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
-            1
-        );
-        tokens[0] = IEcoPortal.TokenAmount({ token: token, amount: amount });
-
-        // Create calls array with exactly one call - the ERC20 transfer to receiver
         EcoFacet.Call[] memory calls = new EcoFacet.Call[](1);
         calls[0] = EcoFacet.Call({
             target: token,
-            callData: abi.encodeWithSelector(
+            data: abi.encodeWithSelector(
                 IERC20.transfer.selector,
                 receiver,
                 amount
-            )
+            ),
+            value: 0
         });
 
-        // Create the Route struct
+        return _encodeRoute(calls, token, amount);
+    }
+
+    function _encodeRoute(
+        EcoFacet.Call[] memory _calls,
+        address _token,
+        uint256 _amount
+    ) internal view returns (bytes memory) {
+        IEcoPortal.TokenAmount[] memory tokens = new IEcoPortal.TokenAmount[](
+            1
+        );
+        tokens[0] = IEcoPortal.TokenAmount({ token: _token, amount: _amount });
+
         EcoFacet.Route memory route = EcoFacet.Route({
             salt: keccak256("eco.route.test"),
             deadline: uint64(block.timestamp + 1 days),
-            portal: PORTAL, // Portal is the contract that receives and executes the route
+            portal: PORTAL,
             nativeAmount: 0,
             tokens: tokens,
-            calls: calls
+            calls: _calls
         });
 
-        // ABI encode the route
         return abi.encode(route);
     }
 
@@ -1518,12 +2130,69 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
                 nonEVMReceiver: "",
                 prover: address(0x1234),
                 rewardDeadline: uint64(block.timestamp + 2 days),
+                intentDestination: _defaultIntentDestination(),
                 encodedRoute: encodedRoute,
                 solanaATA: bytes32(0),
                 refundRecipient: USER_SENDER,
                 deadline: block.timestamp + 1 hours,
                 signature: ""
             });
+    }
+
+    function _getSignedEcoData()
+        internal
+        view
+        returns (EcoFacet.EcoData memory)
+    {
+        EcoFacet.EcoData memory ecoData = _getValidEcoData();
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+        return ecoData;
+    }
+
+    /// @dev For tests that revert before `_depositAndSwap`, so the swap is
+    ///      never executed
+    function _setUnexecutedSwapData() internal {
+        bridgeData.hasSourceSwaps = true;
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_DAI,
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: 1,
+                callData: "",
+                requiresDeposit: true
+            })
+        );
+    }
+
+    function _getSignedTronEcoData()
+        internal
+        returns (EcoFacet.EcoData memory ecoData)
+    {
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_TRON;
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        ecoData = _getValidEcoData();
+        ecoData.nonEVMReceiver = abi.encode(USER_RECEIVER);
+        ecoData.signature = _signEcoData(bridgeData, ecoData);
+    }
+
+    function _expectInvalidSignature(
+        EcoFacet.EcoData memory _ecoData
+    ) internal {
+        vm.prank(USER_SENDER);
+        vm.expectRevert(InvalidSignature.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, _ecoData);
+    }
+
+    function _expectSignedInvalidConfig(
+        EcoFacet.EcoData memory _ecoData
+    ) internal {
+        _ecoData.signature = _signEcoData(bridgeData, _ecoData);
+        vm.prank(USER_SENDER);
+        vm.expectRevert(InvalidConfig.selector);
+        ecoFacet.startBridgeTokensViaEco(bridgeData, _ecoData);
     }
 
     function testRevert_DuplicateBridgeCallIntentAlreadyFunded() public {
@@ -1593,6 +2262,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: _createEncodedRoute(
                 USER_RECEIVER,
                 bridgeData.sendingAssetId,
@@ -1630,6 +2300,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -1660,6 +2331,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: "",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp - 1),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(0),
             refundRecipient: USER_SENDER,
@@ -1693,6 +2365,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: hex"32576271585272443245527261533541747453486e5345646d7242657532546e39344471554872436d576b7a",
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: validRoute,
             solanaATA: bytes32(uint256(1)),
             refundRecipient: USER_SENDER,
@@ -1725,6 +2398,7 @@ contract EcoFacetTest is TestBaseFacet, TestEcoBackendSig {
             nonEVMReceiver: tooShortAddress,
             prover: address(0x1234),
             rewardDeadline: uint64(block.timestamp + 2 days),
+            intentDestination: _defaultIntentDestination(),
             encodedRoute: solanaEncodedRoute,
             solanaATA: 0x8f37c499ccbb92cefe5acc2f7aa22edf71d4237d4817e55671c7962b449e79f2,
             refundRecipient: USER_SENDER,
