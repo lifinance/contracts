@@ -7,7 +7,7 @@ only the quick-start; this is the full guide.
 
 ## Prerequisites
 
-- Node.js 24 or newer (`nvm use` picks 26 from `.nvmrc`). `bunx tsx` runs the
+- Node.js 26 or newer (`nvm use` picks it from `.nvmrc`). `bunx tsx` runs the
   scripts on whatever `node` is first on `PATH`, and nothing checks its version.
 - Bun (the version pinned in `package.json` `packageManager`)
 - Foundry (pinned via `.foundry-version`)
