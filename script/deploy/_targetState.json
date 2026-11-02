@@ -2276,5 +2276,31 @@
         "PolymerCCTPFacet": "latest"
       }
     }
+  },
+  "elysium": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "latest",
+        "CalldataVerificationFacet": "latest",
+        "DiamondCutFacet": "latest",
+        "DiamondLoupeFacet": "latest",
+        "EmergencyPauseFacet": "latest",
+        "GenericSwapFacetV3": "latest",
+        "LiFiIntentEscrowFacetV2": "latest",
+        "LiFiTimelockController": "latest",
+        "OwnershipFacet": "latest",
+        "PeripheryRegistryFacet": "latest",
+        "WhitelistManagerFacet": "latest",
+        "WithdrawFacet": "latest",
+        "LiFiDiamond": "latest",
+        "ERC20Proxy": "latest",
+        "Executor": "latest",
+        "FeeForwarder": "latest",
+        "OutputValidator": "latest",
+        "Permit2Proxy": "latest",
+        "TokenWrapper": "latest",
+        "ReceiverOIF": "latest"
+      }
+    }
   }
 }
