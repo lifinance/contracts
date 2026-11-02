@@ -28,15 +28,6 @@
   "base": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
-  "blast": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
-  "boba": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
-  "bob": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
   "bsc": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },

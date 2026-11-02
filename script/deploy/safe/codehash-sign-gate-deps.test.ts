@@ -66,6 +66,8 @@ import {
   defaultCheckoutRoot,
   readToolchainConfig,
   resolveDeploymentRecord,
+  runCommand,
+  runRepoGit,
 } from './codehash-sign-gate-deps'
 import type { PinnedJsonRead } from './pinned-target-state'
 
@@ -676,7 +678,9 @@ describe('createForgeRebuildRunner', () => {
         command: string,
         args: string[],
         options: { cwd: string; env: Record<string, string> }
-      ) => { ok: boolean; output: string }
+      ) =>
+        | { ok: boolean; output: string }
+        | Promise<{ ok: boolean; output: string }>
       exists?: (path: string) => boolean
       readFile?: (path: string) => string
       readDeclarations?: (
@@ -684,30 +688,31 @@ describe('createForgeRebuildRunner', () => {
         sourceRoot: string
       ) => IDeclaredImmutables
       artifactCache?: {
-        restore: (key: string, outDir: string) => boolean
-        save: (key: string, outDir: string) => void
+        restore: (key: string, outDir: string) => Promise<boolean>
+        save: (key: string, outDir: string) => Promise<void>
       }
       calls?: unknown[]
     } = {}
   ) => {
     const calls: unknown[] = over.calls ?? []
     const gitCalls: string[][] = []
+    const run =
+      over.run ??
+      ((command, args, options) => {
+        calls.push({ command, args, env: options.env, cwd: options.cwd })
+        return { ok: true, output: '' }
+      })
     return {
       calls,
       gitCalls,
       runner: createForgeRebuildRunner({
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
-        git: (args) => {
+        git: async (args) => {
           gitCalls.push(args)
           return ''
         },
-        run:
-          over.run ??
-          ((command, args, options) => {
-            calls.push({ command, args, env: options.env, cwd: options.cwd })
-            return { ok: true, output: '' }
-          }),
+        run: async (command, args, options) => run(command, args, options),
         exists: freshOutDirs(over.exists ?? ((path) => path.endsWith('.json'))),
         readFile: over.readFile ?? readCheckoutFile,
         readDeclarations: over.readDeclarations ?? (() => NO_DECLARATIONS),
@@ -726,17 +731,124 @@ describe('createForgeRebuildRunner', () => {
     },
   }
 
-  it('returns the runtime bytecode and immutable references from the artifact', () => {
-    const built = runner().runner.build(request)
+  it('returns the runtime bytecode and immutable references from the artifact', async () => {
+    const built = await runner().runner.build(request)
 
     expect(built.runtimeHex).toBe(DEPLOYED)
     expect(built.immutableReferences).toEqual(REFS)
   })
 
+  // The arbitrum nonce 96 rollout showed a diamondCut selector unnamed: the
+  // 4byte reply had landed in milliseconds, but a cold rebuild held the thread
+  // past the lookup's timeout, and the timers phase aborted the request before
+  // the poll phase could read the reply.
+  it('lets a lookup whose reply has landed resolve while a compile outlasts its timeout', async () => {
+    const LOOKUP_TIMEOUT_MS = 300 // stands in for fetchWithTimeout's 10 s
+    const REPLY_AFTER_MS = 20
+    const COMPILE_SECONDS = '1'
+
+    const lookup = new Promise<string>((resolve, reject) => {
+      const abort = setTimeout(
+        () => reject(new Error('This operation was aborted')),
+        LOOKUP_TIMEOUT_MS
+      )
+      // A socket reply is read after the timers phase, as an immediate is, so
+      // a held thread lets the abort run first exactly as it did in the run.
+      setTimeout(
+        () =>
+          setImmediate(() => {
+            clearTimeout(abort)
+            resolve('M0_ORDER_BOOK()')
+          }),
+        REPLY_AFTER_MS
+      )
+    })
+
+    let compiled = false
+    const harness = runner({
+      exists: (path) => path.endsWith('.json') && compiled,
+      run: async () => {
+        const result = await runCommand('sleep', [COMPILE_SECONDS], {
+          cwd: tmpdir(),
+          env: {},
+        })
+        compiled = result.ok
+        return result
+      },
+    })
+
+    const [name] = await Promise.all([lookup, harness.runner.build(request)])
+
+    expect(name).toBe('M0_ORDER_BOOK()')
+    expect(compiled).toBe(true)
+  })
+
+  it('makes a second build of a commit still being checked out wait for the first', async () => {
+    const gitCalls: string[][] = []
+    const compiles: string[] = []
+    const present = new Set<string>()
+    const concurrent = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: async (args) => {
+        gitCalls.push(args)
+        if (args[0] === 'worktree' && args[1] === 'add') {
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          present.add(args[3] as string)
+        }
+        return ''
+      },
+      run: async (_command, args) => {
+        compiles.push(args[0] as string)
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        present.add('artifact')
+        return { ok: true, output: '' }
+      },
+      exists: freshOutDirs((path) =>
+        path.endsWith('.json') ? present.has('artifact') : present.has(path)
+      ),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    const [first, second] = await Promise.all([
+      concurrent.build(request),
+      concurrent.build(request),
+    ])
+
+    expect(first.runtimeHex).toBe(DEPLOYED)
+    expect(second.runtimeHex).toBe(DEPLOYED)
+    expect(
+      gitCalls.filter(([verb, sub]) => verb === 'worktree' && sub === 'add')
+    ).toHaveLength(1)
+    expect(compiles).toEqual(['build'])
+  })
+
+  it('lets a build that failed leave the next one free to run', async () => {
+    let attempts = 0
+    const harness = runner({
+      exists: (path) => path.endsWith('.json') && attempts > 1,
+      run: () => {
+        attempts += 1
+        return attempts === 1
+          ? { ok: false, output: 'Compiler run failed' }
+          : { ok: true, output: '' }
+      },
+    })
+
+    const [failed, built] = await Promise.all([
+      rejection(harness.runner.build(request)),
+      harness.runner.build(request),
+    ])
+
+    expect(failed).toContain('Compiler run failed')
+    expect(built.runtimeHex).toBe(DEPLOYED)
+  })
+
   // A cold compile of the whole tree is the minute a signer waits before zone 2
   // appears, and the checkout it lands in dies with the process — so the same
   // commit was recompiled from scratch once per signing session.
-  it('takes a cached build instead of compiling, and does not init submodules for it', () => {
+  it('takes a cached build instead of compiling, and does not init submodules for it', async () => {
     let restored = false
     const calls: unknown[] = []
     const harness = runner({
@@ -745,34 +857,41 @@ describe('createForgeRebuildRunner', () => {
         path.endsWith('.json') ? restored : !path.endsWith('.env')
       ),
       artifactCache: {
-        restore: () => {
+        restore: async () => {
           restored = true
           return true
         },
-        save: () => undefined,
+        save: async () => undefined,
       },
     })
 
-    const built = harness.runner.build(request)
+    const built = await harness.runner.build(request)
 
     expect(built.runtimeHex).toBe(DEPLOYED)
     expect(calls).toHaveLength(0)
     expect(harness.gitCalls.some(([verb]) => verb === 'submodule')).toBe(false)
   })
 
-  it('keys the cache on the commit and the profile, and saves what it built', () => {
+  it('keys the cache on the commit and the profile, and saves what it built', async () => {
     const saved: string[] = []
     const harness = runner({
       exists: freshOutDirs(
         (path) => !path.endsWith('.json') && !path.endsWith('.env')
       ),
-      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+      artifactCache: {
+        restore: async () => false,
+        save: async (key) => {
+          saved.push(key)
+        },
+      },
     })
 
     // `exists` reports the artifact absent throughout, which the runner treats
     // as a build that produced nothing — the throw is what proves the save is
     // reached only for an artifact this run can vouch for.
-    expect(() => harness.runner.build(request)).toThrow('produced no artifact')
+    expect(await rejection(harness.runner.build(request))).toContain(
+      'produced no artifact'
+    )
     expect(saved).toHaveLength(0)
 
     let compiled = false
@@ -798,14 +917,19 @@ describe('createForgeRebuildRunner', () => {
           ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
         })
       ),
-      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+      artifactCache: {
+        restore: async () => false,
+        save: async (key) => {
+          saved.push(key)
+        },
+      },
     })
-    ok.runner.build(request)
+    await ok.runner.build(request)
     compiled = false
     // A real zk profile, which writes to the fixed `zkout` whatever it is
     // called — so the profile has to be in the key rather than only in the
     // directory the key is spelled from.
-    ok.runner.build({
+    await ok.runner.build({
       ...request,
       profile: {
         ...request.profile,
@@ -820,7 +944,7 @@ describe('createForgeRebuildRunner', () => {
     ])
   })
 
-  it('builds with --ast, so the ids keying the offsets come from this compilation', () => {
+  it('builds with --ast, so the ids keying the offsets come from this compilation', async () => {
     let built = false
     const calls: unknown[] = []
     const harness = runner({
@@ -834,14 +958,58 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
     })
-    harness.runner.build(request)
+    await harness.runner.build(request)
 
     expect((calls[0] as { args: string[] }).args).toContain('--ast')
   })
 
-  it("returns the graded contract's declarations, resolved against its own checkout", () => {
+  it('parses one output directory once for every build that reads it', async () => {
+    let reads = 0
+    const harness = runner({
+      readDeclarations: () => {
+        reads += 1
+        return NO_DECLARATIONS
+      },
+    })
+
+    await harness.runner.build(request)
+    await harness.runner.build(request)
+    await harness.runner.build({ ...request, contractName: 'OwnershipFacet' })
+
+    expect(reads).toBe(1)
+  })
+
+  it('parses an output directory again once a build has written into it', async () => {
+    let reads = 0
+    let compiled = false
+    const harness = runner({
+      exists: freshOutDirs((path) =>
+        path.endsWith('AccessManagerFacet.json')
+          ? true
+          : path.endsWith('OwnershipFacet.json')
+          ? compiled
+          : !path.endsWith('.env')
+      ),
+      run: () => {
+        compiled = true
+        return { ok: true, output: '' }
+      },
+      readDeclarations: () => {
+        reads += 1
+        return NO_DECLARATIONS
+      },
+    })
+
+    await harness.runner.build(request)
+    await harness.runner.build({ ...request, contractName: 'OwnershipFacet' })
+
+    expect(compiled).toBe(true)
+    expect(reads).toBe(2)
+  })
+
+  it("returns the graded contract's declarations, resolved against its own checkout", async () => {
     const seen: { outDir: string; sourceRoot: string }[] = []
-    const built = runner({
+    const built = await runner({
       readDeclarations: (outDir, sourceRoot) => {
         seen.push({ outDir, sourceRoot })
         return {
@@ -880,7 +1048,7 @@ describe('createForgeRebuildRunner', () => {
     )
   })
 
-  it('rebuilds an artifact that carries no AST rather than pricing nothing against it', () => {
+  it('rebuilds an artifact that carries no AST rather than pricing nothing against it', async () => {
     const astless = JSON.stringify({
       deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
     })
@@ -896,21 +1064,21 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
     })
-    harness.runner.build(request)
+    await harness.runner.build(request)
 
     expect(calls).toHaveLength(1)
   })
 
-  it('does not rebuild when the artifact this run holds already carries its AST', () => {
+  it('does not rebuild when the artifact this run holds already carries its AST', async () => {
     const harness = runner({ exists: (path) => path.endsWith('.json') })
-    harness.runner.build(request)
+    await harness.runner.build(request)
 
     expect(harness.calls).toHaveLength(0)
   })
 
-  it('checks the commit out in its own worktree, never in the repo it runs from', () => {
+  it('checks the commit out in its own worktree, never in the repo it runs from', async () => {
     const harness = runner({ exists: (path) => path.endsWith('.json') })
-    harness.runner.build(request)
+    await harness.runner.build(request)
 
     expect(harness.gitCalls[0]?.slice(0, 3)).toEqual([
       'worktree',
@@ -924,20 +1092,20 @@ describe('createForgeRebuildRunner', () => {
     expect(harness.gitCalls[0]?.[4]).toBe(request.commit)
   })
 
-  it('pins submodules in the worktree before forging, and builds offline without test/script trees', () => {
+  it('pins submodules in the worktree before forging, and builds offline without test/script trees', async () => {
     const gitCalls: string[][] = []
     let built = false
     const seenArgs: string[] = []
-    createForgeRebuildRunner({
+    await createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: (args) => {
+      git: async (args) => {
         gitCalls.push(args)
         if (args.includes('status'))
           return ' e50c24f5aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa lib/openzeppelin-contracts (v4.9.2)\n'
         return ''
       },
-      run: (_command, args) => {
+      run: async (_command, args) => {
         seenArgs.push(...args)
         built = true
         return { ok: true, output: '' }
@@ -971,32 +1139,34 @@ describe('createForgeRebuildRunner', () => {
     expect(seenArgs).not.toContain('script')
   })
 
-  it('refuses to rebuild when submodule pins drifted after update', () => {
-    expect(() =>
-      createForgeRebuildRunner({
-        repoRoot: '/repo',
-        checkoutRoot: '/tmp/rebuilds',
-        git: (args) => {
-          if (args.includes('status'))
-            return '+bbf3600daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa lib/openzeppelin-contracts (v4.8.0)\n'
-          return ''
-        },
-        run: () => ({ ok: true, output: '' }),
-        exists: () => false,
-        readFile: readCheckoutFile,
-        readDeclarations: () => NO_DECLARATIONS,
-      }).build(request)
-    ).toThrow(/submodule pins are not clean/)
+  it('refuses to rebuild when submodule pins drifted after update', async () => {
+    expect(
+      await rejection(
+        createForgeRebuildRunner({
+          repoRoot: '/repo',
+          checkoutRoot: '/tmp/rebuilds',
+          git: async (args) => {
+            if (args.includes('status'))
+              return '+bbf3600daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa lib/openzeppelin-contracts (v4.8.0)\n'
+            return ''
+          },
+          run: async () => ({ ok: true, output: '' }),
+          exists: () => false,
+          readFile: readCheckoutFile,
+          readDeclarations: () => NO_DECLARATIONS,
+        }).build(request)
+      )
+    ).toMatch(/submodule pins are not clean/)
   })
 
-  it('builds under the profile it was asked for', () => {
+  it('builds under the profile it was asked for', async () => {
     const harness = runner({ exists: () => false })
     let built = false
     const withRun = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: () => '',
-      run: (command, args, options) => {
+      git: async () => '',
+      run: async (command, args, options) => {
         built = true
         expect(command).toBe('forge')
         expect(args).toContain('build')
@@ -1010,7 +1180,7 @@ describe('createForgeRebuildRunner', () => {
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    withRun.build(request)
+    await withRun.build(request)
     expect(built).toBe(true)
     expect(harness.calls).toEqual([])
   })
@@ -1025,13 +1195,13 @@ describe('createForgeRebuildRunner', () => {
       toml: string,
       profile: IBuildProfile = londonProfile,
       checkoutHasDotenv = false
-    ): { env: Record<string, string>[]; build: () => void } => {
+    ): { env: Record<string, string>[]; build: () => Promise<unknown> } => {
       const env: Record<string, string>[] = []
       const harness = createForgeRebuildRunner({
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: (_command, args, options) => {
+        git: async () => '',
+        run: async (_command, args, options) => {
           // The pin check runs ahead of the profile resolution, so a zk
           // request has to pass it before the toml can be judged.
           if (args[0] === '--version')
@@ -1053,7 +1223,7 @@ describe('createForgeRebuildRunner', () => {
       return { env, build: () => harness.build({ ...request, profile }) }
     }
 
-    it('exports the name the checkout gives the pair when it differs from HEAD', () => {
+    it('exports the name the checkout gives the pair when it differs from HEAD', async () => {
       // Two fuse deployments were made from a branch that spelled the london
       // profile `london`; HEAD spells it `solc_floor`. Both must rebuild.
       const renamed = CHECKOUT_TOML.replace(
@@ -1063,22 +1233,22 @@ describe('createForgeRebuildRunner', () => {
       expect(renamed).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(renamed)
 
-      harness.build()
+      await harness.build()
 
       expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual(['london'])
     })
 
-    it('exports the HEAD name when the checkout spells it the same', () => {
+    it('exports the HEAD name when the checkout spells it the same', async () => {
       const harness = buildWithToml(CHECKOUT_TOML)
 
-      harness.build()
+      await harness.build()
 
       expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual([
         'solc_floor',
       ])
     })
 
-    it('refuses instead of building when no profile in the checkout pins the pair', () => {
+    it('refuses instead of building when no profile in the checkout pins the pair', async () => {
       // forge would answer the unknown name with [profile.default] and exit 0.
       const withoutLondon = CHECKOUT_TOML.replace(
         "solc_version = '0.8.17'",
@@ -1087,23 +1257,25 @@ describe('createForgeRebuildRunner', () => {
       expect(withoutLondon).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(withoutLondon)
 
-      expect(() => harness.build()).toThrow(/declares no profile pinning/)
+      expect(await rejection(harness.build())).toMatch(
+        /declares no profile pinning/
+      )
       expect(harness.env).toEqual([])
     })
 
-    it('does not admit the zk profile as a cancun lineage for a non-zk request', () => {
+    it('does not admit the zk profile as a cancun lineage for a non-zk request', async () => {
       // [profile.zksync] pins the default pair too, and is excluded by name: a
       // checkout with no zksolc pin must not see it as a second cancun profile.
       const unpinnedZk = CHECKOUT_TOML.replace(/^zksolc = .*$/m, '')
       expect(unpinnedZk).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(unpinnedZk, request.profile)
 
-      harness.build()
+      await harness.build()
 
       expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual(['default'])
     })
 
-    it('refuses a zk rebuild in a checkout without [profile.zksync]', () => {
+    it('refuses a zk rebuild in a checkout without [profile.zksync]', async () => {
       const withoutZk = CHECKOUT_TOML.replace(
         '[profile.zksync]',
         '[profile.renamed_away]'
@@ -1114,21 +1286,23 @@ describe('createForgeRebuildRunner', () => {
         zksolcVersion: '1.5.15',
       })
 
-      expect(() => harness.build()).toThrow(/declares no \[profile\.zksync\]/)
+      expect(await rejection(harness.build())).toMatch(
+        /declares no \[profile\.zksync\]/
+      )
       expect(harness.env).toEqual([])
     })
 
-    it('pins the compiler through FOUNDRY_SOLC to the version the matched profile names', () => {
+    it('pins the compiler through FOUNDRY_SOLC to the version the matched profile names', async () => {
       const london = buildWithToml(CHECKOUT_TOML)
-      london.build()
+      await london.build()
       const cancun = buildWithToml(CHECKOUT_TOML, request.profile)
-      cancun.build()
+      await cancun.build()
 
       expect(london.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.17'])
       expect(cancun.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.29'])
     })
 
-    it("pins a zk rebuild to the checkout's zk solc, not HEAD's", () => {
+    it("pins a zk rebuild to the checkout's zk solc, not HEAD's", async () => {
       // The zk profile is matched by name, so its solc can differ from HEAD's;
       // one commit on main pinned 0.8.17 there.
       const older = CHECKOUT_TOML.replace(
@@ -1138,12 +1312,12 @@ describe('createForgeRebuildRunner', () => {
       expect(older).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(older, zkRequest.profile)
 
-      harness.build()
+      await harness.build()
 
       expect(harness.env.map((env) => env.FOUNDRY_SOLC)).toEqual(['0.8.26'])
     })
 
-    it('refuses a checkout whose foundry.toml selects a compiler binary, before forge runs', () => {
+    it('refuses a checkout whose foundry.toml selects a compiler binary, before forge runs', async () => {
       const pathed = CHECKOUT_TOML.replace(
         "solc_version = '0.8.17'",
         "solc_version = '0.8.17'\nsolc = './fake-solc'"
@@ -1151,13 +1325,13 @@ describe('createForgeRebuildRunner', () => {
       expect(pathed).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(pathed)
 
-      expect(() => harness.build()).toThrow(
+      expect(await rejection(harness.build())).toMatch(
         /could choose what the rebuild executes: profile\.solc_floor\.solc/
       )
       expect(harness.env).toEqual([])
     })
 
-    it('refuses a zk rebuild whose checkout sets zksync.solc_path, before forge runs', () => {
+    it('refuses a zk rebuild whose checkout sets zksync.solc_path, before forge runs', async () => {
       const pathed = CHECKOUT_TOML.replace(
         'out = "out/zksync"',
         'out = "out/zksync"\nzksync = { solc_path = "./fake-solc" }'
@@ -1165,32 +1339,34 @@ describe('createForgeRebuildRunner', () => {
       expect(pathed).not.toBe(CHECKOUT_TOML)
       const harness = buildWithToml(pathed, zkRequest.profile)
 
-      expect(() => harness.build()).toThrow(
+      expect(await rejection(harness.build())).toMatch(
         /profile\.zksync\.zksync\.solc_path/
       )
       expect(harness.env).toEqual([])
     })
 
-    it('refuses a checkout carrying a .env, before forge runs', () => {
+    it('refuses a checkout carrying a .env, before forge runs', async () => {
       const clean = buildWithToml(CHECKOUT_TOML)
-      clean.build()
+      await clean.build()
       const harness = buildWithToml(CHECKOUT_TOML, londonProfile, true)
 
       expect(clean.env).toHaveLength(1)
-      expect(() => harness.build()).toThrow(/the commit carries a \.env/)
+      expect(await rejection(harness.build())).toMatch(
+        /the commit carries a \.env/
+      )
       expect(harness.env).toEqual([])
     })
   })
 
-  it('builds a zk lineage with the pinned foundry-zksync binary', () => {
+  it('builds a zk lineage with the pinned foundry-zksync binary', async () => {
     let seen: { command: string; args: string[]; env: Record<string, string> } =
       { command: '', args: [], env: {} }
     let built = false
     const zk = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: () => '',
-      run: (command, args, options) => {
+      git: async () => '',
+      run: async (command, args, options) => {
         if (args[0] === '--version')
           return { ok: true, output: zkVersionOutput }
         seen = { command, args, env: options.env }
@@ -1204,7 +1380,7 @@ describe('createForgeRebuildRunner', () => {
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    zk.build(zkRequest)
+    await zk.build(zkRequest)
 
     expect(seen.command).toContain('foundry-zksync')
     expect(seen.args).toContain('--zksync')
@@ -1223,8 +1399,8 @@ describe('createForgeRebuildRunner', () => {
       createForgeRebuildRunner({
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: (_command, args) => {
+        git: async () => '',
+        run: async (_command, args) => {
           if (args[0] === '--version')
             return over.version ?? { ok: true, output: zkVersionOutput }
           over.onBuild?.()
@@ -1240,86 +1416,98 @@ describe('createForgeRebuildRunner', () => {
         readDeclarations: () => NO_DECLARATIONS,
       })
 
-    it('refuses when the untracked foundry-zksync binary is absent', () => {
+    it('refuses when the untracked foundry-zksync binary is absent', async () => {
       let compiled = false
-      expect(() =>
-        zkRunner({
-          exists: freshOutDirs(
-            (path) =>
-              !path.endsWith('.json') &&
-              !path.endsWith('.env') &&
-              !path.endsWith('forge')
-          ),
-          onBuild: () => {
-            compiled = true
-          },
-        }).build(zkRequest)
-      ).toThrow(/toolchain problem, not a codehash verdict/)
+      expect(
+        await rejection(
+          zkRunner({
+            exists: freshOutDirs(
+              (path) =>
+                !path.endsWith('.json') &&
+                !path.endsWith('.env') &&
+                !path.endsWith('forge')
+            ),
+            onBuild: () => {
+              compiled = true
+            },
+          }).build(zkRequest)
+        )
+      ).toMatch(/toolchain problem, not a codehash verdict/)
       expect(compiled).toBe(false)
     })
 
-    it('names the install path a signer can act on', () => {
-      expect(() =>
-        zkRunner({
-          exists: freshOutDirs(
-            (path) =>
-              !path.endsWith('.json') &&
-              !path.endsWith('.env') &&
-              !path.endsWith('forge')
-          ),
-        }).build(zkRequest)
-      ).toThrow(/source script\/helperFunctions\.sh && install_foundry_zksync/)
-    })
-
-    it('refuses a binary that is not the pinned release', () => {
-      expect(() =>
-        zkRunner({
-          version: {
-            ok: true,
-            output: 'forge Version: 1.3.5-foundry-zksync-v0.0.31',
-          },
-        }).build(zkRequest)
-      ).toThrow(/foundry-zksync v0\.0\.31 but foundry\.toml pins v0\.0\.32/)
-    })
-
-    it('refuses a binary whose version it cannot read', () => {
-      expect(() =>
-        zkRunner({ version: { ok: false, output: 'bad CPU type' } }).build(
-          zkRequest
+    it('names the install path a signer can act on', async () => {
+      expect(
+        await rejection(
+          zkRunner({
+            exists: freshOutDirs(
+              (path) =>
+                !path.endsWith('.json') &&
+                !path.endsWith('.env') &&
+                !path.endsWith('forge')
+            ),
+          }).build(zkRequest)
         )
-      ).toThrow(/did not report a foundry-zksync release/)
+      ).toMatch(/source script\/helperFunctions\.sh && install_foundry_zksync/)
     })
 
-    it('refuses when foundry.toml pins no release to hold the rebuild to', () => {
-      expect(() =>
-        zkRunner({
-          readFile: (path) =>
-            path.endsWith('foundry.toml')
-              ? '[external.zksync]\nzksolc = "1.5.15"\n'
-              : zkArtifact,
-        }).build(zkRequest)
-      ).toThrow(/pins no foundry_zksync release/)
+    it('refuses a binary that is not the pinned release', async () => {
+      expect(
+        await rejection(
+          zkRunner({
+            version: {
+              ok: true,
+              output: 'forge Version: 1.3.5-foundry-zksync-v0.0.31',
+            },
+          }).build(zkRequest)
+        )
+      ).toMatch(/foundry-zksync v0\.0\.31 but foundry\.toml pins v0\.0\.32/)
     })
 
-    it('reads the pin from the section it lives in, not from anywhere in the file', () => {
-      expect(() =>
-        zkRunner({
-          readFile: (path) =>
-            path.endsWith('foundry.toml')
-              ? '[profile.zksync]\nfoundry_zksync = "v0.0.32"\n\n[external.zksync]\nzksolc = "1.5.15"\n'
-              : zkArtifact,
-        }).build(zkRequest)
-      ).toThrow(/pins no foundry_zksync release/)
+    it('refuses a binary whose version it cannot read', async () => {
+      expect(
+        await rejection(
+          zkRunner({ version: { ok: false, output: 'bad CPU type' } }).build(
+            zkRequest
+          )
+        )
+      ).toMatch(/did not report a foundry-zksync release/)
     })
 
-    it('leaves a vanilla forge build unchecked', () => {
+    it('refuses when foundry.toml pins no release to hold the rebuild to', async () => {
+      expect(
+        await rejection(
+          zkRunner({
+            readFile: (path) =>
+              path.endsWith('foundry.toml')
+                ? '[external.zksync]\nzksolc = "1.5.15"\n'
+                : zkArtifact,
+          }).build(zkRequest)
+        )
+      ).toMatch(/pins no foundry_zksync release/)
+    })
+
+    it('reads the pin from the section it lives in, not from anywhere in the file', async () => {
+      expect(
+        await rejection(
+          zkRunner({
+            readFile: (path) =>
+              path.endsWith('foundry.toml')
+                ? '[profile.zksync]\nfoundry_zksync = "v0.0.32"\n\n[external.zksync]\nzksolc = "1.5.15"\n'
+                : zkArtifact,
+          }).build(zkRequest)
+        )
+      ).toMatch(/pins no foundry_zksync release/)
+    })
+
+    it('leaves a vanilla forge build unchecked', async () => {
       const probed: string[][] = []
       let built = false
-      createForgeRebuildRunner({
+      await createForgeRebuildRunner({
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: (_command, args) => {
+        git: async () => '',
+        run: async (_command, args) => {
           probed.push(args)
           built = true
           return { ok: true, output: '' }
@@ -1335,17 +1523,20 @@ describe('createForgeRebuildRunner', () => {
     })
   })
 
-  it('keeps each profile in its own output directory', () => {
+  it('keeps each profile in its own output directory', async () => {
     const paths: string[] = []
     let built = false
-    const seen = (profile: { profile: string; zksolcVersion?: string }) => {
+    const seen = async (profile: {
+      profile: string
+      zksolcVersion?: string
+    }): Promise<string[]> => {
       paths.length = 0
       built = false
-      createForgeRebuildRunner({
+      await createForgeRebuildRunner({
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: (_command, args) => {
+        git: async () => '',
+        run: async (_command, args) => {
           if (args[0] === '--version')
             return { ok: true, output: zkVersionOutput }
           built = true
@@ -1366,8 +1557,8 @@ describe('createForgeRebuildRunner', () => {
       return paths.filter((path) => path.endsWith('.json'))
     }
 
-    const zk = seen({ profile: 'zksync', zksolcVersion: '1.5.15' })
-    const floor = seen({ profile: 'solc_floor' })
+    const zk = await seen({ profile: 'zksync', zksolcVersion: '1.5.15' })
+    const floor = await seen({ profile: 'solc_floor' })
 
     // Two non-zk profiles share `out/` in foundry's own layout, and this runner
     // builds several profiles inside one checkout, so a shared directory would
@@ -1379,31 +1570,32 @@ describe('createForgeRebuildRunner', () => {
     expect(zk[0]).not.toBe(floor[0])
   })
 
-  it('throws with the build output when the compile fails', () => {
-    expect(() =>
-      createForgeRebuildRunner({
-        repoRoot: '/repo',
-        checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: () => ({
-          ok: false,
-          output: 'Compiler run failed: stack too deep',
-        }),
-        exists: () => false,
-        readFile: readCheckoutFile,
-        readDeclarations: () => NO_DECLARATIONS,
-      }).build(request)
-    ).toThrow(/stack too deep/)
+  it('throws with the build output when the compile fails', async () => {
+    expect(
+      await rejection(
+        createForgeRebuildRunner({
+          repoRoot: '/repo',
+          checkoutRoot: '/tmp/rebuilds',
+          git: async () => '',
+          run: async () => ({
+            ok: false,
+            output: 'Compiler run failed: stack too deep',
+          }),
+          exists: () => false,
+          readFile: readCheckoutFile,
+          readDeclarations: () => NO_DECLARATIONS,
+        }).build(request)
+      )
+    ).toMatch(/stack too deep/)
   })
 
-  it('redacts a keyed URL out of a build failure it reports', () => {
-    let thrown = ''
-    try {
+  it('redacts a keyed URL out of a build failure it reports', async () => {
+    const thrown = await rejection(
       createForgeRebuildRunner({
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: () => ({
+        git: async () => '',
+        run: async () => ({
           ok: false,
           output:
             'backend error: https://rpc.example.com/ogrpc?dkey=SUPERSECRET',
@@ -1412,50 +1604,52 @@ describe('createForgeRebuildRunner', () => {
         readFile: readCheckoutFile,
         readDeclarations: () => NO_DECLARATIONS,
       }).build(request)
-    } catch (error) {
-      thrown = error instanceof Error ? error.message : String(error)
-    }
+    )
 
     expect(thrown).not.toContain('SUPERSECRET')
     expect(thrown).toContain('backend error')
   })
 
-  it('throws when the build reports success but leaves no artifact', () => {
-    expect(() =>
-      createForgeRebuildRunner({
-        repoRoot: '/repo',
-        checkoutRoot: '/tmp/rebuilds',
-        git: () => '',
-        run: () => ({ ok: true, output: '' }),
-        exists: freshOutDirs(
-          (path) => !path.endsWith('.json') && !path.endsWith('.env')
-        ),
-        readFile: readCheckoutFile,
-        readDeclarations: () => NO_DECLARATIONS,
-      }).build(request)
-    ).toThrow(/artifact/)
+  it('throws when the build reports success but leaves no artifact', async () => {
+    expect(
+      await rejection(
+        createForgeRebuildRunner({
+          repoRoot: '/repo',
+          checkoutRoot: '/tmp/rebuilds',
+          git: async () => '',
+          run: async () => ({ ok: true, output: '' }),
+          exists: freshOutDirs(
+            (path) => !path.endsWith('.json') && !path.endsWith('.env')
+          ),
+          readFile: readCheckoutFile,
+          readDeclarations: () => NO_DECLARATIONS,
+        }).build(request)
+      )
+    ).toMatch(/artifact/)
   })
 
-  it('throws when the artifact carries no runtime bytecode', () => {
-    expect(() =>
-      runner({
-        readFile: (path) =>
-          path.endsWith('foundry.toml')
-            ? CHECKOUT_TOML
-            : JSON.stringify({ deployedBytecode: {} }),
-        readDeclarations: () => NO_DECLARATIONS,
-      }).runner.build(request)
-    ).toThrow(/runtime bytecode/)
+  it('throws when the artifact carries no runtime bytecode', async () => {
+    expect(
+      await rejection(
+        runner({
+          readFile: (path) =>
+            path.endsWith('foundry.toml')
+              ? CHECKOUT_TOML
+              : JSON.stringify({ deployedBytecode: {} }),
+          readDeclarations: () => NO_DECLARATIONS,
+        }).runner.build(request)
+      )
+    ).toMatch(/runtime bytecode/)
   })
 
-  it('compiles once for two requests that would produce the same artifact', () => {
+  it('compiles once for two requests that would produce the same artifact', async () => {
     let builds = 0
     let built = false
     const cached = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: () => '',
-      run: () => {
+      git: async () => '',
+      run: async () => {
         builds += 1
         built = true
         return { ok: true, output: '' }
@@ -1467,33 +1661,105 @@ describe('createForgeRebuildRunner', () => {
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    cached.build(request)
-    cached.build(request)
+    await cached.build(request)
+    await cached.build(request)
 
     expect(builds).toBe(1)
   })
 
-  it('removes the worktrees it created', () => {
+  it('removes the worktrees it created', async () => {
     const gitCalls: string[][] = []
     const withCleanup = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: (args) => {
+      git: async (args) => {
         gitCalls.push(args)
         return ''
       },
-      run: () => ({ ok: true, output: '' }),
+      run: async () => ({ ok: true, output: '' }),
       exists: freshOutDirs((path) => path.endsWith('.json')),
       readFile: readCheckoutFile,
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    withCleanup.build(request)
-    withCleanup.cleanup()
+    await withCleanup.build(request)
+    await withCleanup.cleanup()
 
     expect(
       gitCalls.some((args) => args[0] === 'worktree' && args[1] === 'remove')
     ).toBe(true)
+  })
+
+  // Settles only when `signal` aborts, as a killed child does.
+  const untilKilled = (signal: AbortSignal | undefined): Promise<void> =>
+    new Promise((resolve) => {
+      signal?.addEventListener('abort', () => resolve())
+    })
+
+  it('kills the running compile and starts no queued build at cleanup', async () => {
+    const events: string[] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: async (args) => {
+        events.push(args.join(' '))
+        return ''
+      },
+      run: async (_command, _args, options) => {
+        await untilKilled(options.signal)
+        events.push('compile killed')
+        return { ok: false, output: 'killed' }
+      },
+      exists: freshOutDirs(() => false),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    const running = runner.build(request)
+    const queued = runner.build({ ...request, commit: 'b'.repeat(40) })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await runner.cleanup()
+
+    expect(await rejection(running)).toContain('killed')
+    expect(await rejection(queued)).toContain('cleaned up')
+    expect(events.some((e) => e.includes('b'.repeat(40)))).toBe(false)
+    // The checkout goes only once nothing runs in it.
+    expect(events.slice(-2)).toEqual([
+      'compile killed',
+      `worktree remove --force /tmp/rebuilds/${request.commit}`,
+    ])
+  })
+
+  it('kills a checkout add still running at cleanup, then removes what it wrote', async () => {
+    const gitCalls: string[][] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: async (args, signal) => {
+        gitCalls.push(args)
+        if (args[1] === 'add') {
+          await untilKilled(signal)
+          throw new Error('git worktree failed: killed')
+        }
+        return ''
+      },
+      run: async () => ({ ok: true, output: '' }),
+      exists: freshOutDirs(() => false),
+      readFile: readCheckoutFile,
+      readDeclarations: () => NO_DECLARATIONS,
+    })
+
+    const building = runner.build(request)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await runner.cleanup()
+
+    expect(await rejection(building)).toContain('killed')
+    expect(gitCalls.at(-1)).toEqual([
+      'worktree',
+      'remove',
+      '--force',
+      `/tmp/rebuilds/${request.commit}`,
+    ])
   })
 
   describe('declarationsAt', () => {
@@ -1517,8 +1783,8 @@ describe('createForgeRebuildRunner', () => {
         /** The checkout carries a `.env`. */
         dotenv?: boolean
         artifactCache?: {
-          restore: (key: string, outDir: string) => boolean
-          save: (key: string, outDir: string) => void
+          restore: (key: string, outDir: string) => Promise<boolean>
+          save: (key: string, outDir: string) => Promise<void>
         }
       } = {}
     ) => {
@@ -1537,7 +1803,7 @@ describe('createForgeRebuildRunner', () => {
           (path === `${CHECKOUT}/.env` && over.dotenv === true),
         ...(toml === undefined ? {} : { readFile: () => toml }),
         run: (command, args, options) => {
-          calls.push({ command, args, ...options })
+          calls.push({ command, args, cwd: options.cwd, env: options.env })
           const result = over.run?.(command, args, options) ?? {
             ok: true,
             output: '',
@@ -1565,8 +1831,9 @@ describe('createForgeRebuildRunner', () => {
         ...(over.artifactCache
           ? {
               artifactCache: {
-                restore: (key: string, outDir: string) => {
-                  const hit = over.artifactCache?.restore(key, outDir) ?? false
+                restore: async (key: string, outDir: string) => {
+                  const hit =
+                    (await over.artifactCache?.restore(key, outDir)) ?? false
                   if (hit) written = true
                   return hit
                 },
@@ -1578,10 +1845,10 @@ describe('createForgeRebuildRunner', () => {
       return { ...made, calls, reads }
     }
 
-    it("builds the AST in the recorded commit's own checkout, never the repo it runs from", () => {
+    it("builds the AST in the recorded commit's own checkout, never the repo it runs from", async () => {
       const made = harness()
 
-      const read = made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      const read = await made.runner.declarationsAt(COMMIT, zkRequest.profile)
 
       expect(read.definitions.has('CentrifugeFacet')).toBe(true)
       expect(made.calls).toHaveLength(1)
@@ -1619,62 +1886,66 @@ describe('createForgeRebuildRunner', () => {
       ).toBe(true)
     })
 
-    it('refuses a checkout that could choose the compiler before building its AST', () => {
+    it('refuses a checkout that could choose the compiler before building its AST', async () => {
       const planted = harness({
         toml: CHECKOUT_TOML.replace(
           /(\[profile\.zksync\]\n)/,
           "$1solc = './fake-solc'\n"
         ),
       })
-      expect(() =>
-        planted.runner.declarationsAt(COMMIT, zkRequest.profile)
-      ).toThrow(/could choose what the rebuild executes/)
+      expect(
+        await rejection(
+          planted.runner.declarationsAt(COMMIT, zkRequest.profile)
+        )
+      ).toMatch(/could choose what the rebuild executes/)
       expect(planted.calls).toHaveLength(0)
 
       const dotenv = harness({ dotenv: true })
-      expect(() =>
-        dotenv.runner.declarationsAt(COMMIT, zkRequest.profile)
-      ).toThrow(/carries a \.env/)
+      expect(
+        await rejection(dotenv.runner.declarationsAt(COMMIT, zkRequest.profile))
+      ).toMatch(/carries a \.env/)
       expect(dotenv.calls).toHaveLength(0)
     })
 
-    it('compiles once per commit and profile for the life of the run', () => {
+    it('compiles once per commit and profile for the life of the run', async () => {
       const made = harness()
 
-      made.runner.declarationsAt(COMMIT, zkRequest.profile)
-      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      await made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      await made.runner.declarationsAt(COMMIT, zkRequest.profile)
 
       expect(made.calls).toHaveLength(1)
       expect(made.reads).toHaveLength(1)
     })
 
-    it('neither reads nor writes the cross-run cache, which nothing checks here', () => {
+    it('neither reads nor writes the cross-run cache, which nothing checks here', async () => {
       // A bytecode build restored from the cache still has to match the chain.
       // Declarations do not, so a cached set with one stripped would pass.
       const touched: string[] = []
       const made = harness({
         artifactCache: {
-          restore: (key) => {
+          restore: async (key) => {
             touched.push(`restore ${key}`)
             return true
           },
-          save: (key) => touched.push(`save ${key}`),
+          save: async (key) => {
+            touched.push(`save ${key}`)
+          },
         },
       })
 
-      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      await made.runner.declarationsAt(COMMIT, zkRequest.profile)
 
       expect(made.calls).toHaveLength(1)
       expect(made.reads).toHaveLength(1)
       expect(touched).toEqual([])
     })
 
-    it('empties its build root first, so a stale artifact is never read', () => {
+    it('empties its build root first, so a stale artifact is never read', async () => {
       const stale = `${OUT}/Stale.sol/Stale.json`
       mkdirSync(join(stale, '..'), { recursive: true })
       writeFileSync(stale, '{}')
       try {
-        harness().runner.declarationsAt(COMMIT, zkRequest.profile)
+        await harness().runner.declarationsAt(COMMIT, zkRequest.profile)
 
         expect(existsSync(stale)).toBe(false)
         expect(existsSync('/tmp/rebuilds/zk-declarations')).toBe(true)
@@ -1686,17 +1957,17 @@ describe('createForgeRebuildRunner', () => {
       }
     })
 
-    it('builds even when its output path already holds something', () => {
+    it('builds even when its output path already holds something', async () => {
       // A commit is proposer-chosen, and anything it tracks is checked out.
       // Output found on disk is not evidence this build produced it.
       const made = harness({ preexisting: true })
 
-      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      await made.runner.declarationsAt(COMMIT, zkRequest.profile)
 
       expect(made.calls).toHaveLength(1)
     })
 
-    it('retries after a failed build rather than reading what it left behind', () => {
+    it('retries after a failed build rather than reading what it left behind', async () => {
       let attempt = 0
       const made = harness({
         run: () => {
@@ -1707,40 +1978,46 @@ describe('createForgeRebuildRunner', () => {
         },
       })
 
-      expect(() =>
-        made.runner.declarationsAt(COMMIT, zkRequest.profile)
-      ).toThrow('Compiler run failed')
-      made.runner.declarationsAt(COMMIT, zkRequest.profile)
+      expect(
+        await rejection(made.runner.declarationsAt(COMMIT, zkRequest.profile))
+      ).toContain('Compiler run failed')
+      await made.runner.declarationsAt(COMMIT, zkRequest.profile)
 
       expect(made.calls).toHaveLength(2)
       expect(made.reads).toHaveLength(1)
     })
 
-    it('throws when the AST build fails, or reports success and writes nothing', () => {
-      expect(() =>
-        harness({
-          run: () => ({ ok: false, output: 'Compiler run failed' }),
-        }).runner.declarationsAt(COMMIT, zkRequest.profile)
-      ).toThrow('Compiler run failed')
-      expect(() =>
-        harness({ writesOutput: false }).runner.declarationsAt(
-          COMMIT,
-          zkRequest.profile
+    it('throws when the AST build fails, or reports success and writes nothing', async () => {
+      expect(
+        await rejection(
+          harness({
+            run: () => ({ ok: false, output: 'Compiler run failed' }),
+          }).runner.declarationsAt(COMMIT, zkRequest.profile)
         )
-      ).toThrow('wrote nothing')
+      ).toContain('Compiler run failed')
+      expect(
+        await rejection(
+          harness({ writesOutput: false }).runner.declarationsAt(
+            COMMIT,
+            zkRequest.profile
+          )
+        )
+      ).toContain('wrote nothing')
     })
 
-    it('refuses an EVM profile, whose declarations come from its own rebuild', () => {
-      expect(() =>
-        harness().runner.declarationsAt(COMMIT, request.profile)
-      ).toThrow('not a zk lineage')
+    it('refuses an EVM profile, whose declarations come from its own rebuild', async () => {
+      expect(
+        await rejection(
+          harness().runner.declarationsAt(COMMIT, request.profile)
+        )
+      ).toContain('not a zk lineage')
     })
 
-    it('refuses a commit that is not a full SHA before it reaches git', () => {
+    it('refuses a commit that is not a full SHA before it reaches git', async () => {
       const made = harness()
-      expect(() =>
-        made.runner.declarationsAt('main', zkRequest.profile)
-      ).toThrow('full 40-character')
+      expect(
+        await rejection(made.runner.declarationsAt('main', zkRequest.profile))
+      ).toContain('full 40-character')
       expect(made.gitCalls).toHaveLength(0)
     })
   })
@@ -1752,14 +2029,14 @@ describe('createPinnedImmutableExpectations', () => {
 
   const pinned = (blobs: Record<string, PinnedJsonRead>) => {
     const asked: string[] = []
-    const source = createPinnedImmutableExpectations((repoPath) => {
+    const source = createPinnedImmutableExpectations(async (repoPath) => {
       asked.push(repoPath)
       return blobs[repoPath] ?? { ok: false, reason: 'blob-unreadable' }
     })
     return { source, asked }
   }
 
-  it('joins the registry and the requirements as the pinned commit has them', () => {
+  it('joins the registry and the requirements as the pinned commit has them', async () => {
     const { source, asked } = pinned({
       [REQUIREMENTS]: {
         ok: true,
@@ -1781,7 +2058,7 @@ describe('createPinnedImmutableExpectations', () => {
       },
     })
 
-    const requirements = source.loadRequirements()
+    const requirements = await source.loadRequirements()
 
     expect(asked).toEqual([REQUIREMENTS, REGISTRY])
     expect(requirements.OnlyOnMainFacet?.immutables?.BRIDGE).toEqual({
@@ -1796,18 +2073,18 @@ describe('createPinnedImmutableExpectations', () => {
     expect(requirements.GasZipFacet).toBeUndefined()
   })
 
-  it('throws when an expectation file cannot be read at the pinned commit', () => {
+  it('throws when an expectation file cannot be read at the pinned commit', async () => {
     const { source } = pinned({
       [REQUIREMENTS]: { ok: true, value: {} },
       [REGISTRY]: { ok: false, reason: 'fetch-failed' },
     })
 
-    expect(() => source.loadRequirements()).toThrow(
+    expect(await rejection(source.loadRequirements())).toContain(
       `${REGISTRY} could not be read at origin/main (fetch-failed)`
     )
   })
 
-  it('reads a config file from config/ at the pinned commit', () => {
+  it('reads a config file from config/ at the pinned commit', async () => {
     const { source, asked } = pinned({
       'config/centrifuge.json': {
         ok: true,
@@ -1815,13 +2092,13 @@ describe('createPinnedImmutableExpectations', () => {
       },
     })
 
-    expect(source.loadConfigFile('centrifuge.json')).toEqual({
+    expect(await source.loadConfigFile('centrifuge.json')).toEqual({
       tokenBridge: { mainnet: '0xpinned' },
     })
     expect(asked).toEqual(['config/centrifuge.json'])
   })
 
-  it('answers "expected value unknown" for a config file main does not carry', () => {
+  it('answers "expected value unknown" for a config file main does not carry', async () => {
     // centrifuge.json exists in this checkout, so a fallback to the working
     // tree would return its contents instead.
     const { source } = pinned({})
@@ -1832,24 +2109,24 @@ describe('createPinnedImmutableExpectations', () => {
         'utf8'
       )
     ).toContain('tokenBridge')
-    expect(source.loadConfigFile('centrifuge.json')).toBeNull()
+    expect(await source.loadConfigFile('centrifuge.json')).toBeNull()
   })
 
-  it('never asks for a config name that is not a plain basename', () => {
+  it('never asks for a config name that is not a plain basename', async () => {
     const { source, asked } = pinned({})
 
-    expect(source.loadConfigFile('../foundry.json')).toBeNull()
+    expect(await source.loadConfigFile('../foundry.json')).toBeNull()
     expect(asked).toEqual([])
   })
 
-  it('throws rather than answering "unknown" when the anchor itself failed', () => {
+  it('throws rather than answering "unknown" when the anchor itself failed', async () => {
     // A null here would grade as unpriceable with a reason blaming the config
     // file, when nothing about the file was learned.
     const { source } = pinned({
       'config/centrifuge.json': { ok: false, reason: 'remote-unexpected' },
     })
 
-    expect(() => source.loadConfigFile('centrifuge.json')).toThrow(
+    expect(await rejection(source.loadConfigFile('centrifuge.json'))).toContain(
       'config/centrifuge.json could not be read at origin/main (remote-unexpected)'
     )
   })
@@ -1874,7 +2151,7 @@ describe('createImmutableReferencesResolver', () => {
         holdsImmutablesOffCode: false,
         profiles: [PROFILE],
       }),
-      build: (request) => {
+      build: async (request) => {
         builds.push(request.commit)
         return { runtimeHex: DEPLOYED, immutableReferences: REFS }
       },
@@ -1920,6 +2197,103 @@ describe('createImmutableReferencesResolver', () => {
   })
 })
 
+describe('the subprocess primitives the rebuild runs on', () => {
+  it('returns what git printed', async () => {
+    expect(
+      (await runRepoGit(['rev-parse', '--is-inside-work-tree'])).trim()
+    ).toBe('true')
+  })
+
+  it('names the git verb that failed and redacts any URL in what it printed', async () => {
+    const message = await rejection(
+      runRepoGit([
+        'show-ref',
+        '--verify',
+        'https://u:SUPERSECRET@example.com/x',
+      ])
+    )
+
+    expect(message).toStartWith('git show-ref failed: ')
+    expect(message).toContain('[redacted-url]')
+    expect(message).not.toContain('SUPERSECRET')
+  })
+
+  it('reports a failing command with its stdout before its stderr', async () => {
+    const result = await runCommand(
+      'sh',
+      ['-c', 'echo out; echo err >&2; exit 3'],
+      { cwd: tmpdir(), env: {} }
+    )
+
+    expect(result).toEqual({ ok: false, output: 'out\nerr\n' })
+  })
+
+  it('passes the given variables on top of this process environment', async () => {
+    const result = await runCommand(
+      'sh',
+      ['-c', 'printf "%s|%s" "$FOUNDRY_PROFILE" "$PATH"'],
+      { cwd: tmpdir(), env: { FOUNDRY_PROFILE: 'solc_floor' } }
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.output).toBe(`solc_floor|${process.env.PATH ?? ''}`)
+  })
+
+  it('reports a command that could not start as failed rather than throwing', async () => {
+    expect(
+      await runCommand('codehash-no-such-binary', [], {
+        cwd: tmpdir(),
+        env: {},
+      })
+    ).toEqual({ ok: false, output: '' })
+  })
+
+  it('kills a command when its signal aborts', async () => {
+    const teardown = new AbortController()
+    const started = Date.now()
+    const running = runCommand('sleep', ['30'], {
+      cwd: tmpdir(),
+      env: {},
+      signal: teardown.signal,
+    })
+    teardown.abort()
+
+    expect((await running).ok).toBe(false)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
+  it('settles a killed command only once it has exited', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'codehash-kill-'))
+    const marker = join(dir, 'exited')
+    const teardown = new AbortController()
+    const running = runCommand(
+      'sh',
+      [
+        '-c',
+        `trap 'sleep 0.3; touch "${marker}"; exit 1' TERM; while :; do sleep 0.05; done`,
+      ],
+      { cwd: dir, env: {}, signal: teardown.signal }
+    )
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    teardown.abort()
+
+    expect((await running).ok).toBe(false)
+    expect(existsSync(marker)).toBe(true)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('rejects a git call its signal aborts', async () => {
+    const teardown = new AbortController()
+    teardown.abort()
+
+    expect(
+      await rejection(
+        runRepoGit(['rev-parse', '--is-inside-work-tree'], teardown.signal)
+      )
+    ).toStartWith('git rev-parse failed')
+  })
+})
+
 describe('defaultCheckoutRoot', () => {
   it('sits outside the repository and is scoped to the process', () => {
     const root = defaultCheckoutRoot(4242)
@@ -1938,32 +2312,34 @@ describe('createForgeRebuildRunner refuses a commit it cannot trust', () => {
     ['a git option', '--upload-pack=touch'],
     ['a short prefix', 'a'.repeat(7)],
     ['an uppercase SHA', 'A'.repeat(40)],
-  ])('refuses %s before touching the filesystem', (_label, commit) => {
+  ])('refuses %s before touching the filesystem', async (_label, commit) => {
     const gitCalls: string[][] = []
     const runner = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: (args) => {
+      git: async (args) => {
         gitCalls.push(args)
         return ''
       },
-      run: () => ({ ok: true, output: '' }),
+      run: async () => ({ ok: true, output: '' }),
       exists: () => false,
       readFile: () => '{}',
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    expect(() =>
-      runner.build({
-        contractName: 'AccessManagerFacet',
-        commit,
-        profile: {
-          profile: 'default',
-          solcVersion: '0.8.29',
-          evmVersion: 'cancun',
-        },
-      })
-    ).toThrow(/40-character/)
+    expect(
+      await rejection(
+        runner.build({
+          contractName: 'AccessManagerFacet',
+          commit,
+          profile: {
+            profile: 'default',
+            solcVersion: '0.8.29',
+            evmVersion: 'cancun',
+          },
+        })
+      )
+    ).toMatch(/40-character/)
     // Paired with the accepted-commit cases above, where the same spy records a
     // worktree add: nothing ran for a commit that was refused.
     expect(gitCalls).toEqual([])
@@ -2004,9 +2380,9 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
     const runner = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: (args) =>
+      git: async (args) =>
         args.includes('ls-files') ? (over.tracked ?? []).join('\0') : '',
-      run: (command) => {
+      run: async (command) => {
         spawned.push(command)
         return { ok: true, output: '' }
       },
@@ -2014,11 +2390,11 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       readFile: () => FORGED,
       readDeclarations: () => NO_DECLARATIONS,
       artifactCache: {
-        restore: (key) => {
+        restore: async (key) => {
           restored.push(key)
           return false
         },
-        save: () => undefined,
+        save: async () => undefined,
       },
     })
     return { runner, spawned, restored }
@@ -2048,10 +2424,12 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
     ['a solc compile cache', 'cache/solidity-files-cache.json', evmRequest],
   ])(
     'refuses a commit tracking %s before reading or building anything',
-    (_label, path, request) => {
+    async (_label, path, request) => {
       const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
 
-      expect(() => h.runner.build(request)).toThrow(/tracks build output/)
+      expect(await rejection(h.runner.build(request))).toMatch(
+        /tracks build output/
+      )
       expect(h.spawned).toEqual([])
       expect(h.restored).toEqual([])
     }
@@ -2061,10 +2439,10 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
     ['a nested directory of the same name', 'src/zkout/Thing.sol'],
     ['a name that only starts like one', 'zkoutput/x.json'],
     ['the default forge output', 'out/x.json'],
-  ])('admits a commit tracking %s', (_label, path) => {
+  ])('admits a commit tracking %s', async (_label, path) => {
     const h = harness({ tracked: ['src/Facets/GlacisFacet.sol', path] })
 
-    expect(() => h.runner.build(evmRequest)).not.toThrow()
+    expect(await rejection(h.runner.build(evmRequest))).toBe('')
   })
 
   it.each([
@@ -2072,24 +2450,26 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
     ['EVM', evmRequest, `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`],
   ])(
     'refuses a %s output directory already present before this run wrote to it',
-    (_label, request, outPath) => {
+    async (_label, request, outPath) => {
       const h = harness({
         exists: (path) => path === outPath || path.endsWith('.json'),
       })
 
-      expect(() => h.runner.build(request)).toThrow(/this run did not write it/)
+      expect(await rejection(h.runner.build(request))).toMatch(
+        /this run did not write it/
+      )
       expect(h.spawned).toEqual([])
       expect(h.restored).toEqual([])
     }
   )
 
-  it('builds EVM output outside the checkout, where no tracked path can alias it', () => {
+  it('builds EVM output outside the checkout, where no tracked path can alias it', async () => {
     const outs: string[] = []
     const runner = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: () => '',
-      run: (_command, args) => {
+      git: async () => '',
+      run: async (_command, args) => {
         outs.push(args[args.indexOf('--out') + 1] as string)
         return { ok: true, output: '' }
       },
@@ -2104,7 +2484,7 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    runner.build(evmRequest)
+    await runner.build(evmRequest)
 
     expect(outs).toEqual([
       `/tmp/rebuilds/evm-out/${COMMIT}/out-codehash-default`,
@@ -2112,13 +2492,13 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
     expect(outs[0]?.startsWith(`/tmp/rebuilds/${COMMIT}`)).toBe(false)
   })
 
-  it('reads a directory it vetted absent for a second contract at the same commit', () => {
+  it('reads a directory it vetted absent for a second contract at the same commit', async () => {
     let builds = 0
     const runner = createForgeRebuildRunner({
       repoRoot: '/repo',
       checkoutRoot: '/tmp/rebuilds',
-      git: () => '',
-      run: () => {
+      git: async () => '',
+      run: async () => {
         builds++
         return { ok: true, output: '' }
       },
@@ -2138,10 +2518,10 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       readDeclarations: () => NO_DECLARATIONS,
     })
 
-    runner.build(evmRequest)
+    await runner.build(evmRequest)
     expect(builds).toBe(1)
     expect(
-      runner.build({ ...evmRequest, contractName: 'Other' }).runtimeHex
+      (await runner.build({ ...evmRequest, contractName: 'Other' })).runtimeHex
     ).toBe('0xdeadbeef')
     expect(builds).toBe(1)
   })
@@ -2203,8 +2583,8 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       createForgeRebuildRunner({
         repoRoot: repo,
         checkoutRoot: join(root, 'checkouts'),
-        git: (args) => git(repo, args),
-        run: (command, args, options) => {
+        git: async (args) => git(repo, args),
+        run: async (command, args, options) => {
           spawned.push(command)
           // Stands in for forge: writes an artifact to `--out` for each
           // contract `src/` defines, and leaves anything else where it lies.
@@ -2227,17 +2607,18 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
         readDeclarations: () => NO_DECLARATIONS,
       })
 
-    it('compiles an honest commit', () => {
+    it('compiles an honest commit', async () => {
       const { repo, commit } = commitWith(() => undefined)
       const spawned: string[] = []
 
       expect(
-        realRunner(repo, spawned).build({ ...evmRequest, commit }).runtimeHex
+        (await realRunner(repo, spawned).build({ ...evmRequest, commit }))
+          .runtimeHex
       ).toBe('0xc0de')
       expect(spawned).toEqual(['forge'])
     })
 
-    it('refuses a force-added artifact that would otherwise be read as the build', () => {
+    it('refuses a force-added artifact that would otherwise be read as the build', async () => {
       const { repo, commit } = commitWith((dir) => {
         const artifactDir = join(dir, 'out-codehash-default', 'GlacisFacet.sol')
         mkdirSync(artifactDir, { recursive: true })
@@ -2245,9 +2626,11 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       })
       const spawned: string[] = []
 
-      expect(() =>
-        realRunner(repo, spawned).build({ ...evmRequest, commit })
-      ).toThrow(
+      expect(
+        await rejection(
+          realRunner(repo, spawned).build({ ...evmRequest, commit })
+        )
+      ).toMatch(
         /tracks build output \(out-codehash-default\/GlacisFacet\.sol\/GlacisFacet\.json\)/
       )
       expect(spawned).toEqual([])
@@ -2261,7 +2644,7 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       ['zk', zkRequest, 'z\u212Aout'],
     ])(
       'refuses a %s look-alike symlink into a submodule that is filled after vetting',
-      (_label, request, name) => {
+      async (_label, request, name) => {
         const { repo, commit } = commitWith((dir) => {
           const evil = join(root, 'evil')
           mkdirSync(join(evil, 'out', 'Planted.sol'), { recursive: true })
@@ -2285,18 +2668,20 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
         })
         const spawned: string[] = []
 
-        expect(() =>
-          realRunner(repo, spawned).build({
-            ...request,
-            contractName: 'Planted',
-            commit,
-          })
-        ).toThrow(`tracks build output (${name})`)
+        expect(
+          await rejection(
+            realRunner(repo, spawned).build({
+              ...request,
+              contractName: 'Planted',
+              commit,
+            })
+          )
+        ).toContain(`tracks build output (${name})`)
         expect(spawned).toEqual([])
       }
     )
 
-    it('refuses a tracked symlink where the output directory goes', () => {
+    it('refuses a tracked symlink where the output directory goes', async () => {
       const { repo, commit } = commitWith((dir) => {
         mkdirSync(join(dir, 'planted', 'GlacisFacet.sol'), { recursive: true })
         writeFileSync(
@@ -2307,9 +2692,11 @@ describe('createForgeRebuildRunner never reads output it did not write', () => {
       })
       const spawned: string[] = []
 
-      expect(() =>
-        realRunner(repo, spawned).build({ ...evmRequest, commit })
-      ).toThrow(/tracks build output \(out-codehash-default\)/)
+      expect(
+        await rejection(
+          realRunner(repo, spawned).build({ ...evmRequest, commit })
+        )
+      ).toMatch(/tracks build output \(out-codehash-default\)/)
       expect(spawned).toEqual([])
     })
   })
@@ -2332,7 +2719,7 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
           { profile: 'other', solcVersion: '0.8.29', evmVersion: 'cancun' },
         ],
       }),
-      build: (request) => {
+      build: async (request) => {
         builds.push(request.commit)
         return { runtimeHex: DEPLOYED, immutableReferences: REFS }
       },
@@ -2547,7 +2934,7 @@ describe('createImmutablePricer', () => {
             { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
           ],
         } as unknown as IToolchainScope),
-      build: () => ({
+      build: async () => ({
         runtimeHex: RUNTIME,
         immutableReferences: { '7': [{ start: 32, length: 32 }] },
         immutableDeclarations: [
@@ -2561,8 +2948,8 @@ describe('createImmutablePricer', () => {
           },
         ],
       }),
-      loadRequirements: () => requirements,
-      loadConfigFile: (fileName) =>
+      loadRequirements: async () => requirements,
+      loadConfigFile: async (fileName) =>
         fileName === 'centrifuge.json'
           ? { tokenBridge: { mainnet: configured } }
           : null,
@@ -2578,6 +2965,61 @@ describe('createImmutablePricer', () => {
     else throw new Error(`expected a decided pricing: ${agrees.reason}`)
     if (differs.decided) expect(differs.slots[0]?.status).toBe('disagrees')
     else throw new Error(`expected a decided pricing: ${differs.reason}`)
+  })
+
+  it('reads only the config files the pricing consults', async () => {
+    const loaded: string[] = []
+    const priced = await createImmutablePricer({
+      readRecord: async () => ({
+        contractName: 'CentrifugeFacet',
+        version: '1.0.0',
+        gitCommitHash: 'a'.repeat(40),
+      }),
+      scopeFor: () =>
+        ({
+          isClosedSet: true,
+          holdsImmutablesOffCode: false,
+          profiles: [
+            { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
+          ],
+        } as unknown as IToolchainScope),
+      build: async () => ({
+        runtimeHex: RUNTIME,
+        immutableReferences: { '7': [{ start: 32, length: 32 }] },
+        immutableDeclarations: [
+          {
+            file: 'src/Facets/CentrifugeFacet.sol',
+            contract: 'CentrifugeFacet',
+            line: 33,
+            astId: 7,
+            type: 'address',
+            name: 'TOKEN_BRIDGE',
+          },
+        ],
+      }),
+      loadRequirements: async () => ({
+        CentrifugeFacet: {
+          configData: {
+            ...requirements.CentrifugeFacet?.configData,
+            _unused: {
+              configFileName: 'unread.json',
+              keyInConfigFile: '.x.<NETWORK>',
+            },
+          },
+          immutables: requirements.CentrifugeFacet?.immutables ?? {},
+        },
+      }),
+      loadConfigFile: async (fileName) => {
+        loaded.push(fileName)
+        if (fileName !== 'centrifuge.json')
+          throw new Error(`${fileName} is not one the pricing reads`)
+        return { tokenBridge: { mainnet: `0x${BRIDGE}` } }
+      },
+    })(ADDRESS, 'mainnet', RUNTIME)
+
+    expect(loaded).toEqual(['centrifuge.json'])
+    if (priced.decided) expect(priced.slots[0]?.status).toBe('verified')
+    else throw new Error(`expected a decided pricing: ${priced.reason}`)
   })
 })
 
@@ -2612,13 +3054,14 @@ describe('createOffCodeImmutablesReader', () => {
           version: '1.0.0',
           gitCommitHash: 'a'.repeat(40),
         },
-      declarationsFor: () => ({
+      declarationsFor: async () => ({
         covered: over.covered ?? true,
         declarations: over.declarations ?? [declaration('router', 22)],
       }),
       getImmutable: over.getImmutable ?? (async () => WORD),
-      loadRequirements: over.loadRequirements ?? (() => ({})),
-      loadConfigFile: over.loadConfigFile ?? (() => null),
+      loadRequirements: async () => over.loadRequirements?.() ?? {},
+      loadConfigFile: async (fileName) =>
+        over.loadConfigFile?.(fileName) ?? null,
     })
 
   it('reports a contract declaring no immutables as nothing to grade', async () => {
@@ -2648,13 +3091,13 @@ describe('createOffCodeImmutablesReader', () => {
         version: '1.0.0',
         gitCommitHash: 'b'.repeat(40),
       }),
-      declarationsFor: (record, network) => {
+      declarationsFor: async (record, network) => {
         seen.push({ commit: record.gitCommitHash, network })
         throw new Error('the AST build failed')
       },
       getImmutable: async () => WORD,
-      loadRequirements: () => ({}),
-      loadConfigFile: () => null,
+      loadRequirements: async () => ({}),
+      loadConfigFile: async () => null,
     })(ADDRESS, 'zksync')
 
     expect(seen).toEqual([{ commit: 'b'.repeat(40), network: 'zksync' }])
@@ -2694,13 +3137,13 @@ describe('createOffCodeImmutablesReader', () => {
   it('refuses rather than pricing when the record says nothing', async () => {
     const read = await createOffCodeImmutablesReader({
       readRecord: async () => undefined,
-      declarationsFor: () => ({
+      declarationsFor: async () => ({
         covered: true,
         declarations: [declaration('router', 22)],
       }),
       getImmutable: async () => WORD,
-      loadRequirements: () => ({}),
-      loadConfigFile: () => null,
+      loadRequirements: async () => ({}),
+      loadConfigFile: async () => null,
     })(ADDRESS, 'zksync')
 
     expect(read).toMatchObject({ declared: 'some' })
@@ -2778,7 +3221,7 @@ describe('createRecordedImmutableDeclarations', () => {
       asked,
       declarationsFor: createRecordedImmutableDeclarations({
         scopeFor,
-        declarationsAt: (commit, profile) => {
+        declarationsAt: async (commit, profile) => {
           asked.push({ commit, profile: profile.profile })
           return all
         },
@@ -2786,7 +3229,7 @@ describe('createRecordedImmutableDeclarations', () => {
     }
   }
 
-  it("asks the rebuild of the record's commit, under the network's zk lineage", () => {
+  it("asks the rebuild of the record's commit, under the network's zk lineage", async () => {
     const made = resolver({
       declarations: [
         {
@@ -2810,30 +3253,32 @@ describe('createRecordedImmutableDeclarations', () => {
       }),
     })
 
-    const read = made.declarationsFor(record(COMMIT), 'zksync')
+    const read = await made.declarationsFor(record(COMMIT), 'zksync')
 
     expect(made.asked).toEqual([{ commit: COMMIT, profile: 'zksync' }])
     expect(read.covered).toBe(true)
     expect(read.declarations.map((one) => one.name)).toEqual(['TOKEN_BRIDGE'])
   })
 
-  it('separates a contract the AST defined from one it never saw', () => {
+  it('separates a contract the AST defined from one it never saw', async () => {
     const made = resolver({
       declarations: [],
       definitions: defined({
         CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
       }),
     })
-    expect(made.declarationsFor(record(COMMIT), 'zksync')).toEqual({
+    expect(await made.declarationsFor(record(COMMIT), 'zksync')).toEqual({
       covered: true,
       declarations: [],
     })
 
     const empty = resolver(NO_DECLARATIONS)
-    expect(empty.declarationsFor(record(COMMIT), 'zksync').covered).toBe(false)
+    expect(
+      (await empty.declarationsFor(record(COMMIT), 'zksync')).covered
+    ).toBe(false)
   })
 
-  it('refuses a name defined twice, since layer 1 cannot say which one it matched', () => {
+  it('refuses a name defined twice, since layer 1 cannot say which one it matched', async () => {
     // A stub under `src/` beside the real contract in `lib/`: the stub alone
     // declares nothing, and reading it would grade the real one's immutables
     // as absent.
@@ -2847,12 +3292,12 @@ describe('createRecordedImmutableDeclarations', () => {
       }),
     })
 
-    expect(() => made.declarationsFor(record(COMMIT), 'zksync')).toThrow(
-      'defined in 2 source files'
-    )
+    expect(
+      await rejection(made.declarationsFor(record(COMMIT), 'zksync'))
+    ).toContain('defined in 2 source files')
   })
 
-  it('refuses a contract defined only outside src/', () => {
+  it('refuses a contract defined only outside src/', async () => {
     // The commit's own `src` setting pointing elsewhere puts every artifact
     // outside `src/`.
     const made = resolver({
@@ -2862,12 +3307,12 @@ describe('createRecordedImmutableDeclarations', () => {
       }),
     })
 
-    expect(() => made.declarationsFor(record(COMMIT), 'zksync')).toThrow(
-      'outside the src/ tree'
-    )
+    expect(
+      await rejection(made.declarationsFor(record(COMMIT), 'zksync'))
+    ).toContain('outside the src/ tree')
   })
 
-  it('reads declarations only from the file defining the contract', () => {
+  it('reads declarations only from the file defining the contract', async () => {
     const made = resolver({
       declarations: [
         {
@@ -2891,46 +3336,48 @@ describe('createRecordedImmutableDeclarations', () => {
     })
 
     expect(
-      made
-        .declarationsFor(record(COMMIT), 'zksync')
-        .declarations.map((one) => one.name)
+      (await made.declarationsFor(record(COMMIT), 'zksync')).declarations.map(
+        (one) => one.name
+      )
     ).toEqual(['TOKEN_BRIDGE'])
   })
 
-  it('covers nothing when the AST build produced no readable artifacts', () => {
+  it('covers nothing when the AST build produced no readable artifacts', async () => {
     const made = resolver(
       readImmutableDeclarations(join(tmpdir(), 'codehash-no-such-ast-out'))
     )
 
-    expect(made.declarationsFor(record(COMMIT), 'zksync').covered).toBe(false)
+    expect((await made.declarationsFor(record(COMMIT), 'zksync')).covered).toBe(
+      false
+    )
   })
 
-  it('throws for a record that names no commit, before any build', () => {
+  it('throws for a record that names no commit, before any build', async () => {
     for (const hash of ['', '  ', 'UNKNOWN']) {
       const made = resolver(NO_DECLARATIONS)
-      expect(() => made.declarationsFor(record(hash), 'zksync')).toThrow(
-        'carries no commit'
-      )
+      expect(
+        await rejection(made.declarationsFor(record(hash), 'zksync'))
+      ).toContain('carries no commit')
       expect(made.asked).toHaveLength(0)
     }
   })
 
-  it('throws when the network does not resolve to exactly one lineage', () => {
+  it('throws when the network does not resolve to exactly one lineage', async () => {
     const declarationsFor = createRecordedImmutableDeclarations({
       scopeFor: (network) => ({ ...scopeFor(network), profiles: [] }),
-      declarationsAt: () => NO_DECLARATIONS,
+      declarationsAt: async () => NO_DECLARATIONS,
     })
 
-    expect(() => declarationsFor(record(COMMIT), 'zksync')).toThrow(
-      '0 build profiles'
-    )
+    expect(
+      await rejection(declarationsFor(record(COMMIT), 'zksync'))
+    ).toContain('0 build profiles')
 
     const zk = scopeFor('zksync').profiles[0] as IBuildProfile
     const twoLineages = createRecordedImmutableDeclarations({
       scopeFor: (network) => ({ ...scopeFor(network), profiles: [zk, zk] }),
-      declarationsAt: () => NO_DECLARATIONS,
+      declarationsAt: async () => NO_DECLARATIONS,
     })
-    expect(() => twoLineages(record(COMMIT), 'zksync')).toThrow(
+    expect(await rejection(twoLineages(record(COMMIT), 'zksync'))).toContain(
       '2 build profiles'
     )
   })
@@ -2952,14 +3399,14 @@ describe('createSignTimeCodehashDeps sources zk declarations from the rebuild', 
     const root = mkdtempSync(join(tmpdir(), 'codehash-wiring-'))
     roots.push(root)
     const rebuild: IForgeRebuildRunner = {
-      build: () => {
+      build: async () => {
         throw new Error('the off-code read must not need a bytecode rebuild')
       },
-      declarationsAt: (commit, profile) => {
+      declarationsAt: async (commit, profile) => {
         asked.push({ commit, profile: profile.profile })
         return all
       },
-      cleanup: () => undefined,
+      cleanup: async () => undefined,
     }
     const deps = createSignTimeCodehashDeps({
       recordSource: {
@@ -2971,7 +3418,7 @@ describe('createSignTimeCodehashDeps sources zk declarations from the rebuild', 
       },
       checkoutRoot: join(root, 'checkouts'),
       artifactCacheRoot: join(root, 'cache'),
-      readPinnedBlob: () => ({ ok: false, reason: 'blob-unreadable' }),
+      readPinnedBlob: async () => ({ ok: false, reason: 'blob-unreadable' }),
       rebuild,
     })
     return { asked, deps }
@@ -3022,7 +3469,7 @@ describe('createArtifactCache', () => {
       rmSync(root, { recursive: true, force: true })
   })
 
-  it('serves a later run the build an earlier one made', () => {
+  it('serves a later run the build an earlier one made', async () => {
     const cache = createArtifactCache(tempRoot())
     const built = tempRoot()
     mkdirSync(join(built, 'AccessManagerFacet.sol'), { recursive: true })
@@ -3031,12 +3478,12 @@ describe('createArtifactCache', () => {
       '{"deployedBytecode":{"object":"0xdead"}}'
     )
 
-    cache.save('commit-out-codehash-default', built)
+    await cache.save('commit-out-codehash-default', built)
     const restoredInto = join(tempRoot(), 'out-codehash-default')
 
-    expect(cache.restore('commit-out-codehash-default', restoredInto)).toBe(
-      true
-    )
+    expect(
+      await cache.restore('commit-out-codehash-default', restoredInto)
+    ).toBe(true)
     expect(
       readFileSync(
         join(restoredInto, 'AccessManagerFacet.sol', 'AccessManagerFacet.json'),
@@ -3047,14 +3494,14 @@ describe('createArtifactCache', () => {
 
   // The gate must reach "build it again", never "the gate could not run": every
   // way the cache can fail is an optimisation missing, not a signing outage.
-  it('reports a miss rather than throwing, for a key and a source it cannot read', () => {
+  it('reports a miss rather than throwing, for a key and a source it cannot read', async () => {
     const cache = createArtifactCache(tempRoot())
 
-    expect(cache.restore('nothing-was-ever-saved-here', tempRoot())).toBe(false)
-    expect(() =>
-      cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
-    ).not.toThrow()
-    expect(cache.restore('unbuilt', tempRoot())).toBe(false)
+    expect(await cache.restore('nothing-was-ever-saved-here', tempRoot())).toBe(
+      false
+    )
+    await cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
+    expect(await cache.restore('unbuilt', tempRoot())).toBe(false)
   })
 })
 

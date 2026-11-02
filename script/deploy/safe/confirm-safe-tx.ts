@@ -669,6 +669,7 @@ const processTxs = async (
       // which `getViemChainForNetworkName` throws without, so the record is
       // always the run's own view.
       const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
+      const pinned = await readPinnedBlob(`deployments/${networkKey}.json`)
       const observed = await observeCalldata(
         {
           operationId,
@@ -681,10 +682,7 @@ const processTxs = async (
             networkKey as SupportedChain,
             EnvironmentEnum.production
           )) as unknown as Record<string, unknown>,
-          ...(() => {
-            const pinned = readPinnedBlob(`deployments/${networkKey}.json`)
-            return pinned.ok ? { pinnedDeployments: pinned.value } : {}
-          })(),
+          ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
           globalConfig: globalConfig as unknown as Record<string, unknown>,
         }
       )
@@ -1641,7 +1639,7 @@ const processTxs = async (
 
     let targetState: ITargetStateVerdict
     try {
-      targetState = evaluateTargetStateIntent(
+      targetState = await evaluateTargetStateIntent(
         tx.safeTx.data?.data ? [tx.safeTx.data.data as Hex] : [],
         network,
         createTargetStateDeps(network, {
@@ -1675,7 +1673,7 @@ const processTxs = async (
         },
         {
           ...peripheryConfigAtPinnedRef(
-            readPinnedBlob(PERIPHERY_CONFIG_REPO_PATH),
+            await readPinnedBlob(PERIPHERY_CONFIG_REPO_PATH),
             globalConfig
           ),
           readWhitelistedSelectors: async (diamond, contract) => {

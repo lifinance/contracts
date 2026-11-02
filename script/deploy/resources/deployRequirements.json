@@ -13,20 +13,6 @@
       }
     }
   },
-  "AcrossFacet": {
-    "configData": {
-      "_spokePool": {
-        "configFileName": "across.json",
-        "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
-      },
-      "_wrappedNativeAddress": {
-        "configFileName": "networks.json",
-        "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
-      }
-    }
-  },
   "AcrossFacetV4": {
     "configData": {
       "_spokePool": {

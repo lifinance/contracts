@@ -7,6 +7,7 @@ import type {
   Account,
   Address,
   Chain,
+  Hex,
   PublicClient,
   TransactionReceipt,
   WalletClient,
@@ -79,14 +80,7 @@ export class EvmChainCaller implements IChainCaller {
       }
     )
 
-    const txHash = await this.walletClient.sendTransaction({
-      account: this.account,
-      chain: this.walletClient.chain as Chain | null,
-      to: params.to,
-      data: params.data,
-      value: params.value ?? 0n,
-      gas,
-    })
+    const { hash: txHash, rawTransaction } = await this.broadcast(params, gas)
 
     consola.info(`Blockchain Transaction Hash: \u001b[33m${txHash}\u001b[0m`)
 
@@ -112,7 +106,13 @@ export class EvmChainCaller implements IChainCaller {
         : undefined
 
       if (receipt.status === 'success')
-        return { hash: txHash, receipt, gasUsed: receipt.gasUsed, explorerUrl }
+        return {
+          hash: txHash,
+          receipt,
+          gasUsed: receipt.gasUsed,
+          explorerUrl,
+          rawTransaction,
+        }
       else throw new Error(`Transaction failed with status: ${receipt.status}`)
     } catch (timeoutError: unknown) {
       const errorMsg =
@@ -128,9 +128,38 @@ export class EvmChainCaller implements IChainCaller {
         const explorerUrl = this.networkName
           ? buildExplorerTxUrl(this.networkName, txHash)
           : undefined
-        return { hash: txHash, explorerUrl }
+        return { hash: txHash, explorerUrl, rawTransaction }
       }
       throw timeoutError
     }
+  }
+
+  /**
+   * A local account signs here and the signed bytes are kept, so a caller can
+   * re-send the identical transaction (same nonce) to another endpoint when the
+   * first one accepts it and then drops it.
+   */
+  private async broadcast(
+    params: IChainCallParams,
+    gas: bigint
+  ): Promise<{ hash: Hex; rawTransaction?: Hex }> {
+    const request = {
+      account: this.account,
+      chain: this.walletClient.chain as Chain | null,
+      to: params.to,
+      data: params.data,
+      value: params.value ?? 0n,
+      gas,
+    }
+
+    if (this.account.type !== 'local')
+      return { hash: await this.walletClient.sendTransaction(request) }
+
+    const prepared = await this.walletClient.prepareTransactionRequest(request)
+    const rawTransaction = await this.walletClient.signTransaction(prepared)
+    const hash = await this.walletClient.sendRawTransaction({
+      serializedTransaction: rawTransaction,
+    })
+    return { hash, rawTransaction }
   }
 }

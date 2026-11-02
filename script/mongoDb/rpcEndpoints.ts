@@ -81,12 +81,14 @@ export function lowestPriorityFor(rpcs: IRpcEndpoint[]): number {
   return Math.min(...rpcs.map((rpc) => rpc.priority ?? 0)) - 1
 }
 
+const UNPARSABLE_HOST = '<unparsable url>'
+
 /** Host of an RPC URL, never its path or query — either can carry the API key. */
 export function hostOf(url: string): string {
   try {
     return new URL(url).host
   } catch {
-    return '<unparsable url>'
+    return UNPARSABLE_HOST
   }
 }
 
@@ -278,4 +280,32 @@ export function findEndpointIndex(
     (rpc) =>
       rpc.url === url && (rpc.environment ?? 'production') === environment
   )
+}
+
+/**
+ * Stored endpoints in `environment` whose host is `host`, compared case-insensitively.
+ *
+ * Matching on host lets an operator name an endpoint without pasting a URL that carries its API
+ * key. A host can be stored more than once on a chain (several keyed URLs on one provider), so
+ * callers must treat more than one match as ambiguous rather than pick one.
+ *
+ * @param rpcs - The chain's stored endpoints.
+ * @param host - Host as {@link hostOf} prints it, port included when non-default.
+ * @param environment - Environment to match; endpoints without one count as production.
+ * @returns The matching endpoints, in stored order.
+ */
+export function findEndpointsByHost(
+  rpcs: IRpcEndpoint[],
+  host: string,
+  environment: string
+): IRpcEndpoint[] {
+  const wanted = host.trim().toLowerCase()
+  return rpcs.filter((rpc) => {
+    const stored = hostOf(rpc.url)
+    return (
+      stored !== UNPARSABLE_HOST &&
+      stored.toLowerCase() === wanted &&
+      (rpc.environment ?? 'production') === environment
+    )
+  })
 }

@@ -10,10 +10,10 @@ paths:
 ## Test Structure ([CONV:TESTS])
 
 - Tests under `test/solidity/`, mirroring `src/`.
-- Require `setUp()`; mirror `src/` layout; call `initTestBase()` when inheriting `TestBase` directly or indirectly; label actors with `vm.label`.
+- Require `setUp()`; call `initTestBase()` when inheriting `TestBase` directly or indirectly; label actors with `vm.label`.
 - When tests do not need mainnet state, inherit `TestBaseLocal` and call `initTestBaseLocal()` instead of `initTestBase()`.
 - For facet tests, inherit from `TestBaseFacet` rather than `TestBase`, since standard facet functions need to be overridden.
-- Import ordering: system libraries first (e.g., `forge-std`, `ds-test`), then project files (e.g., `lifi/`, `test/`).
+- Import ordering: system libraries first (e.g., `forge-std`), then project files (e.g., `lifi/`, `test/`).
 
 ## Real Contracts vs Mocks ([CONV:FORK-FIRST])
 
@@ -53,16 +53,6 @@ paths:
 
 ## Test Helpers
 
-- For whitelist flows inherit `TestWhitelistManagerBase` and use `addToWhitelist` / `setFunctionWhitelistBySelector` helpers.
+- For whitelist flows inherit `TestWhitelistManagerBase` and use its `addAllowedContractSelector` / `removeAllowedContractSelector` helpers.
 - If a facet does not support native tokens, it must override tests such as `testBase_CanSwapAndBridgeNativeTokens` and `testBase_CanBridgeNativeTokens` with `public override` and include a comment explaining why the test is intentionally skipped (e.g., "facet does not support native tokens").
 - Before writing new tests, check existing base tests (e.g. `TestBaseFacet`) to ensure no duplicate tests are created.
-
-## Error Testing
-
-- Generic errors live in `src/Errors/GenericErrors.sol`. Descriptive PascalCase; no strings.
-- New generic errors: bump `@custom:version`.
-- Facet-specific errors live in the facet files; use for protocol-specific logic.
-
-## Post-Test Actions
-
-- After test changes, run `forge test` (or narrowed scope) or state which suites remain.

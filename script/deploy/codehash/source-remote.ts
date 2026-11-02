@@ -59,19 +59,19 @@ export const sourceRepositoryFor = (
  * Names the remote a rebuild may fetch this network's commits from.
  *
  * @param network - key in `config/networks.json`
- * @param deps.git - runs git and returns stdout, throwing on a non-zero exit
+ * @param deps.git - runs git and resolves to stdout, rejecting on a non-zero exit
  * @returns The remote name, or why no remote here can supply the source
  */
-export const resolveSourceRemote = (
+export const resolveSourceRemote = async (
   network: string,
-  deps: { git: (args: string[]) => string }
-): SourceRemoteResolution => {
+  deps: { git: (args: string[]) => Promise<string> }
+): Promise<SourceRemoteResolution> => {
   const required = sourceRepositoryFor(network)
   if (required === undefined) return { ok: true, remote: DEFAULT_SOURCE_REMOTE }
 
   let url: string
   try {
-    url = deps.git(['remote', 'get-url', required.remote]).trim()
+    url = (await deps.git(['remote', 'get-url', required.remote])).trim()
   } catch {
     return {
       ok: false,

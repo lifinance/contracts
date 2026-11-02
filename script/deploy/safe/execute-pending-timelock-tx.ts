@@ -35,7 +35,7 @@ import {
 } from '../../utils/slack-notifier'
 
 import { flagIsOn, readBooleanFlag } from './cli-flags'
-import { confirmTimelockExecution } from './confirm-timelock-execution'
+import { NOT_ON_CHAIN_REASON } from './confirm-timelock-execution'
 import {
   buildRemovalSnapshotFromPayloads,
   describeStaleRemovals,
@@ -88,6 +88,11 @@ import {
   type IBlockedOpCandidate,
   type ITimelockQueueDoc,
 } from './timelock-queue'
+import {
+  confirmWithRebroadcast,
+  createExecutorRpc,
+  type IChainEndpoints,
+} from './timelock-rebroadcast'
 
 // TimelockController ABI for the functions we need
 const TIMELOCK_ABI = parseAbi([
@@ -866,12 +871,20 @@ async function processNetwork(
       deploymentData.LiFiTimelockController
     )
 
-    const { publicClient, walletClient } = await setupEnvironment(
+    const { walletClient, chain } = await setupEnvironment(
       network.name as SupportedChain,
       null,
       EnvironmentEnum.production,
       rpcUrlOverride
     )
+    const { publicClient, endpoints } = createExecutorRpc(
+      chain,
+      network.name,
+      rpcUrlOverride
+    )
+    // The Tron caller signs through TronWeb and returns no raw bytes, and its
+    // tx ids are not looked up over JSON-RPC, so Tron keeps the plain poll.
+    const rpcEndpoints = isTronNetworkKey(network.name) ? undefined : endpoints
 
     const chainCaller = await createChainCaller({
       networkName: network.name,
@@ -937,6 +950,7 @@ async function processNetwork(
     let operationsFailed = 0
     let operationsRejected = 0
     let operationsSkipped = 0
+    let operationsNotOnChain = 0
     const totalGasUsed = 0n
 
     for (const operation of readyOperations) {
@@ -965,7 +979,8 @@ async function processNetwork(
           network.name,
           slackNotifier,
           network.chainId,
-          network.name
+          network.name,
+          rpcEndpoints
         )
 
         // Log the result for interactive mode
@@ -979,7 +994,10 @@ async function processNetwork(
         if (result === 'executed') operationsSucceeded++
         else if (result === 'failed' || result === 'inconclusive')
           operationsFailed++
-        else if (result === 'rejected') operationsRejected++
+        else if (result === 'not-on-chain') {
+          operationsFailed++
+          operationsNotOnChain++
+        } else if (result === 'rejected') operationsRejected++
         else if (result === 'skipped') operationsSkipped++
       }
       // TronGrid caps the API key at 15 req/s; each op fires ~3-5 RPC calls
@@ -1012,7 +1030,7 @@ async function processNetwork(
     // Log summary for this network if there were operations or not-scheduled issues
     if (operationsProcessed > 0 || notScheduledCount > 0) {
       consola.info(
-        `[${network.name}] Summary: ${operationsSucceeded} executed, ${operationsRejected} rejected, ${operationsFailed} failed (including ${notScheduledCount} not scheduled), ${operationsSkipped} skipped`
+        `[${network.name}] Summary: ${operationsSucceeded} executed, ${operationsRejected} rejected, ${operationsFailed} failed (including ${notScheduledCount} not scheduled, ${operationsNotOnChain} ${NOT_ON_CHAIN_REASON}), ${operationsSkipped} skipped`
       )
       if (!success)
         consola.error(
@@ -1028,6 +1046,7 @@ async function processNetwork(
       operationsSucceeded,
       operationsRejected,
       operationsSkipped,
+      operationsNotOnChain,
     }
   } catch (error) {
     consola.error(
@@ -1957,8 +1976,16 @@ async function executeOperation(
   networkName?: string,
   slackNotifier?: SlackNotifier,
   chainId?: number,
-  network?: string
-): Promise<'executed' | 'rejected' | 'skipped' | 'failed' | 'inconclusive'> {
+  network?: string,
+  rpcEndpoints?: IChainEndpoints
+): Promise<
+  | 'executed'
+  | 'rejected'
+  | 'skipped'
+  | 'failed'
+  | 'inconclusive'
+  | 'not-on-chain'
+> {
   const networkPrefix = networkName ? `[${networkName}]` : ''
   const callCount = operation.targets.length
   const primaryTarget = operation.targets[0]
@@ -2167,7 +2194,11 @@ async function executeOperation(
       // A missing receipt (confirmation timeout, or chains without synchronous
       // receipts like Tron) must not count as success — only flip the queue row
       // once isOperationDone confirms the op on-chain (EXSC-503).
-      const confirmation = await confirmTimelockExecution({
+      const confirmation = await confirmWithRebroadcast({
+        hash: result.hash,
+        rawTransaction: result.rawTransaction,
+        endpoints: rpcEndpoints,
+        logPrefix: networkPrefix,
         receipt: result.receipt,
         isOperationDone: () =>
           publicClient.readContract({
@@ -2243,6 +2274,18 @@ async function executeOperation(
             }
           )
         return 'failed'
+      }
+
+      if (confirmation === 'not-on-chain') {
+        consola.warn(
+          `${networkPrefix} ⚠️ Execution tx ${result.hash} for operation ${operation.id} ${NOT_ON_CHAIN_REASON}; leaving queue row 'queued' for retry`
+        )
+        await notifyFailure(
+          new Error(
+            `executeBatch tx ${result.hash} ${NOT_ON_CHAIN_REASON}; operation left queued for retry`
+          )
+        )
+        return 'not-on-chain'
       }
 
       if (confirmation === 'unconfirmed') {

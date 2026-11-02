@@ -32,7 +32,10 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-import { assertTronToolchainOrThrow } from './assertTronToolchain'
+import {
+  assertTronToolchainOrThrow,
+  buildForgeArtifactsOrThrow,
+} from './assertTronToolchain'
 import {
   assertRecordedArgsMatchAbi,
   constructorInputTypes,
@@ -173,10 +176,9 @@ export async function deployContractWithLogging(
   network: SupportedChain = 'tron'
 ): Promise<IDeploymentResult> {
   try {
-    // Ahead of the artifact load so a drifted toolchain is reported as such, rather than as
-    // a stale or missing artifact. The same call also guards every deploy site from inside
-    // assertTronDeploymentRecordable; it runs the checker once per process either way.
-    assertTronToolchainOrThrow()
+    // Ahead of the artifact load, so the artifact read is the one just built from the source
+    // on disk. Builds once per process.
+    buildForgeArtifactsOrThrow()
 
     const artifact = await loadForgeArtifact(contractName)
     const version = await getContractVersion(contractName)

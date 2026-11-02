@@ -8,6 +8,7 @@
  */
 
 import {
+  afterAll,
   beforeEach,
   describe,
   expect,
@@ -28,6 +29,8 @@ const SIGNER = '0x1111111111111111111111111111111111111111' as Address
 let readAddresses: string[] = []
 /** Lower-cased address -> owner set the fake chain answers with. */
 let ownersByAddress: Record<string, Address[]> = {}
+
+const realReadOnlySafeClient = { ...(await import('./read-only-safe-client')) }
 
 mock.module('./read-only-safe-client', () => ({
   buildReadOnlyClient: () => ({
@@ -51,6 +54,12 @@ mock.module('./read-only-safe-client', () => ({
 }))
 
 const { getNetworksWithActionableTransactions } = await import('./safe-utils')
+
+// A module mock outlives this file in Bun's shared registry, so without this
+// any test file scheduled after it gets the fake client instead of the real one.
+afterAll(() => {
+  mock.module('./read-only-safe-client', () => realReadOnlySafeClient)
+})
 
 const doc = (
   network: string,

@@ -2,7 +2,8 @@
 
 ## Hooks
 
-Post-edit hooks in `.agents/hooks/` run automatically after every Write/Edit:
+`.agents/hooks/post-edit-validate.sh` runs after every Write/Edit:
 
-- `post-edit-format.sh` — prettier on `.sol`/`.ts`/`.js` (silent, always runs)
-- `post-edit-validate.sh` — solhint / typecheck-files.sh / bash -n (reports errors back to Claude)
+- formats the file first via `post-edit-format.sh` (prettier on `.sol`/`.ts`/`.js`, silent)
+- then runs solhint / typecheck-files.sh / bash -n and feeds any findings back to Claude
+  (stderr + exit 2; a clean file stays silent)

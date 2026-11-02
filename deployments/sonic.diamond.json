@@ -3,7 +3,7 @@
     "Facets": {
       "0x7052D07D749Cb8446E32098B7ba64ad12Cf638be": {
         "Name": "DiamondCutFacet",
-        "Version": "2.0.0"
+        "Version": "1.0.0"
       },
       "0xEB014fd2fd6e6f9C79d31f7fE4AF2B8B5694A03f": {
         "Name": "DiamondLoupeFacet",
@@ -37,17 +37,17 @@
         "Name": "SymbiosisFacet",
         "Version": "2.0.0"
       },
-      "0xf24c9914D3a89F16aD9C87fa549FF24359a31715": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.1"
+        "Version": "2.0.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0x70A18260Be23D9E154cad53e049A55B95221EA82": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.2"
+        "Version": "2.0.0"
       },
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
@@ -69,9 +69,9 @@
         "Name": "StargateFacetV2",
         "Version": "1.0.1"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
@@ -92,7 +92,7 @@
       "LiFiDEXAggregator": "0xA03513f40409D1316c4958dbCef86e7Ab5Cd2009",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
-      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "Permit2Proxy": "0x8eEd5E28216C0Bc6F817df40Ae6CA11C2294CC1c",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

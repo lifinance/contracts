@@ -65,4 +65,3 @@ paths:
 ### Caching pattern
 
 - Module-level `Map` or closure variable with TTL for expensive lookups (TronWeb codec instances, energy/bandwidth prices).
-- Always check cache freshness before returning cached value.

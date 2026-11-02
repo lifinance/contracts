@@ -3,8 +3,10 @@ import fs from 'fs'
 import { defineCommand, runMain } from 'citty'
 import type { AbiFunction, AbiParameter } from 'viem'
 import {
+  encodeAbiParameters,
   encodeFunctionData,
   parseAbiItem,
+  parseAbiParameters,
   parseTransaction,
   serializeTransaction,
   toFunctionSelector,
@@ -16,33 +18,10 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 // are ever overwritten by --results.
 const PENDING_INTENT = 'PENDING'
 
-// 13 bridges display their own recipient (`Non-EVM Recipient`, `GasZip
-// Recipient`, …) alongside `_bridgeData.receiver`. A type-derived zero would
-// make those fixtures assert that the destination screen shows 0x0 — so these
-// components carry an explicit value. Deliberately synthetic: it must not read
-// as a real account anyone could mistake for a live destination.
-const NON_EVM_RECEIVER =
-  '0x7c9e6679a2b1c4f0d38e4b5a6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9'
-
-// NEARIntents displays the signed destination asset (`Destination Asset`).
-// Left-padded USDC, matching TEST_DESTINATION_ASSET in the facet tests.
-const NEAR_DESTINATION_ASSET =
-  '0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
-
-// Displayed bytes/bytes32 struct components and the value each renders with. A
-// component missing here falls back to the type default — 0x0 — and fails
-// --check the moment a field displays it.
-const DISPLAYED_COMPONENT_VALUES: Record<string, string> = {
-  receiverAddress: NON_EVM_RECEIVER,
-  recipient: NON_EVM_RECEIVER,
-  nonEVMReceiver: NON_EVM_RECEIVER,
-  receiver: NON_EVM_RECEIVER,
-  destinationAsset: NEAR_DESTINATION_ASSET,
-}
-
-// The native-in swapTokens* formats display `@.value` — the amount the user
-// sends — rather than a calldata parameter. Encoding the default 0 would make
-// those fixtures assert "Amount to send: 0 ETH".
+// Every bridge format and the native-in swapTokens* formats display `@.value`.
+// Encoding the default 0 would make those fixtures assert "0 ETH", so the
+// envelope carries this value, and the facets' native fee fields reuse it, so
+// the fee a case displays is the value it sends.
 const NATIVE_VALUE = 2_098_039_615_199_859n
 
 // Tokens referenced by the generated calldata. The runner resolves symbol and
@@ -51,14 +30,298 @@ const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
 const WETH = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
 const RECEIVER = '0x78b59874BF0Fb404D88D9e688fdC56eE3E085e6b'
 
+// Deliberately synthetic addresses: none may read as a real account anyone
+// could mistake for a live destination.
+const DEPOSIT_ADDRESS = '0x5e1f2a3b4c5d6e7f8091a2b3c4d5e6f708192a3b'
+const DESTINATION_CALL_RECEIVER = '0x9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b'
+const SOLVER = '0x3d2c1b0a9f8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c'
+const L2_TOKEN = '0x4a6b8c0d2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a1b'
+
+// A non-EVM recipient (a Solana pubkey, say) has no address form.
+const NON_EVM_RECEIVER =
+  '0x7c9e6679a2b1c4f0d38e4b5a6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9'
+
+// LI.FI's sentinel receiver and chain id for a Solana destination (LiFiData.sol).
+const NON_EVM_ADDRESS = '0x11f111f111f111F111f111f111F111f111f111F1'
+const SOLANA_CHAIN_ID = 1_151_111_081_099_710n
+const STELLAR_CHAIN_ID = 1_201_081_091_099_710n
+const HYPERCORE_CHAIN_ID = 1_337n
+
+// A Solana USDC token account (the CCTP mint recipient), as bytes32.
+const SOLANA_TOKEN_ACCOUNT =
+  '0x3b4d5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c'
+// CctpForwarder hook: magic (24) + version (4) + length (4) + payload.
+function forwarderHook(payloadHex: string): string {
+  return `0x${Buffer.from('cctp-forward', 'ascii')
+    .toString('hex')
+    .padEnd(48, '0')}00000000${(payloadHex.length / 2)
+    .toString(16)
+    .padStart(8, '0')}${payloadHex}`
+}
+const STELLAR_STRKEY =
+  'GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H'
+const STELLAR_HOOK_DATA = forwarderHook(
+  Buffer.from(STELLAR_STRKEY, 'ascii').toString('hex')
+)
+
+function leftPadded(address: string): string {
+  return `0x${address.slice(2).toLowerCase().padStart(64, '0')}`
+}
+
+const PADDED_RECEIVER = leftPadded(RECEIVER)
+const PADDED_USDC = leftPadded(USDC)
+
+// 1inch v6, deployed at this address on Ethereum and Base: swap and
+// multicall targets must hold code, so the fixtures name a real router.
+const DEX_ROUTER = '0x111111125421cA6dc452d289314280a0f8842A65'
+const DAI = '0x6B175474E89094C44Da98b954EedeAC495271d0F'
+const BASE_USDC = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+// The OP Stack predeploy, so the same address on Base and Optimism.
+const BASE_WETH = '0x4200000000000000000000000000000000000006'
+const OPTIMISM_WETH = BASE_WETH
+const OPTIMISM_USDC = '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85'
+// 2026-10-19; quotes and deadlines are checked against block.timestamp.
+const QUOTE_TIMESTAMP = 1_792_400_000
+
+const MAYAN_PROTOCOL = '0x2d9f3c4b5a6e7f8091a2b3c4d5e6f708192a3b4c'
+// Mayan Swift v2 createOrderWithToken of 1000 USDC for at least 998 USDC
+// (Mayan normalises to 8 decimals); destChainId is a Wormhole chain id.
+function mayanOrder(
+  destAddr: string,
+  destChainId: number,
+  tokenOut: string
+): string {
+  return encodeFunctionData({
+    abi: [
+      parseAbiItem(
+        'function createOrderWithToken(address tokenIn, uint256 amountIn, (uint8 payloadType, bytes32 trader, bytes32 destAddr, uint16 destChainId, bytes32 referrerAddr, bytes32 tokenOut, uint64 minAmountOut, uint64 gasDrop, uint64 cancelFee, uint64 refundFee, uint64 deadline, uint8 referrerBps, uint8 auctionMode, bytes32 random) params, bytes customPayload)'
+      ),
+    ],
+    args: [
+      USDC,
+      1_000_000_000n,
+      {
+        payloadType: 1,
+        trader: PADDED_RECEIVER as `0x${string}`,
+        destAddr: destAddr as `0x${string}`,
+        destChainId,
+        referrerAddr: `0x${'00'.repeat(32)}`,
+        tokenOut: tokenOut as `0x${string}`,
+        minAmountOut: 99_800_000_000n,
+        gasDrop: 0n,
+        cancelFee: 0n,
+        refundFee: 0n,
+        deadline: BigInt(QUOTE_TIMESTAMP + 3_600),
+        referrerBps: 0,
+        auctionMode: 2,
+        random: `0x${'5a'.repeat(32)}`,
+      },
+      '0x',
+    ],
+  })
+}
+// To RECEIVER in USDC on Optimism (Wormhole chain 24).
+const MAYAN_ORDER = mayanOrder(PADDED_RECEIVER, 24, leftPadded(OPTIMISM_USDC))
+// To NON_EVM_RECEIVER in USDC on Solana (Wormhole chain 1; the USDC mint).
+const MAYAN_SOLANA_ORDER = mayanOrder(
+  NON_EVM_RECEIVER,
+  1,
+  '0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61'
+)
+
+// Sponsored OFT deposit (route 2): (Quote, signature) for 1000 USDC from
+// Ethereum (eid 30101) to RECEIVER on Optimism (eid 30111).
+const ACROSS_SPONSORED_OFT_CALLDATA = encodeAbiParameters(
+  parseAbiParameters(
+    '((uint32 srcEid, uint32 dstEid, bytes32 destinationHandler, uint256 amountLD, bytes32 nonce, uint256 deadline, uint256 maxBpsToSponsor, uint256 maxUserSlippageBps, bytes32 finalRecipient, bytes32 finalToken, uint32 destinationDex, uint256 lzReceiveGasLimit, uint256 lzComposeGasLimit, uint256 maxOftFeeBps, uint8 accountCreationMode, uint8 executionMode, bytes actionData) signedParams, (address refundRecipient) unsignedParams) quote, bytes signature'
+  ),
+  [
+    {
+      signedParams: {
+        srcEid: 30_101,
+        dstEid: 30_111,
+        destinationHandler: leftPadded(
+          DESTINATION_CALL_RECEIVER
+        ) as `0x${string}`,
+        amountLD: 1_000_000_000n,
+        nonce: `0x${'6b'.repeat(32)}`,
+        deadline: BigInt(QUOTE_TIMESTAMP + 3_600),
+        maxBpsToSponsor: 10n,
+        maxUserSlippageBps: 50n,
+        finalRecipient: PADDED_RECEIVER as `0x${string}`,
+        finalToken: leftPadded(OPTIMISM_USDC) as `0x${string}`,
+        destinationDex: 0,
+        lzReceiveGasLimit: 200_000n,
+        lzComposeGasLimit: 300_000n,
+        maxOftFeeBps: 10n,
+        accountCreationMode: 0,
+        executionMode: 0,
+        actionData: '0x',
+      },
+      unsignedParams: { refundRecipient: RECEIVER },
+    },
+    '0x',
+  ]
+)
+
+// Displayed facet struct components and the value each renders with, keyed by
+// path because the same component name has different types across facets. A
+// displayed component missing here falls back to the type default — a zero —
+// and fails --check the moment a field displays it.
+const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
+  '_acrossData.sendingAssetId': PADDED_USDC,
+  '_acrossData.quoteTimestamp': QUOTE_TIMESTAMP,
+  '_acrossData.fillDeadline': QUOTE_TIMESTAMP + 3_600,
+  // Sponsored OFT: checks the Across recipient against `_bridgeData.receiver`.
+  '_acrossV4SwapFacetData.swapApiTarget': 2,
+  '_acrossV4SwapFacetData.callData': ACROSS_SPONSORED_OFT_CALLDATA,
+  '_acrossData.relayerFeePct': 2_500_000_000_000_000n,
+  '_acrossData.outputAmount': 995_000_000n,
+  '_acrossData.outputAmountMultiplier': 995_000_000_000_000_000n,
+  '_acrossData.receivingAssetId': PADDED_USDC,
+  '_acrossData.receiverAddress': PADDED_RECEIVER,
+  '_acrossData.refundAddress': PADDED_RECEIVER,
+  '_allBridgeData.recipient': PADDED_RECEIVER,
+  '_allBridgeData.fees': 1_500_000n,
+  '_allBridgeData.receiveToken': PADDED_USDC,
+  '_arbitrumData.maxSubmissionCost': 100_000_000_000_000n,
+  '_arbitrumData.maxGas': 200_000n,
+  '_arbitrumData.maxGasPrice': 100_000_000n,
+  '_celerCircleData.maxFee': 500_000n,
+  '_centrifugeData.nativeFee': NATIVE_VALUE,
+  '_centrifugeData.refundRecipient': RECEIVER,
+  // Chainflip asset 7 is USDC on Arbitrum, the base case's destination.
+  '_chainflipData.dstToken': 7,
+  '_deBridgeData.receiver': RECEIVER.toLowerCase(),
+  '_deBridgeData.minAmountOut': 998_000_000n,
+  '_deBridgeData.receivingAssetId': USDC.toLowerCase(),
+  '_deBridgeData.orderAuthorityDst': RECEIVER.toLowerCase(),
+  '_megaETHData.assetIdOnL2': L2_TOKEN,
+  '_optimismData.assetIdOnL2': L2_TOKEN,
+  '_ecoData.refundRecipient': RECEIVER,
+  '_fraxData.nativeFee': NATIVE_VALUE,
+  '_fraxData.refundRecipient': RECEIVER,
+  '_gardenData.redeemer': SOLVER,
+  '_gardenData.refundAddress': RECEIVER,
+  // Right-padded, unlike every other bytes32 recipient (GasZipFacet).
+  '_gasZipData.receiverAddress': `${RECEIVER.toLowerCase()}${'00'.repeat(12)}`,
+  '_gasZipData.destinationChains': 55n,
+  '_glacisData.receiverAddress': PADDED_RECEIVER,
+  '_glacisData.nativeFee': NATIVE_VALUE,
+  '_glacisData.outputToken': PADDED_USDC,
+  '_glacisData.refundAddress': RECEIVER,
+  '_layerSwapData.depositoryReceiver': DEPOSIT_ADDRESS,
+  '_layerSwapData.refundRecipient': RECEIVER,
+  '_lifiIntentData.recipient': PADDED_RECEIVER,
+  '_lifiIntentData.outputAmountMultiplier': 995_000_000_000_000_000n,
+  '_lifiIntentData.outputToken': PADDED_USDC,
+  '_lifiIntentData.depositAndRefundAddress': RECEIVER,
+  '_m0Data.receiverAddress': PADDED_RECEIVER,
+  '_m0Data.amountOut': 998_000_000n,
+  '_m0Data.tokenOut': PADDED_USDC,
+  '_m0Data.orderOwner': RECEIVER,
+  '_m0Data.refundRecipient': RECEIVER,
+  '_mayanData.mayanAmountIn': 1_000_000_000n,
+  '_mayanData.mayanProtocol': MAYAN_PROTOCOL,
+  '_mayanData.protocolData': MAYAN_ORDER,
+  '_mayanData.refundRecipient': RECEIVER,
+  '_nearData.depositAddress': DEPOSIT_ADDRESS,
+  // Left-padded USDC, matching TEST_DESTINATION_ASSET in the facet tests.
+  '_nearData.destinationAsset': PADDED_USDC,
+  '_nearData.minAmountOut': 998_000_000n,
+  '_nearData.refundRecipient': RECEIVER,
+  '_paxosData.quote.route.destEID': 30_111,
+  '_paxosData.quote.route.wantAsset': OPTIMISM_USDC,
+  '_paxosData.quote.route.offerAsset': USDC,
+  '_paxosData.quote.offerAmount': 1_000_000_000n,
+  '_paxosData.quote.receiver': RECEIVER,
+  '_paxosData.quote.deadline': BigInt(QUOTE_TIMESTAMP + 3_600),
+  '_paxosData.quote.protocolFee': 20_000n,
+  '_paxosData.quote.integratorFee': 10_000n,
+  '_paxosData.quote.integratorFeeReceiver': RECEIVER,
+  '_paxosData.nativeFee': NATIVE_VALUE,
+  '_paxosData.refundRecipient': RECEIVER,
+  '_polymerData.polymerTokenFee': 2_000_000n,
+  '_polymerData.maxCCTPFee': 1_000_000n,
+  '_polymerData.refundRecipient': RECEIVER,
+  '_relayDepositoryData.depositorAddress': RECEIVER,
+  // RouteType.CallBridge: the one route that delivers to `_bridgeData.receiver`.
+  '_squidData.routeType': 1,
+  '_squidData.destinationChain': 'optimism',
+  // Differs from `_bridgeData.receiver`, so the fixture shows which is which:
+  // route 1 (CallBridge) delivers to the receiver and ignores this.
+  '_squidData.destinationAddress': DESTINATION_CALL_RECEIVER,
+  '_squidData.fee': NATIVE_VALUE,
+  '_squidData.bridgedTokenSymbol': 'USDC',
+  '_squidData.depositAssetId': USDC,
+  // A source call as Squid's multicall runs it: approve a DEX router.
+  '_squidData.sourceCalls': [
+    {
+      callType: 0,
+      target: USDC,
+      value: 0n,
+      callData: encodeFunctionData({
+        abi: [parseAbiItem('function approve(address, uint256)')],
+        args: [DEX_ROUTER, 1_000_000_000n],
+      }),
+      payload: '0x',
+    },
+  ],
+  // Pool id 1 is USDC on Stargate V2.
+  '_stargateData.assetId': 1,
+  '_stargateData.sendParams.dstEid': 30_111,
+  '_stargateData.sendParams.to': PADDED_RECEIVER,
+  '_stargateData.sendParams.minAmountLD': 998_000_000n,
+  '_stargateData.fee.nativeFee': NATIVE_VALUE,
+  '_stargateData.refundAddress': RECEIVER,
+  '_supersetData.lzFee': NATIVE_VALUE,
+  '_supersetData.refundAddress': RECEIVER,
+  '_supersetData.amountOutMin': 998_000_000n,
+  '_supersetData.fallbackEoA': RECEIVER,
+  '_supersetData.deadline': BigInt(QUOTE_TIMESTAMP + 3_600),
+  // omniTokenId (32) || fee (3) || omniTokenId (32)
+  '_supersetData.path': `0x${'11'.repeat(32)}0001f4${'22'.repeat(32)}`,
+  '_supersetData.toEid': 30_111,
+  '_symbiosisData.callTo': DEPOSIT_ADDRESS,
+  '_symbiosisData.refundRecipient': RECEIVER,
+  '_thorSwapData.vault': DEPOSIT_ADDRESS,
+  '_thorSwapData.memo': `=:OP.USDC:${RECEIVER}`,
+  '_unitData.depositAddress': DEPOSIT_ADDRESS,
+}
+
+// The diamond on chain 1 routes no selector of these facets
+// (`facetAddress` returns zero), so their cases run on Base, which does.
+const CHAIN_BY_FUNCTION: Record<string, number> = {
+  startBridgeTokensViaAcross: 8453,
+  swapAndStartBridgeTokensViaAcross: 8453,
+  startBridgeTokensViaSuperset: 8453,
+  swapAndStartBridgeTokensViaSuperset: 8453,
+}
+
+interface ICaseOverrides {
+  bridgeData?: Record<string, unknown>
+  swapData?: Array<Record<string, unknown>>
+  components?: Record<string, unknown>
+  value?: bigint
+}
+
+interface IVariantCase {
+  functionName: string
+  label: string
+  overrides: ICaseOverrides
+}
+
 const DATA_PROVIDER_TOKENS = {
   [USDC.toLowerCase()]: { decimals: 6, name: 'USD Coin', symbol: 'USDC' },
   [WETH.toLowerCase()]: { decimals: 18, name: 'Wrapped Ether', symbol: 'WETH' },
+  [DAI.toLowerCase()]: { decimals: 18, name: 'Dai Stablecoin', symbol: 'DAI' },
+  [BASE_USDC.toLowerCase()]: { decimals: 6, name: 'USD Coin', symbol: 'USDC' },
+  [BASE_WETH]: { decimals: 18, name: 'Wrapped Ether', symbol: 'WETH' },
 }
 
-// `_bridgeData` and `_swapData[0]` always reach a screen. Bridge-specific
-// structs are mostly hidden, except the BRIDGE_EXTRA_RECEIVERS recipients —
-// see docs/ClearSigningProposal.md.
+// `_bridgeData` and every `_swapData` entry always reach a screen; of the
+// bridge-specific structs, the BRIDGE_FACET_DISPLAY components do — see
+// docs/ClearSigningProposal.md.
 const BRIDGE_DATA: Record<string, unknown> = {
   transactionId:
     '0x1b7b4d1c9e0e4a2f8c3d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b',
@@ -74,13 +337,258 @@ const BRIDGE_DATA: Record<string, unknown> = {
 }
 
 const SWAP_DATA: Record<string, unknown> = {
-  callTo: ZERO_ADDRESS,
-  approveTo: ZERO_ADDRESS,
+  callTo: DEX_ROUTER,
+  approveTo: DEX_ROUTER,
   sendingAssetId: WETH,
   receivingAssetId: USDC,
   fromAmount: 500_000_000_000_000_000n,
   callData: '0x',
   requiresDeposit: true,
+}
+
+const NATIVE_BRIDGE = { sendingAssetId: ZERO_ADDRESS, minAmount: 10n ** 17n }
+
+// One case per format is a single happy path. These add the paths whose fields
+// only matter off it, so their renderings are asserted too.
+const VARIANT_CASES: IVariantCase[] = [
+  {
+    // Every entry with requiresDeposit pulls its own asset from the signer.
+    functionName: 'swapAndStartBridgeTokensViaStargate',
+    label: 'two deposited swap inputs',
+    overrides: {
+      swapData: [
+        SWAP_DATA,
+        { ...SWAP_DATA, sendingAssetId: USDC, fromAmount: 250_000_000n },
+      ],
+    },
+  },
+  {
+    // The recipient check is skipped: the funds go to the receiver contract.
+    functionName: 'startBridgeTokensViaAcrossV4',
+    label: 'destination call',
+    overrides: {
+      bridgeData: { hasDestinationCall: true },
+      components: {
+        '_acrossData.message': '0x1234',
+        '_acrossData.receiverAddress': leftPadded(DESTINATION_CALL_RECEIVER),
+      },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaRelayDepository',
+    label: 'native asset',
+    overrides: {
+      bridgeData: {
+        sendingAssetId: ZERO_ADDRESS,
+        minAmount: 500_000_000_000_000_000n,
+      },
+      value: 500_000_000_000_000_000n,
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaMayan',
+    label: 'non-EVM destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: SOLANA_CHAIN_ID,
+      },
+      components: {
+        '_mayanData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_mayanData.protocolData': MAYAN_SOLANA_ORDER,
+      },
+    },
+  },
+  {
+    // CCTP mints to the token account; the owner wallet is only reported.
+    functionName: 'startBridgeTokensViaPolymerCCTP',
+    label: 'Solana destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: SOLANA_CHAIN_ID,
+      },
+      components: {
+        '_polymerData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_polymerData.solanaReceiverATA': SOLANA_TOKEN_ACCOUNT,
+      },
+    },
+  },
+  {
+    // The forwarder pays the strkey in hookData; nonEVMReceiver is tracking.
+    functionName: 'startBridgeTokensViaPolymerCCTP',
+    label: 'Stellar destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: STELLAR_CHAIN_ID,
+      },
+      components: {
+        '_polymerData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_polymerData.hookData': STELLAR_HOOK_DATA,
+      },
+    },
+  },
+  {
+    // The forwarder credits the address at hookData[32:52], checked against
+    // `_bridgeData.receiver`.
+    functionName: 'startBridgeTokensViaPolymerCCTP',
+    label: 'HyperCore destination',
+    overrides: {
+      bridgeData: { destinationChainId: HYPERCORE_CHAIN_ID },
+      components: {
+        '_polymerData.hookData': forwarderHook(RECEIVER.slice(2).toLowerCase()),
+      },
+    },
+  },
+  {
+    // The spoke pool wraps the native value; `_acrossData.sendingAssetId` is
+    // not read.
+    functionName: 'startBridgeTokensViaAcrossV4',
+    label: 'native asset',
+    overrides: {
+      bridgeData: NATIVE_BRIDGE,
+      value: NATIVE_BRIDGE.minAmount,
+      components: {
+        '_acrossData.sendingAssetId': leftPadded(WETH),
+        '_acrossData.receivingAssetId': leftPadded(OPTIMISM_WETH),
+        '_acrossData.outputAmount': 99_500_000_000_000_000n,
+      },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaOptimismBridge',
+    label: 'native asset',
+    overrides: {
+      bridgeData: { ...NATIVE_BRIDGE, destinationChainId: 10n },
+      value: NATIVE_BRIDGE.minAmount,
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaOptimismBridge',
+    label: 'custom bridge',
+    overrides: {
+      bridgeData: { destinationChainId: 10n },
+      components: { '_optimismData.isSynthetix': true },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaMegaETHBridge',
+    label: 'native asset',
+    overrides: {
+      bridgeData: { ...NATIVE_BRIDGE, destinationChainId: 4_326n },
+      value: NATIVE_BRIDGE.minAmount,
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaMegaETHBridge',
+    label: 'custom bridge',
+    overrides: {
+      bridgeData: { destinationChainId: 4_326n },
+      components: { '_megaETHData.requiresDepositTo': true },
+    },
+  },
+  {
+    // The receiver replaces the intent recipient only with a destination call.
+    functionName: 'startBridgeTokensViaLiFiIntentEscrowV2',
+    label: 'destination call',
+    overrides: {
+      bridgeData: { hasDestinationCall: true },
+      components: {
+        '_lifiIntentData.dstCallReceiver': leftPadded(
+          DESTINATION_CALL_RECEIVER
+        ),
+        '_lifiIntentData.dstCallSwapData': [SWAP_DATA],
+      },
+    },
+  },
+  {
+    functionName: 'startBridgeTokensViaChainflip',
+    label: 'destination call',
+    overrides: {
+      bridgeData: { destinationChainId: 42_161n, hasDestinationCall: true },
+      components: {
+        '_chainflipData.dstCallReceiver': DESTINATION_CALL_RECEIVER,
+      },
+    },
+  },
+]
+
+// The bridge has one destination chain or accepts only some tokens; the base
+// case of these functions uses inputs the facet accepts.
+const NATIVE_SWAP_OUTPUT = [{ ...SWAP_DATA, receivingAssetId: ZERO_ADDRESS }]
+const BASE_SWAP = [
+  { ...SWAP_DATA, sendingAssetId: BASE_WETH, receivingAssetId: BASE_USDC },
+]
+const GNOSIS_DAI = {
+  sendingAssetId: DAI,
+  minAmount: 1_000n * 10n ** 18n,
+  destinationChainId: 100n,
+}
+const BASE_CASE_OVERRIDES: Record<string, ICaseOverrides> = {
+  startBridgeTokensViaArbitrumBridge: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  swapAndStartBridgeTokensViaArbitrumBridge: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  startBridgeTokensViaMegaETHBridge: {
+    bridgeData: { destinationChainId: 4_326n },
+  },
+  swapAndStartBridgeTokensViaMegaETHBridge: {
+    bridgeData: { destinationChainId: 4_326n },
+  },
+  startBridgeTokensViaPolygonBridge: {
+    bridgeData: { destinationChainId: 137n },
+  },
+  swapAndStartBridgeTokensViaPolygonBridge: {
+    bridgeData: { destinationChainId: 137n },
+  },
+  startBridgeTokensViaOmniBridge: {
+    bridgeData: { destinationChainId: 100n },
+  },
+  swapAndStartBridgeTokensViaOmniBridge: {
+    bridgeData: { destinationChainId: 100n },
+  },
+  startBridgeTokensViaGnosisBridge: {
+    bridgeData: GNOSIS_DAI,
+  },
+  swapAndStartBridgeTokensViaGnosisBridge: {
+    bridgeData: GNOSIS_DAI,
+    swapData: [{ ...SWAP_DATA, receivingAssetId: DAI }],
+  },
+  startBridgeTokensViaChainflip: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  swapAndStartBridgeTokensViaChainflip: {
+    bridgeData: { destinationChainId: 42_161n },
+  },
+  startBridgeTokensViaUnit: {
+    bridgeData: { ...NATIVE_BRIDGE, destinationChainId: HYPERCORE_CHAIN_ID },
+    value: NATIVE_BRIDGE.minAmount,
+  },
+  swapAndStartBridgeTokensViaUnit: {
+    bridgeData: { ...NATIVE_BRIDGE, destinationChainId: HYPERCORE_CHAIN_ID },
+    swapData: NATIVE_SWAP_OUTPUT,
+  },
+  startBridgeTokensViaGasZip: {
+    bridgeData: NATIVE_BRIDGE,
+    value: NATIVE_BRIDGE.minAmount,
+  },
+  swapAndStartBridgeTokensViaGasZip: {
+    bridgeData: NATIVE_BRIDGE,
+    swapData: NATIVE_SWAP_OUTPUT,
+  },
+  startBridgeTokensViaAcross: { bridgeData: { sendingAssetId: BASE_USDC } },
+  swapAndStartBridgeTokensViaAcross: {
+    bridgeData: { sendingAssetId: BASE_USDC },
+    swapData: BASE_SWAP,
+  },
+  startBridgeTokensViaSuperset: { bridgeData: { sendingAssetId: BASE_USDC } },
+  swapAndStartBridgeTokensViaSuperset: {
+    bridgeData: { sendingAssetId: BASE_USDC },
+    swapData: BASE_SWAP,
+  },
 }
 
 // The swapTokens* family displays top-level parameters rather than struct
@@ -97,7 +605,13 @@ const TOP_LEVEL_ARGS: Record<string, unknown> = {
 interface IDescriptorField {
   path: string
   label: string
-  visible?: string
+  // A string, or a rule such as `{ ifNotIn: [0] }` that hides the field for
+  // the listed values.
+  visible?: string | Record<string, unknown>
+}
+
+function isConditional(field: IDescriptorField): boolean {
+  return typeof field.visible === 'object'
 }
 
 interface IDescriptorFormat {
@@ -162,7 +676,11 @@ function hasOwn(obj: object, key: string): boolean {
  * surfacing a field nobody vetted. `--check` guards the other direction: a field
  * that IS displayed must never be left at its zero value.
  */
-function defaultForType(param: AbiParameter): unknown {
+function defaultForType(
+  param: AbiParameter,
+  path: string,
+  components: Record<string, unknown>
+): unknown {
   const { type } = param
 
   const arrayMatch = type.match(/^(.*)\[(\d*)\]$/)
@@ -170,10 +688,12 @@ function defaultForType(param: AbiParameter): unknown {
     const [, inner, size] = arrayMatch
     const count = size ? Number(size) : 0
     const element = { ...param, type: inner } as AbiParameter
-    return Array.from({ length: count }, () => defaultForType(element))
+    return Array.from({ length: count }, () =>
+      defaultForType(element, `${path}.[]`, components)
+    )
   }
 
-  if (type === 'tuple') return defaultForTuple(param)
+  if (type === 'tuple') return defaultForTuple(param, path, components)
   if (type.startsWith('uint') || type.startsWith('int')) return 0n
   if (type === 'address') return ZERO_ADDRESS
   if (type === 'bool') return false
@@ -187,70 +707,87 @@ function defaultForType(param: AbiParameter): unknown {
 }
 
 /**
- * Returns the stand-in value for a displayed bridge-specific component.
- *
- * Only `bytes`/`bytes32` components qualify: an address-typed recipient already
- * renders as an address, and the EVM receiver comes from the bridgeData template.
+ * Builds a tuple, taking each component from `components` (keyed by its full
+ * path, e.g. `_stargateData.sendParams.dstEid`) or else from its type default.
  */
-function componentOverride(component: AbiParameter): string | undefined {
-  if (!component.name) return undefined
-  if (component.type !== 'bytes32' && component.type !== 'bytes')
-    return undefined
-
-  return DISPLAYED_COMPONENT_VALUES[component.name]
-}
-
-function defaultForTuple(param: AbiParameter): Record<string, unknown> {
-  const components = 'components' in param ? param.components : undefined
-  if (!components) throw new Error(`tuple "${param.name}" has no components`)
+function defaultForTuple(
+  param: AbiParameter,
+  path: string,
+  components: Record<string, unknown>
+): Record<string, unknown> {
+  const tupleComponents = 'components' in param ? param.components : undefined
+  if (!tupleComponents)
+    throw new Error(`tuple "${param.name}" has no components`)
 
   const value: Record<string, unknown> = {}
-  for (const component of components) {
+  for (const component of tupleComponents) {
     if (!component.name)
       throw new Error(`unnamed component in tuple "${param.name}"`)
-    value[component.name] =
-      componentOverride(component) ?? defaultForType(component)
+    const componentPath = `${path}.${component.name}`
+    value[component.name] = hasOwn(components, componentPath)
+      ? components[componentPath]
+      : defaultForType(component, componentPath, components)
   }
   return value
 }
 
 /**
- * Fills a tuple from a template, falling back to the type default per component.
+ * Fills a tuple from a template, falling back to the component values and then
+ * the type default per component.
  *
  * The template is keyed by component name so one template covers every facet
  * that declares the same struct, regardless of component order.
  */
 function fromTemplate(
   param: AbiParameter,
-  template: Record<string, unknown>
+  template: Record<string, unknown>,
+  components: Record<string, unknown>
 ): Record<string, unknown> {
-  const value = defaultForTuple(param)
+  const value = defaultForTuple(param, param.name ?? '', components)
   for (const key of Object.keys(value))
     if (hasOwn(template, key)) value[key] = template[key]
 
   return value
 }
 
-function buildArg(param: AbiParameter, isSwapVariant: boolean): unknown {
+function buildArg(
+  param: AbiParameter,
+  isSwapVariant: boolean,
+  overrides: ICaseOverrides = {}
+): unknown {
+  const components = {
+    ...DISPLAYED_COMPONENT_VALUES,
+    ...overrides.components,
+  }
+
   if (param.name === '_bridgeData') {
-    return fromTemplate(param, {
-      ...BRIDGE_DATA,
-      hasSourceSwaps: isSwapVariant,
-    })
+    return fromTemplate(
+      param,
+      {
+        ...BRIDGE_DATA,
+        hasSourceSwaps: isSwapVariant,
+        ...overrides.bridgeData,
+      },
+      components
+    )
   }
 
   // `_swapData` is a tuple[] on the bridge facets and a plain tuple on the
   // swapTokens* family.
   if (param.name === '_swapData') {
     const element = { ...param, type: 'tuple' } as AbiParameter
-    const value = fromTemplate(element, SWAP_DATA)
-    return param.type.endsWith(']') ? [value] : value
+    if (!param.type.endsWith(']'))
+      return fromTemplate(element, SWAP_DATA, components)
+
+    return (overrides.swapData ?? [SWAP_DATA]).map((entry) =>
+      fromTemplate(element, entry, components)
+    )
   }
 
   if (param.name && hasOwn(TOP_LEVEL_ARGS, param.name))
     return TOP_LEVEL_ARGS[param.name]
 
-  return defaultForType(param)
+  return defaultForType(param, param.name ?? '', components)
 }
 
 /**
@@ -259,7 +796,12 @@ function buildArg(param: AbiParameter, isSwapVariant: boolean): unknown {
  * Only `@.value` reaches a screen from the transaction envelope; every other
  * displayed path resolves into calldata.
  */
-function nativeValueFor(format: IDescriptorFormat): bigint {
+function nativeValueFor(
+  format: IDescriptorFormat,
+  overrides: ICaseOverrides = {}
+): bigint {
+  if (overrides.value !== undefined) return overrides.value
+
   const displaysValue = (format.fields ?? []).some(
     (field) =>
       field.path === '@.value' && (field.visible ?? 'always') !== 'never'
@@ -272,11 +814,14 @@ function buildRawTx(
   formatKey: string,
   diamond: string,
   chainId: number,
-  value: bigint
+  value: bigint,
+  overrides: ICaseOverrides = {}
 ): string {
   const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
   const isSwapVariant = abiItem.name.startsWith('swapAndStart')
-  const args = abiItem.inputs.map((input) => buildArg(input, isSwapVariant))
+  const args = abiItem.inputs.map((input) =>
+    buildArg(input, isSwapVariant, overrides)
+  )
 
   const data = encodeFunctionData({ abi: [abiItem], args })
 
@@ -322,6 +867,28 @@ function selectorOf(test: ITestCase): string | undefined {
   return data?.slice(0, 10).toLowerCase()
 }
 
+/** The VARIANT_CASES label a case's description ends in, if it is a variant. */
+function variantLabelOf(test: ITestCase): string | undefined {
+  const label = test.description.split(' - ').pop() ?? ''
+  return VARIANT_CASES.some((variant) => variant.label === label)
+    ? label
+    : undefined
+}
+
+function variantKey(selector: string, label: string): string {
+  return `${selector} ${label}`
+}
+
+/** Every version of a variant's function: a struct change adds a selector. */
+function variantFormats(
+  formats: Record<string, IDescriptorFormat>,
+  variant: IVariantCase
+): [string, IDescriptorFormat][] {
+  return Object.entries(formats).filter(([formatKey]) =>
+    formatKey.startsWith(`${variant.functionName}(`)
+  )
+}
+
 function readExistingTests(fixturePath: string): ITestCase[] {
   if (!fs.existsSync(fixturePath)) return []
 
@@ -364,35 +931,81 @@ function buildFixture(
   const descriptor = JSON.parse(fs.readFileSync(descriptorPath, 'utf8'))
   const formats: Record<string, IDescriptorFormat> =
     descriptor?.display?.formats ?? {}
-  const diamond = readDiamondAddress(descriptor, chainId)
 
   // Reviewed cases carry real transactions and expectations a human signed off
   // on; generate only what they do not already cover.
   const tests = existingPath ? readExistingTests(existingPath) : []
+  const descriptions = new Set(tests.map((test) => test.description))
 
+  // A variant case exercises its selector off the happy path; it does not
+  // stand in for the base case.
   const covered = new Set<string>()
+  const coveredVariants = new Set<string>()
   for (const test of tests) {
     const selector = selectorOf(test)
-    if (selector) covered.add(selector)
+    if (!selector) continue
+    const label = variantLabelOf(test)
+    if (label) coveredVariants.add(variantKey(selector, label))
+    else covered.add(selector)
+  }
+
+  const pushCase = (
+    formatKey: string,
+    format: IDescriptorFormat,
+    variant?: IVariantCase
+  ) => {
+    const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
+    const caseChainId = CHAIN_BY_FUNCTION[abiItem.name] ?? chainId
+    let description = `${abiItem.name} - chain ${caseChainId}`
+    if (variant) {
+      const selector = toFunctionSelector(`function ${formatKey}`)
+      // Another version of the function already holds this description, and
+      // applyResults matches rendered cases on it, so the selector tells them
+      // apart. The label stays last so variantLabelOf still finds it.
+      const shared = `${description} - ${variant.label}`
+      description = descriptions.has(shared)
+        ? `${description} - ${selector.toLowerCase()} - ${variant.label}`
+        : shared
+    }
+
+    const overrides = variant?.overrides ?? BASE_CASE_OVERRIDES[abiItem.name]
+    let rawTx: string
+    try {
+      rawTx = buildRawTx(
+        formatKey,
+        readDiamondAddress(descriptor, caseChainId),
+        caseChainId,
+        nativeValueFor(format, overrides),
+        overrides
+      )
+    } catch (error) {
+      throw new Error(`${description}: ${(error as Error).message}`)
+    }
+
+    tests.push({
+      description,
+      rawTx,
+      expected: { intent: PENDING_INTENT, owner: 'LI.FI', fields: [] },
+    })
+    descriptions.add(description)
   }
 
   for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
-    if (covered.has(selector)) continue
+    if (!covered.has(selector)) pushCase(formatKey, format)
+  }
 
-    const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
-    let rawTx: string
-    try {
-      rawTx = buildRawTx(formatKey, diamond, chainId, nativeValueFor(format))
-    } catch (error) {
-      throw new Error(`${abiItem.name}: ${(error as Error).message}`)
+  for (const variant of VARIANT_CASES) {
+    const entries = variantFormats(formats, variant)
+    if (!entries.length)
+      throw new Error(
+        `VARIANT_CASES names "${variant.functionName}", which the descriptor has no format for`
+      )
+    for (const [formatKey, format] of entries) {
+      const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
+      if (!coveredVariants.has(variantKey(selector, variant.label)))
+        pushCase(formatKey, format, variant)
     }
-
-    tests.push({
-      description: `${abiItem.name} - chain ${chainId}`,
-      rawTx,
-      expected: { intent: PENDING_INTENT, owner: 'LI.FI', fields: [] },
-    })
   }
 
   return {
@@ -445,8 +1058,7 @@ function applyResults(
 }
 
 function isZeroish(value: unknown): boolean {
-  if (value === 0n || value === 0 || value === false || value === '')
-    return true
+  if (value === 0n || value === 0 || value === '') return true
   if (Array.isArray(value)) return value.length === 0
   if (typeof value !== 'string') return false
 
@@ -456,9 +1068,10 @@ function isZeroish(value: unknown): boolean {
 /**
  * Resolves a descriptor field path against the arguments built for that format.
  *
- * Paths look like `_bridgeData.minAmount` or `_swapData.[0].fromAmount`.
- * Transaction-level paths (`@.value`) address the envelope, not the arguments,
- * and are skipped by the caller.
+ * Paths look like `_bridgeData.minAmount`, `_swapData.[].fromAmount` (the first
+ * element stands for all) or `_acrossData.receiverAddress.[12:32]` (a byte
+ * slice). Transaction-level paths (`@.value`) address the envelope, not the
+ * arguments, and are skipped by the caller.
  */
 function resolvePath(
   args: unknown[],
@@ -471,6 +1084,21 @@ function resolvePath(
 
   let value: unknown = args[index]
   for (const segment of rest) {
+    // A byte slice; either bound may be omitted or negative, as in `[-32:]`.
+    const slice = segment.match(/^\[(-?\d*):(-?\d*)\]$/u)
+    if (slice && typeof value === 'string') {
+      const hex = value.slice(2)
+      const length = hex.length / 2
+      const toOffset = (bound: string | undefined, fallback: number) => {
+        const n = bound ? Number(bound) : fallback
+        return (n < 0 ? length + n : n) * 2
+      }
+      value = `0x${hex.slice(
+        toOffset(slice[1], 0),
+        toOffset(slice[2], length)
+      )}`
+      continue
+    }
     if (segment.startsWith('[')) {
       value = Array.isArray(value) ? value[0] : undefined
       continue
@@ -495,10 +1123,15 @@ function checkVisibleFields(
   for (const [formatKey, format] of Object.entries(formats)) {
     const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
     const isSwapVariant = abiItem.name.startsWith('swapAndStart')
-    const args = abiItem.inputs.map((input) => buildArg(input, isSwapVariant))
+    const args = abiItem.inputs.map((input) =>
+      buildArg(input, isSwapVariant, BASE_CASE_OVERRIDES[abiItem.name])
+    )
 
     for (const field of format.fields ?? []) {
-      if ((field.visible ?? 'always') === 'never') continue
+      // A conditional field is hidden at its zero value by design; a variant
+      // case asserts it where it shows.
+      if ((field.visible ?? 'always') === 'never' || isConditional(field))
+        continue
 
       // `@.` paths read the transaction envelope, not calldata. A visible
       // `@.value` is what makes nativeValueFor() encode NATIVE_VALUE, so it is
@@ -537,6 +1170,30 @@ function displayedLabels(format: IDescriptorFormat): string[] {
 }
 
 /**
+ * Whether a case's rendered labels match what a format displays.
+ *
+ * A field whose path iterates an array (`_swapData.[].fromAmount`) renders once
+ * per element, so its label may repeat, or be absent for an empty array; every
+ * other field renders exactly once.
+ */
+function labelsMatch(format: IDescriptorFormat, asserted: string[]): boolean {
+  const displayed = (format.fields ?? []).filter(
+    (field) => (field.visible ?? 'always') !== 'never'
+  )
+  let index = 0
+  for (const field of displayed) {
+    if (asserted[index] !== field.label) {
+      if (isConditional(field) || field.path.includes('.[]')) continue
+      return false
+    }
+    index++
+    if (field.path.includes('.[]'))
+      while (asserted[index] === field.label) index++
+  }
+  return index === asserted.length
+}
+
+/**
  * Fails when a format has no test case, or when its case asserts stale labels.
  *
  * The registry rejects a descriptor whose formats are not each exercised by a
@@ -558,36 +1215,84 @@ function checkCoverage(
   if (!fs.existsSync(testsPath))
     throw new Error(`--tests ${testsPath} does not exist`)
 
-  const covered = new Map<string, ITestCase>()
+  const covered = new Map<string, ITestCase[]>()
+  const coveredVariants = new Set<string>()
   for (const test of readExistingTests(testsPath)) {
     const selector = selectorOf(test)
-    if (selector) covered.set(selector, test)
+    if (!selector) continue
+    covered.set(selector, [...(covered.get(selector) ?? []), test])
+    const label = variantLabelOf(test)
+    if (label) coveredVariants.add(variantKey(selector, label))
   }
 
   const problems: string[] = []
+  for (const variant of VARIANT_CASES)
+    for (const [formatKey] of variantFormats(formats, variant)) {
+      const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
+      if (!coveredVariants.has(variantKey(selector, variant.label)))
+        problems.push(
+          `${formatKey} (${selector}) has no "${variant.label}" variant case`
+        )
+    }
+
   for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
-    const test = covered.get(selector)
-    if (!test) {
+    const tests = covered.get(selector)
+    if (!tests) {
       problems.push(`${formatKey} (${selector}) has no test case`)
       continue
     }
 
-    // A PENDING case has no rendered labels yet, so there is nothing to drift.
-    if (test.expected.intent === PENDING_INTENT) continue
-
     const displayed = displayedLabels(format)
-    const asserted = (test.expected.fields ?? []).map((field) => field.label)
-    if (JSON.stringify(displayed) !== JSON.stringify(asserted))
-      problems.push(
-        `${formatKey} (${selector}): fixture asserts [${asserted.join(
-          ', '
-        )}], descriptor displays [${displayed.join(
-          ', '
-        )}] — re-render this case`
-      )
+    for (const test of tests) {
+      // A PENDING case has no rendered labels yet, so there is nothing to drift.
+      if (test.expected.intent === PENDING_INTENT) continue
+
+      const asserted = (test.expected.fields ?? []).map((field) => field.label)
+      if (!labelsMatch(format, asserted))
+        problems.push(
+          `${formatKey} (${selector}) "${
+            test.description
+          }": fixture asserts [${asserted.join(
+            ', '
+          )}], descriptor displays [${displayed.join(
+            ', '
+          )}] — re-render this case`
+        )
+    }
   }
 
+  return problems
+}
+
+/**
+ * Fails on a test case whose selector no format matches, as the registry does.
+ *
+ * Only meaningful against the merged registry descriptor: the registry keeps a
+ * format after we drop it from the proposal, and its case has to stay with it.
+ */
+function checkUnmatchedCases(
+  formats: Record<string, IDescriptorFormat>,
+  testsPath: string
+): string[] {
+  const formatSelectors = new Set(
+    Object.keys(formats).map((formatKey) =>
+      toFunctionSelector(`function ${formatKey}`).toLowerCase()
+    )
+  )
+
+  const problems: string[] = []
+  for (const test of readExistingTests(testsPath)) {
+    const selector = selectorOf(test)
+    if (!selector)
+      problems.push(
+        `"${test.description}" has no calldata selector, so no format matches`
+      )
+    else if (!formatSelectors.has(selector))
+      problems.push(
+        `"${test.description}" calls ${selector}, which no format matches`
+      )
+  }
   return problems
 }
 
@@ -646,6 +1351,11 @@ const main = defineCommand({
       description:
         'With --check: also verify this fixture has a test case for every format',
     },
+    rejectUnmatched: {
+      type: 'boolean',
+      description:
+        'With --check --tests: also fail on a case no format matches. Use only on the merged registry descriptor',
+    },
   },
   run({ args }) {
     if (args.check) {
@@ -654,8 +1364,16 @@ const main = defineCommand({
       const coverageProblems = args.tests
         ? checkCoverage(formats, args.tests)
         : []
+      const unmatchedProblems =
+        args.tests && args.rejectUnmatched
+          ? checkUnmatchedCases(formats, args.tests)
+          : []
 
-      for (const problem of [...fieldProblems, ...coverageProblems])
+      for (const problem of [
+        ...fieldProblems,
+        ...coverageProblems,
+        ...unmatchedProblems,
+      ])
         console.error(`  ✗ ${problem}`)
 
       if (fieldProblems.length)
@@ -678,13 +1396,27 @@ const main = defineCommand({
             '("Test fixtures") and commit the result.'
         )
 
-      if (fieldProblems.length || coverageProblems.length) process.exit(1)
+      if (unmatchedProblems.length)
+        console.error(
+          `\n${unmatchedProblems.length} case(s) in ${args.tests} call a function this ` +
+            'descriptor has no format for, which the registry rejects. Remove them from ' +
+            'config/clearSigningTests.json in a PR to this repo.'
+        )
+
+      if (
+        fieldProblems.length ||
+        coverageProblems.length ||
+        unmatchedProblems.length
+      )
+        process.exit(1)
 
       console.info('✓ every displayed field renders a real value')
       if (args.tests)
         console.info(
           `✓ every format has a test case in ${args.tests}, asserting current labels`
         )
+      if (args.tests && args.rejectUnmatched)
+        console.info(`✓ every case in ${args.tests} matches a format`)
       return
     }
 

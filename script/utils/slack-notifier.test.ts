@@ -92,6 +92,50 @@ describe('SlackNotifier run-link', () => {
   })
 })
 
+describe('SlackNotifier batch summary — txs that never reached the chain', () => {
+  it('names a dropped tx as its own outcome instead of an unknown error', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyBatchSummary([
+      {
+        network: 'soneium',
+        success: false,
+        operationsProcessed: 1,
+        operationsFailed: 1,
+        operationsNotOnChain: 1,
+      },
+    ])
+
+    const blocks = (getPayload().blocks ?? []) as unknown as ICapturedBlock[]
+    const failed = blocks.find((b) =>
+      b.text?.text?.startsWith('*Failed Networks:*')
+    )
+    expect(failed?.text?.text).toContain(
+      '• soneium: 1 operation(s) submitted, not on-chain: RPC likely dropped it'
+    )
+    expect(failed?.text?.text).not.toContain('Unknown error')
+  })
+
+  it('keeps the network error beside the not-on-chain count', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyBatchSummary([
+      {
+        network: 'lisk',
+        success: false,
+        operationsNotOnChain: 2,
+        error: new Error('queue write failed'),
+      },
+    ])
+
+    const blocks = (getPayload().blocks ?? []) as unknown as ICapturedBlock[]
+    const failed = blocks.find((b) =>
+      b.text?.text?.startsWith('*Failed Networks:*')
+    )
+    expect(failed?.text?.text).toContain(
+      '• lisk: 2 operation(s) submitted, not on-chain: RPC likely dropped it; queue write failed'
+    )
+  })
+})
+
 describe('SlackNotifier batch summary — networks that were never checked', () => {
   it('refuses to call a run successful when networks went unchecked', async () => {
     // Every processed network succeeded, so a summary built only from `results`

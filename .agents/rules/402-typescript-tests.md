@@ -10,13 +10,11 @@ paths:
 ## TypeScript Tests
 
 - Use Bun (`describe` / `it` / `expect`).
-- Cover edge cases and error paths.
 
 ## Unit tests and external calls ([CONV:UNIT-MOCK-EXTERNAL])
 
-- **Mock external I/O** in unit tests: do not call real HTTP APIs, RPC endpoints, or other out-of-process services from tests. Stub `globalThis.fetch`, RPC clients, or other dependencies so tests are fast, deterministic, and free of network flakiness.
-- **Restore after each test**: when stubbing globals (e.g. `globalThis.fetch`), save the original in `beforeEach`/`beforeAll` and restore it in `afterEach`/`afterAll` to avoid cross-test pollution.
-- Prefer true unit tests that isolate the code under test; use mocks for any outbound calls (fetch, contract calls, file system if needed) so failures reflect logic bugs, not environment or network issues.
+- **Mock external I/O** in unit tests: do not call real HTTP APIs, RPC endpoints, or other out-of-process services from tests. Stub `globalThis.fetch`, RPC clients, or other dependencies.
+- **Restore after each test**: when stubbing globals (e.g. `globalThis.fetch`), save the original in `beforeEach`/`beforeAll` and restore it in `afterEach`/`afterAll`.
 
 ## Withholding credentials from a spawned child ([CONV:TEST-SPAWN-CREDENTIALS])
 
@@ -45,20 +43,14 @@ cores, so the guard and the withholding widen together. Consequences:
   `// spawn-env: <reason>` comment on the statement's own line, and keep that
   statement standalone: the marker only counts on the line its statement ends
   on, and prettier relocates a trailing comment when the unset is the unbraced
-  body of an `if`/`else`, which silently detaches it. Brace the branch. Widening
-  the cores past the signing keys cost two markers across the whole tree, so a
-  wider core is not the marker tax it looks like.
+  body of an `if`/`else`, which silently detaches it. Brace the branch.
 - **A credential whose name carries no core is invisible** to both the scan and
   the sweep. Adding a new kind of secret to the store means adding its core,
   not assuming the pattern grew.
-- **Only the two `withholdCredentials` callers are covered.** Other tests that
+- **Only tests that call `withholdCredentials` are covered.** Other tests that
   spawn a child build the environment by hand; nothing yet asserts that a
   spawning test calls the helper. Tracked in EXSC-996.
 
 ## Asserting rejections ([CONV:TEST-ASSERT-REJECTS])
 
 - **Never assert rejections via `expect(...).rejects`** — awaiting Bun's matcher trips `typescript/await-thenable` because it isn't a real Promise. Use a local `async function expectRejects(promise, match)` that catches and matches the error message, as in `script/deploy/safe/parked-tasks.test.ts`.
-
-## Post-Change Actions
-
-- After TS test changes, run Bun tests (or state which suites remain).

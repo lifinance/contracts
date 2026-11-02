@@ -41,7 +41,7 @@ Each audit entry must contain:
 
 - Contract name must match Solidity contract name (filename without `.sol`)
 - Version must match `@custom:version` tag in contract
-- Multiple audits per version supported (array of audit IDs)
+- Multiple audits per version supported (array of audit IDs); every ID must exist in `audits`
 
 ## Report File Naming
 
@@ -64,7 +64,6 @@ Each audit entry must contain:
 3. Update `auditedContracts` mapping (contract name → version → audit ID array)
 4. Upload PDF to `audit/reports/` with correct naming
 5. Verify `auditReportPath` matches actual file location
-6. Validate JSON syntax (no trailing commas, proper escaping)
 
 ### Scope vs pin commits ([CONV:AUDIT-PIN])
 
@@ -74,14 +73,6 @@ Each audit entry must contain:
 - Slow path (once, at `/add-audit` or QA on the audit-log PR): confirm the report (or addendum) supports both hashes — quote evidence. Automated PDF / `Fixed in #` scrape is a follow-up, not a signer step.
 - If findings were fixed after an entry was already filed with only A, add a **new** entry (append-only); same PDF path may be reused.
 - `finalCommitHash` must be the single tree the auditor signed off on (usually the merge/squash containing all fixes), not “latest of B/C/D by clock”.
-
-## Validation
-
-- All required fields present
-- Valid date format, paths point to existing PDFs, valid commit hash or "n/a" with explanation
-- Valid GitHub username, no duplicate audit IDs
-- All audit IDs in `auditedContracts` exist in `audits`
-- Contract versions match `@custom:version` tags
 
 ## Automated Verification
 

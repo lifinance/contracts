@@ -587,9 +587,9 @@ not reproduced here to avoid this doc drifting out of sync with the code.
 Run these from a `contracts-tron` checkout, not this repo:
 
 ```bash
-# Set environment
-export NETWORK=tron  # or tron-shasta for testnet
-export PRIVATE_KEY=your_64_char_hex_key_without_0x
+# PRODUCTION alone picks the network and key: true → tron + PRIVATE_KEY_PRODUCTION,
+# anything else → tronshasta + PRIVATE_KEY (both read from .env). NETWORK is ignored.
+export PRODUCTION=true  # or PRODUCTION=false for tronshasta
 
 # Deploy in order
 bunx tsx script/deploy/tron/deploy-core-facets.ts
