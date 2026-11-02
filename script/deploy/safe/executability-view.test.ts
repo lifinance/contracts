@@ -46,7 +46,7 @@ const call = (
     findings: [],
     outcome: 'would-execute',
     ...overrides,
-  } as IExecutabilityCall)
+  }) as IExecutabilityCall
 
 const verdict = (
   overrides: Partial<IExecutabilityVerdict> = {}
@@ -61,7 +61,7 @@ const verdict = (
     calls: [call()],
     reason: '',
     ...overrides,
-  } as IExecutabilityVerdict)
+  }) as IExecutabilityVerdict
 
 /** The shape viem returns, which is what put a calldata dump on the screen. */
 const VIEM_REVERT = [

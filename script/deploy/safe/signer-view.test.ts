@@ -57,7 +57,7 @@ const result = (
     actual: 'observed value',
     anchor: 'A-LOCAL',
     ...overrides,
-  } as ICheckResult)
+  }) as ICheckResult
 
 const entry = (
   checkId: string,

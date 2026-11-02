@@ -1,0 +1,6 @@
+# Revisions that only reformat code. Skip them in blame with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub applies this file automatically.)
+
+# style: reformat TS/JS with oxfmt
+0203506552c4567d3d1f9e57d7bf44ca9c745738

@@ -1,0 +1,29 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "bracketSpacing": true,
+  "semi": false,
+  "trailingComma": "es5",
+  "printWidth": 80,
+  "tabWidth": 2,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "export/",
+    "deployments/",
+    "artifacts/",
+    "cache/",
+    "coverage/",
+    "node_modules/",
+    "package.json",
+    "typechain/",
+    "lib/",
+    "*.hbs",
+    "templates/",
+    // Kept byte-identical to main: it has 4 type errors on main (incl. an
+    // undefined `lifiDiamondAddress`), so touching it makes validate-scripts
+    // fail. Remove once the demo script is fixed.
+    "script/demoScripts/demoChainflip.ts"
+  ]
+}

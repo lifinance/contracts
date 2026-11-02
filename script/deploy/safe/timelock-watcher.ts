@@ -615,10 +615,10 @@ const networkVerdict = (
   flags.mismatch
     ? 'mismatch'
     : flags.unverified ||
-      report.status === 'unreadable' ||
-      report.status === 'uncovered'
-    ? 'unverified'
-    : 'ok'
+        report.status === 'unreadable' ||
+        report.status === 'uncovered'
+      ? 'unverified'
+      : 'ok'
 
 /**
  * Watches one network.
@@ -792,7 +792,7 @@ export const watchNetwork = async (
                   furthest,
                   refusal !== undefined
                 )
-              : refusal ?? lastError
+              : (refusal ?? lastError)
           const scheduled = []
           const salts = []
           const cancels = []

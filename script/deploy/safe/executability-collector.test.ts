@@ -518,7 +518,7 @@ describe('createExecutabilityChainReader', () => {
 
 describe('simulating across several endpoints', () => {
   const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
-    ({ call: behaviour } as unknown as PublicClient)
+    ({ call: behaviour }) as unknown as PublicClient
 
   /** A node's JSON-RPC answer, which carries a code a wrapper does not. */
   const reverting = (message: string) =>
@@ -747,7 +747,7 @@ describe('simulating across several endpoints', () => {
 
 describe('summariseRpcError', () => {
   const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
-    ({ call: behaviour } as unknown as PublicClient)
+    ({ call: behaviour }) as unknown as PublicClient
 
   const realCallError = (data: Hex): string =>
     new CallExecutionError(

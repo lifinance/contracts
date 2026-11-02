@@ -1,3 +1,6 @@
+// Prettier formats *.sol here (TS/JS use oxfmt, see .oxfmtrc.json). It stays on
+// Prettier 2 + prettier-plugin-solidity 1.x: Prettier 3 + plugin 2 reformats
+// src/*.sol, and any src/*.sol change alters those contracts' bytecode metadata.
 module.exports = {
   singleQuote: true,
   bracketSpacing: true,
@@ -14,12 +17,6 @@ module.exports = {
         printWidth: 79,
         tabWidth: 4,
         singleQuote: false,
-      },
-    },
-    {
-      files: '*.ts',
-      options: {
-        parser: 'typescript',
       },
     },
   ],

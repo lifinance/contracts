@@ -45,7 +45,7 @@ jobs:
     steps:
       # Step 1: Checkout the contracts repository
       - name: Checkout Contracts Repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.BRANCH_NAME }}
 
@@ -59,7 +59,7 @@ jobs:
 
       # Step 4: Setup Bun
       - name: Set up Bun
-        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
 
@@ -77,7 +77,7 @@ jobs:
 
       # Step 8: Checkout the lifi-contract-types repository
       - name: Checkout lifi-contract-types Repository
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: lifinance/lifi-contract-types
           path: lifi-contract-types

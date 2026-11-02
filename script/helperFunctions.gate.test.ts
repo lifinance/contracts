@@ -274,8 +274,8 @@ describe('placement inside sendOrPropose', () => {
     }; }
     export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND="${options.directFlag}"
     sendOrPropose "${options.network ?? MAINNET}" "${
-    options.environment
-  }" 0xdiamond 0xabcdef false 2>&1
+      options.environment
+    }" 0xdiamond 0xabcdef false 2>&1
     echo "rc=$?"
   `
 

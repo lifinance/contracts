@@ -104,7 +104,7 @@ const harness = (
         reached.push(`${name}.client-execute`)
         return { hash: '0x' }
       },
-    } as unknown as SafeClient)
+    }) as unknown as SafeClient
   const signer = client('signer')
   const deployer = client('deployer')
 
@@ -359,7 +359,7 @@ describe('past the refusals', () => {
       verdicts: () => verdicts(RED),
       broadcast: async () => true,
       persistSigned: async () => undefined,
-      initDeployerClient: async () => ({} as SafeClient),
+      initDeployerClient: async () => ({}) as SafeClient,
       isSignedByDeployer: () => false,
     })
     expect(await bare.runAction('Execute', TX_DOC)).toEqual(

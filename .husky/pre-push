@@ -10,13 +10,12 @@
 # Fast local feedback only — the validateScripts.yml CI workflow is the
 # enforcement backstop, since hooks can be bypassed with --no-verify.
 #
-# Same husky v8 re-exec workaround as .husky/pre-commit: husky.sh re-execs
-# hooks under `sh -e`, so we replicate the init bits we need (HUSKY=0 skip,
-# ~/.huskyrc) and re-exec under `bash -e` ourselves.
+# Same bash re-exec as .husky/pre-commit: husky 9's `.husky/_/h` runs hooks
+# under `sh -e`, so we re-exec under `bash -e` ourselves (HUSKY=0 skip and the
+# legacy ~/.huskyrc kept for direct runs).
 [ "$HUSKY" = "0" ] && exit 0
-if [ -z "$husky_skip_init" ]; then
-  readonly husky_skip_init=1
-  export husky_skip_init
+if [ -z "$LIFI_HOOK_BASH" ]; then
+  export LIFI_HOOK_BASH=1
   [ -f ~/.huskyrc ] && . ~/.huskyrc
   exec bash -e "$0" "$@"
 fi

@@ -871,8 +871,8 @@ export const evaluateCalldataAddresses = (
           input.network
         }: ${refusing.map((finding) => finding.detail).join('; ')}`
       : error
-      ? errors.join(' ')
-      : '',
+        ? errors.join(' ')
+        : '',
   }
 }
 

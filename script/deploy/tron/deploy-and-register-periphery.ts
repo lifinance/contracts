@@ -1302,18 +1302,18 @@ async function deployAndRegisterPeripheryImpl(options: {
                   const safeHex = safeAddress.startsWith('T')
                     ? tronAddressToHex(tronWeb, safeAddress)
                     : safeAddress.startsWith('0x')
-                    ? safeAddress
-                    : '0x' + safeAddress
+                      ? safeAddress
+                      : '0x' + safeAddress
                   const diamondHex = diamondAddress.startsWith('T')
                     ? tronAddressToHex(tronWeb, diamondAddress)
                     : diamondAddress.startsWith('0x')
-                    ? diamondAddress
-                    : '0x' + diamondAddress
+                      ? diamondAddress
+                      : '0x' + diamondAddress
                   const cancellerHex = cancellerWallet.startsWith('T')
                     ? tronAddressToHex(tronWeb, cancellerWallet)
                     : cancellerWallet.startsWith('0x')
-                    ? cancellerWallet
-                    : '0x' + cancellerWallet
+                      ? cancellerWallet
+                      : '0x' + cancellerWallet
                   const minDelay = Number(timelockConfig.minDelay)
                   const proposers = [safeHex]
                   const executors = [ZERO_ADDRESS]

@@ -9,3 +9,16 @@ updates:
     schedule:
       # Check for updates to GitHub Actions every week
       interval: 'weekly'
+
+  # npm dependencies resolved through bun.lock. Minor and patch bumps arrive as one
+  # grouped PR per month; major bumps still get their own PR each.
+  - package-ecosystem: 'bun'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 5
+    groups:
+      bun-minor-and-patch:
+        update-types:
+          - 'minor'
+          - 'patch'
