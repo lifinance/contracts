@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Detect facet/periphery vs. invariant-registry changes
         id: filter
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
         with:
           filters: |
             contracts:
