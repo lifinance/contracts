@@ -42,18 +42,25 @@ jobs:
         id: changed-files
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          list-files: shell
+          list-files: json
           filters: |
             sol:
               - added|copied|modified|renamed: 'src/**/*.sol'
 
+      # The Olympix action splits its `args` input on whitespace, so a path containing any
+      # would be scanned as fragments; a newline would also write extra lines to GITHUB_ENV.
       - name: Convert Changed Files to Args
         if: steps.changed-files.outputs.sol == 'true'
         id: format-args
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.sol_files }}
         run: |
-          args=$(echo "$ALL_CHANGED_FILES" | xargs -n 1 printf -- "-p %s ")
+          if jq -e 'any(.[]; test("\\s"))' <<< "$ALL_CHANGED_FILES" > /dev/null; then
+            echo -e "\033[31mA changed Solidity path contains whitespace, which Olympix args cannot carry:\033[0m"
+            jq -r '.[] | select(test("\\s"))' <<< "$ALL_CHANGED_FILES"
+            exit 1
+          fi
+          args=$(jq -r 'map("-p " + .) | join(" ")' <<< "$ALL_CHANGED_FILES")
           echo "ARGS=$args" >> "$GITHUB_ENV"
 
       - name: Run Olympix Integrated Security

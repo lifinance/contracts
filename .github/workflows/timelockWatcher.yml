@@ -107,6 +107,11 @@ jobs:
         with:
           bun-version-file: package.json
 
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
       - name: Install dependencies
         id: install
         # node-hid downloads a prebuilt binary and, when that download times out, falls back to a
