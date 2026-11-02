@@ -34,7 +34,7 @@ const gitFrom = (urls: Record<string, string>) => {
   const table = new Map(Object.entries(urls))
   return {
     calls,
-    git: (args: string[]): string => {
+    git: async (args: string[]): Promise<string> => {
       calls.push(args)
       const name = args[2] as string
       const url = table.get(name)
@@ -60,50 +60,50 @@ describe('sourceRepositoryFor', () => {
 })
 
 describe('resolveSourceRemote', () => {
-  it('answers origin for an EVM network without consulting git', () => {
+  it('answers origin for an EVM network without consulting git', async () => {
     const { git, calls } = gitFrom({})
-    expect(resolveSourceRemote('mainnet', { git })).toEqual({
+    expect(await resolveSourceRemote('mainnet', { git })).toEqual({
       ok: true,
       remote: 'origin',
     })
     expect(calls).toEqual([])
   })
 
-  it('answers the fork remote for Tron when it names the fork', () => {
+  it('answers the fork remote for Tron when it names the fork', async () => {
     const { git, calls } = gitFrom({ [TRON_SOURCE_REMOTE]: FORK_URL })
-    expect(resolveSourceRemote('tron', { git })).toEqual({
+    expect(await resolveSourceRemote('tron', { git })).toEqual({
       ok: true,
       remote: TRON_SOURCE_REMOTE,
     })
     expect(calls).toEqual([['remote', 'get-url', TRON_SOURCE_REMOTE]])
   })
 
-  it('refuses with the remedy when the clone has no fork remote', () => {
+  it('refuses with the remedy when the clone has no fork remote', async () => {
     const { git } = gitFrom({
       origin: 'git@github.com:lifinance/contracts.git',
     })
-    const result = resolveSourceRemote('tron', { git })
+    const result = await resolveSourceRemote('tron', { git })
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.reason).toContain('contracts-tron')
     expect(result.reason).toContain(`git remote add ${TRON_SOURCE_REMOTE}`)
   })
 
-  it('refuses a fork remote pointed at another repository', () => {
+  it('refuses a fork remote pointed at another repository', async () => {
     const { git } = gitFrom({
       [TRON_SOURCE_REMOTE]: 'git@github.com:someone/contracts-tron.git',
     })
-    const result = resolveSourceRemote('tron', { git })
+    const result = await resolveSourceRemote('tron', { git })
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.reason).toContain('someone/contracts-tron')
   })
 
-  it('refuses a fork remote read over cleartext, and says so', () => {
+  it('refuses a fork remote read over cleartext, and says so', async () => {
     const { git } = gitFrom({
       [TRON_SOURCE_REMOTE]: 'http://github.com/lifinance/contracts-tron.git',
     })
-    const result = resolveSourceRemote('tron', { git })
+    const result = await resolveSourceRemote('tron', { git })
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     // The identity is right, so a message about the identity would point the
@@ -111,10 +111,10 @@ describe('resolveSourceRemote', () => {
     expect(result.reason).toContain('https or ssh')
   })
 
-  it('accepts the https spelling of the fork', () => {
+  it('accepts the https spelling of the fork', async () => {
     const { git } = gitFrom({
       [TRON_SOURCE_REMOTE]: 'https://github.com/lifinance/contracts-tron.git',
     })
-    expect(resolveSourceRemote('tron', { git }).ok).toBe(true)
+    expect((await resolveSourceRemote('tron', { git })).ok).toBe(true)
   })
 })

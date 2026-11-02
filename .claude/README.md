@@ -40,9 +40,9 @@ Anthropic's first-party plugin for authoring new skills — applies the official
 
 ### First-time setup
 
-1. Run `bun install` in the repo root if you haven't already — `postinstall` runs `claude:install` and both marketplaces register + both plugins install at the pinned SHA. (Re-run any time with `bun run claude:install`.)
+1. Run `bun install` in the repo root if you haven't already — `postinstall` runs `claude:install` and both marketplaces register + all three plugins install at the pinned SHA. (Re-run any time with `bun run claude:install`.)
 2. `cd` into this repo and run `claude` (or open Claude Code here).
-3. Verify with `claude plugin list` (or `/plugin list` inside a session) — `skill-creator@anthropics-claude-plugins-official` and `superpowers@obra-superpowers` should both show `enabled: true`.
+3. Verify with `claude plugin list` (or `/plugin list` inside a session) — `superpowers@obra-superpowers`, `skill-creator@anthropics-claude-plugins-official` and `aikido@anthropics-claude-plugins-official` should all show `enabled: true`.
 4. Skills like `superpowers:brainstorming`, `superpowers:systematic-debugging`, `/skill-creator` are now invokable in any Claude Code session in this repo.
 
 ### Bumping a pin
@@ -77,7 +77,7 @@ If you don't use Claude Code, you can ignore this directory entirely — none of
 
 ### Why bundle them
 
-Several of the bundled skills (`sc-design-review`, `start-linear-ticket`, etc.) call out to external services via MCP. Without the right servers configured, the skills fail with cryptic errors. Bundling them via project-level `.mcp.json` means anyone who clones this repo gets a one-click setup instead of hunting through docs.
+Several of the bundled skills (`start-linear-ticket`, `creating-user-stories`, etc.) call out to external services via MCP. Without the right servers configured, the skills fail with cryptic errors. Bundling them via project-level `.mcp.json` means anyone who clones this repo gets a one-click setup instead of hunting through docs.
 
 ### Security model
 
@@ -90,7 +90,7 @@ Several of the bundled skills (`sc-design-review`, `start-linear-ticket`, etc.) 
 | Server | Endpoint | Used by | Auth |
 |---|---|---|---|
 | `linear` | `https://mcp.linear.app/mcp` | `start-linear-ticket` | OAuth (linear.app) — browser flow on first call |
-| `notion` | `https://mcp.notion.com/mcp` | `sc-design-review` (PRD ingestion) | OAuth (notion.so) — grant access to the LI.FI Notion workspace |
+| `notion` | `https://mcp.notion.com/mcp` | `creating-user-stories` (Notion page edits) | OAuth (notion.so) — grant access to the LI.FI Notion workspace |
 | `blockscout` | `https://mcp.blockscout.com/mcp` | Ad-hoc onchain inspection of deployed contracts (no specific skill yet) | No login — public read-only endpoint |
 
 ### Slack is not in `.mcp.json`

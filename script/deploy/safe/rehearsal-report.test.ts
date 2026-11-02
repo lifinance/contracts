@@ -71,13 +71,13 @@ describe('runGateChain', () => {
   // No cut to read, so the verdict needs no chain or git access. What is under
   // test is which gates the ledger carries, not what they decide.
   const emptyProposal = { safeTx: { data: {} } } as never
-  const unreadablePinnedState = (() => ({
+  const unreadablePinnedState = (async () => ({
     ok: false,
     reason: 'remote-unexpected',
   })) as never
 
-  it('registers exactly the gates this rehearsal wired', () => {
-    const ledger = runGateChain(
+  it('registers exactly the gates this rehearsal wired', async () => {
+    const ledger = await runGateChain(
       emptyProposal,
       'arbitrum',
       false,
@@ -88,8 +88,8 @@ describe('runGateChain', () => {
     )
   })
 
-  it('records a row for the gate it wired', () => {
-    const ledger = runGateChain(
+  it('records a row for the gate it wired', async () => {
+    const ledger = await runGateChain(
       emptyProposal,
       'arbitrum',
       false,

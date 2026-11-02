@@ -6,34 +6,23 @@ usage: /add-rule-or-skill
 
 # Rule & Command Authoring (LI.FI Contracts)
 
-> **Usage**: `/add-rule-or-skill`
+Constraints on duplication, naming, size and cross-references live in `010-agents-authoring`, which auto-loads when you edit `.agents/rules/*.md` or `.agents/commands/*.md`. Numbering ranges are in `.agents/README.md`.
 
-This command is the single workflow for adding/updating **rules** and **commands/skills** in this repo.
+## Symlink layout
 
-## Repo Structure (DRY Symlink Setup)
+```text
+.agents/rules/*.md           ← source of truth for rules
+  .cursor/rules/*.mdc        ← Cursor (link name keeps .mdc; target is .md)
+  .claude/rules/*.md         ← Claude Code
 
-Rules and commands have a single source of truth. Never edit the symlink targets directly.
-
-```
-.agents/rules/*.md           ← SOURCE OF TRUTH for rules (edit here)
-  ↑ symlinked from:
-  .cursor/rules/*.mdc        ← Cursor reads these (link name keeps .mdc; target is .md)
-  .claude/rules/*.md         ← Claude Code reads these
-
-.agents/commands/*.md        ← SOURCE OF TRUTH for commands (edit here)
-  ↑ symlinked from:
-  .cursor/commands/*.md      ← Cursor reads these
+.agents/commands/*.md        ← source of truth for commands
+  .cursor/commands/*.md      ← Cursor
   .claude/skills/<name>/SKILL.md  ← Claude Code skill bridge
 ```
 
-When you add or edit a rule, **always work in `.agents/rules/`**.
-When you add or edit a command, **always work in `.agents/commands/`**.
+## Hybrid frontmatter (rules)
 
-## Hybrid Frontmatter (both tools, one file)
-
-Every rule must use the hybrid header so both Cursor and Claude Code activate it correctly.
-
-**Scoped rule** (activates only for matching files):
+Scoped rule:
 
 ```yaml
 ---
@@ -46,7 +35,7 @@ paths:           # Claude Code: file matching (no negation patterns)
 ---
 ```
 
-**Global rule** (always active, no file scoping):
+Global rule:
 
 ```yaml
 ---
@@ -59,49 +48,33 @@ alwaysApply: true # Cursor: force-load
 ---
 ```
 
-Rules: Cursor ignores `paths:`. Claude Code ignores `alwaysApply:` and `globs:`. Both ignore unknown keys.
+Cursor ignores `paths:`; Claude Code ignores `alwaysApply:` and `globs:`; both ignore unknown keys.
 
-Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **not** in `paths:` (Claude Code) — omit them from `paths:`.
+Typical scopes by concern:
 
-## Scoping & Activation (globs-first)
+- Solidity: `**/*.sol`, narrower `src/**`, `src/Facets/**`, `src/Interfaces/**`, `src/Periphery/Receiver*.sol`, `script/**/*.s.sol`, `test/**/*.t.sol`
+- TypeScript: `script/**/*.ts`, `tasks/**/*.ts`
+- Bash: `**/*.sh`
+- GitHub Actions: `.github/workflows/**/*.yml` / `**/*.yaml`
+- Audits: `audit/**/*.json`, `audit/**/*.pdf`
 
-- Prefer **precise `globs`** over cross-references.
-- Use `alwaysApply: true` (+ omit `paths:`) only for truly universal rules (role/guardrails, architecture, project structure, final checks).
-- Avoid `globs: ['**/*']` unless the rule is an explicit **activation gate** (like tx analysis) or truly universal.
-- Prefer directory scoping by concern:
-  - Solidity: `**/*.sol`, narrower `src/**`, `src/Facets/**`, `src/Interfaces/**`, `src/Periphery/Receiver*.sol`, `script/**/*.s.sol`, `test/**/*.t.sol`
-  - TypeScript: `script/**/*.ts`, `tasks/**/*.ts`
-  - Bash: `**/*.sh`
-  - GitHub Actions: `.github/workflows/**/*.yml` / `**/*.yaml`
-  - Audits: `audit/**/*.json`, `audit/**/*.pdf`
+## Adding a rule
 
-## No-Duplication, Naming, Size, Cross-References
-
-These constraints are enforced automatically via `010-agents-authoring` (auto-loaded when editing `.agents/rules/*.md` or `.agents/commands/*.md`). See that rule for the full list. Key reminders:
-
-- Search before adding — pick a single owning file, remove duplicates.
-- Rules define "what/why", not "how"; report CI/tooling suggestions separately.
-- Follow `.agents/README.md` for numbering ranges.
-
-## Adding a New Rule (step by step)
-
-1. Determine scope → pick numbering range from `.agents/README.md`.
+1. Pick the numbering range from `.agents/README.md`.
 2. Create `.agents/rules/<NNN>-<name>.md` with hybrid frontmatter.
-3. Create the Cursor and Claude Code symlinks:
+3. Symlink:
 
    ```bash
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".cursor/rules/<NNN>-<name>.mdc"
    ln -sf "../../.agents/rules/<NNN>-<name>.md" ".claude/rules/<NNN>-<name>.md"
    ```
 
-4. Update `.agents/README.md` table (name, range, description).
-5. Run validation steps below.
+4. Update the `.agents/README.md` table (name, range, description).
 
-## Adding a New Command/Skill (step by step)
+## Adding a command/skill
 
-1. Run `/skill-creator` (Anthropic built-in) to draft the skill content — it enforces ≤500 lines, progressive disclosure, and other best practices automatically.
-2. Save the output to `.agents/commands/<name>.md`.
-3. Create the Cursor and Claude Code symlinks:
+1. Draft with `/skill-creator`, save to `.agents/commands/<name>.md`.
+2. Symlink:
 
    ```bash
    ln -sf "../../.agents/commands/<name>.md" ".cursor/commands/<name>.md"
@@ -109,43 +82,26 @@ These constraints are enforced automatically via `010-agents-authoring` (auto-lo
    ln -sf "../../../.agents/commands/<name>.md" ".claude/skills/<name>/SKILL.md"
    ```
 
-4. Verify: `ls -l .cursor/commands/<name>.md` and `ls -l .claude/skills/<name>/SKILL.md` should both show symlink arrows into `.agents/commands/`.
+3. Confirm `ls -l .cursor/commands/<name>.md .claude/skills/<name>/SKILL.md` both point into `.agents/commands/`.
 
-## Modifying an Existing Rule or Command
-
-All constraints (no-duplication, size, naming, validation) apply equally on edits. `010-agents-authoring` enforces them automatically — no need to repeat them here. No symlink work is needed unless you renamed the file.
+Edits to an existing rule or command need no symlink work unless the file is renamed.
 
 ## Helper script exit codes
 
-When a skill shells out to a project script (e.g. via `bunx tsx script/utils/foo.ts`), use this exit-code convention so the orchestrating skill can branch independently per target:
+When a skill shells out to a project script (e.g. `bunx tsx script/utils/foo.ts`), use this convention so the skill can branch per target:
 
 - **`0`** — success.
-- **`1`** — real error (network, API, malformed input). Report stderr to the user and stop. Do **not** retry. Do **not** write a fallback artifact.
-- **`2`** — recoverable misconfig (env var missing, optional credential absent). Fall through to an alternative path (manual fallback file, degraded mode) and tell the user which env var to set.
+- **`1`** — real error (network, API, malformed input). Report stderr and stop. No retry, no fallback artifact.
+- **`2`** — recoverable misconfig (env var missing, optional credential absent). Fall through to the alternative path (manual fallback file, degraded mode) and tell the user which env var to set.
 
-This split lets the skill process N targets independently — if one channel/network/recipient succeeds and another exits `2`, the skill continues for the survivors and only writes a fallback for the failed one.
+This lets a skill process N targets independently: survivors continue, and only the target that exited `2` gets a fallback.
 
-## Validation Steps (PR-ready)
+## Validation
 
-- **Symlink integrity**: `ls -l .cursor/rules/*.mdc` and `ls -l .claude/rules/*.md` — all entries should be symlinks (`->`) pointing into `.agents/rules/`.
-- **Skill symlinks**: `ls -l .claude/skills/*/SKILL.md` — all should point into `.agents/commands/`.
-- **README accuracy**: `.agents/README.md` table reflects all files in `.agents/rules/` and all commands in `.agents/commands/`.
+Besides the symlink and README checks in `010-agents-authoring`:
+
 - **Stale references**: grep `.agents/rules/` and `.agents/commands/` for references to removed files.
-- **Activation sanity check**:
-  - Editing a facet (`src/Facets/*.sol`) → pulls facet + Solidity baseline + architecture/security.
-  - Editing a TS script → pulls TS rule (+ security if applicable).
-  - Editing audit files → pulls audit rules.
+- **Activation sanity**: editing a facet (`src/Facets/*.sol`) pulls facet + Solidity baseline + architecture/security; a TS script pulls the TS rule (+ security if applicable); audit files pull audit rules.
+- **Rule interaction**: identify which rules apply via `globs` to the files involved, and ensure the new rule doesn't conflict with or override higher-priority/global rules.
 
-## Smart-Contract Department Checklist (must not weaken)
-
-- **Rule interaction (required)**:
-  - Identify which rules will apply via `globs` for the files you're about to touch.
-  - Ensure the new rule does **not** conflict with or overwrite higher-priority/global rules.
-  - Ensure there is **no duplicate guidance**: pick a single owning rule/command and delete/trim duplicates elsewhere.
-  - Ensure numeric prefixes and `name:` fields stay **unique**.
-- **Diamond architecture**: single diamond entrypoint; keep facets thin; selector/storage invariants respected.
-- **Governance**: Safe + timelock flows never bypassed; no admin shortcuts.
-- **Events**: respect reserved event emission locations; non-EVM receiver rules respected.
-- **Security**: validate inputs/config; avoid new external-call patterns without prior art; reentrancy and approval hygiene; no new privileged paths.
-- **Scripts/tests separation**: deployment/update scripts remain in `script/`; tests mirror `src/` under `test/solidity/`.
-- **Audits**: audit log schema + report naming preserved; CI expectations respected.
+A rule change must not weaken the smart-contract baseline: single diamond entrypoint with thin facets and selector/storage invariants; Safe + timelock never bypassed, no admin shortcuts; reserved event emission locations and non-EVM receiver rules; input/config validation, no new external-call patterns without prior art, reentrancy and approval hygiene, no new privileged paths; deployment scripts in `script/` and tests mirroring `src/` under `test/solidity/`; audit log schema, report naming and CI expectations.

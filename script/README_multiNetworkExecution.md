@@ -13,7 +13,7 @@ The `multiNetworkExecution.sh` file contains the complete network execution syst
 
 The system automatically groups networks by their EVM version and zkEVM status, then executes them in the correct order:
 
-1. **Group 1: Cancun EVM** (solc 0.8.29) - Networks like blast, hyperevm, berachain (executed first)
+1. **Group 1: Cancun EVM** (solc 0.8.29) - Networks like hyperevm, berachain (executed first)
 2. **Group 2: zkEVM Networks** (use profile.zksync) - Networks like zksync, polygonzkevm
 3. **Group 3: London EVM** (solc 0.8.17) - Networks like mainnet, arbitrum, base
 
@@ -62,7 +62,7 @@ Choose which networks to execute:
 NETWORKS=($(getIncludedNetworksArray))
 
 # Option 2: Use specific networks
-# NETWORKS=("mainnet" "arbitrum" "base" "zksync" "blast" "hyperevm")
+# NETWORKS=("mainnet" "arbitrum" "base" "zksync" "berachain" "hyperevm")
 
 # Option 3: Use networks by EVM version
 # NETWORKS=($(getIncludedNetworksByEvmVersionArray "london"))
@@ -124,7 +124,7 @@ This is the **easiest way** to use the new system. It:
 
 ```bash
 # In playground.sh, uncomment and modify:
-local NETWORKS=("mainnet" "arbitrum" "base" "zksync" "blast" "hyperevm")
+local NETWORKS=("mainnet" "arbitrum" "base" "zksync" "berachain" "hyperevm")
 executeNetworksByGroup "$CONTRACT" "$ENVIRONMENT" "${NETWORKS[@]}"
 ```
 
@@ -155,7 +155,7 @@ iterateAllNetworksGrouped "$CONTRACT" "$ENVIRONMENT"
 ### 6. Get Network Grouping Information
 
 ```bash
-local NETWORKS=("mainnet" "arbitrum" "base" "zksync" "blast" "hyperevm")
+local NETWORKS=("mainnet" "arbitrum" "base" "zksync" "berachain" "hyperevm")
 groupNetworksByExecutionGroup "${NETWORKS[@]}"
 ```
 
@@ -236,12 +236,12 @@ The new system integrates with existing functions:
 
 ```
 [2024-01-15 10:30:00] Starting network execution for GlacisFacet in production
-[2024-01-15 10:30:00] Networks to process: mainnet arbitrum base zksync blast hyperevm
-[2024-01-15 10:30:00] Group: cancun (2 networks): blast hyperevm
+[2024-01-15 10:30:00] Networks to process: mainnet arbitrum base zksync berachain hyperevm
+[2024-01-15 10:30:00] Group: cancun (2 networks): berachain hyperevm
 [2024-01-15 10:30:00] Running forge build for Cancun EVM group...
-[2024-01-15 10:30:05] [blast] 🔄 IN PROGRESS: Operation started
+[2024-01-15 10:30:05] [berachain] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:05] [hyperevm] 🔄 IN PROGRESS: Operation started
-[2024-01-15 10:30:15] [blast] ✅ SUCCESS: Operation completed successfully
+[2024-01-15 10:30:15] [berachain] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:16] [hyperevm] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:17] Group cancun execution completed. Failed networks: 0
 [2024-01-15 10:30:17] Group: zkevm (1 networks): zksync

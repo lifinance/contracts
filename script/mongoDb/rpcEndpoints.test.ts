@@ -11,6 +11,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   buildEnvLines,
   findEndpointIndex,
+  findEndpointsByHost,
   findUncredentialedPrimaries,
   hasApiCredentials,
   isPublicPrimaryActionable,
@@ -461,6 +462,69 @@ describe('findEndpointIndex', () => {
 
   it('returns -1 for a url the chain does not have', () => {
     expect(findEndpointIndex([], URL_A, 'production')).toBe(-1)
+  })
+})
+
+describe('findEndpointsByHost', () => {
+  const KEYED_A = 'https://gw.example.invalid/v1/aaaaaaaaaaaaaaaaaaaaaaaa'
+  const KEYED_B = 'https://gw.example.invalid/v1/bbbbbbbbbbbbbbbbbbbbbbbb'
+  const WITH_PORT = 'https://node.example.invalid:8545/'
+
+  it('matches on host without the caller supplying the keyed path', () => {
+    const rpcs: IRpcEndpoint[] = [
+      { url: KEYED_A, priority: 2 },
+      { url: KEYLESS_PUBLIC, priority: 1 },
+    ]
+    expect(
+      findEndpointsByHost(rpcs, 'gw.example.invalid', 'production')
+    ).toEqual([{ url: KEYED_A, priority: 2 }])
+  })
+
+  it('ignores case and surrounding whitespace in the requested host', () => {
+    const rpcs: IRpcEndpoint[] = [{ url: KEYED_A, priority: 1 }]
+    expect(
+      findEndpointsByHost(rpcs, '  GW.Example.INVALID ', 'production')
+    ).toHaveLength(1)
+  })
+
+  it('returns every endpoint sharing the host, so the caller can refuse', () => {
+    const rpcs: IRpcEndpoint[] = [
+      { url: KEYED_A, priority: 2 },
+      { url: KEYED_B, priority: 1 },
+    ]
+    expect(
+      findEndpointsByHost(rpcs, 'gw.example.invalid', 'production')
+    ).toHaveLength(2)
+  })
+
+  it('keeps other environments out of the match', () => {
+    const rpcs: IRpcEndpoint[] = [
+      { url: KEYED_A, priority: 2, environment: 'staging' },
+      { url: KEYED_B, priority: 1 },
+    ]
+    expect(
+      findEndpointsByHost(rpcs, 'gw.example.invalid', 'production')
+    ).toEqual([{ url: KEYED_B, priority: 1 }])
+    expect(findEndpointsByHost(rpcs, 'gw.example.invalid', 'staging')).toEqual([
+      { url: KEYED_A, priority: 2, environment: 'staging' },
+    ])
+  })
+
+  it('requires the port when the stored host carries one', () => {
+    const rpcs: IRpcEndpoint[] = [{ url: WITH_PORT, priority: 1 }]
+    expect(
+      findEndpointsByHost(rpcs, 'node.example.invalid', 'production')
+    ).toEqual([])
+    expect(
+      findEndpointsByHost(rpcs, 'node.example.invalid:8545', 'production')
+    ).toHaveLength(1)
+  })
+
+  it('never matches an unparsable stored url by its sentinel', () => {
+    const rpcs: IRpcEndpoint[] = [{ url: 'not a url', priority: 1 }]
+    expect(
+      findEndpointsByHost(rpcs, hostOf('not a url'), 'production')
+    ).toEqual([])
   })
 })
 

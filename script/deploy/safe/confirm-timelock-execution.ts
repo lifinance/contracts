@@ -9,6 +9,10 @@ import type { TransactionReceipt } from 'viem'
 
 import { sleep } from '../../utils/delay'
 
+/** Run-summary wording for an execution tx no RPC endpoint ever mined. */
+export const NOT_ON_CHAIN_REASON =
+  'submitted, not on-chain: RPC likely dropped it'
+
 export type TimelockExecutionConfirmation =
   | 'confirmed'
   | 'reverted'

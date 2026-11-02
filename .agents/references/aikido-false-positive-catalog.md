@@ -29,7 +29,7 @@ Each pattern has:
 **Matches when**: issue title contains "NoSQL injection"; file is `script/deploy/update-deployment-logs.ts` or `script/deploy/query-deployment-logs.ts`, or the flagged call is wrapped in `mongoEq()`
 
 **ignore_reason**:
-> False positive — mongoEq() in script/deploy/shared/mongo-log-utils.ts wraps every value in { $eq: value }, explicitly blocking MongoDB operator injection. The scanner does not recognize this project-specific wrapper as a sanitizer. All query fields in these files use mongoEq() wrapping.
+> False positive — mongoEq() in script/deploy/shared/mongo-log-utils.ts wraps every value in { $eq: value }, explicitly blocking MongoDB operator injection. The scanner does not recognize this project-specific wrapper as a sanitizer. Equality fields in these files use mongoEq(); the one case-insensitive address lookup passes the value through escapeRegexLiteral() before building its $regex.
 
 **sast_context** (UI: NoSQL Injection rule → Custom Code Context):
 > mongoEq() defined in script/deploy/shared/mongo-log-utils.ts is a sanitizer: export function mongoEq<T>(value: T): { $eq: T } { return { $eq: value } }. It wraps any value in { $eq: value }, blocking MongoDB operator injection. Any query field wrapped with mongoEq() is safe. All scripts in script/ are internal developer CLI tools — query values come from hardcoded contract names, network names from config/networks.json (version-controlled allow-list), or from MongoDB documents returned by prior queries.
@@ -64,10 +64,10 @@ Each pattern has:
 **Matches when**: issue title contains "IDOR" or "access control"; file is under `script/utils/` or `script/deploy/`; function mentioned is `getContractAddress` or `readJsonFile`
 
 **ignore_reason**:
-> False positive — internal deployment utility called from CLI scripts. The network parameter is typed as SupportedChain (restricted to ~50 network names from config/networks.json) and the contract parameter is an internal contract name string. No HTTP API, no session, no external user. IDOR does not apply.
+> False positive — internal deployment utility called from CLI scripts. The network parameter is typed as NetworkKey (a union of the network names in config/networks.json) and the contract parameter is an internal contract name string. No HTTP API, no session, no external user. IDOR does not apply.
 
 **sast_context** (UI: IDOR rule → Custom Code Context):
-> getContractAddress() and readJsonFile() in script/utils/utils.ts are internal developer utilities called from CLI scripts and CI pipelines. The network parameter is typed as SupportedChain (a TypeScript union restricted to ~50 known network names from config/networks.json — a version-controlled allow-list). The contract parameter contains contract name strings from the codebase itself. There is no HTTP API, no authenticated session, and no external user making these calls.
+> getContractAddress() and readJsonFile() in script/utils/utils.ts are internal developer utilities called from CLI scripts and CI pipelines. The network parameter is typed as NetworkKey (a TypeScript union of the network names in config/networks.json — a version-controlled allow-list). The contract parameter contains contract name strings from the codebase itself. There is no HTTP API, no authenticated session, and no external user making these calls.
 
 ---
 

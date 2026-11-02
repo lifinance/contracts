@@ -345,7 +345,7 @@ register() {
     fi
 
     # try to execute call
-    if [[ "$DEBUG" == *"true"* ]]; then
+    if [[ "$DEBUG" == "true" ]]; then
       # print output to console
       echoDebug "trying to register periphery contract $CONTRACT_NAME in diamond on network $NETWORK now - attempt ${ATTEMPTS} (max attempts: $MAX_ATTEMPTS_PER_SCRIPT_EXECUTION) "
 

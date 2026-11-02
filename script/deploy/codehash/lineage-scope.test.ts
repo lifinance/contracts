@@ -160,9 +160,9 @@ describe('deriveToolchainScope', () => {
   it('closes the set for a zkEVM mainnet rather than falling back to open', () => {
     // The trap D19(b) named: "n/a" is not a missing value, it is these chains
     // saying "not an EVM version" because they compile through zksolc. Treating
-    // it as unknown would grade every abstract/lens/zksync deploy UNVERIFIABLE —
+    // it as unknown would grade every abstract/zksync deploy UNVERIFIABLE —
     // the grey fail-open #2301 was fixed to remove.
-    for (const zk of ['abstract', 'lens', 'zksync']) {
+    for (const zk of ['abstract', 'zksync']) {
       const scope = scopeOf(zk)
       expect(scope.isClosedSet).toBe(true)
       expect(scope.profiles.map((p) => p.profile)).toEqual([ZK_PROFILE])

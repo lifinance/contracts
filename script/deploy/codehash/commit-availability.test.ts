@@ -36,7 +36,7 @@ const gitFrom = (script: {
   let fetchAttempt = 0
   return {
     calls,
-    git: (args: string[]): string => {
+    git: async (args: string[]): Promise<string> => {
       calls.push(args)
       if (args[0] === 'cat-file') {
         const answer = script.present[presentIndex] ?? false
@@ -55,18 +55,18 @@ const gitFrom = (script: {
 }
 
 describe('ensureCommitAvailable', () => {
-  it('does not fetch a commit the checkout already has', () => {
+  it('does not fetch a commit the checkout already has', async () => {
     const { git, calls } = gitFrom({ present: [true] })
-    const result = ensureCommitAvailable(SHA, { git })
+    const result = await ensureCommitAvailable(SHA, { git })
 
     expect(result).toEqual({ ok: true, fetched: false })
     expect(calls.map((c) => c[0])).toEqual(['cat-file'])
   })
 
-  it('fetches by SHA when the commit is not reachable locally', () => {
+  it('fetches by SHA when the commit is not reachable locally', async () => {
     // The measured case: 56 of 98 audit commits look absent and are not.
     const { git, calls } = gitFrom({ present: [false, true] })
-    const result = ensureCommitAvailable(SHA, { git })
+    const result = await ensureCommitAvailable(SHA, { git })
 
     expect(result).toEqual({ ok: true, fetched: true })
     expect(calls.map((c) => c[0])).toEqual(['cat-file', 'fetch', 'cat-file'])
@@ -74,14 +74,14 @@ describe('ensureCommitAvailable', () => {
     expect(calls[1]).toEqual(['fetch', '--quiet', 'origin', SHA])
   })
 
-  it('retries a failing fetch up to the bound, then ERRORs', () => {
+  it('retries a failing fetch up to the bound, then ERRORs', async () => {
     const { git, calls } = gitFrom({
       present: [false, false, false],
       fetch: () => {
         throw new Error('could not read from remote repository')
       },
     })
-    const result = ensureCommitAvailable(SHA, { git })
+    const result = await ensureCommitAvailable(SHA, { git })
 
     expect(result.ok).toBe(false)
     if (result.ok) return
@@ -93,17 +93,17 @@ describe('ensureCommitAvailable', () => {
     )
   })
 
-  it('reports a fetch that succeeds but does not produce the commit as ERROR too', () => {
+  it('reports a fetch that succeeds but does not produce the commit as ERROR too', async () => {
     // A remote that answers without the object is the same epistemic position:
     // nothing was learned, so nothing may be concluded.
     const { git } = gitFrom({ present: [false, false] })
-    const result = ensureCommitAvailable(SHA, { git })
+    const result = await ensureCommitAvailable(SHA, { git })
 
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.kind).toBe('error')
   })
 
-  it('refuses a value that is not a full commit SHA without touching git', () => {
+  it('refuses a value that is not a full commit SHA without touching git', async () => {
     // A short or malformed SHA passed to `git fetch` is an unbounded request
     // against the remote, and `cat-file` would resolve a prefix to whatever it
     // happens to match locally.
@@ -115,7 +115,7 @@ describe('ensureCommitAvailable', () => {
       'z'.repeat(40),
     ]) {
       const { git, calls } = gitFrom({ present: [true] })
-      const result = ensureCommitAvailable(bad, { git })
+      const result = await ensureCommitAvailable(bad, { git })
 
       expect(result.ok).toBe(false)
       if (!result.ok) expect(result.kind).toBe('refused')
@@ -123,11 +123,11 @@ describe('ensureCommitAvailable', () => {
     }
   })
 
-  it('asks git for a commit specifically, not any object', () => {
+  it('asks git for a commit specifically, not any object', async () => {
     // A tree or blob with that SHA is not a commit, and resolving one would
     // make the lineage a hash nobody can check out.
     const { calls, git } = gitFrom({ present: [true] })
-    ensureCommitAvailable(SHA, { git })
+    await ensureCommitAvailable(SHA, { git })
 
     expect(calls[0]).toEqual(['cat-file', '-e', `${SHA}^{commit}`])
   })
@@ -141,21 +141,21 @@ describe('ensureCommitAvailable', () => {
 })
 
 describe('ensureCommitAvailable, fetching from a named remote', () => {
-  it('fetches a Tron commit from the fork remote rather than origin', () => {
+  it('fetches a Tron commit from the fork remote rather than origin', async () => {
     const { git, calls } = gitFrom({ present: [false, true] })
-    const result = ensureCommitAvailable(SHA, { git }, { remote: 'tron' })
+    const result = await ensureCommitAvailable(SHA, { git }, { remote: 'tron' })
     expect(result).toEqual({ ok: true, fetched: true })
     expect(calls[1]).toEqual(['fetch', '--quiet', 'tron', SHA])
   })
 
-  it('names the remote it could not fetch from', () => {
+  it('names the remote it could not fetch from', async () => {
     const { git } = gitFrom({
       present: [false, false, false, false],
       fetch: () => {
         throw new Error('fatal: remote error')
       },
     })
-    const result = ensureCommitAvailable(SHA, { git }, { remote: 'tron' })
+    const result = await ensureCommitAvailable(SHA, { git }, { remote: 'tron' })
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.reason).toContain('"tron"')

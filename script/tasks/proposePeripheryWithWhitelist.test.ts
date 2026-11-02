@@ -193,7 +193,7 @@ describe('peripheryRegistrationRoute', () => {
     expect(peripheryRegistrationRoute('LiFiDEXAggregator', 'fuse', real)).toBe(
       'out-of-scope'
     )
-    expect(peripheryRegistrationRoute('LiFiDEXAggregator', 'lens', real)).toBe(
+    expect(peripheryRegistrationRoute('LiFiDEXAggregator', 'lisk', real)).toBe(
       'paired'
     )
   })
@@ -712,7 +712,7 @@ describe('proposePeripheryWithWhitelist.ts', () => {
       // back to /tmp, which a sandboxed runner cannot write.
       TMPDIR: tmpdir(),
       ETH_NODE_URI_FUSE: rpcUrl,
-      ETH_NODE_URI_LENS: rpcUrl,
+      ETH_NODE_URI_LISK: rpcUrl,
       SC_MONGODB_URI: 'blocked-in-tests://no-store',
       MONGODB_URI: 'blocked-in-tests://no-store',
       PRIVATE_KEY: 'malformed-in-tests',
@@ -849,11 +849,11 @@ describe('proposePeripheryWithWhitelist.ts', () => {
       chain = {
         registered: {},
         selectors: {},
-        // lens's deploy-log TokenWrapper
-        codeless: ['0x13a0486dceeb9908d09bad8136c0512d529383ac'],
+        // lisk's deploy-log TokenWrapper
+        codeless: ['0x603a538477d44064ea5a5d8c345b4ff6fca1142a'],
       }
       const { rc, out, proposals } = await run([
-        '--contract', 'TokenWrapper', '--networks', 'fuse,lens',
+        '--contract', 'TokenWrapper', '--networks', 'fuse,lisk',
       ]) // prettier-ignore
       expect(rc).toBe(EXIT_REFUSED)
       expect(proposals).toHaveLength(1)

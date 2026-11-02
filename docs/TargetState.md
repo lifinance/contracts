@@ -39,8 +39,20 @@ gate.
 
 ## What changes the file, and what does not
 
-- **A rollout does not touch it.** The version a network runs is `@custom:version`; rolling
-  a new version out to 40 chains changes no entry.
+- **A rollout adds a missing key, and removes the key of a facet its cut removed.** The
+  version a network runs is `@custom:version`, so rolling a new version out to 40 chains that
+  already declare the contract changes no entry. Where a network did not declare it yet — a first deployment, or a
+  contract reaching one more chain — `/finish-rollout` (deploy mode only; a propose-only
+  rollout adds the key by hand) adds it as `"latest"` once every timelock
+  op has executed, via `script/tasks/declareRolloutInTargetState.ts`, and commits it to the
+  rollout PR with the diamond logs. That PR merges after execution, which is why the sign-time
+  gate grades an absent entry as `not-previously-targeted` instead of refusing it. The script
+  leaves `"latest"` and a pin equal to the executed version unchanged. It refuses a pin that
+  differs, a network with no `production.LiFiDiamond` block (`/add-network` seeds that), a
+  network whose regenerated `deployments/<net>.diamond.json` does not show the contract, and
+  a branch that does not contain a freshly fetched `origin/main`, and then writes nothing.
+  `--unpin` replaces a differing pin with `"latest"` when the hold-back is over. A facet the
+  same cut removed has its key deleted by hand, per `/finish-rollout`.
 - **A version bump does not touch it.** A minor fix that is not being rolled out yet changes
   nothing — the contract stays `latest` everywhere and the fleet simply has not caught up.
 - **Adding a contract to a network** adds a key with `"latest"`.
@@ -51,7 +63,8 @@ gate.
 `scriptMaster.sh` use case **7) Add or update contract entries in \_targetState.json** edits
 entries in bulk and defaults to `"latest"`; its option **3) Add a new network with all
 (not-excluded) contracts** seeds a whole network with `"latest"`. There is no generator and no
-spreadsheet — the file is edited in the repo and reviewed as a diff.
+spreadsheet — the file is edited in the repo, by hand or by the rollout script above, and
+reviewed as a diff.
 
 ## Who reads it
 
@@ -60,7 +73,10 @@ spreadsheet — the file is edited in the repo and reviewed as a diff.
 - `healthCheck.ts` → `deriveNonCoreFacets` → the `non-core-facets-deployed`,
   `facets-registered` and `periphery-registered` invariants.
 - `diamondRemovalDiff.ts` → `getExpectedFacetNames`, used by `cleanUpProdDiamond` and the
-  `no-stale-registered-facets` invariant.
+  `no-stale-registered-facets` and `no-untargeted-live-facets` invariants. The second warns,
+  once per network, when a production diamond routes facets the deploy log names and `src/`
+  still has, but this file does not list — the daily all-networks health check reports the
+  affected networks in Slack and each facet's name, version and address in the run log.
 - `deployAllContracts.sh` (which non-core facets a new network gets) and
   `deployPeripheryContracts.sh` (which periphery it gets).
 
@@ -78,7 +94,12 @@ One health-check invariant reports against the version without enforcing it:
 `facet-versions-match-target-state` compares each registered facet's version in
 `deployments/<network>.diamond.json` with the expected version (a pin as written, `latest` as the
 checkout's `@custom:version`) and warns when the facet is behind, ahead, or cannot be compared.
-It is a warning, so a network that has not caught up stays green. Because `latest` is read from
+It is a warning, so a network that has not caught up stays green. A behind facet is reported as
+expected-pending instead, with no warning, while a `queued` timelock `diamondCut` on that network's
+diamond registers the facet's deploy-log address ([CONV:HEALTHCHECK-INTENT] in
+`.agents/rules/601-healthcheck-invariants.md`) and `deployments/_deployments_log_file.json`
+records that address at the expected version (base versions compared). A queued cut of a build
+the master log does not record, or records at another version, keeps the warning. Because `latest` is read from
 the checkout the check runs in, the expected version is `main`'s only when the run is on `main`,
 as the daily run is; a run on another branch compares against that branch's source. The warning
 labels the target `(latest)` or `(pinned)`, since the fix for a facet ahead of each differs. The
@@ -102,7 +123,9 @@ codehash checks instead.
 attempt every facet and periphery contract the network declares, whatever version is already
 deployed; on the version gate only a pin can refuse, and since the migration to `latest`
 the only pins are deliberate hold-backs (`ChainflipFacet` on mainnet and arbitrum,
-`ThorSwapFacet` on avalanche and bsc until its deprecation, EXSC-1169). Before the migration, stage 6 deployed a periphery contract only where the
+`ThorSwapFacet` on avalanche and bsc until its deprecation, EXSC-1169;
+`DeBridgeDlnFacet` at its deployed 1.0.0/1.0.1 until the 1.1.0 rollout, EXSC-1172;
+`CalldataVerificationFacet` on tron at 1.3.1, EXSC-1174). Before the migration, stage 6 deployed a periphery contract only where the
 declared version equalled the repo's and skipped the rest with a warning, so an entry whose
 declared version had fallen behind the repo was never touched. Entering a run at stage 5 or 6
 against a network that already has deployments therefore attempts and re-registers the whole

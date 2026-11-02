@@ -1,8 +1,8 @@
 /**
  * Offsets and lengths use the shape Foundry emits in
  * `deployedBytecode.immutableReferences`: `{ [astId]: [{ start, length }] }`,
- * byte offsets into the runtime code. Measured against
- * `out/AcrossFacet.sol/AcrossFacet.json`, which carries 2 astIds over 4 copies.
+ * byte offsets into the runtime code. Measured against the artifact of the
+ * since-removed AcrossFacet v2.0.0, which carried 2 astIds over 4 copies.
  *
  * A repo-wide pass over the artifacts carrying references shows their offsets are
  * real and in range, and nothing more: the slots hold all-zero placeholders until

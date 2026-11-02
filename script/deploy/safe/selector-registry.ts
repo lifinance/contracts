@@ -94,8 +94,11 @@ function normalizeSelector(selector: string): string {
  * 4byte responses) rather than deriving the selector from the signature — so a
  * hand-edited typo or a poisoned cache degrades to "unknown selector" in the
  * signing UI instead of a wrong-but-plausible function name.
+ * @param selector - The 4-byte selector, with or without `0x`, any case
+ * @param signature - The signature claimed for it
+ * @returns False when it does not hash back, or does not parse
  */
-function isVerifiedSelectorSignature(
+export function isVerifiedSelectorSignature(
   selector: string,
   signature: string
 ): boolean {

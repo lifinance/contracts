@@ -43,6 +43,7 @@ import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import {
   proposeTronPeripheryRegistrations,
@@ -142,6 +143,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   registerOnly?: boolean
 }) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
+  buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 

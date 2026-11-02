@@ -107,7 +107,7 @@ export interface IAttestationSourceDeps {
    * Compiles one contract at one commit under one profile. Throws on a failed
    * compile; a failure is never cached.
    */
-  build: (request: IRebuildRequest) => IRebuiltArtifact
+  build: (request: IRebuildRequest) => Promise<IRebuiltArtifact>
   git: ICommitAvailabilityDeps['git']
   /**
    * Which git remote holds this network's source, or why none here does.
@@ -117,7 +117,7 @@ export interface IAttestationSourceDeps {
    * source constructed without this answers UNVERIFIABLE for every Tron address
    * while looking complete.
    */
-  sourceRemote: (network: string) => SourceRemoteResolution
+  sourceRemote: (network: string) => Promise<SourceRemoteResolution>
 }
 
 export type AttestationStage =
@@ -435,7 +435,7 @@ export const createAttestationSource = (
     // still has addresses the record is silent about and records too old to
     // carry a commit, and those two stay the answers they were rather than
     // becoming an infrastructure error about a rebuild nobody was going to run.
-    const remote = deps.sourceRemote(network)
+    const remote = await deps.sourceRemote(network)
     if (!remote.ok)
       return {
         kind: 'error',
@@ -443,7 +443,7 @@ export const createAttestationSource = (
         reason: `${address} on ${network}: ${remote.reason}`,
       }
 
-    const availability = ensureCommitAvailable(
+    const availability = await ensureCommitAvailable(
       commit,
       { git: deps.git },
       { remote: remote.remote }
@@ -480,7 +480,7 @@ export const createAttestationSource = (
 
       let artifact: IRebuiltArtifact
       try {
-        artifact = deps.build({
+        artifact = await deps.build({
           contractName: record.contractName,
           commit,
           profile,

@@ -39,14 +39,6 @@
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
-  "blast": {
-    "metaRouter": "0x7057aB3fB2BeE9c18e0cDe4240DE4ff7f159E365",
-    "gateway": "0xa0079829B9F1Edc5DD0DE3eC104f281745C4bD81"
-  },
-  "boba": {
-    "metaRouter": "0xca506793A420E901BbCa8066be5661E3C52c84c2",
-    "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
-  },
   "bsc": {
     "metaRouter": "0x44487a445a7595446309464A82244B4bD4e325D5",
     "gateway": "0x5c97D726bf5130AE15408cE32bc764e458320D2f",
@@ -94,10 +86,6 @@
     "gateway": "0xd92Ca299F1C2518E78E48C207b64591BA6E9b9a8"
   },
   "morph": {
-    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
-    "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
-  },
-  "opbnb": {
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
@@ -158,6 +146,10 @@
   "unichain": {
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
+  },
+  "xlayer": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C"
   },
   "zksync": {
     "metaRouter": "0x38307CB291Af47Af9847c134a34E9477c939Ca28",

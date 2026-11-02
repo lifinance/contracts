@@ -113,6 +113,38 @@ export function getRPCFallbackUrls(networkName: string): string[] {
 }
 
 /**
+ * Builds the viem `http` transport for a single RPC endpoint, moving embedded credentials into
+ * an Authorization header (see {@link getTransportConfigFromRpcUrl}).
+ *
+ * @param rpcUrl - One endpoint, e.g. an entry of `chain.rpcUrls.default.http`.
+ * @param options - Optional abort signal applied to every request.
+ * @returns An `http` transport for that endpoint alone.
+ * @throws If the URL carries credentials over cleartext http.
+ */
+export function getHttpTransportForRpcUrl(
+  rpcUrl: string,
+  options?: { signal?: AbortSignal }
+): Transport {
+  const {
+    url,
+    fetchOptions: authFetchOptions,
+    retryCount,
+    retryDelay,
+  } = getTransportConfigFromRpcUrl(rpcUrl)
+  const mergedFetchOptions = {
+    ...(authFetchOptions ?? {}),
+    ...(options?.signal ? { signal: options.signal } : {}),
+  }
+  return http(url, {
+    ...(Object.keys(mergedFetchOptions).length
+      ? { fetchOptions: mergedFetchOptions }
+      : {}),
+    ...(retryCount !== undefined ? { retryCount } : {}),
+    ...(retryDelay !== undefined ? { retryDelay } : {}),
+  })
+}
+
+/**
  * Builds a viem transport that tries a chain's endpoints in priority order.
  *
  * Without this, one throttled or method-restricted endpoint fails every read on the chain even
@@ -126,37 +158,15 @@ export function getFallbackTransportForChain(
   const transports: Transport[] = []
   const rejections: string[] = []
 
-  for (const rpcUrl of chain.rpcUrls.default.http) {
-    let config: ReturnType<typeof getTransportConfigFromRpcUrl>
+  for (const rpcUrl of chain.rpcUrls.default.http)
     try {
-      config = getTransportConfigFromRpcUrl(rpcUrl)
+      transports.push(getHttpTransportForRpcUrl(rpcUrl, options))
     } catch (error) {
       // Skipped rather than rethrown: an endpoint this chain cannot use is exactly what the
       // remaining endpoints are here to cover, and letting one of them abort the whole chain
       // takes down a network whose primary is healthy.
       rejections.push(error instanceof Error ? error.message : String(error))
-      continue
     }
-    const {
-      url,
-      fetchOptions: authFetchOptions,
-      retryCount,
-      retryDelay,
-    } = config
-    const mergedFetchOptions = {
-      ...(authFetchOptions ?? {}),
-      ...(options?.signal ? { signal: options.signal } : {}),
-    }
-    transports.push(
-      http(url, {
-        ...(Object.keys(mergedFetchOptions).length
-          ? { fetchOptions: mergedFetchOptions }
-          : {}),
-        ...(retryCount !== undefined ? { retryCount } : {}),
-        ...(retryDelay !== undefined ? { retryDelay } : {}),
-      })
-    )
-  }
 
   if (rejections.length)
     consola.warn(

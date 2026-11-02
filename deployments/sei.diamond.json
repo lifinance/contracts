@@ -41,17 +41,17 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x0687F1B49E7d536adb8ab7EfC80E934175dF4dA9": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
       },
-      "0x31a9b1835864706Af10103b31Ea2b79bdb995F5F": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0x6e378C84e657C57b2a8d183CFf30ee5CC8989b61": {
         "Name": "StargateFacetV2",
@@ -65,9 +65,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x04E051D8e3627A79785f8E210B1d61A877AA737A": {
         "Name": "LayerSwapFacet",
@@ -80,11 +80,11 @@
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xfdE9CE4e17B650efdcA13d524F132876700d806f",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
-      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "Permit2Proxy": "0x8eEd5E28216C0Bc6F817df40Ae6CA11C2294CC1c",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",

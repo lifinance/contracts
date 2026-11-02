@@ -576,7 +576,7 @@ export const expectedWhitelist = async (
   deployments: Record<string, unknown>,
   readPinned: IRunContext['readPinned']
 ): Promise<Set<string> | undefined> => {
-  const pinned = readPinned('config/whitelist.json')
+  const pinned = await readPinned('config/whitelist.json')
   if (!pinned.ok) return undefined
   let failed = false
   const pairs = await getExpectedPairs(
@@ -644,7 +644,7 @@ export const watchNetwork = async (
     notes: [],
   })
 
-  const pinned = ctx.readPinned(`deployments/${name}.json`)
+  const pinned = await ctx.readPinned(`deployments/${name}.json`)
   if (!pinned.ok)
     return unreadable(
       `main's deployments/${name}.json could not be read (${pinned.reason})`

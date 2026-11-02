@@ -33,12 +33,14 @@ import { flagIsOn } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { deployContractWithLogging, validateBalance } from './tronUtils'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
   dryRun?: boolean
 }) {
   consola.start('TRON NEARIntentsFacet Deployment & Registration')
+  buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 

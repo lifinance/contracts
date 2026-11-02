@@ -20,7 +20,9 @@ import { redactUrls } from '../../utils/redactUrls'
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 
+import { buildForgeArtifactsOrThrow } from './assertTronToolchain.js'
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
+import { assertFacetCodeMatchesArtifacts } from './helpers/assertFacetCodeMatchesArtifact.js'
 import {
   DIAMOND_CUT_FEE_LIMIT_SUN,
   sendGuardedFacetRegistration,
@@ -322,6 +324,8 @@ async function registerFacetsToDiamond(
   } = {}
 ) {
   try {
+    buildForgeArtifactsOrThrow()
+
     // Get environment and determine network
     const environment = getEnvironment()
     const networkName =
@@ -418,6 +422,7 @@ async function registerFacetsToDiamond(
 
     // 4. Check if DiamondLoupe already exists
     let loupeExists = false
+    const registeredAddresses = new Set<string>()
     try {
       // Try to call facets() - if it works, DiamondLoupe is registered
       const facetsResponse = await diamond.facets().call()
@@ -435,6 +440,7 @@ async function registerFacetsToDiamond(
         const selectors = facet[1]
 
         const facetBase58 = tryTronFacetLoupeAddressToBase58(tronWeb, facetHex)
+        if (facetBase58) registeredAddresses.add(facetBase58)
 
         const facetName = Object.entries(deployments).find(
           ([_, addr]) => addr === facetBase58
@@ -448,7 +454,26 @@ async function registerFacetsToDiamond(
       consola.info(' DiamondLoupe not registered yet')
     }
 
-    // 5. Determine registration strategy
+    // 5. Selectors are read from out/, so refuse before any cut unless each facet still to be
+    // registered is the code those artifacts describe.
+    const pendingFacets = Object.fromEntries(
+      TRON_DIAMOND_FACET_GROUPS.flat()
+        .map((name) => [name, deployments[name] as string | undefined] as const)
+        .filter(
+          (entry): entry is readonly [string, string] =>
+            entry[1] !== undefined && !registeredAddresses.has(entry[1])
+        )
+    )
+    await assertFacetCodeMatchesArtifacts({
+      facets: pendingFacets,
+      readRuntimeCode: async (address) => {
+        const info = await tronWeb.trx.getContractInfo(address)
+        return info?.runtimecode ? `0x${info.runtimecode}` : undefined
+      },
+      outRoot: path.join(process.cwd(), 'out'),
+    })
+
+    // 6. Determine registration strategy
     if (options.splitMode) {
       // Register in groups
       consola.info(' Using split registration mode...')
@@ -529,7 +554,7 @@ async function registerFacetsToDiamond(
       }
     }
 
-    // 6. Final verification (if not dry run)
+    // 7. Final verification (if not dry run)
     if (!options.dryRun) {
       consola.info('\n Verifying final facet registration...')
 

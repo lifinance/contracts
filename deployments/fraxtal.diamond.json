@@ -17,9 +17,9 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "0xb28Dd740D27853A91639795223AB409088A73E23": {
+      "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
-        "Version": "1.0.0"
+        "Version": "1.1.0"
       },
       "0x4bDCd7FC26078E492b89763871163CCBca62c6D6": {
         "Name": "AccessManagerFacet",
@@ -41,13 +41,13 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x787E4Eb9af1F7a8c62AD3B0db15ba48896fC87eC": {
+      "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
-        "Version": "1.1.1"
+        "Version": "2.0.0"
       },
-      "0x333c7Ed1B5E3a1C5E8E41735a40D7b249C4397ee": {
+      "0x02Db8a1c2170AEE6cd17715EcD1c567C9B296E2c": {
         "Name": "GenericSwapFacetV3",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0xD89381BfFC3b1662AaAe4C4475353FA0ff10A83e": {
         "Name": "SquidFacet",
@@ -72,11 +72,11 @@
       "FeeCollector": "0x7956280Ec4B4d651C4083Ca737a1fa808b5319D8",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LiFiDEXAggregator": "0xE38621607316cB43367c134C65dca3f41B61250f",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0xE38621607316cB43367c134C65dca3f41B61250f",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
-      "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
+      "Permit2Proxy": "0x8eEd5E28216C0Bc6F817df40Ae6CA11C2294CC1c",
       "ReceiverAcrossV3": "",
       "ReceiverAcrossV4": "",
       "ReceiverChainflip": "",
