@@ -2290,6 +2290,7 @@
         "LiFiTimelockController": "latest",
         "OwnershipFacet": "latest",
         "PeripheryRegistryFacet": "latest",
+        "RelayDepositoryFacet": "latest",
         "WhitelistManagerFacet": "latest",
         "WithdrawFacet": "latest",
         "LiFiDiamond": "latest",
