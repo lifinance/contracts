@@ -6316,6 +6316,50 @@
         ]
       }
     ],
+    "elysium": [
+      {
+        "name": "FeeForwarder",
+        "address": "0x4526C1294A3231e0D921FBB3d086620D69BF1d03",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x9cB69783F3f17A00A6A605358D8f7855efC35F09",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x14B3998dC894e753cEF7C762DC84DC7B767FdDCC",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
     "etherlink": [
       {
         "name": "FeeForwarder",
