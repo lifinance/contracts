@@ -28,15 +28,14 @@ contract AttestedBridgeFacet {
     /// External Methods ///
 
     /// @notice Executes `_facetCalldata` on its Diamond facet, then calls `IAttester.attest` on the
-    ///         registered attester with this call's arguments; the second argument, `_attesterData`,
-    ///         is forwarded unread
-    /// @dev The dispatched call's return data is discarded
+    ///         registered attester with this call's arguments
+    /// @dev The second argument is the attester's data. It is unnamed because the facet never reads
+    ///      it: the assembly forwards it to the attester as part of the copied calldata. The
+    ///      dispatched call's return data is discarded
     /// @param _facetCalldata The bridge facet call, selector included
-    /// @param _attesterData The attester's data, forwarded unread
     function startBridgeAttested(
         bytes calldata _facetCalldata,
-        // solhint-disable-next-line no-unused-vars
-        bytes calldata _attesterData
+        bytes calldata
     ) external payable {
         if (_facetCalldata.length < 4) revert InvalidCallData();
         bytes4 selector = bytes4(_facetCalldata);
