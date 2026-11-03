@@ -3,9 +3,12 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
+  mock,
+  spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { consola } from 'consola'
@@ -53,6 +56,7 @@ import { type IPendingRegistration } from './safe/pending-registrations'
 import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 import { collectImmutableBindingChecks } from './shared/immutableBindings'
+import * as tronUtils from './tron/tronUtils'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
 function makeCtx(): IHealthCheckContext {
@@ -4607,7 +4611,13 @@ describe('bridge-attester-not-allowlisted', () => {
     const TRON_DIAMOND = 'TDiamond11111111111111111111111111'
     const TRON_ATTESTER = 'TAttester1111111111111111111111111'
 
-    function makeTronAttesterCtx(tronWeb: unknown): IHealthCheckContext {
+    const TRON_RPC = 'http://tron.invalid'
+
+    afterEach(() => {
+      mock.restore()
+    })
+
+    function makeTronAttesterCtx(tronRpcUrl?: string): IHealthCheckContext {
       return Object.assign(makeCtx(), {
         isTron: true,
         diamondAddress: TRON_DIAMOND,
@@ -4617,60 +4627,71 @@ describe('bridge-attester-not-allowlisted', () => {
             Promise.resolve(TRON_ATTESTER),
           ],
         ]),
-        tronWeb,
+        tronRpcUrl,
       } as unknown as IHealthCheckContext)
     }
 
-    function tronWebReturning(result: unknown): unknown {
-      return {
-        contract: (_abi: unknown, address: string) => {
-          expect(address).toBe(TRON_DIAMOND)
-          return {
-            getWhitelistedSelectorsForContract: (attester: string) => {
-              expect(attester).toBe(TRON_ATTESTER)
-              return { call: async () => result }
-            },
-          }
-        },
-      }
+    function troncastReturning(read: () => Promise<string>): void {
+      spyOn(tronUtils, 'callTronContract').mockImplementation(
+        async (contract, signature, params, returnType, rpcUrl) => {
+          expect([contract, signature, params, returnType, rpcUrl]).toEqual([
+            TRON_DIAMOND,
+            'getWhitelistedSelectorsForContract(address)',
+            [TRON_ATTESTER],
+            'bytes4[]',
+            TRON_RPC,
+          ])
+          return read()
+        }
+      )
     }
 
-    it('fails on a bare selector array', async () => {
-      const ctx = makeTronAttesterCtx(tronWebReturning(['0x12345678']))
+    it('fails when the attester has any allowlisted selector', async () => {
+      troncastReturning(
+        async () => '⚙ Initializing TronWeb...\n[0x12345678 0x9abcdef0]'
+      )
+      const ctx = makeTronAttesterCtx(TRON_RPC)
       await invariant('bridge-attester-not-allowlisted').run(ctx)
       expect(ctx.errors).toHaveLength(1)
-      expect(ctx.errors[0]).toContain('0x12345678')
+      expect(ctx.errors[0]).toContain('0x12345678, 0x9abcdef0')
       expect(ctx.errors[0]).toContain(TRON_ATTESTER)
     })
 
-    it('fails on a selector array wrapped in a result tuple', async () => {
-      const ctx = makeTronAttesterCtx(tronWebReturning([['0x12345678']]))
-      await invariant('bridge-attester-not-allowlisted').run(ctx)
-      expect(ctx.errors).toHaveLength(1)
-      expect(ctx.errors[0]).toContain('0x12345678')
-    })
-
     it('passes on an empty selector list', async () => {
-      const ctx = makeTronAttesterCtx(tronWebReturning([[]]))
+      troncastReturning(async () => '⚙ Initializing TronWeb...\n[]')
+      const ctx = makeTronAttesterCtx(TRON_RPC)
       await invariant('bridge-attester-not-allowlisted').run(ctx)
       expect(ctx.errors).toEqual([])
       expect(ctx.warnings).toEqual([])
     })
 
-    it('warns on a result that is not a selector list', async () => {
-      const ctx = makeTronAttesterCtx(tronWebReturning('0x12345678'))
+    it('fails on a revert, which is deterministic', async () => {
+      troncastReturning(async () => {
+        throw new Error('execution reverted')
+      })
+      const ctx = makeTronAttesterCtx(TRON_RPC)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toHaveLength(1)
+      expect(ctx.errors[0]).toContain(
+        'could not read its allowlisted selectors'
+      )
+    })
+
+    it('warns on output that is not a list', async () => {
+      troncastReturning(async () => '⚙ Initializing TronWeb...\n0x12345678')
+      const ctx = makeTronAttesterCtx(TRON_RPC)
       await invariant('bridge-attester-not-allowlisted').run(ctx)
       expect(ctx.errors).toEqual([])
       expect(ctx.warnings).toHaveLength(1)
-      expect(ctx.warnings[0]).toContain('unexpected selector list')
+      expect(ctx.warnings[0]).toContain('Expected array format')
     })
 
-    it('warns when no Tron client is configured', async () => {
+    it('warns when no Tron RPC URL is configured', async () => {
       const ctx = makeTronAttesterCtx(undefined)
       await invariant('bridge-attester-not-allowlisted').run(ctx)
       expect(ctx.errors).toEqual([])
       expect(ctx.warnings).toHaveLength(1)
-      expect(ctx.warnings[0]).toContain('no Tron client configured')
+      expect(ctx.warnings[0]).toContain('no Tron RPC URL configured')
     })
   })
 })

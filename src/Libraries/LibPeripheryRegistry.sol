@@ -3,7 +3,8 @@ pragma solidity ^0.8.17;
 
 /// @title LibPeripheryRegistry
 /// @author LI.FI (https://li.fi)
-/// @notice Reads the periphery contracts `PeripheryRegistryFacet` registers, from inside the Diamond
+/// @notice Reads the periphery contracts `PeripheryRegistryFacet` registers, from inside the
+///         Diamond
 /// @custom:version 1.0.0
 library LibPeripheryRegistry {
     /// Storage ///

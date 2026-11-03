@@ -50,8 +50,9 @@ contract AttestedBridgeFacet {
         if (attester.code.length == 0) revert AttesterNotRegistered();
 
         bytes4 attestSelector = IAttester.attest.selector;
-        // One calldata copy serves both calls: `attest(bytes,bytes)` shares this function's argument
-        // encoding, so the attester receives the same bytes with only the selector swapped.
+        // One calldata copy serves both calls: `attest(bytes,bytes)` shares this function's
+        // argument encoding, so the attester receives the same bytes with only the selector
+        // swapped.
         // solhint-disable-next-line no-inline-assembly
         assembly ("memory-safe") {
             let m := mload(0x40)
@@ -79,7 +80,8 @@ contract AttestedBridgeFacet {
         }
     }
 
-    /// @notice Enables or disables a bridge-entry selector for `startBridgeAttested`; Diamond owner only
+    /// @notice Enables or disables a bridge-entry selector for `startBridgeAttested`; Diamond
+    ///         owner only
     /// @dev Enable only entrypoints guarded by `nonReentrant`: the gateway has no guard of its own
     /// @param _selector The bridge-entry selector
     /// @param _enabled Whether the gateway may dispatch it

@@ -61,7 +61,7 @@ function loggedAttesters(): Record<string, string> {
   const dir = path.join(REPO_ROOT, 'deployments')
   const attesters: Record<string, string> = {}
   for (const file of readdirSync(dir)) {
-    const match = /^([a-z0-9_-]+)\.json$/.exec(file)
+    const match = /^([a-z0-9][a-z0-9_-]*)\.json$/.exec(file)
     if (!match?.[1]) continue
     const log = JSON.parse(readFileSync(path.join(dir, file), 'utf8')) as
       | Record<string, unknown>

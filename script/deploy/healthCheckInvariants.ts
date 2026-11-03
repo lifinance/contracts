@@ -1466,28 +1466,15 @@ async function readWhitelistedSelectors(
   address: string
 ): Promise<readonly string[]> {
   if (ctx.isTron) {
-    if (!ctx.tronWeb) throw new Error('no Tron client configured')
-    const manager = ctx.tronWeb.contract(
-      [
-        {
-          name: 'getWhitelistedSelectorsForContract',
-          type: 'function',
-          inputs: [{ name: '_contract', type: 'address' }],
-          outputs: [{ name: 'selectors', type: 'bytes4[]' }],
-          stateMutability: 'view',
-        },
-      ],
-      ctx.diamondAddress
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const output = await callTronContract(
+      ctx.diamondAddress,
+      'getWhitelistedSelectorsForContract(address)',
+      [address],
+      'bytes4[]',
+      ctx.tronRpcUrl
     )
-    const result: unknown = await manager
-      .getWhitelistedSelectorsForContract(address)
-      .call()
-    // TronWeb returns a single output either bare or wrapped in a one-element result tuple.
-    const selectors =
-      Array.isArray(result) && Array.isArray(result[0]) ? result[0] : result
-    if (!Array.isArray(selectors))
-      throw new Error(`unexpected selector list: ${String(result)}`)
-    return selectors.map(String)
+    return parseTroncastArrayOutput(output).map(String)
   }
 
   if (!ctx.publicClient) throw new Error('no EVM client configured')
@@ -3156,7 +3143,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const wanted = required.map((requirement) => requirement.companion)
       // A companion is present iff the registry returns a non-null (non-zero) address. A read that
       // fails or returns malformed output is undetermined, never treated as absence - one flaky RPC
-      // (or troncast output drift) must not raise a false "destination calls disabled" gate.
+      // (or troncast output drift) must not raise a false "companion missing" gate.
       const registered = new Map<string, boolean>()
       const unresolved = new Set<string>()
       const markUnresolved = (companion: string, reason: unknown): void => {
@@ -3457,9 +3444,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     remediation:
       'Remove every allowlisted selector of the BridgeAttester address (config/whitelist.json, then sync). While any is listed, a swap step could call the attester as the diamond, and the Intent Factory ledger refuses every attestation (LedgerAllowListed).',
     run: async (ctx) => {
-      // The attester trusts any call from the diamond. The allowlist is the generic path by which a
-      // swap step makes the diamond call an arbitrary contract, so it must name no attester selector.
-      // The check mirrors the ledger's own guard: any listed selector at all, not a specific set.
+      // The attester trusts any call from the diamond. The allowlist is the generic path by which
+      // a swap step makes the diamond call an arbitrary contract, so it must name no attester
+      // selector. The check mirrors the ledger's own guard: any listed selector at all.
       let attester: string | null
       try {
         attester = await readPeripheryRegistry(BRIDGE_ATTESTER, ctx)

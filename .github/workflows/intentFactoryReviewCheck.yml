@@ -32,28 +32,31 @@ jobs:
     timeout-minutes: 5
     permissions:
       pull-requests: write # required to remove the IntentFactoryReviewed label on a new push
+    env:
+      LABEL: IntentFactoryReviewed
+      REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'IntentFactoryReviewed') }}
     steps:
       - name: Remove the IntentFactoryReviewed label after a push
-        if: github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'IntentFactoryReviewed')
+        if: github.event.action == 'synchronize' && env.REVIEWED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         shell: bash
         run: |
-          gh api --method DELETE "repos/$REPO/issues/$PR_NUMBER/labels/IntentFactoryReviewed" >/dev/null
-          echo -e "\033[31mNew commits were pushed after the Intent Factory review: the IntentFactoryReviewed label was removed.\033[0m"
+          gh api --method DELETE "repos/$REPO/issues/$PR_NUMBER/labels/$LABEL" >/dev/null
+          echo -e "\033[31mNew commits were pushed after the Intent Factory review,\033[0m"
+          echo -e "\033[31mso the $LABEL label was removed.\033[0m"
           echo -e "\033[31mGet the new commits reviewed, then add the label again.\033[0m"
           exit 1
 
       - name: Require the IntentFactoryReviewed label
-        env:
-          REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'IntentFactoryReviewed') }}
         shell: bash
         run: |
           if [[ "$REVIEWED" != "true" ]]; then
-            echo -e "\033[31mThis PR changes AttestedBridgeFacet, a bridge facet it dispatches, or code that shapes their calldata.\033[0m"
-            echo -e "\033[31mIntent Factory's facts adapters decode this calldata: get their review, then add the IntentFactoryReviewed label.\033[0m"
+            echo -e "\033[31mThis PR changes AttestedBridgeFacet, a facet it dispatches,\033[0m"
+            echo -e "\033[31mor code shaping their calldata, which Intent Factory decodes.\033[0m"
+            echo -e "\033[31mGet their review, then add the $LABEL label.\033[0m"
             exit 1
           fi
-          echo -e "\033[32mIntentFactoryReviewed label present.\033[0m"
+          echo -e "\033[32m$LABEL label present.\033[0m"
