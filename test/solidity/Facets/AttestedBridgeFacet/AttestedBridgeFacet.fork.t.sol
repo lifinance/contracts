@@ -10,10 +10,11 @@ import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { IERC173 } from "lifi/Interfaces/IERC173.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 import { AttestedBridgeFacet } from "lifi/Facets/AttestedBridgeFacet.sol";
-import { RecordingAttester } from "./AttestedBridgeFacet.t.sol";
+import { RecordingAttester } from "test/solidity/Facets/AttestedBridgeFacet/AttestedBridgeFacet.t.sol";
 
 contract AttestedBridgeFacetForkTest is Test {
     address internal constant LIFI_DIAMOND =
@@ -63,8 +64,8 @@ contract AttestedBridgeFacetForkTest is Test {
             address(0)
         );
         spokePool = address(AcrossFacetV4(ACROSS_FACET_V4).SPOKEPOOL());
-        wrappedNative = address(
-            uint160(uint256(AcrossFacetV4(ACROSS_FACET_V4).WRAPPED_NATIVE()))
+        wrappedNative = LibBytes.toAddress(
+            AcrossFacetV4(ACROSS_FACET_V4).WRAPPED_NATIVE()
         );
 
         bytes4[] memory selectors = new bytes4[](3);
@@ -212,10 +213,10 @@ contract AttestedBridgeFacetForkTest is Test {
         });
         AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
             .AcrossV4Data({
-                receiverAddress: bytes32(uint256(uint160(receiver))),
-                refundAddress: bytes32(uint256(uint160(receiver))),
+                receiverAddress: LibBytes.toBytes32(receiver),
+                refundAddress: LibBytes.toBytes32(receiver),
                 sendingAssetId: bytes32(0),
-                receivingAssetId: bytes32(uint256(uint160(OP_WETH))),
+                receivingAssetId: LibBytes.toBytes32(OP_WETH),
                 outputAmount: (AMOUNT * 99) / 100,
                 outputAmountMultiplier: 1e18,
                 exclusiveRelayer: bytes32(0),

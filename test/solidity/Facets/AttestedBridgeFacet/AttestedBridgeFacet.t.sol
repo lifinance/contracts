@@ -7,6 +7,7 @@ import { InvalidCallData, OnlyContractOwner, ReentrancyError } from "lifi/Errors
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 import { AttestedBridgeFacet } from "lifi/Facets/AttestedBridgeFacet.sol";
@@ -14,7 +15,7 @@ import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { IAttester } from "lifi/Interfaces/IAttester.sol";
 import { LibAttestableSelectors } from "lifi/Libraries/LibAttestableSelectors.sol";
 import { LibPeripheryRegistry } from "lifi/Libraries/LibPeripheryRegistry.sol";
-import { MockBridgeFacet } from "../../utils/MockBridgeFacet.sol";
+import { MockBridgeFacet } from "test/solidity/utils/MockBridgeFacet.sol";
 
 contract RegistryProbeFacet {
     function probePeripheryRegistry(
@@ -685,7 +686,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
             RegistryProbeFacet(diamond).probePeripheryRegistry(key),
             attester
         );
-        assertEq(address(uint160(uint256(vm.load(diamond, slot)))), attester);
+        assertEq(LibBytes.toAddress(vm.load(diamond, slot)), attester);
     }
 }
 
@@ -917,6 +918,6 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         bytes32 slot = keccak256(
             abi.encodePacked(key, LibPeripheryRegistry.NAMESPACE)
         );
-        assertEq(address(uint160(uint256(vm.load(diamond, slot)))), value);
+        assertEq(LibBytes.toAddress(vm.load(diamond, slot)), value);
     }
 }

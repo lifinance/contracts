@@ -7,10 +7,11 @@ import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { IERC173 } from "lifi/Interfaces/IERC173.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 
 import { LibPeripheryRegistry } from "lifi/Libraries/LibPeripheryRegistry.sol";
-import { RegistryProbeFacet } from "../Facets/AttestedBridgeFacet/AttestedBridgeFacet.t.sol";
+import { RegistryProbeFacet } from "test/solidity/Facets/AttestedBridgeFacet/AttestedBridgeFacet.t.sol";
 
 contract LibPeripheryRegistryForkTest is Test {
     address internal constant LIFI_DIAMOND =
@@ -80,10 +81,7 @@ contract LibPeripheryRegistryForkTest is Test {
             RegistryProbeFacet(LIFI_DIAMOND).probePeripheryRegistry(key),
             attester
         );
-        assertEq(
-            vm.load(LIFI_DIAMOND, slot),
-            bytes32(uint256(uint160(attester)))
-        );
+        assertEq(vm.load(LIFI_DIAMOND, slot), LibBytes.toBytes32(attester));
     }
 
     function test_GetMatchesTheRegistryFacetForLiveKeys() public view {
