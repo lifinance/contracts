@@ -124,9 +124,11 @@ describe('the mint refuses a version it cannot read', () => {
       '/// @custom:version 2.1.3.4\ncontract Foo {}\n'
     )
 
+    // From a fixture cwd `bunx tsx` cannot see the repo's pinned tsx and would
+    // fetch it from the npm registry, so run the repo's binary directly.
     const result = spawnSync(
-      'bunx',
-      ['tsx', path.join(REPO_ROOT, TASK), '--out', root, '--check'],
+      path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
+      [path.join(REPO_ROOT, TASK), '--out', root, '--check'],
       { cwd: root, encoding: 'utf8' }
     )
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`

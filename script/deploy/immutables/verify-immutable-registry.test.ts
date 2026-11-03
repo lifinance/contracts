@@ -6,7 +6,13 @@
  * is observable from the pure functions alone.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -22,7 +28,14 @@ import { decideExit, mergeRequirements } from './verify-immutable-registry'
 
 const REGISTRY_PATH = 'script/deploy/resources/immutableRegistry.json'
 const REQUIREMENTS_PATH = 'script/deploy/resources/deployRequirements.json'
-const SCRIPT = 'script/deploy/immutables/verify-immutable-registry.ts'
+const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
+const SCRIPT = join(
+  REPO_ROOT,
+  'script/deploy/immutables/verify-immutable-registry.ts'
+)
+// The CLI runs with a fixture dir as cwd, where `bunx tsx` cannot see the repo's
+// pinned tsx and would fetch it from the npm registry.
+const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
 
 /** Shape-only stand-in; mergeRequirements copies configData without reading it. */
 const CONFIG_DATA = {
@@ -175,13 +188,16 @@ contract Clean {
 `
 
 const runGate = (root: string, args: string[] = []) =>
-  spawnSync(
-    'bunx',
-    ['tsx', join(process.cwd(), SCRIPT), '--out-dir', OUT_DIR, ...args],
-    { cwd: root, encoding: 'utf8' }
-  )
+  spawnSync(TSX_BIN, [SCRIPT, '--out-dir', OUT_DIR, ...args], {
+    cwd: root,
+    encoding: 'utf8',
+  })
 
 describe('verify-immutable-registry CLI', () => {
+  it("runs the repo's own tsx binary, not one bunx would fetch", () => {
+    expect(existsSync(TSX_BIN)).toBe(true)
+  })
+
   it('scans exactly the src/*.sol files git tracks', () => {
     const root = makeRepo({
       'src/Clean.sol': CLEAN_CONTRACT,
@@ -279,11 +295,10 @@ describe('verify-immutable-registry CLI', () => {
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
-    const result = spawnSync(
-      'bunx',
-      ['tsx', join(process.cwd(), SCRIPT), '--out-dir'],
-      { cwd: root, encoding: 'utf8' }
-    )
+    const result = spawnSync(TSX_BIN, [SCRIPT, '--out-dir'], {
+      cwd: root,
+      encoding: 'utf8',
+    })
 
     expect(result.status).toBe(1)
     expect(result.stdout + result.stderr).toMatch(
