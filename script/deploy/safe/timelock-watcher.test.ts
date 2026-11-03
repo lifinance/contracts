@@ -25,7 +25,9 @@ import {
   openWatcherStore,
   readTimelockLogs,
   unreadableReport,
+  watchNetworkWithin,
   type ILogEndpoint,
+  type INetworkFindings,
 } from './timelock-watcher'
 import {
   UNVERIFIED_PAGE_AFTER_RUNS,
@@ -34,7 +36,11 @@ import {
   type IAlertRecord,
   type IDeliveryState,
 } from './timelock-watcher-alerts'
-import type { INetworkReport } from './timelock-watcher-report'
+import { WatcherTimeoutError } from './timelock-watcher-rebuild'
+import type {
+  INetworkReport,
+  IOperationReport,
+} from './timelock-watcher-report'
 import { LogRangeBehindError, advanceScan } from './timelock-watcher-scan'
 
 const dir = mkdtempSync(join(tmpdir(), 'timelock-watcher-test-'))
@@ -332,6 +338,178 @@ describe('unreadableReport', () => {
         reasons: ['the log scan failed', OWNER_NOTE],
       },
     ])
+  })
+})
+
+describe('watchNetworkWithin', () => {
+  const OWNER_NOTE =
+    'LiFiDiamond is owned by 0x01, not by the timelock main names; operations on that owner are not watched'
+  const mismatchedOperation: IOperationReport = {
+    id: '0xabc',
+    calls: 1,
+    scheduledInBlock: '1',
+    verdict: 'mismatch',
+    checks: [],
+    reasons: ['targets: unknown'],
+    cancelRecommendation: '',
+    notes: [],
+  }
+  const readable: INetworkReport = {
+    network: 'base',
+    status: 'watched',
+    verdict: 'ok',
+    operations: [],
+    notes: [],
+  }
+  const runContext = () => ({
+    historyMs: 0,
+    expired: new Set<string>(),
+    found: new Map<string, INetworkFindings>(),
+  })
+  // Records findings the way watchNetwork does, then fails as the outer
+  // timeout would.
+  const failingWatch =
+    (
+      ctx: ReturnType<typeof runContext>,
+      found: Partial<INetworkFindings>,
+      error: Error = new WatcherTimeoutError('watching linea timed out')
+    ) =>
+    async (): Promise<INetworkReport> => {
+      ctx.found.set('linea', {
+        timelock: '0x02',
+        mismatch: false,
+        notes: [],
+        operations: [],
+        ...found,
+      })
+      throw error
+    }
+
+  it('keeps a network mismatch found before a timeout, so the job fails and it pages at once', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin(
+      'linea',
+      ctx,
+      failingWatch(ctx, { mismatch: true, notes: [OWNER_NOTE] })
+    )
+
+    expect(report).toEqual({
+      network: 'linea',
+      status: 'unreadable',
+      reason: 'the watcher failed on this network: watching linea timed out',
+      timelock: '0x02',
+      verdict: 'mismatch',
+      operations: [],
+      notes: [OWNER_NOTE],
+    })
+    expect(ctx.expired.has('linea')).toBe(true)
+    expect(jobFails([readable, report], false)).toBe(true)
+
+    const now = new Date(Date.UTC(2026, 10, 3))
+    const settled = new Set(['base'])
+    const decision = decideAlerts(
+      {},
+      findingsOf([readable, report]),
+      settled,
+      now
+    )
+    const plan = planDelivery(
+      {},
+      decision,
+      { streaks: {}, held: [] },
+      settled,
+      now
+    )
+    expect(plan.actionable.map((a) => a.finding.key)).toEqual(['linea:network'])
+  })
+
+  it('keeps an operation graded mismatch before a timeout, so the job fails and it pages at once', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin(
+      'linea',
+      ctx,
+      failingWatch(ctx, { operations: [mismatchedOperation] })
+    )
+
+    expect(report.verdict).toBe('unverified')
+    expect(report.operations).toEqual([mismatchedOperation])
+    expect(jobFails([readable, report], false)).toBe(true)
+
+    const now = new Date(Date.UTC(2026, 10, 3))
+    const settled = new Set(['base'])
+    const decision = decideAlerts(
+      {},
+      findingsOf([readable, report]),
+      settled,
+      now
+    )
+    const plan = planDelivery(
+      {},
+      decision,
+      { streaks: {}, held: [] },
+      settled,
+      now
+    )
+    expect(plan.actionable.map((a) => a.finding.key)).toEqual(['linea:0xabc'])
+  })
+
+  it('reports a copy, so a watch still running after its timeout cannot change it', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin(
+      'linea',
+      ctx,
+      failingWatch(ctx, { notes: [OWNER_NOTE] })
+    )
+    const found = ctx.found.get('linea')
+    found?.notes.push('a late note')
+    found?.operations.push(mismatchedOperation)
+
+    expect(report.notes).toEqual([OWNER_NOTE])
+    expect(report.operations).toEqual([])
+  })
+
+  it('passes on a timeout that found nothing while another network was read', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin('linea', ctx, failingWatch(ctx, {}))
+
+    expect(report.verdict).toBe('unverified')
+    expect(report.crashed).toBeUndefined()
+    expect(jobFails([readable, report], false)).toBe(false)
+  })
+
+  it('marks a watch that threw as crashed, keeping what it found', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin(
+      'linea',
+      ctx,
+      failingWatch(ctx, { mismatch: true }, new Error('boom'))
+    )
+
+    expect(report.crashed).toBe(true)
+    expect(report.verdict).toBe('mismatch')
+    expect(report.reason).toBe('the watcher failed on this network: boom')
+  })
+
+  it('reports an unverified network when the watch failed before recording anything', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin('linea', ctx, async () => {
+      throw new WatcherTimeoutError('watching linea timed out')
+    })
+
+    expect(report).toEqual(
+      unreadableReport(
+        'linea',
+        'the watcher failed on this network: watching linea timed out'
+      )
+    )
+  })
+
+  it('returns the watch report unchanged when it finishes in time', async () => {
+    const ctx = runContext()
+    const report = await watchNetworkWithin('base', ctx, async () => readable)
+
+    expect(report).toBe(readable)
+    expect(ctx.expired.size).toBe(0)
   })
 })
 

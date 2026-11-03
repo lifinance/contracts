@@ -539,6 +539,18 @@ interface IRunContext {
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
   expired: Set<string>
+  found: Map<string, INetworkFindings>
+}
+
+/**
+ * What a network's watch has established so far. It lives on the run context
+ * so a network that overruns its timeout still reports what it found.
+ */
+export interface INetworkFindings {
+  timelock: string
+  mismatch: boolean
+  notes: string[]
+  operations: IOperationReport[]
 }
 
 const encodeOperation = (op: IScannedOperation): Hex =>
@@ -738,22 +750,73 @@ const networkVerdict = (
  * @param network - Network name.
  * @param reason - Why it could not be read.
  * @param found - What was established before the read failed: the timelock, a
- *   mismatch already found (the diamond's owner), and the notes saying so.
+ *   network mismatch already found (the diamond's owner, the minimum delay),
+ *   the notes saying so, and the operations already graded.
  * @returns An unreadable report: a mismatch when one was found, else unverified.
  */
 export const unreadableReport = (
   network: string,
   reason: string,
-  found: { timelock?: string; mismatch?: boolean; notes?: string[] } = {}
+  found: Partial<INetworkFindings> = {}
 ): INetworkReport => ({
   network,
   status: 'unreadable',
   reason,
   ...(found.timelock ? { timelock: found.timelock } : {}),
   verdict: found.mismatch ? 'mismatch' : 'unverified',
-  operations: [],
+  operations: found.operations ?? [],
   notes: found.notes ?? [],
 })
+
+/**
+ * Runs one network's watch under its timeout. A watch that times out or
+ * throws is reported unreadable, keeping a copy of what it found before then,
+ * so a mismatch it saw still fails the job and pages.
+ *
+ * @param name - Network name.
+ * @param ctx - The run context: its timeout budget, the networks that
+ *   overran, and what each watch has found so far.
+ * @param watch - The network's watch.
+ * @returns The watch's report, or the unreadable report that replaces it.
+ */
+export const watchNetworkWithin = async (
+  name: string,
+  ctx: Pick<IRunContext, 'historyMs' | 'expired' | 'found'>,
+  watch: () => Promise<INetworkReport>
+): Promise<INetworkReport> => {
+  try {
+    const started = Date.now()
+    const report = await withTimeout(
+      watch(),
+      networkTimeoutMs(ctx),
+      `watching ${name}`
+    )
+    consola.info(
+      `[${name}] ${report.status}, ${report.verdict}, ${
+        report.operations.length
+      } pending, ${Math.round((Date.now() - started) / 1000)}s`
+    )
+    return report
+  } catch (error) {
+    ctx.expired.add(name)
+    // The watch keeps running after a timeout, so its findings are copied.
+    const found = ctx.found.get(name)
+    return {
+      ...unreadableReport(
+        name,
+        `the watcher failed on this network: ${describe(error)}`,
+        found
+          ? {
+              ...found,
+              notes: [...found.notes],
+              operations: [...found.operations],
+            }
+          : {}
+      ),
+      ...(error instanceof WatcherTimeoutError ? {} : { crashed: true }),
+    }
+  }
+}
 
 /**
  * Watches one network.
@@ -819,13 +882,19 @@ export const watchNetwork = async (
     return unreadable(describe(error), timelock)
   }
 
-  const notes: string[] = []
-  let flagMismatch = false
-  let flagUnverified = false
   // An unreadable network no longer fails the job, so a mismatch found before
-  // the read failed must stay on its report.
+  // the read failed or timed out must stay on its report.
+  const found: INetworkFindings = {
+    timelock,
+    mismatch: false,
+    notes: [],
+    operations: [],
+  }
+  ctx.found.set(name, found)
+  const { notes, operations } = found
+  let flagUnverified = false
   const unreadableAfterOwner = (reason: string): INetworkReport =>
-    unreadableReport(name, reason, { timelock, mismatch: flagMismatch, notes })
+    unreadableReport(name, reason, found)
 
   if (diamond)
     try {
@@ -835,7 +904,7 @@ export const watchNetwork = async (
         functionName: 'owner',
       })
       if (owner.toLowerCase() !== timelock.toLowerCase()) {
-        flagMismatch = true
+        found.mismatch = true
         notes.push(
           `LiFiDiamond is owned by ${owner}, not by the timelock main names; operations on that owner are not watched`
         )
@@ -960,7 +1029,7 @@ export const watchNetwork = async (
     flagUnverified = true
     notes.push('getMinDelay() could not be read')
   } else if (liveMinimum < agreedMinimum) {
-    flagMismatch = true
+    found.mismatch = true
     notes.push(
       `the timelock's minimum delay is ${liveMinimum}s, below the agreed ${agreedMinimum}s`
     )
@@ -984,7 +1053,6 @@ export const watchNetwork = async (
         knownForArguments
       )
     : new Set<string>()
-  const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
   for (const op of Object.values(scan.state.operations)) {
@@ -1177,7 +1245,7 @@ export const watchNetwork = async (
   return {
     ...base,
     verdict: networkVerdict(base, {
-      mismatch: flagMismatch,
+      mismatch: found.mismatch,
       unverified: flagUnverified,
     }),
   }
@@ -1326,42 +1394,13 @@ const command = defineCommand({
           })),
       },
       expired: new Set<string>(),
+      found: new Map<string, INetworkFindings>(),
     }
 
     let reports: INetworkReport[]
     try {
-      reports = await mapWithConcurrency(
-        networks,
-        NETWORK_CONCURRENCY,
-        async (n) => {
-          try {
-            const started = Date.now()
-            const report = await withTimeout(
-              watchNetwork(n, ctx),
-              networkTimeoutMs(ctx),
-              `watching ${n.name}`
-            )
-            consola.info(
-              `[${n.name}] ${report.status}, ${report.verdict}, ${
-                report.operations.length
-              } pending, ${Math.round((Date.now() - started) / 1000)}s`
-            )
-            return report
-          } catch (error) {
-            ctx.expired.add(n.name)
-            return {
-              network: n.name,
-              status: 'unreadable' as const,
-              reason: `the watcher failed on this network: ${describe(error)}`,
-              ...(error instanceof WatcherTimeoutError
-                ? {}
-                : { crashed: true as const }),
-              verdict: 'unverified' as const,
-              operations: [],
-              notes: [],
-            }
-          }
-        }
+      reports = await mapWithConcurrency(networks, NETWORK_CONCURRENCY, (n) =>
+        watchNetworkWithin(n.name, ctx, () => watchNetwork(n, ctx))
       )
     } finally {
       await codehashDeps?.close()
