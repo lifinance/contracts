@@ -87,7 +87,8 @@ A PR that changes this facet, `AcrossFacetV4`, `PolymerCCTPFacet`,
 `SwapperV2`, `IAttester`, `LibAttestableSelectors`, `LibPeripheryRegistry`) fails the
 `Intent Factory Review Check` workflow until the `IntentFactoryReviewed` label is set:
 Intent Factory's facts adapters decode this calldata, so their team reviews such changes
-first. A later push removes the label, so new commits need a fresh review.
+first. Adding the label approves the commit it was added at, and the check passes only
+for that commit. A later push removes the label, so new commits need a fresh review.
 
 A selector enabled later with `setAttestableSelector` is a governance action, not a code
 change, so this check cannot see it. It fails closed: each Intent Factory adapter accepts
