@@ -16,9 +16,11 @@ import {
 import type { PublicClient } from 'viem'
 
 import {
+  createDeployLogHistoryReader,
   findingsOf,
   loadWatcherState,
   openWatcherStore,
+  parseDeployLogHistory,
   readTimelockLogs,
 } from './timelock-watcher'
 import type { INetworkReport } from './timelock-watcher-report'
@@ -242,5 +244,106 @@ describe('readTimelockLogs', () => {
       fromBlock: 1n,
       toBlock: 2n,
     })
+  })
+})
+
+describe('parseDeployLogHistory', () => {
+  it('collects every address a commit added for each name', () => {
+    const patch = [
+      'diff --git a/deployments/xlayer.json b/deployments/xlayer.json',
+      '--- a/deployments/xlayer.json',
+      '+++ b/deployments/xlayer.json',
+      '@@ -40 +40 @@',
+      '-  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
+      '+  "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",',
+      '@@ -0,0 +1,2 @@',
+      '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1"',
+      '+  "LiFiDiamond":"0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",',
+      '+  "Note": "not an address",',
+      ' "Executor": "0x0000000000000000000000000000000000005555",',
+    ].join('\n')
+    expect(parseDeployLogHistory(patch)).toEqual(
+      new Map([
+        [
+          'FeeForwarder',
+          new Set([
+            '0xce40449b773a3e6e5e769adb4e567179d4828cbd',
+            '0xc18d9e84b8687a2645447a61e52c455dac1675e1',
+          ]),
+        ],
+        [
+          'LiFiDiamond',
+          new Set(['0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae']),
+        ],
+      ])
+    )
+  })
+})
+
+describe('createDeployLogHistoryReader', () => {
+  const PATCH =
+    '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",'
+  const anchor = async () => ({ ok: true as const, revision: 'abc123' })
+  const gitOf = (answers: {
+    shallow?: string
+    log?: string
+    fail?: boolean
+  }) => {
+    const asked: string[][] = []
+    const git = async (args: string[]): Promise<string> => {
+      asked.push(args)
+      if (answers.fail) throw new Error('git exploded')
+      return args[0] === 'rev-parse'
+        ? answers.shallow ?? 'false\n'
+        : answers.log ?? PATCH
+    }
+    return { git, asked }
+  }
+
+  it("reads main's history of the network's deploy log at the pinned commit, once", async () => {
+    const { git, asked } = gitOf({})
+    const read = createDeployLogHistoryReader(anchor, git)
+    const first = await read('xlayer')
+    await read('xlayer')
+    expect(first.ok && first.listed.get('FeeForwarder')).toEqual(
+      new Set(['0xc18d9e84b8687a2645447a61e52c455dac1675e1'])
+    )
+    const logs = asked.filter((args) => args[0] === 'log')
+    expect(logs).toHaveLength(1)
+    expect(logs[0]).toContain('abc123')
+    expect(logs[0]?.slice(-2)).toEqual(['--', 'deployments/xlayer.json'])
+  })
+
+  it('is unreadable when the anchor could not be pinned', async () => {
+    const read = createDeployLogHistoryReader(
+      async () => ({ ok: false as const, reason: 'fetch-failed' as const }),
+      gitOf({}).git
+    )
+    expect(await read('xlayer')).toEqual({
+      ok: false,
+      reason: 'origin/main could not be pinned (fetch-failed)',
+    })
+  })
+
+  it('is unreadable in a shallow clone, whose history would hide earlier addresses', async () => {
+    const read = await createDeployLogHistoryReader(
+      anchor,
+      gitOf({ shallow: 'true\n' }).git
+    )('xlayer')
+    expect(read.ok).toBe(false)
+    expect(!read.ok && read.reason).toContain('shallow')
+  })
+
+  it('is unreadable when git fails or finds no history', async () => {
+    const failed = await createDeployLogHistoryReader(
+      anchor,
+      gitOf({ fail: true }).git
+    )('xlayer')
+    expect(!failed.ok && failed.reason).toContain('git exploded')
+    const empty = await createDeployLogHistoryReader(
+      anchor,
+      gitOf({ log: '' }).git
+    )('xlayer')
+    expect(empty.ok).toBe(false)
   })
 })

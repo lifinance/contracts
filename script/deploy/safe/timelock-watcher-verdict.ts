@@ -42,6 +42,7 @@ export type TCheckName =
   | 'authority'
   | 'authorities'
   | 'codehash'
+  | 'rollback'
 
 export interface ICheckOutcome {
   check: TCheckName
@@ -59,6 +60,7 @@ export const REQUIRED_CHECKS: readonly TCheckName[] = [
   'authority',
   'authorities',
   'codehash',
+  'rollback',
 ]
 
 const SAFE_EXEC_ABI = parseAbi([
@@ -661,6 +663,104 @@ export const pendingRegistrationsOf = (
       }
     }
   return registered
+}
+
+/** Every address main's deploy log ever listed per name, or why it is unread. */
+export type TDeployLogHistory =
+  | { ok: true; listed: ReadonlyMap<string, ReadonlySet<string>> }
+  | { ok: false; reason: string }
+
+const isRegistrationAt = (
+  call: { target: string; data: Hex },
+  diamond: string | undefined
+): boolean =>
+  diamond !== undefined &&
+  call.target.toLowerCase() === diamond.toLowerCase() &&
+  selectorOf(call.data) === REGISTER_PERIPHERY_SELECTOR
+
+/**
+ * Whether an operation's own calls register a periphery contract at the
+ * diamond, so that {@link gradeRollback} needs main's deploy-log history.
+ *
+ * @param op - The operation.
+ * @param diamond - The network's LiFiDiamond, when main names one.
+ * @returns True when a top-level call registers at the diamond.
+ */
+export const registersAtDiamond = (
+  op: IScannedOperation,
+  diamond: string | undefined
+): boolean => op.calls.some((call) => isRegistrationAt(call, diamond))
+
+/**
+ * Grades the operation's top-level `registerPeripheryContract` calls on the
+ * diamond against main's deploy log: registering an address main listed for
+ * that name in an earlier commit, but not now, rolls the registry back and
+ * fails. An address main never listed (a rollout, whose log lands after
+ * execution), main's current address and an unregister pass; a registration
+ * made from inside another call is the authority check's.
+ *
+ * @param op - The operation.
+ * @param context - The diamond, `deployments/<network>.json` at main, and every
+ *   address that file listed per name across main's history.
+ * @returns The check outcome.
+ */
+export const gradeRollback = (
+  op: IScannedOperation,
+  context: {
+    diamond: string | undefined
+    deployments: Record<string, unknown>
+    history: TDeployLogHistory | undefined
+  }
+): ICheckOutcome => {
+  const failures: string[] = []
+  const unknown: string[] = []
+  const { history } = context
+  for (const call of op.calls) {
+    if (!isRegistrationAt(call, context.diamond)) continue
+    let args: readonly [string, Address]
+    try {
+      args = decodeFunctionData({
+        abi: REGISTER_PERIPHERY_ABI,
+        data: call.data,
+      }).args
+    } catch {
+      unknown.push(`call ${call.index} is a registration that does not decode`)
+      continue
+    }
+    const [name, address] = args
+    const proposed = address.toLowerCase()
+    const current = context.deployments[name]
+    const currentAddress = typeof current === 'string' ? current : undefined
+    if (proposed === ZERO_ADDRESS || currentAddress?.toLowerCase() === proposed)
+      continue
+    if (!history?.ok) {
+      unknown.push(
+        `call ${call.index} registers ${JSON.stringify(
+          name
+        )}, and main's deploy-log history could not be read (${
+          history?.reason ?? 'not read'
+        })`
+      )
+      continue
+    }
+    if (history.listed.get(name)?.has(proposed))
+      failures.push(
+        `call ${
+          call.index
+        } rolls ${name} back to ${address}, an address main's deploy log listed earlier; main lists ${name} at ${
+          currentAddress ?? 'no address'
+        }`
+      )
+  }
+  if (failures.length > 0)
+    return { check: 'rollback', status: 'fail', detail: failures.join('; ') }
+  if (unknown.length > 0)
+    return { check: 'rollback', status: 'unknown', detail: unknown.join('; ') }
+  return {
+    check: 'rollback',
+    status: 'pass',
+    detail: 'registers no address main listed earlier for the same name',
+  }
 }
 
 /**

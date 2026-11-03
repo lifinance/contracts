@@ -13,8 +13,11 @@
 
 import 'dotenv/config'
 
+import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { readFile, writeFile } from 'fs/promises'
+import { fileURLToPath } from 'url'
+import { promisify } from 'util'
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
@@ -56,7 +59,13 @@ import {
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
-import { createPinnedBlobReader } from './pinned-target-state'
+import {
+  PINNED_GIT_TIMEOUT_MS,
+  PINNED_REF,
+  createPinnedAnchor,
+  createPinnedBlobReader,
+  type PinnedAnchor,
+} from './pinned-target-state'
 import { runPreBroadcastGate, viemGateReaders } from './prebroadcast-gate'
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import {
@@ -118,15 +127,18 @@ import {
   gradeDelay,
   gradeDelegatecall,
   gradeIdentity,
+  gradeRollback,
   gradeState,
   gradeTargets,
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
+  registersAtDiamond,
   scheduledAtReaderFor,
   stageOf,
   type ICheckOutcome,
   type TCodehashResult,
+  type TDeployLogHistory,
   type TOperationStage,
   type TWatcherVerdict,
 } from './timelock-watcher-verdict'
@@ -426,7 +438,98 @@ interface IRunContext {
     deps: () => ISignTimeCodehashDeps
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
+  readDeployLogHistory: (network: string) => Promise<TDeployLogHistory>
   expired: Set<string>
+}
+
+const DEPLOY_LOG_ADDED_ENTRY = /^\+\s*"([^"]+)"\s*:\s*"(0x[0-9a-fA-F]{40})"/
+
+/**
+ * Every address a `git log -p` of a deploy log added, per name.
+ *
+ * @param patch - The log's patch text.
+ * @returns Name → lowercased addresses.
+ */
+export const parseDeployLogHistory = (
+  patch: string
+): Map<string, Set<string>> => {
+  const listed = new Map<string, Set<string>>()
+  for (const line of patch.split('\n')) {
+    const match = DEPLOY_LOG_ADDED_ENTRY.exec(line)
+    if (!match?.[1] || !match[2]) continue
+    const addresses = listed.get(match[1]) ?? new Set<string>()
+    addresses.add(match[2].toLowerCase())
+    listed.set(match[1], addresses)
+  }
+  return listed
+}
+
+const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
+const execFileAsync = promisify(execFile)
+
+const runGit = async (args: string[]): Promise<string> =>
+  (
+    await execFileAsync('git', args, {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      timeout: PINNED_GIT_TIMEOUT_MS,
+      maxBuffer: 16 * 1024 * 1024, // 16 MB — mainnet's whole log history is ~70 KB
+    })
+  ).stdout
+
+/**
+ * Reads, once per network, every address `deployments/<network>.json` listed
+ * per name across main's history, at the commit the other pinned reads use.
+ * A shallow clone is unreadable rather than read, since its history would
+ * hide the addresses a rollback returns to.
+ *
+ * @param anchor - The pinned `origin/main`.
+ * @param git - Runs git in this checkout and returns its stdout.
+ * @returns A reader taking a network name.
+ */
+export const createDeployLogHistoryReader = (
+  anchor: PinnedAnchor,
+  git: (args: string[]) => Promise<string> = runGit
+): ((network: string) => Promise<TDeployLogHistory>) => {
+  const reads = new Map<string, Promise<TDeployLogHistory>>()
+  const read = async (network: string): Promise<TDeployLogHistory> => {
+    const anchored = await anchor()
+    if (!anchored.ok)
+      return {
+        ok: false,
+        reason: `${PINNED_REF} could not be pinned (${anchored.reason})`,
+      }
+    try {
+      if (
+        (await git(['rev-parse', '--is-shallow-repository'])).trim() !== 'false'
+      )
+        return { ok: false, reason: 'the clone is shallow' }
+      const patch = await git([
+        'log',
+        '-p',
+        '--format=',
+        '--unified=0',
+        '--no-color',
+        '--no-ext-diff',
+        anchored.revision,
+        '--',
+        `deployments/${network}.json`,
+      ])
+      const listed = parseDeployLogHistory(patch)
+      return listed.size > 0
+        ? { ok: true, listed }
+        : { ok: false, reason: `${PINNED_REF} has no history of the file` }
+    } catch (error) {
+      return { ok: false, reason: `git failed: ${describe(error)}` }
+    }
+  }
+  return (network) => {
+    const known = reads.get(network)
+    if (known) return known
+    const pending = read(network)
+    reads.set(network, pending)
+    return pending
+  }
 }
 
 const encodeOperation = (op: IScannedOperation): Hex =>
@@ -1004,6 +1107,15 @@ export const watchNetwork = async (
       )
     )
     checks.push(codehash)
+    checks.push(
+      gradeRollback(op, {
+        diamond,
+        deployments,
+        history: registersAtDiamond(op, diamond)
+          ? await ctx.readDeployLogHistory(name)
+          : undefined,
+      })
+    )
 
     if (signTimeRecordRead && !signTimeRecordPresent)
       opNotes.push(
@@ -1185,7 +1297,8 @@ const command = defineCommand({
       throw new Error(`No active production network matches ${args.network}`)
 
     const state = await loadWatcherState(stateFile)
-    const readPinned = createPinnedBlobReader()
+    const anchor = createPinnedAnchor()
+    const readPinned = createPinnedBlobReader({ anchor })
     let codehashDeps: ISignTimeCodehashDeps | undefined
     const store = await openWatcherStore()
     const ctx: IRunContext = {
@@ -1195,6 +1308,7 @@ const command = defineCommand({
       historyBudget,
       historyMs: historyMinutes * 60 * 1000,
       readPinned,
+      readDeployLogHistory: createDeployLogHistoryReader(anchor),
       codehash: {
         gate: createRebuildGate({
           budget: codehashBudget,

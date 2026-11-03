@@ -46,15 +46,18 @@ import {
   gradeDelay,
   gradeDelegatecall,
   gradeIdentity,
+  gradeRollback,
   gradeState,
   gradeTargets,
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
+  registersAtDiamond,
   scheduledAtReaderFor,
   stageOf,
   type IAuthorityContext,
   type ICheckOutcome,
+  type TDeployLogHistory,
 } from './timelock-watcher-verdict'
 
 const TIMELOCK: Address = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29'
@@ -1084,6 +1087,191 @@ describe('pendingRegistrationsOf', () => {
       opOf([{ target: DIAMOND, data: register(ZERO_ADDRESS as Address) }]),
     ]
     expect(pendingRegistrationsOf(ops, DIAMOND, known).size).toBe(0)
+  })
+})
+
+describe('gradeRollback', () => {
+  const V1: Address = '0xC18D9E84b8687A2645447A61e52c455Dac1675e1'
+  const V2: Address = '0xCE40449B773a3E6E5e769ADb4e567179d4828cbd'
+  const NEVER_LISTED: Address = '0x0000000000000000000000000000000000005555'
+  const deployments = { LiFiDiamond: DIAMOND, FeeForwarder: V2 }
+  const history: TDeployLogHistory = {
+    ok: true,
+    listed: new Map([
+      ['LiFiDiamond', new Set([DIAMOND.toLowerCase()])],
+      ['FeeForwarder', new Set([V1.toLowerCase(), V2.toLowerCase()])],
+    ]),
+  }
+  const register = (name: string, address: Address): Hex =>
+    encodeFunctionData({
+      abi: [
+        parseAbiItem(
+          'function registerPeripheryContract(string _name, address _contractAddress)'
+        ),
+      ],
+      args: [name, address],
+    })
+  const grade = (
+    op: IScannedOperation,
+    read: TDeployLogHistory | undefined = history
+  ): ICheckOutcome =>
+    gradeRollback(op, { diamond: DIAMOND, deployments, history: read })
+
+  it('fails a registration rolling FeeForwarder back to an address main listed earlier', () => {
+    const op = opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    const outcome = grade(op)
+    expect(outcome.check).toBe('rollback')
+    expect(outcome.status).toBe('fail')
+    expect(outcome.detail).toContain('FeeForwarder')
+    expect(outcome.detail).toContain(V1)
+    expect(outcome.detail).toContain(V2)
+  })
+
+  it('fails a rollback of a name main no longer lists, naming that', () => {
+    const outcome = gradeRollback(
+      opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }]),
+      { diamond: DIAMOND, deployments: { LiFiDiamond: DIAMOND }, history }
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.detail).toContain('no address')
+  })
+
+  it('makes the operation a mismatch whatever gate K returned', () => {
+    const rollback = grade(
+      opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    )
+    for (const codehash of [
+      gradeCodehash({ kind: 'deferred', reason: 'no time left' }),
+      gradeCodehash({ kind: 'error', reason: 'rebuild failed' }),
+      gradeCodehash({
+        kind: 'cached',
+        status: 'unknown',
+        detail: 'v1.0.0 cannot be rebuilt',
+      }),
+    ]) {
+      const checks = allPass().map((c) =>
+        c.check === 'rollback'
+          ? rollback
+          : c.check === 'codehash'
+          ? codehash
+          : c
+      )
+      const result = classifyOperation(checks)
+      expect(result.verdict).toBe('mismatch')
+      expect(result.reasons).toHaveLength(1)
+      expect(result.reasons[0]).toStartWith('rollback: ')
+    }
+  })
+
+  it('passes a registration of an address main never listed for the name', () => {
+    expect(
+      grade(
+        opOf([
+          { target: DIAMOND, data: register('FeeForwarder', NEVER_LISTED) },
+        ])
+      ).status
+    ).toBe('pass')
+  })
+
+  it('passes an address main listed only under another name', () => {
+    expect(
+      grade(opOf([{ target: DIAMOND, data: register('Executor', V1) }])).status
+    ).toBe('pass')
+  })
+
+  it('passes a registration of the address main lists now, in any case', () => {
+    expect(
+      grade(
+        opOf([
+          {
+            target: DIAMOND,
+            data: register('FeeForwarder', V2.toLowerCase() as Address),
+          },
+        ])
+      ).status
+    ).toBe('pass')
+  })
+
+  it('leaves an unregister, a nested registration and another target to the other checks', () => {
+    const nested = encodeFunctionData({
+      abi: parseAbi([
+        'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+      ]),
+      args: [
+        DIAMOND,
+        0n,
+        register('FeeForwarder', V1),
+        0,
+        0n,
+        0n,
+        0n,
+        ZERO_ADDRESS as Address,
+        ZERO_ADDRESS as Address,
+        '0x',
+      ],
+    })
+    for (const op of [
+      opOf([
+        {
+          target: DIAMOND,
+          data: register('FeeForwarder', ZERO_ADDRESS as Address),
+        },
+      ]),
+      opOf([{ target: SAFE, data: nested }]),
+      opOf([{ target: SAFE, data: register('FeeForwarder', V1) }]),
+    ])
+      expect(grade(op, { ok: false, reason: 'unread' }).status).toBe('pass')
+  })
+
+  it('is unknown, never pass, when main history could not be read', () => {
+    const op = opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    const unreadable = grade(op, { ok: false, reason: 'shallow clone' })
+    expect(unreadable.status).toBe('unknown')
+    expect(unreadable.detail).toContain('shallow clone')
+    expect(
+      gradeRollback(op, { diamond: DIAMOND, deployments, history: undefined })
+        .status
+    ).toBe('unknown')
+  })
+
+  it('is unknown for a registration the decoder cannot open', () => {
+    const op = opOf([
+      {
+        target: DIAMOND,
+        data: register('FeeForwarder', V1).slice(0, 80) as Hex,
+      },
+    ])
+    expect(grade(op).status).toBe('unknown')
+  })
+
+  it('passes an operation that registers nothing, with no diamond known', () => {
+    const op = opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    expect(
+      gradeRollback(op, { diamond: undefined, deployments, history }).status
+    ).toBe('pass')
+  })
+})
+
+describe('registersAtDiamond', () => {
+  const data = encodeFunctionData({
+    abi: [
+      parseAbiItem(
+        'function registerPeripheryContract(string _name, address _contractAddress)'
+      ),
+    ],
+    args: ['Executor', SAFE],
+  })
+
+  it('is true only for a top-level registration sent to the diamond', () => {
+    expect(registersAtDiamond(opOf([{ target: DIAMOND, data }]), DIAMOND)).toBe(
+      true
+    )
+    expect(registersAtDiamond(opOf([{ target: SAFE, data }]), DIAMOND)).toBe(
+      false
+    )
+    expect(
+      registersAtDiamond(opOf([{ target: DIAMOND, data }]), undefined)
+    ).toBe(false)
   })
 })
 
