@@ -12,7 +12,6 @@ import path from 'path'
 
 import globalConfig from '../../config/global.json'
 import whitelistConfig from '../../config/whitelist.json'
-import whitelistStagingConfig from '../../config/whitelist.staging.json'
 
 const BRIDGE_ATTESTER = 'BridgeAttester'
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..')
@@ -50,15 +49,15 @@ function allowlistedAttesters(
   )
 }
 
-/** `BridgeAttester` from every flat deploy log of one environment, keyed by network. */
-function loggedAttesters(staging: boolean): Record<string, string> {
+/**
+ * `BridgeAttester` from every production flat deploy log, keyed by network. Staging logs are
+ * skipped: their allowlist, `config/whitelist.staging.json`, is gitignored and not in CI.
+ */
+function loggedAttesters(): Record<string, string> {
   const dir = path.join(REPO_ROOT, 'deployments')
-  const logFile = staging
-    ? /^([a-z0-9_-]+)\.staging\.json$/
-    : /^([a-z0-9_-]+)\.json$/
   const attesters: Record<string, string> = {}
   for (const file of readdirSync(dir)) {
-    const match = logFile.exec(file)
+    const match = /^([a-z0-9_-]+)\.json$/.exec(file)
     if (!match?.[1]) continue
     const log = JSON.parse(readFileSync(path.join(dir, file), 'utf8')) as
       | Record<string, unknown>
@@ -77,15 +76,7 @@ describe('BridgeAttester is never allowlisted', () => {
   })
 
   it('has no production address in config/whitelist.json', () => {
-    expect(
-      allowlistedAttesters(whitelistConfig, loggedAttesters(false))
-    ).toEqual([])
-  })
-
-  it('has no staging address in config/whitelist.staging.json', () => {
-    expect(
-      allowlistedAttesters(whitelistStagingConfig, loggedAttesters(true))
-    ).toEqual([])
+    expect(allowlistedAttesters(whitelistConfig, loggedAttesters())).toEqual([])
   })
 
   it('finds a logged attester in either whitelist section, on its own network only', () => {
