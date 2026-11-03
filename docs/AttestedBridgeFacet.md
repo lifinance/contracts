@@ -82,10 +82,17 @@ Grants are owner-only, so they pass through the timelock, and the timelock watch
 `setCanExecute` grant to an address other than the refund wallet or a contract the same
 operation installs, while the operation can still be cancelled.
 
-A PR that changes this facet, `AcrossFacetV4`, `PolymerCCTPFacet` or
-`LiFiIntentEscrowFacetV2` fails the `Intent Factory Review Check` workflow until the
-`IntentFactoryReviewed` label is set: Intent Factory's facts adapters decode these facets'
-calldata, so their team reviews such changes first.
+A PR that changes this facet, `AcrossFacetV4`, `PolymerCCTPFacet`,
+`LiFiIntentEscrowFacetV2`, or the code that shapes their calldata (`ILiFi`, `LibSwap`,
+`SwapperV2`, `IAttester`, `LibAttestableSelectors`, `LibPeripheryRegistry`) fails the
+`Intent Factory Review Check` workflow until the `IntentFactoryReviewed` label is set:
+Intent Factory's facts adapters decode this calldata, so their team reviews such changes
+first. A later push removes the label, so new commits need a fresh review.
+
+A selector enabled later with `setAttestableSelector` is a governance action, not a code
+change, so this check cannot see it. It fails closed: each Intent Factory adapter accepts
+only its own facet's bridge selectors and reverts `UnsupportedSelector` on any other, so
+the ledger attests nothing for a selector no adapter supports.
 
 The facet holds no funds and sends no value to the attester: `msg.value` stays with the
 dispatched facet.

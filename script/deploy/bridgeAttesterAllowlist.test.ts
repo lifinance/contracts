@@ -5,6 +5,10 @@
  * diamond call an arbitrary contract. These tests fail CI when config would allowlist it, before
  * any sync script can push it on chain; the `bridge-attester-not-allowlisted` health-check
  * invariant covers what reaches the chain anyway.
+ *
+ * The address comparison is dormant until a deploy log records `BridgeAttester`: the attester is
+ * deployed outside this repo, and its address enters `deployments/<network>.json` with the
+ * deploy PR that registers it. Until then only the on-chain invariant guards the allowlist.
  */
 import { describe, expect, it } from 'bun:test'
 import { readdirSync, readFileSync } from 'fs'

@@ -1,12 +1,11 @@
 # Intent Factory Review Check
-# - Fails a PR that changes AttestedBridgeFacet or a bridge facet it dispatches until the
-#   IntentFactoryReviewed label is set
+# - Fails a PR that changes AttestedBridgeFacet, a bridge facet it dispatches, or code that shapes
+#   their calldata, until the IntentFactoryReviewed label is set
 # - Why: Intent Factory's BridgeCommitmentLedger trusts what its facts adapters decode from the
 #   calldata these facets execute, so a change here can make an adapter describe a call that no
 #   longer happens. The Intent Factory team reviews, then anyone adds the label
+# - A push to the PR removes the label, so every new head needs a fresh review
 # - Runs on PR open/sync/reopen and on label changes; reads only the event payload, no checkout
-# - Known limitation: the label is not cleared on new commits, so a later push needs the
-#   reviewer's attention by convention, not by this check
 
 name: Intent Factory Review Check
 
@@ -18,6 +17,12 @@ on:
       - 'src/Facets/AcrossFacetV4.sol'
       - 'src/Facets/PolymerCCTPFacet.sol'
       - 'src/Facets/LiFiIntentEscrowFacetV2.sol'
+      - 'src/Interfaces/IAttester.sol'
+      - 'src/Interfaces/ILiFi.sol'
+      - 'src/Libraries/LibAttestableSelectors.sol'
+      - 'src/Libraries/LibPeripheryRegistry.sol'
+      - 'src/Libraries/LibSwap.sol'
+      - 'src/Helpers/SwapperV2.sol'
 
 permissions: {}
 
@@ -25,15 +30,30 @@ jobs:
   intent-factory-review:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      pull-requests: write # required to remove the IntentFactoryReviewed label on a new push
     steps:
+      - name: Remove the IntentFactoryReviewed label after a push
+        if: github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'IntentFactoryReviewed')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          gh api --method DELETE "repos/$REPO/issues/$PR_NUMBER/labels/IntentFactoryReviewed" >/dev/null
+          echo -e "\033[31mNew commits were pushed after the Intent Factory review: the IntentFactoryReviewed label was removed.\033[0m"
+          echo -e "\033[31mGet the new commits reviewed, then add the label again.\033[0m"
+          exit 1
+
       - name: Require the IntentFactoryReviewed label
         env:
           REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'IntentFactoryReviewed') }}
         shell: bash
         run: |
           if [[ "$REVIEWED" != "true" ]]; then
-            echo -e "\033[31mThis PR changes AttestedBridgeFacet or a bridge facet it dispatches.\033[0m"
-            echo -e "\033[31mIntent Factory's facts adapters decode these facets' calldata: get their review, then add the IntentFactoryReviewed label.\033[0m"
+            echo -e "\033[31mThis PR changes AttestedBridgeFacet, a bridge facet it dispatches, or code that shapes their calldata.\033[0m"
+            echo -e "\033[31mIntent Factory's facts adapters decode this calldata: get their review, then add the IntentFactoryReviewed label.\033[0m"
             exit 1
           fi
           echo -e "\033[32mIntentFactoryReviewed label present.\033[0m"
