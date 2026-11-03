@@ -629,6 +629,14 @@ export interface IAuthorityContext {
   pendingRegistrations?: ReadonlySet<string>
 }
 
+const isRegistrationAt = (
+  call: { target: string; data: Hex },
+  diamond: string | undefined
+): boolean =>
+  diamond !== undefined &&
+  call.target.toLowerCase() === diamond.toLowerCase() &&
+  selectorOf(call.data) === REGISTER_PERIPHERY_SELECTOR
+
 /**
  * Addresses pending operations register at the diamond that main does not
  * name yet, for {@link IAuthorityContext}.
@@ -646,11 +654,7 @@ export const pendingRegistrationsOf = (
   const registered = new Set<string>()
   for (const op of ops)
     for (const call of op.calls) {
-      if (
-        call.target.toLowerCase() !== diamond.toLowerCase() ||
-        selectorOf(call.data) !== REGISTER_PERIPHERY_SELECTOR
-      )
-        continue
+      if (!isRegistrationAt(call, diamond)) continue
       try {
         const { args } = decodeFunctionData({
           abi: REGISTER_PERIPHERY_ABI,
@@ -666,92 +670,138 @@ export const pendingRegistrationsOf = (
   return registered
 }
 
-/** Every address main's deploy log ever listed per name, or why it is unread. */
+/**
+ * Every address main's deploy log listed per name, each with the position at
+ * which it was first listed along main's first-parent history (lower is older),
+ * or why the history is unread.
+ */
 export type TDeployLogHistory =
-  | { ok: true; listed: ReadonlyMap<string, ReadonlySet<string>> }
+  | {
+      ok: true
+      firstListed: ReadonlyMap<string, ReadonlyMap<string, number>>
+    }
   | { ok: false; reason: string }
 
-const isRegistrationAt = (
-  call: { target: string; data: Hex },
-  diamond: string | undefined
-): boolean =>
-  diamond !== undefined &&
-  call.target.toLowerCase() === diamond.toLowerCase() &&
-  selectorOf(call.data) === REGISTER_PERIPHERY_SELECTOR
+/** A name an operation leaves registered at an address main does not list for it now. */
+export interface IRegistrationChange {
+  index: number
+  name: string
+  address: Address
+  current: string | undefined
+}
+
+/** What an operation leaves registered at the diamond, for {@link gradeRollback}. */
+export interface IRegistrationChanges {
+  changes: IRegistrationChange[]
+  /** Indexes of registrations at the diamond that do not decode. */
+  undecodable: number[]
+}
 
 /**
- * Whether an operation's own calls register a periphery contract at the
- * diamond, so that {@link gradeRollback} needs main's deploy-log history.
+ * The top-level `registerPeripheryContract` calls on the diamond that leave a
+ * name at an address other than main's current one. Only a name's last
+ * registration counts, since that is what the registry holds once the
+ * operation has run; one that ends on main's address or unregisters is no
+ * change.
  *
  * @param op - The operation.
  * @param diamond - The network's LiFiDiamond, when main names one.
- * @returns True when a top-level call registers at the diamond.
+ * @param deployments - `deployments/<network>.json` at main.
+ * @returns The changes, and the registrations that could not be decoded.
  */
-export const registersAtDiamond = (
+export const registrationChangesOf = (
   op: IScannedOperation,
-  diamond: string | undefined
-): boolean => op.calls.some((call) => isRegistrationAt(call, diamond))
-
-/**
- * Grades the operation's top-level `registerPeripheryContract` calls on the
- * diamond against main's deploy log: registering an address main listed for
- * that name in an earlier commit, but not now, rolls the registry back and
- * fails. An address main never listed (a rollout, whose log lands after
- * execution), main's current address and an unregister pass; a registration
- * made from inside another call is the authority check's.
- *
- * @param op - The operation.
- * @param context - The diamond, `deployments/<network>.json` at main, and every
- *   address that file listed per name across main's history.
- * @returns The check outcome.
- */
-export const gradeRollback = (
-  op: IScannedOperation,
-  context: {
-    diamond: string | undefined
-    deployments: Record<string, unknown>
-    history: TDeployLogHistory | undefined
-  }
-): ICheckOutcome => {
-  const failures: string[] = []
-  const unknown: string[] = []
-  const { history } = context
+  diamond: string | undefined,
+  deployments: Record<string, unknown>
+): IRegistrationChanges => {
+  const last = new Map<string, { index: number; address: Address }>()
+  const undecodable: number[] = []
   for (const call of op.calls) {
-    if (!isRegistrationAt(call, context.diamond)) continue
-    let args: readonly [string, Address]
+    if (!isRegistrationAt(call, diamond)) continue
     try {
-      args = decodeFunctionData({
+      const [name, address] = decodeFunctionData({
         abi: REGISTER_PERIPHERY_ABI,
         data: call.data,
       }).args
+      last.set(name, { index: call.index, address })
     } catch {
-      unknown.push(`call ${call.index} is a registration that does not decode`)
-      continue
+      undecodable.push(call.index)
     }
-    const [name, address] = args
+  }
+  const changes: IRegistrationChange[] = []
+  for (const [name, { index, address }] of last) {
+    const listed = deployments[name]
+    const current = typeof listed === 'string' ? listed : undefined
     const proposed = address.toLowerCase()
-    const current = context.deployments[name]
-    const currentAddress = typeof current === 'string' ? current : undefined
-    if (proposed === ZERO_ADDRESS || currentAddress?.toLowerCase() === proposed)
-      continue
-    if (!history?.ok) {
-      unknown.push(
-        `call ${call.index} registers ${JSON.stringify(
-          name
-        )}, and main's deploy-log history could not be read (${
-          history?.reason ?? 'not read'
-        })`
-      )
-      continue
+    if (proposed !== ZERO_ADDRESS && current?.toLowerCase() !== proposed)
+      changes.push({ index, name, address, current })
+  }
+  return { changes, undecodable }
+}
+
+/** How a change rolls its name back, or undefined when it does not. */
+const rollbackOf = (
+  change: IRegistrationChange,
+  firstListed: ReadonlyMap<string, ReadonlyMap<string, number>>
+): { status: 'fail' | 'unknown'; detail: string } | undefined => {
+  const listed = firstListed.get(change.name)
+  const proposedAt = listed?.get(change.address.toLowerCase())
+  if (proposedAt === undefined) return undefined
+  const back = `call ${change.index} rolls ${change.name} back to ${change.address}`
+  if (change.current === undefined)
+    return {
+      status: 'fail',
+      detail: `${back}, an address main listed earlier; main lists none now`,
     }
-    if (history.listed.get(name)?.has(proposed))
-      failures.push(
-        `call ${
-          call.index
-        } rolls ${name} back to ${address}, an address main's deploy log listed earlier; main lists ${name} at ${
-          currentAddress ?? 'no address'
-        }`
+  const currentAt = listed?.get(change.current.toLowerCase())
+  if (currentAt === undefined)
+    return {
+      status: 'unknown',
+      detail:
+        `call ${change.index} registers ${change.name} at an address main ` +
+        `listed earlier, but main's history does not show its current ` +
+        change.current,
+    }
+  if (proposedAt > currentAt) return undefined
+  return {
+    status: 'fail',
+    detail: `${back}, which main listed before its current ${change.current}`,
+  }
+}
+
+/**
+ * Grades what an operation leaves registered at the diamond against main's
+ * deploy log: a name moved to an address main listed before its current one
+ * rolls the registry back and fails. An address main never listed (a rollout,
+ * whose log lands after execution) and one main first listed after its current
+ * address (a rollout reverted on main and proposed again) pass; a registration
+ * made from inside another call is the authority check's. The history is read
+ * only when there is a change to judge.
+ *
+ * @param pending - From {@link registrationChangesOf}.
+ * @param readHistory - Reads main's history of the network's deploy log.
+ * @returns The check outcome.
+ */
+export const gradeRollback = async (
+  pending: IRegistrationChanges,
+  readHistory: () => Promise<TDeployLogHistory>
+): Promise<ICheckOutcome> => {
+  const failures: string[] = []
+  const unknown = pending.undecodable.map(
+    (index) => `call ${index} is a registration that does not decode`
+  )
+  if (pending.changes.length > 0) {
+    const history = await readHistory()
+    if (!history.ok)
+      unknown.push(
+        `main's deploy-log history could not be read (${history.reason})`
       )
+    else
+      for (const change of pending.changes) {
+        const outcome = rollbackOf(change, history.firstListed)
+        if (outcome?.status === 'fail') failures.push(outcome.detail)
+        else if (outcome) unknown.push(outcome.detail)
+      }
   }
   if (failures.length > 0)
     return { check: 'rollback', status: 'fail', detail: failures.join('; ') }
@@ -760,7 +810,7 @@ export const gradeRollback = (
   return {
     check: 'rollback',
     status: 'pass',
-    detail: 'registers no address main listed earlier for the same name',
+    detail: 'leaves no name at an address main listed before its current one',
   }
 }
 
@@ -1202,17 +1252,18 @@ export const buildWatcherCancelInput = (input: {
   identity: TProvingLegOutcome
   codehash: ICheckOutcome
   authorities: ICheckOutcome
+  rollback: ICheckOutcome
   stage: TOperationStage | undefined
   signTimeRecordPresent: boolean
 }): ICancelDecisionInput => {
-  const codehashLeg = legOf(input.codehash.status)
-  const authoritiesLeg = legOf(input.authorities.status)
-  const integrity: TProvingLegOutcome =
-    codehashLeg === 'mismatch' || authoritiesLeg === 'mismatch'
-      ? 'mismatch'
-      : codehashLeg === 'error' || authoritiesLeg === 'error'
-      ? 'error'
-      : 'match'
+  const legs = [input.codehash, input.authorities, input.rollback].map((c) =>
+    legOf(c.status)
+  )
+  const integrity: TProvingLegOutcome = legs.includes('mismatch')
+    ? 'mismatch'
+    : legs.includes('error')
+    ? 'error'
+    : 'match'
   return {
     integrity,
     opIdentity: input.identity,

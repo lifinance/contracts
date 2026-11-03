@@ -13,11 +13,8 @@
 
 import 'dotenv/config'
 
-import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { readFile, writeFile } from 'fs/promises'
-import { fileURLToPath } from 'url'
-import { promisify } from 'util'
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
@@ -60,10 +57,10 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
-  PINNED_GIT_TIMEOUT_MS,
   PINNED_REF,
   createPinnedAnchor,
   createPinnedBlobReader,
+  createPinnedGitRunner,
   type PinnedAnchor,
 } from './pinned-target-state'
 import { runPreBroadcastGate, viemGateReaders } from './prebroadcast-gate'
@@ -133,7 +130,7 @@ import {
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
-  registersAtDiamond,
+  registrationChangesOf,
   scheduledAtReaderFor,
   stageOf,
   type ICheckOutcome,
@@ -438,95 +435,141 @@ interface IRunContext {
     deps: () => ISignTimeCodehashDeps
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
-  readDeployLogHistory: (network: string) => Promise<TDeployLogHistory>
+  readDeployLogHistory: (
+    network: string,
+    deadline: number
+  ) => Promise<TDeployLogHistory>
   expired: Set<string>
 }
 
-const DEPLOY_LOG_ADDED_ENTRY = /^\+\s*"([^"]+)"\s*:\s*"(0x[0-9a-fA-F]{40})"/
+const DEPLOY_LOG_ENTRY = /"([^"]+)"\s*:\s*"(0x[0-9a-fA-F]{40})"/g
 
 /**
- * Every address a `git log -p` of a deploy log added, per name.
+ * Every address a `git log -p --reverse` of a deploy log added, per name, with
+ * the position at which each was first added, so an earlier position is an
+ * older address. Reads every pair on an added line, so compact JSON counts too.
  *
- * @param patch - The log's patch text.
- * @returns Name → lowercased addresses.
+ * @param patch - The log's patch text, oldest commit first.
+ * @returns Name → lowercased address → first position.
  */
 export const parseDeployLogHistory = (
   patch: string
-): Map<string, Set<string>> => {
-  const listed = new Map<string, Set<string>>()
+): Map<string, Map<string, number>> => {
+  const firstListed = new Map<string, Map<string, number>>()
+  let position = 0
   for (const line of patch.split('\n')) {
-    const match = DEPLOY_LOG_ADDED_ENTRY.exec(line)
-    if (!match?.[1] || !match[2]) continue
-    const addresses = listed.get(match[1]) ?? new Set<string>()
-    addresses.add(match[2].toLowerCase())
-    listed.set(match[1], addresses)
+    if (!line.startsWith('+') || line.startsWith('+++')) continue
+    for (const [, name, address] of line.matchAll(DEPLOY_LOG_ENTRY)) {
+      if (!name || !address) continue
+      const addresses = firstListed.get(name) ?? new Map<string, number>()
+      const key = address.toLowerCase()
+      if (!addresses.has(key)) addresses.set(key, position)
+      firstListed.set(name, addresses)
+      position++
+    }
   }
-  return listed
+  return firstListed
 }
 
-const REPO_ROOT = fileURLToPath(new URL('../../..', import.meta.url))
-const execFileAsync = promisify(execFile)
-
-const runGit = async (args: string[]): Promise<string> =>
-  (
-    await execFileAsync('git', args, {
-      cwd: REPO_ROOT,
-      encoding: 'utf8',
-      timeout: PINNED_GIT_TIMEOUT_MS,
-      maxBuffer: 16 * 1024 * 1024, // 16 MB — mainnet's whole log history is ~70 KB
-    })
-  ).stdout
+/** A history read, and whether it can change within the run. */
+interface IHistoryAttempt {
+  read: TDeployLogHistory
+  final: boolean
+}
 
 /**
- * Reads, once per network, every address `deployments/<network>.json` listed
- * per name across main's history, at the commit the other pinned reads use.
- * A shallow clone is unreadable rather than read, since its history would
- * hide the addresses a rollback returns to.
+ * Reads every address `deployments/<network>.json` listed per name along
+ * main's first-parent history (a merge commit's own changes included, a side
+ * branch's intermediate states not), at the commit the other pinned reads use.
+ * A shallow clone is unreadable rather than read, since its history would hide
+ * the addresses a rollback returns to. No `--follow`: combined with
+ * `--first-parent` it drops commits, and a history cut short by a rename
+ * surfaces in {@link gradeRollback} as main's current address missing.
+ *
+ * Results are kept per network only when they cannot change within the run;
+ * a git failure, a timeout or a transient anchor failure is read again.
  *
  * @param anchor - The pinned `origin/main`.
  * @param git - Runs git in this checkout and returns its stdout.
- * @returns A reader taking a network name.
+ * @returns A reader taking a network name and the time by which it must answer.
  */
 export const createDeployLogHistoryReader = (
   anchor: PinnedAnchor,
-  git: (args: string[]) => Promise<string> = runGit
-): ((network: string) => Promise<TDeployLogHistory>) => {
+  git: (args: string[]) => Promise<string> = createPinnedGitRunner()
+): ((network: string, deadline: number) => Promise<TDeployLogHistory>) => {
   const reads = new Map<string, Promise<TDeployLogHistory>>()
-  const read = async (network: string): Promise<TDeployLogHistory> => {
+  let shallow: Promise<boolean> | undefined
+  const isShallow = (): Promise<boolean> => {
+    shallow ??= git(['rev-parse', '--is-shallow-repository']).then(
+      (out) => out.trim() !== 'false',
+      (error: unknown) => {
+        shallow = undefined
+        throw error
+      }
+    )
+    return shallow
+  }
+  const attempt = async (
+    network: string,
+    deadline: number
+  ): Promise<IHistoryAttempt> => {
     const anchored = await anchor()
     if (!anchored.ok)
       return {
-        ok: false,
-        reason: `${PINNED_REF} could not be pinned (${anchored.reason})`,
+        read: {
+          ok: false,
+          reason: `${PINNED_REF} could not be pinned (${anchored.reason})`,
+        },
+        final: anchored.reason === 'remote-unexpected',
       }
     try {
-      if (
-        (await git(['rev-parse', '--is-shallow-repository'])).trim() !== 'false'
+      if (await isShallow())
+        return {
+          read: { ok: false, reason: 'the clone is shallow' },
+          final: true,
+        }
+      const patch = await withTimeout(
+        git([
+          'log',
+          '--first-parent',
+          '--diff-merges=first-parent',
+          '--reverse',
+          '-p',
+          '--format=',
+          '--unified=0',
+          '--no-color',
+          '--no-ext-diff',
+          anchored.revision,
+          '--',
+          `deployments/${network}.json`,
+        ]),
+        deadline - Date.now(),
+        `reading main's history of deployments/${network}.json`
       )
-        return { ok: false, reason: 'the clone is shallow' }
-      const patch = await git([
-        'log',
-        '-p',
-        '--format=',
-        '--unified=0',
-        '--no-color',
-        '--no-ext-diff',
-        anchored.revision,
-        '--',
-        `deployments/${network}.json`,
-      ])
-      const listed = parseDeployLogHistory(patch)
-      return listed.size > 0
-        ? { ok: true, listed }
-        : { ok: false, reason: `${PINNED_REF} has no history of the file` }
+      const firstListed = parseDeployLogHistory(patch)
+      return firstListed.size > 0
+        ? { read: { ok: true, firstListed }, final: true }
+        : {
+            read: {
+              ok: false,
+              reason: `${PINNED_REF} has no history of the file`,
+            },
+            final: true,
+          }
     } catch (error) {
-      return { ok: false, reason: `git failed: ${describe(error)}` }
+      return {
+        read: { ok: false, reason: `git failed: ${describe(error)}` },
+        final: false,
+      }
     }
   }
-  return (network) => {
+  return (network, deadline) => {
     const known = reads.get(network)
     if (known) return known
-    const pending = read(network)
+    const pending = attempt(network, deadline).then(({ read, final }) => {
+      if (!final) reads.delete(network)
+      return read
+    })
     reads.set(network, pending)
     return pending
   }
@@ -1096,26 +1139,16 @@ export const watchNetwork = async (
     }
     checks.push(authorities)
 
+    const deadline = startedAt + networkTimeoutMs(ctx) - DEADLINE_MARGIN_MS
     const codehash = gradeCodehash(
-      await runCodehash(
-        name,
-        op,
-        client,
-        ctx,
-        network.isZkEVM,
-        startedAt + networkTimeoutMs(ctx) - DEADLINE_MARGIN_MS
-      )
+      await runCodehash(name, op, client, ctx, network.isZkEVM, deadline)
     )
     checks.push(codehash)
-    checks.push(
-      gradeRollback(op, {
-        diamond,
-        deployments,
-        history: registersAtDiamond(op, diamond)
-          ? await ctx.readDeployLogHistory(name)
-          : undefined,
-      })
+    const rollback = await gradeRollback(
+      registrationChangesOf(op, diamond, deployments),
+      () => ctx.readDeployLogHistory(name, deadline)
     )
+    checks.push(rollback)
 
     if (signTimeRecordRead && !signTimeRecordPresent)
       opNotes.push(
@@ -1135,6 +1168,7 @@ export const watchNetwork = async (
         identity: identity.leg,
         codehash,
         authorities,
+        rollback,
         stage,
         signTimeRecordPresent,
       })

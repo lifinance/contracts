@@ -248,32 +248,47 @@ describe('readTimelockLogs', () => {
 })
 
 describe('parseDeployLogHistory', () => {
-  it('collects every address a commit added for each name', () => {
+  it('records the position each address was first added at, per name', () => {
     const patch = [
       'diff --git a/deployments/xlayer.json b/deployments/xlayer.json',
       '--- a/deployments/xlayer.json',
       '+++ b/deployments/xlayer.json',
+      '@@ -0,0 +1,2 @@',
+      '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
+      '+  "Note": "not an address",',
       '@@ -40 +40 @@',
       '-  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
       '+  "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",',
-      '@@ -0,0 +1,2 @@',
-      '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1"',
-      '+  "LiFiDiamond":"0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",',
-      '+  "Note": "not an address",',
+      '@@ -40 +40 @@',
+      '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
       ' "Executor": "0x0000000000000000000000000000000000005555",',
     ].join('\n')
     expect(parseDeployLogHistory(patch)).toEqual(
       new Map([
         [
           'FeeForwarder',
-          new Set([
-            '0xce40449b773a3e6e5e769adb4e567179d4828cbd',
-            '0xc18d9e84b8687a2645447a61e52c455dac1675e1',
+          new Map([
+            ['0xc18d9e84b8687a2645447a61e52c455dac1675e1', 0],
+            ['0xce40449b773a3e6e5e769adb4e567179d4828cbd', 1],
           ]),
         ],
+      ])
+    )
+  })
+
+  it('reads every pair on a compact JSON line', () => {
+    const patch =
+      '+{"Executor":"0x0000000000000000000000000000000000005555",' +
+      '"ERC20Proxy":"0x0000000000000000000000000000000000006666"}'
+    expect(parseDeployLogHistory(patch)).toEqual(
+      new Map([
         [
-          'LiFiDiamond',
-          new Set(['0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae']),
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 0]]),
+        ],
+        [
+          'ERC20Proxy',
+          new Map([['0x0000000000000000000000000000000000006666', 1]]),
         ],
       ])
     )
@@ -283,67 +298,112 @@ describe('parseDeployLogHistory', () => {
 describe('createDeployLogHistoryReader', () => {
   const PATCH =
     '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",'
+  const LATER = Date.now() + 60_000 // 1 minute
   const anchor = async () => ({ ok: true as const, revision: 'abc123' })
   const gitOf = (answers: {
     shallow?: string
-    log?: string
-    fail?: boolean
+    log?: () => Promise<string>
+    fail?: number
   }) => {
     const asked: string[][] = []
+    let failures = answers.fail ?? 0
     const git = async (args: string[]): Promise<string> => {
       asked.push(args)
-      if (answers.fail) throw new Error('git exploded')
-      return args[0] === 'rev-parse'
-        ? answers.shallow ?? 'false\n'
-        : answers.log ?? PATCH
+      if (failures > 0) {
+        failures--
+        throw new Error('git exploded')
+      }
+      if (args[0] === 'rev-parse') return answers.shallow ?? 'false\n'
+      return answers.log ? answers.log() : PATCH
     }
     return { git, asked }
   }
 
-  it("reads main's history of the network's deploy log at the pinned commit, once", async () => {
+  it("reads main's first-parent history at the pinned commit, once per network", async () => {
     const { git, asked } = gitOf({})
     const read = createDeployLogHistoryReader(anchor, git)
-    const first = await read('xlayer')
-    await read('xlayer')
-    expect(first.ok && first.listed.get('FeeForwarder')).toEqual(
-      new Set(['0xc18d9e84b8687a2645447a61e52c455dac1675e1'])
+    const first = await read('xlayer', LATER)
+    await read('xlayer', LATER)
+    await read('mainnet', LATER)
+    expect(first.ok && first.firstListed.get('FeeForwarder')).toEqual(
+      new Map([['0xc18d9e84b8687a2645447a61e52c455dac1675e1', 0]])
     )
     const logs = asked.filter((args) => args[0] === 'log')
-    expect(logs).toHaveLength(1)
-    expect(logs[0]).toContain('abc123')
+    expect(logs).toHaveLength(2)
+    expect(logs[0]).toEqual(
+      expect.arrayContaining([
+        '--first-parent',
+        '--diff-merges=first-parent',
+        '--reverse',
+        'abc123',
+      ])
+    )
     expect(logs[0]?.slice(-2)).toEqual(['--', 'deployments/xlayer.json'])
+    expect(asked.filter((args) => args[0] === 'rev-parse')).toHaveLength(1)
   })
 
-  it('is unreadable when the anchor could not be pinned', async () => {
-    const read = createDeployLogHistoryReader(
-      async () => ({ ok: false as const, reason: 'fetch-failed' as const }),
-      gitOf({}).git
-    )
-    expect(await read('xlayer')).toEqual({
+  it('retries a transient anchor failure but keeps a wrong remote', async () => {
+    let calls = 0
+    const flaky = async () => {
+      calls++
+      return { ok: false as const, reason: 'fetch-failed' as const }
+    }
+    const read = createDeployLogHistoryReader(flaky, gitOf({}).git)
+    expect(await read('xlayer', LATER)).toEqual({
       ok: false,
       reason: 'origin/main could not be pinned (fetch-failed)',
     })
+    await read('xlayer', LATER)
+    expect(calls).toBe(2)
+
+    let wrongCalls = 0
+    const wrong = createDeployLogHistoryReader(async () => {
+      wrongCalls++
+      return { ok: false as const, reason: 'remote-unexpected' as const }
+    }, gitOf({}).git)
+    await wrong('xlayer', LATER)
+    await wrong('xlayer', LATER)
+    expect(wrongCalls).toBe(1)
   })
 
   it('is unreadable in a shallow clone, whose history would hide earlier addresses', async () => {
     const read = await createDeployLogHistoryReader(
       anchor,
       gitOf({ shallow: 'true\n' }).git
-    )('xlayer')
+    )('xlayer', LATER)
     expect(read.ok).toBe(false)
     expect(!read.ok && read.reason).toContain('shallow')
   })
 
-  it('is unreadable when git fails or finds no history', async () => {
-    const failed = await createDeployLogHistoryReader(
-      anchor,
-      gitOf({ fail: true }).git
-    )('xlayer')
+  it('retries after git fails, rather than keeping the failure', async () => {
+    const { git } = gitOf({ fail: 1 })
+    const read = createDeployLogHistoryReader(anchor, git)
+    const failed = await read('xlayer', LATER)
     expect(!failed.ok && failed.reason).toContain('git exploded')
+    expect((await read('xlayer', LATER)).ok).toBe(true)
+  })
+
+  it('gives up at the deadline and reads again next time', async () => {
+    let hang = true
+    const { git } = gitOf({
+      log: () =>
+        hang ? new Promise<string>(() => undefined) : Promise.resolve(PATCH),
+    })
+    const read = createDeployLogHistoryReader(anchor, git)
+    const late = await read('xlayer', Date.now() - 1)
+    expect(!late.ok && late.reason).toContain('timed out')
+    hang = false
+    expect((await read('xlayer', LATER)).ok).toBe(true)
+  })
+
+  it('is unreadable when main has no history of the file', async () => {
     const empty = await createDeployLogHistoryReader(
       anchor,
-      gitOf({ log: '' }).git
-    )('xlayer')
-    expect(empty.ok).toBe(false)
+      gitOf({ log: async () => '' }).git
+    )('xlayer', LATER)
+    expect(empty).toEqual({
+      ok: false,
+      reason: 'origin/main has no history of the file',
+    })
   })
 })
