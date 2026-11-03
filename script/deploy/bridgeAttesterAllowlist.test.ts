@@ -12,6 +12,7 @@ import path from 'path'
 
 import globalConfig from '../../config/global.json'
 import whitelistConfig from '../../config/whitelist.json'
+import whitelistStagingConfig from '../../config/whitelist.staging.json'
 
 const BRIDGE_ATTESTER = 'BridgeAttester'
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..')
@@ -21,7 +22,7 @@ interface IAllowlistedAddress {
   address: string
 }
 
-/** Every address `config/whitelist.json` allowlists, per network, from both sections. */
+/** Every address a whitelist config allowlists, per network, from both sections. */
 function allowlistedAddresses(whitelist: unknown): IAllowlistedAddress[] {
   const found: IAllowlistedAddress[] = []
   const config = whitelist as {
@@ -49,12 +50,15 @@ function allowlistedAttesters(
   )
 }
 
-/** `BridgeAttester` from every flat deploy log, keyed by network (production and staging). */
-function loggedAttesters(): Record<string, string> {
+/** `BridgeAttester` from every flat deploy log of one environment, keyed by network. */
+function loggedAttesters(staging: boolean): Record<string, string> {
   const dir = path.join(REPO_ROOT, 'deployments')
+  const logFile = staging
+    ? /^([a-z0-9_-]+)\.staging\.json$/
+    : /^([a-z0-9_-]+)\.json$/
   const attesters: Record<string, string> = {}
   for (const file of readdirSync(dir)) {
-    const match = /^([a-z0-9_-]+)\.(?:staging\.)?json$/.exec(file)
+    const match = logFile.exec(file)
     if (!match?.[1]) continue
     const log = JSON.parse(readFileSync(path.join(dir, file), 'utf8')) as
       | Record<string, unknown>
@@ -72,8 +76,16 @@ describe('BridgeAttester is never allowlisted', () => {
     )
   })
 
-  it('has no logged address in config/whitelist.json', () => {
-    expect(allowlistedAttesters(whitelistConfig, loggedAttesters())).toEqual([])
+  it('has no production address in config/whitelist.json', () => {
+    expect(
+      allowlistedAttesters(whitelistConfig, loggedAttesters(false))
+    ).toEqual([])
+  })
+
+  it('has no staging address in config/whitelist.staging.json', () => {
+    expect(
+      allowlistedAttesters(whitelistStagingConfig, loggedAttesters(true))
+    ).toEqual([])
   })
 
   it('finds a logged attester in either whitelist section, on its own network only', () => {

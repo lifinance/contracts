@@ -4583,4 +4583,94 @@ describe('bridge-attester-not-allowlisted', () => {
       'could not read its allowlisted selectors'
     )
   })
+
+  it('warns when no EVM client is configured', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => [])
+    // The registry read is served from the cache, so only the allowlist read needs the client.
+    const cache = new Map([
+      [
+        `${ctx.diamondAddress.toLowerCase()}:BridgeAttester`,
+        Promise.resolve(ATTESTER),
+      ],
+    ])
+    Object.assign(ctx, {
+      peripheryRegistryCache: cache,
+      publicClient: undefined,
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no EVM client configured')
+  })
+
+  describe('on Tron', () => {
+    const TRON_DIAMOND = 'TDiamond11111111111111111111111111'
+    const TRON_ATTESTER = 'TAttester1111111111111111111111111'
+
+    function makeTronAttesterCtx(tronWeb: unknown): IHealthCheckContext {
+      return Object.assign(makeCtx(), {
+        isTron: true,
+        diamondAddress: TRON_DIAMOND,
+        peripheryRegistryCache: new Map([
+          [
+            `${TRON_DIAMOND.toLowerCase()}:BridgeAttester`,
+            Promise.resolve(TRON_ATTESTER),
+          ],
+        ]),
+        tronWeb,
+      } as unknown as IHealthCheckContext)
+    }
+
+    function tronWebReturning(result: unknown): unknown {
+      return {
+        contract: (_abi: unknown, address: string) => {
+          expect(address).toBe(TRON_DIAMOND)
+          return {
+            getWhitelistedSelectorsForContract: (attester: string) => {
+              expect(attester).toBe(TRON_ATTESTER)
+              return { call: async () => result }
+            },
+          }
+        },
+      }
+    }
+
+    it('fails on a bare selector array', async () => {
+      const ctx = makeTronAttesterCtx(tronWebReturning(['0x12345678']))
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toHaveLength(1)
+      expect(ctx.errors[0]).toContain('0x12345678')
+      expect(ctx.errors[0]).toContain(TRON_ATTESTER)
+    })
+
+    it('fails on a selector array wrapped in a result tuple', async () => {
+      const ctx = makeTronAttesterCtx(tronWebReturning([['0x12345678']]))
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toHaveLength(1)
+      expect(ctx.errors[0]).toContain('0x12345678')
+    })
+
+    it('passes on an empty selector list', async () => {
+      const ctx = makeTronAttesterCtx(tronWebReturning([[]]))
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toEqual([])
+    })
+
+    it('warns on a result that is not a selector list', async () => {
+      const ctx = makeTronAttesterCtx(tronWebReturning('0x12345678'))
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('unexpected selector list')
+    })
+
+    it('warns when no Tron client is configured', async () => {
+      const ctx = makeTronAttesterCtx(undefined)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('no Tron client configured')
+    })
+  })
 })
