@@ -4515,3 +4515,72 @@ describe('facet-versions-match-target-state', () => {
     })
   })
 })
+
+describe('bridge-attester-not-allowlisted', () => {
+  const ATTESTER = getAddress('0xa77e57e200000000000000000000000000000001')
+
+  function makeAttesterCtx(
+    registered: string,
+    readSelectors: () => Promise<readonly string[]>
+  ): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      diamondAddress: '0x9999999999999999999999999999999999999999',
+      peripheryRegistryCache: new Map(),
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args: readonly unknown[]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            expect(args).toEqual(['BridgeAttester'])
+            return registered
+          }
+          if (functionName === 'getWhitelistedSelectorsForContract') {
+            expect(args).toEqual([ATTESTER])
+            return readSelectors()
+          }
+          throw new Error(`unexpected read ${functionName}`)
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('passes when no attester is registered', async () => {
+    const ctx = makeAttesterCtx(ZERO, async () => {
+      throw new Error('must not read the allowlist')
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('passes when the registered attester has no allowlisted selector', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => [])
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('fails when the registered attester has any allowlisted selector', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => ['0x12345678'])
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('0x12345678')
+    expect(ctx.errors[0]).toContain(ATTESTER)
+  })
+
+  it('warns, without failing, when the allowlist read fails transiently', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => {
+      throw new Error('fetch failed')
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain(
+      'could not read its allowlisted selectors'
+    )
+  })
+})

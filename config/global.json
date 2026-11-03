@@ -159,6 +159,10 @@
     "AcrossFacetPackedV4": {
       "requires": "ReceiverAcrossV4"
     },
+    "AttestedBridgeFacet": {
+      "requires": "BridgeAttester",
+      "devNotes": "startBridgeAttested reverts AttesterNotRegistered until the Intent Factory BridgeCommitmentLedger is registered under BridgeAttester."
+    },
     "AcrossV4SwapFacet": {
       "requires": "ReceiverAcrossV4"
     },

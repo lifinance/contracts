@@ -54,7 +54,7 @@ export function buildCompanionReminder(
 
   const wanted = [...new Set(missing.map((r) => r.companion))]
   return (
-    `⚠️  ${contractName} handles the source side only — destination calls on ${network} need ` +
+    `⚠️  ${contractName} does not work on its own — on ${network} it needs ` +
     `${wanted.join(
       ', '
     )}, which is not in the deploy log. Deploy and register the companion ` +
