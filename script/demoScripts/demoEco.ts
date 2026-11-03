@@ -567,6 +567,7 @@ async function main(args: {
 
   const sourceChainId = await publicClient.getChainId()
   const signatureDeadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
+  const intentDestination = BigInt(quote.data.quoteResponse.destinationChainID)
 
   const backendSignature = await backendSignerAccount.signTypedData({
     domain: {
@@ -583,6 +584,7 @@ async function main(args: {
         { name: 'destinationChainId', type: 'uint256' },
         { name: 'receiver', type: 'address' },
         { name: 'nonEVMReceiverHash', type: 'bytes32' },
+        { name: 'intentDestination', type: 'uint64' },
         { name: 'encodedRouteHash', type: 'bytes32' },
         { name: 'prover', type: 'address' },
         { name: 'refundRecipient', type: 'address' },
@@ -599,6 +601,7 @@ async function main(args: {
       destinationChainId,
       receiver: receiverAddress as Hex,
       nonEVMReceiverHash: keccak256(nonEVMReceiverBytes),
+      intentDestination,
       encodedRouteHash: keccak256(encodedRoute as Hex),
       prover: quote.data.contracts.prover as Hex,
       refundRecipient: signerAddress as Hex,
@@ -615,6 +618,7 @@ async function main(args: {
     nonEVMReceiver: nonEVMReceiverBytes,
     prover: quote.data.contracts.prover,
     rewardDeadline: BigInt(quote.data.quoteResponse.deadline),
+    intentDestination,
     encodedRoute: encodedRoute,
     solanaATA: solanaATA,
     refundRecipient: signerAddress,

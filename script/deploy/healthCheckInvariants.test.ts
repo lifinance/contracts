@@ -2306,6 +2306,35 @@ describe('receiver-executor-binding registry-first resolution', () => {
   })
 })
 
+describe('permit2proxy-owner', () => {
+  const PERMIT2_PROXY = '0x6666666666666666666666666666666666666666'
+
+  it('errors when Permit2Proxy is not owned by the refund wallet', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { Permit2Proxy: PERMIT2_PROXY },
+      owner: { [PERMIT2_PROXY]: WRONG },
+    })
+    await invariant('permit2proxy-owner').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Permit2Proxy owner is')
+  })
+
+  it('passes when Permit2Proxy is owned by the refund wallet', async () => {
+    const { ctx } = makeReceiverCtx({
+      deployedContracts: { Permit2Proxy: PERMIT2_PROXY },
+      owner: { [PERMIT2_PROXY]: REFUND_WALLET },
+    })
+    await invariant('permit2proxy-owner').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('does nothing when Permit2Proxy is not in the deploy log', async () => {
+    const { ctx } = makeReceiverCtx({})
+    await invariant('permit2proxy-owner').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+})
+
 describe('receiver-owner covers the bridge-specific receivers', () => {
   it('errors when a registry-resolved receiver has the wrong owner', async () => {
     const { ctx } = makeReceiverCtx({
