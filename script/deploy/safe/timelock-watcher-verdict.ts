@@ -102,7 +102,8 @@ const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
 /**
  * Calls that hand nothing to anyone: the steps of an ownership transfer, an
  * `owner()` read, and what another check judges (a top-level
- * `registerPeripheryContract` by gate K, `updateDelay` by the delay check).
+ * `registerPeripheryContract` by gate K and the rollback check, `updateDelay`
+ * by the delay check).
  */
 const BENIGN_SELECTORS = new Set<string>(
   parseAbi([
