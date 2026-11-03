@@ -24,6 +24,8 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withholdCredentials } from '../safe/spawn-env'
+
 import { decideExit, mergeRequirements } from './verify-immutable-registry'
 
 const REGISTRY_PATH = 'script/deploy/resources/immutableRegistry.json'
@@ -36,6 +38,12 @@ const SCRIPT = join(
 // The CLI runs with a fixture dir as cwd, where `bunx tsx` cannot see the repo's
 // pinned tsx and would fetch it from the npm registry.
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
+
+const spawnEnv = (): Record<string, string> => {
+  const env = { ...process.env } as Record<string, string>
+  withholdCredentials(env)
+  return env
+}
 
 /** Shape-only stand-in; mergeRequirements copies configData without reading it. */
 const CONFIG_DATA = {
@@ -191,6 +199,7 @@ const runGate = (root: string, args: string[] = []) =>
   spawnSync(TSX_BIN, [SCRIPT, '--out-dir', OUT_DIR, ...args], {
     cwd: root,
     encoding: 'utf8',
+    env: spawnEnv(),
   })
 
 describe('verify-immutable-registry CLI', () => {
@@ -298,6 +307,7 @@ describe('verify-immutable-registry CLI', () => {
     const result = spawnSync(TSX_BIN, [SCRIPT, '--out-dir'], {
       cwd: root,
       encoding: 'utf8',
+      env: spawnEnv(),
     })
 
     expect(result.status).toBe(1)

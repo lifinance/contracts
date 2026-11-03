@@ -20,9 +20,16 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withholdCredentials } from '../safe/spawn-env'
 import { readContractVersion } from '../shared/contract-version'
 
 const REPO_ROOT = path.join(import.meta.dir, '..', '..', '..')
+
+const spawnEnv = (): Record<string, string> => {
+  const env = { ...process.env } as Record<string, string>
+  withholdCredentials(env)
+  return env
+}
 const TASK = 'tasks/buildAttestationManifest.ts'
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
 
@@ -86,7 +93,7 @@ describe('the mint refuses to publish a manifest short by a profile conflict', (
     const result = spawnSync(
       'bunx',
       ['tsx', TASK, '--out', outDir, '--check'],
-      { cwd: REPO_ROOT, encoding: 'utf8' }
+      { cwd: REPO_ROOT, encoding: 'utf8', env: spawnEnv() }
     )
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
 
@@ -129,7 +136,7 @@ describe('the mint refuses a version it cannot read', () => {
     const result = spawnSync(
       path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
       [path.join(REPO_ROOT, TASK), '--out', root, '--check'],
-      { cwd: root, encoding: 'utf8' }
+      { cwd: root, encoding: 'utf8', env: spawnEnv() }
     )
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
 
