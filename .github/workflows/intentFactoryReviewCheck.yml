@@ -1,0 +1,39 @@
+# Intent Factory Review Check
+# - Fails a PR that changes AttestedBridgeFacet or a bridge facet it dispatches until the
+#   IntentFactoryReviewed label is set
+# - Why: Intent Factory's BridgeCommitmentLedger trusts what its facts adapters decode from the
+#   calldata these facets execute, so a change here can make an adapter describe a call that no
+#   longer happens. The Intent Factory team reviews, then anyone adds the label
+# - Runs on PR open/sync/reopen and on label changes; reads only the event payload, no checkout
+# - Known limitation: the label is not cleared on new commits, so a later push needs the
+#   reviewer's attention by convention, not by this check
+
+name: Intent Factory Review Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - 'src/Facets/AttestedBridgeFacet.sol'
+      - 'src/Facets/AcrossFacetV4.sol'
+      - 'src/Facets/PolymerCCTPFacet.sol'
+      - 'src/Facets/LiFiIntentEscrowFacetV2.sol'
+
+permissions: {}
+
+jobs:
+  intent-factory-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require the IntentFactoryReviewed label
+        env:
+          REVIEWED: ${{ contains(github.event.pull_request.labels.*.name, 'IntentFactoryReviewed') }}
+        shell: bash
+        run: |
+          if [[ "$REVIEWED" != "true" ]]; then
+            echo -e "\033[31mThis PR changes AttestedBridgeFacet or a bridge facet it dispatches.\033[0m"
+            echo -e "\033[31mIntent Factory's facts adapters decode these facets' calldata: get their review, then add the IntentFactoryReviewed label.\033[0m"
+            exit 1
+          fi
+          echo -e "\033[32mIntentFactoryReviewed label present.\033[0m"
