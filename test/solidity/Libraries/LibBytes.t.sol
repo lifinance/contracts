@@ -144,4 +144,29 @@ contract LibBytesTest is Test {
 
         assertEq(harness.toAddressUnchecked(dirty), addr);
     }
+
+    function testFuzz_toAddress_bytes32_RoundTrips(address _addr) public {
+        assertEq(harness.toAddress(harness.toBytes32(_addr)), _addr);
+    }
+
+    function testFuzz_toAddress_bytes32_RevertsWhenHighBitsSet(
+        bytes32 _value
+    ) public {
+        vm.assume(uint256(_value) >> 160 != 0);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(LibBytes.NotAnAddress.selector, _value)
+        );
+
+        harness.toAddress(_value);
+    }
+
+    function testFuzz_toAddressUnchecked_KeepsLow160Bits(
+        bytes32 _value
+    ) public {
+        assertEq(
+            harness.toAddressUnchecked(_value),
+            address(uint160(uint256(_value)))
+        );
+    }
 }
