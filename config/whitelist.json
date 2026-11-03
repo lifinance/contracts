@@ -5477,7 +5477,7 @@
     "arbitrumnova": [
       {
         "name": "FeeForwarder",
-        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
+        "address": "0x906A51f3d8dF12B7030D5299D1098dd89fFe830b",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5486,6 +5486,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
