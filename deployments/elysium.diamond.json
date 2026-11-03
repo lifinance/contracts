@@ -44,6 +44,10 @@
       "0xB241c6689E5B5553B52ACB860aa30f54e863eF35": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0x6712996A8B7905dBf63364b8553f4142e83727e0": {
+        "Name": "RelayDepositoryFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
