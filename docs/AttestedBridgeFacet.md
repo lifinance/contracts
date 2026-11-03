@@ -69,7 +69,23 @@ Diamond is the caller. An attester must therefore:
 
 `BridgeAttester` must not be added to `whitelistPeripheryFunctions` in
 `config/global.json`. A whitelisted attester could be called from a swap step inside the
-Diamond, with the Diamond as `msg.sender` and no bridge behind the call.
+Diamond, with the Diamond as `msg.sender` and no bridge behind the call. Two checks enforce
+this: `script/deploy/bridgeAttesterAllowlist.test.ts` fails CI when config would allowlist
+it, and the `bridge-attester-not-allowlisted` health-check invariant fails when the
+registered attester has any selector on the Diamond allowlist.
+
+`WithdrawFacet.executeCallAndWithdraw` also lets the Diamond call an arbitrary contract, for
+the owner and for any address granted its selector with `setCanExecute`. A grant to a
+contract a solver can reach would let it call the attester with no bridge behind the call.
+Grants are owner-only, so they pass through the timelock, and the timelock watcher
+(`script/deploy/safe/timelock-watcher-verdict.ts`, `gradeAuthority`) alerts on any
+`setCanExecute` grant to an address other than the refund wallet or a contract the same
+operation installs, while the operation can still be cancelled.
+
+A PR that changes this facet, `AcrossFacetV4`, `PolymerCCTPFacet` or
+`LiFiIntentEscrowFacetV2` fails the `Intent Factory Review Check` workflow until the
+`IntentFactoryReviewed` label is set: Intent Factory's facts adapters decode these facets'
+calldata, so their team reviews such changes first.
 
 The facet holds no funds and sends no value to the attester: `msg.value` stays with the
 dispatched facet.
