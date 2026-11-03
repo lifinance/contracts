@@ -182,8 +182,8 @@ function makeRepo(files: Record<string, string>): string {
     mkdirSync(join(full, '..'), { recursive: true })
     writeFileSync(full, content)
   }
-  spawnSync('git', ['init', '-q'], { cwd: root })
-  spawnSync('git', ['add', '-A'], { cwd: root })
+  spawnSync('git', ['init', '-q'], { cwd: root, env: spawnEnv() })
+  spawnSync('git', ['add', '-A'], { cwd: root, env: spawnEnv() })
   return root
 }
 
