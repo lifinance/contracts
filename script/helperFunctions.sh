@@ -3883,11 +3883,6 @@ function getCastSendAsync() {
   fi
 }
 
-function playNotificationSound() {
-  if [[ "$NOTIFICATION_SOUNDS" == *"true"* ]]; then
-    afplay ./script/deploy/resources/notification.mp3
-  fi
-}
 function deployAndAddContractToDiamond() {
   # read function arguments into variables
   NETWORK="$1"
@@ -4819,8 +4814,6 @@ function printDeploymentsStatusV2() {
   echo "+--------------------------------------+-------------------+-------------------+"
   echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
   return 0
-
-  playNotificationSound
 }
 function checkDeployRequirements() {
   # read function arguments into variables
@@ -5543,11 +5536,9 @@ function updateDiamondLogs() {
   if [ ${#failed_jobs[@]} -gt 0 ]; then
     error "Some diamond log updates failed: ${failed_jobs[*]}"
     echo "All diamond log updates completed with ${#failed_jobs[@]} failure(s) out of $job_count total jobs"
-    playNotificationSound
     return 1
   else
     echo "All diamond log updates completed successfully ($job_count jobs)"
-    playNotificationSound
     return 0
   fi
 }
