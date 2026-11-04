@@ -69,8 +69,9 @@ only the quick-start; this is the full guide.
    ```
 
    Both are gitignored and the git hooks never build contracts, so until they
-   exist the local type check skips files that import them; CI checks those
-   files against freshly generated outputs.
+   exist the local type check ignores the type errors in files that import
+   them, directly or through a helper; CI checks those files against freshly
+   generated outputs.
 
 ## Cursor IDE setup
 

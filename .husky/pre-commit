@@ -11,7 +11,7 @@
 #
 # This hook only blocks .env secrets and runs the staged-file formatters and
 # linters. It never builds contracts: forge build and TypeChain generation run
-# in CI, and the type check skips files whose build-output imports are absent.
+# in CI, and the type check does not judge files that need an absent output.
 [ "$HUSKY" = "0" ] && exit 0
 if [ -z "$husky_skip_init" ]; then
   readonly husky_skip_init=1
