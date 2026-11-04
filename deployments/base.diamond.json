@@ -61,10 +61,6 @@
         "Name": "CalldataVerificationFacet",
         "Version": "2.0.0"
       },
-      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
-        "Name": "M0Facet",
-        "Version": "1.0.0"
-      },
       "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
@@ -135,6 +131,10 @@
       },
       "0x6275c64C1DA8919D1F7F5D558D36A6D750C74838": {
         "Name": "CentrifugeFacet",
+        "Version": "1.0.0"
+      },
+      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
+        "Name": "M0Facet",
         "Version": "1.0.0"
       }
     },

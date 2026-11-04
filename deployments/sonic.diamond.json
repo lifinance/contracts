@@ -3,7 +3,7 @@
     "Facets": {
       "0x7052D07D749Cb8446E32098B7ba64ad12Cf638be": {
         "Name": "DiamondCutFacet",
-        "Version": "2.0.0"
+        "Version": "1.0.0"
       },
       "0xEB014fd2fd6e6f9C79d31f7fE4AF2B8B5694A03f": {
         "Name": "DiamondLoupeFacet",

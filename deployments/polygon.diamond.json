@@ -85,10 +85,6 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
       },
-      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
-        "Name": "SquidFacet",
-        "Version": "1.0.0"
-      },
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
@@ -115,6 +111,10 @@
       },
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
+        "Version": "1.0.0"
+      },
+      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
+        "Name": "SquidFacet",
         "Version": "1.0.0"
       }
     },
