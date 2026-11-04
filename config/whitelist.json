@@ -4598,6 +4598,14 @@
               "0x3f0bde25": "IceCreamSwap()"
             }
           }
+        ],
+        "elysium": [
+          {
+            "address": "0x6af335771d1ddf7dd1501ecc89e978455fe5c6dd",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
         ]
       }
     },
