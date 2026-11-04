@@ -20,17 +20,39 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withholdCredentials } from '../safe/spawn-env'
+import { withheldEnv } from '../safe/spawn-env'
 import { readContractVersion } from '../shared/contract-version'
 
 const REPO_ROOT = path.join(import.meta.dir, '..', '..', '..')
+const TASK = path.join(REPO_ROOT, 'tasks/buildAttestationManifest.ts')
+// From a fixture cwd `bunx tsx` cannot see the repo's pinned tsx and would
+// fetch it from the npm registry, so every run uses the repo's binary.
+const TSX_BIN = path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
 
-const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
-  return env
+/**
+ * Runs the mint and returns its combined output and exit status.
+ *
+ * A child that never started has no status, which `not.toBe(0)` would accept
+ * as the refusal under test, so a failed spawn throws instead.
+ */
+const runMint = (
+  cwd: string,
+  outDir: string
+): { status: number | null; output: string } => {
+  const result = spawnSync(TSX_BIN, [TASK, '--out', outDir, '--check'], {
+    cwd,
+    encoding: 'utf8',
+    env: withheldEnv(),
+  })
+  if (result.error)
+    throw new Error(
+      `could not spawn ${TSX_BIN}: ${result.error.message}; run \`bun install\``
+    )
+  return {
+    status: result.status,
+    output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
+  }
 }
-const TASK = 'tasks/buildAttestationManifest.ts'
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
 
 /**
@@ -90,14 +112,9 @@ describe('the mint refuses to publish a manifest short by a profile conflict', (
 
     // `--check` so the run cannot write over the committed manifest: the abort
     // is what is under test, and the failing path is the one being provoked.
-    const result = spawnSync(
-      'bunx',
-      ['tsx', TASK, '--out', outDir, '--check'],
-      { cwd: REPO_ROOT, encoding: 'utf8', env: spawnEnv() }
-    )
-    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+    const { status, output } = runMint(REPO_ROOT, outDir)
 
-    expect(result.status).not.toBe(0)
+    expect(status).not.toBe(0)
     // The abort names the artifact path; the skip listing does not. Asserting
     // the reason alone would pass while the conflict was still a skip.
     expect(output).toContain(
@@ -131,16 +148,9 @@ describe('the mint refuses a version it cannot read', () => {
       '/// @custom:version 2.1.3.4\ncontract Foo {}\n'
     )
 
-    // From a fixture cwd `bunx tsx` cannot see the repo's pinned tsx and would
-    // fetch it from the npm registry, so run the repo's binary directly.
-    const result = spawnSync(
-      path.join(REPO_ROOT, 'node_modules', '.bin', 'tsx'),
-      [path.join(REPO_ROOT, TASK), '--out', root, '--check'],
-      { cwd: root, encoding: 'utf8', env: spawnEnv() }
-    )
-    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+    const { status, output } = runMint(root, root)
 
-    expect(result.status).not.toBe(0)
+    expect(status).not.toBe(0)
     // `2.1.3.4` is the value the old grammar would have truncated to `2.1.3`
     // and filed a build under, so the message has to carry it whole.
     expect(output).toContain(`src/Foo.sol declares "2.1.3.4"`)

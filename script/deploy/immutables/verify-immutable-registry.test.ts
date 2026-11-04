@@ -6,13 +6,7 @@
  * is observable from the pure functions alone.
  */
 import { spawnSync } from 'node:child_process'
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -24,7 +18,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withholdCredentials } from '../safe/spawn-env'
+import { withheldEnv } from '../safe/spawn-env'
 
 import { decideExit, mergeRequirements } from './verify-immutable-registry'
 
@@ -38,12 +32,6 @@ const SCRIPT = join(
 // The CLI runs with a fixture dir as cwd, where `bunx tsx` cannot see the repo's
 // pinned tsx and would fetch it from the npm registry.
 const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
-
-const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
-  return env
-}
 
 /** Shape-only stand-in; mergeRequirements copies configData without reading it. */
 const CONFIG_DATA = {
@@ -182,8 +170,20 @@ function makeRepo(files: Record<string, string>): string {
     mkdirSync(join(full, '..'), { recursive: true })
     writeFileSync(full, content)
   }
-  spawnSync('git', ['init', '-q'], { cwd: root, env: spawnEnv() })
-  spawnSync('git', ['add', '-A'], { cwd: root, env: spawnEnv() })
+  // The scan reads `git ls-files`, so a fixture git silently failed to build
+  // would leave the CLI cases passing or failing for the wrong reason.
+  for (const args of [
+    ['init', '-q'],
+    ['add', '-A'],
+  ]) {
+    const git = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    if (git.status !== 0)
+      throw new Error(
+        `git ${args.join(' ')} failed in ${root}: ${
+          git.error?.message ?? git.stderr
+        }`
+      )
+  }
   return root
 }
 
@@ -195,18 +195,27 @@ contract Clean {
 }
 `
 
-const runGate = (root: string, args: string[] = []) =>
-  spawnSync(TSX_BIN, [SCRIPT, '--out-dir', OUT_DIR, ...args], {
+/**
+ * Runs the CLI in `root`. A child that never started has no status, which an
+ * exit-code assertion can misread, so a failed spawn throws instead.
+ */
+const runCli = (root: string, args: string[]) => {
+  const result = spawnSync(TSX_BIN, [SCRIPT, ...args], {
     cwd: root,
     encoding: 'utf8',
-    env: spawnEnv(),
+    env: withheldEnv(),
   })
+  if (result.error)
+    throw new Error(
+      `could not spawn ${TSX_BIN}: ${result.error.message}; run \`bun install\``
+    )
+  return result
+}
+
+const runGate = (root: string, args: string[] = []) =>
+  runCli(root, ['--out-dir', OUT_DIR, ...args])
 
 describe('verify-immutable-registry CLI', () => {
-  it("runs the repo's own tsx binary, not one bunx would fetch", () => {
-    expect(existsSync(TSX_BIN)).toBe(true)
-  })
-
   it('scans exactly the src/*.sol files git tracks', () => {
     const root = makeRepo({
       'src/Clean.sol': CLEAN_CONTRACT,
@@ -304,11 +313,7 @@ describe('verify-immutable-registry CLI', () => {
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
-    const result = spawnSync(TSX_BIN, [SCRIPT, '--out-dir'], {
-      cwd: root,
-      encoding: 'utf8',
-      env: spawnEnv(),
-    })
+    const result = runCli(root, ['--out-dir'])
 
     expect(result.status).toBe(1)
     expect(result.stdout + result.stderr).toMatch(
