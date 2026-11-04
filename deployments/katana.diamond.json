@@ -74,7 +74,7 @@
       "ERC20Proxy": "0xd45f6CaE2838A06D99C0Aceec201E7bd2003d567",
       "Executor": "0x7Cceda1C526d2048AFD1C941326fb23d17b3a591",
       "FeeCollector": "0xB7ea489dB36820f0d57F1A67353AA4f5d0890ce3",
-      "FeeForwarder": "0xaaa55A0157670Ff2b4CF82F5cd2C754FE54BA574",
+      "FeeForwarder": "0xEC51f3746626919d01a62563D9730804306898D1",
       "GasZipPeriphery": "0xA3cB8Ac8c250612FdA331F134EB60492b0d3bB10",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x3ba2A1091b94CE230f05aC622EC9288b45Ca49D4",

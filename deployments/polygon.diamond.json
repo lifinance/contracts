@@ -85,6 +85,10 @@
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
       },
+      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
+        "Name": "SquidFacet",
+        "Version": "1.0.0"
+      },
       "0x8CD89Ea14345F24d0299c2180Aec97a417Ca34E3": {
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
@@ -112,17 +116,13 @@
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
-      },
-      "0x5C2C3F56e33F45389aa4e1DA4D3a807A532a910c": {
-        "Name": "SquidFacet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x5741A7FfE7c39Ca175546a54985fA79211290b51",
       "Executor": "0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D",
       "FeeCollector": "0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9",
-      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+      "FeeForwarder": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
