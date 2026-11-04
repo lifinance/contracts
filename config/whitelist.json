@@ -6819,7 +6819,7 @@
     "gravity": [
       {
         "name": "FeeForwarder",
-        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
+        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6828,10 +6828,6 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          },
-          {
-            "selector": "0x39db035e",
-            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
