@@ -586,7 +586,7 @@ function main {
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
   while IFS= read -r NETWORK; do
     NETWORKS+=("$NETWORK")
-  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
+  done < <(jq -r 'to_entries[] | select(.value.status == "active") | .key' "$NETWORKS_JSON_FILE_PATH")
 
   echo "Verifying on-chain pauserWallet + governance across ${#NETWORKS[@]} networks (throttled parallel; log may appear interleaved)..."
 
