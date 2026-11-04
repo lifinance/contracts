@@ -176,7 +176,13 @@ function makeRepo(files: Record<string, string>): string {
     ['init', '-q'],
     ['add', '-A'],
   ]) {
-    const git = spawnSync('git', args, { cwd: root, encoding: 'utf8' })
+    // Withheld too: `git add` runs any clean filter the user's git config
+    // defines, and that filter inherits this environment.
+    const git = spawnSync('git', args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: withheldEnv(),
+    })
     if (git.status !== 0)
       throw new Error(
         `git ${args.join(' ')} failed in ${root}: ${
