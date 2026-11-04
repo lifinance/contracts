@@ -3454,8 +3454,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         report(
           ctx,
           error,
-          `${BRIDGE_ATTESTER}: could not read the PeripheryRegistry, so its allowlist was not checked: ${String(
-            error
+          `${BRIDGE_ATTESTER}: could not read the PeripheryRegistry, so its allowlist was not checked: ${redactUrls(
+            String(error)
           )}`
         )
         return
@@ -3469,8 +3469,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         report(
           ctx,
           error,
-          `${BRIDGE_ATTESTER} (${attester}): could not read its allowlisted selectors: ${String(
-            error
+          `${BRIDGE_ATTESTER} (${attester}): could not read its allowlisted selectors: ${redactUrls(
+            String(error)
           )}`
         )
         return

@@ -4522,6 +4522,7 @@ describe('facet-versions-match-target-state', () => {
 
 describe('bridge-attester-not-allowlisted', () => {
   const ATTESTER = getAddress('0xa77e57e200000000000000000000000000000001')
+  const SECRET_RPC = 'https://rpc.example.invalid/v2/SYNTHETIC_PROVIDER_SECRET'
 
   function makeAttesterCtx(
     registered: string,
@@ -4586,6 +4587,33 @@ describe('bridge-attester-not-allowlisted', () => {
     expect(ctx.warnings[0]).toContain(
       'could not read its allowlisted selectors'
     )
+  })
+
+  it('redacts the RPC URL when the allowlist read fails', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => {
+      throw new Error(`fetch failed: ${SECRET_RPC}`)
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('[redacted-url]')
+    expect(ctx.warnings[0]).not.toContain('SYNTHETIC_PROVIDER_SECRET')
+  })
+
+  it('redacts the RPC URL when the registry read fails', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => [])
+    Object.assign(ctx, {
+      publicClient: {
+        readContract: async () => {
+          throw new Error(`fetch failed: ${SECRET_RPC}`)
+        },
+      },
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('could not read the PeripheryRegistry')
+    expect(ctx.warnings[0]).toContain('[redacted-url]')
+    expect(ctx.warnings[0]).not.toContain('SYNTHETIC_PROVIDER_SECRET')
   })
 
   it('warns when no EVM client is configured', async () => {
