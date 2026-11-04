@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "2.0.0"
       },
-      "0x1221db5424DC22DF9f426ec38A4F31950f6a5600": {
+      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
         "Name": "EcoFacet",
-        "Version": "3.0.0"
+        "Version": "2.0.0"
       },
       "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",

@@ -49,9 +49,9 @@
         "Name": "GlacisFacet",
         "Version": "1.2.0"
       },
-      "0x6e713e750D4D8e5cf005a9016BAdE8760BE03717": {
+      "0xff163727cD17c900CAf131a148129784617cA89D": {
         "Name": "EcoFacet",
-        "Version": "3.0.0"
+        "Version": "2.0.0"
       },
       "0x29A56dC0fc91A11F9807b7D82d32706BB85aaF4F": {
         "Name": "GasZipFacet",
