@@ -1,6 +1,8 @@
 # Verify Emergency Pause Readiness
 # - Read-only companion to the emergency-pause workflow: verifies the pause CAN fire
 #   on every production diamond, without firing it. Runs script/utils/verifyEmergencyPauseReadinessGitHub.sh.
+# - Known limitation: networks whose networks.json status is not "active" are skipped (logged as
+#   "skipping <network>"), although the break-glass pause script still targets them.
 # - Secret check (offline): the address derived from PRIV_KEY_PAUSER_WALLET matches the
 #   configured pauser in config/global.json (EVM + Tron). Fail-fast.
 # - Pauser check (on-chain): each production LiFiDiamond's registered pauserWallet() equals
