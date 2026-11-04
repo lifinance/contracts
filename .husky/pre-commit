@@ -9,8 +9,9 @@
 # init we actually need (HUSKY=0 skip, ~/.huskyrc) and re-execing under
 # `bash -e` instead of `sh -e`.
 #
-# Compile checks (forge build, TypeChain) are left to pre-push and CI; this hook
-# only blocks .env secrets and runs the staged-file formatters and linters.
+# This hook only blocks .env secrets and runs the staged-file formatters and
+# linters. It never builds contracts: forge build and TypeChain generation run
+# in CI, and the type check skips files whose build-output imports are absent.
 [ "$HUSKY" = "0" ] && exit 0
 if [ -z "$husky_skip_init" ]; then
   readonly husky_skip_init=1
@@ -51,14 +52,6 @@ print_status() {
   local message=$2
   if [ "$status" = "success" ]; then
     printf '\033[32m✓\033[0m %s\n' "$message"
-  elif [ "$status" = "warning" ]; then
-    # Print the full line in yellow (easy to notice)
-    printf '\033[33m⚠ %s\033[0m\n' "$message"
-  elif [ "$status" = "skip" ]; then
-    printf '\033[33m⊘\033[0m %s\n' "$message"
-  elif [ "$status" = "error" ]; then
-    # Print the full line in red (easy to notice)
-    printf '\033[31m✗ %s\033[0m\n' "$message"
   else
     printf '  %s\n' "$message"
   fi
@@ -68,12 +61,6 @@ print_status() {
 # file paths in cyan, errors in red, warnings in yellow
 colorize_output() {
   local content=$1
-
-  if [ -z "$content" ]; then
-    echo "$content"
-    return
-  fi
-
   local ESC=$'\033'
   # Separate -e expressions stand in for newlines, which BSD sed needs inside { }.
   # A line ending in a .sol/.ts/.js/.tsx path is printed in cyan and skips the other rules.

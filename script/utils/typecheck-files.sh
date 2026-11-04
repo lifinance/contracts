@@ -6,55 +6,49 @@
 # instead of at runtime. The two sets need separate tsc-files calls because
 # ambient types apply to a whole program, not to a file.
 #
-# When a given file imports typechain/ and it is missing or older than a contract
-# under src/, it is generated first (`bun typechain:incremental`, which builds src/).
+# A file that imports a gitignored build output (typechain/, diamond.json) is
+# skipped with a notice while that output is absent: this check runs at commit
+# time and must not build contracts. CI generates both and checks those files.
 #
 # Usage: typecheck-files.sh FILE...
 #   FILE - Path relative to the repo root; non-TS files are ignored
 #
-# Returns: 0 if every file type-checks, 1 otherwise
+# Returns: 0 if every checked file type-checks, 1 otherwise
 # Example: bash script/utils/typecheck-files.sh script/utils/utils.ts
 
 set -euo pipefail
+
+# missingBuildOutput: Prints the build output FILE imports that is absent from
+# this checkout, or nothing.
+#
+# Usage: missingBuildOutput FILE
+function missingBuildOutput() {
+  local FROM="^[^'\"]*from[[:space:]]+['\"](\.\./)+"
+  if [[ ! -d typechain ]] && grep -qE "${FROM}typechain['\"/]" -- "$1"; then
+    echo "typechain/"
+  elif [[ ! -f diamond.json ]] && grep -qE "${FROM}diamond\.json['\"]" -- "$1"; then
+    echo "diamond.json"
+  fi
+}
 
 NODE_FILES=()
 TEST_FILES=()
 for FILE in "$@"; do
   case "$FILE" in
+    *.ts | *.tsx) ;;
+    *) continue ;;
+  esac
+  MISSING=$(missingBuildOutput "$FILE")
+  if [[ -n "$MISSING" ]]; then
+    echo "Not type-checked: $FILE imports $MISSING, which is not generated in this" \
+      "checkout (run 'bun build:typechain-and-abi' to check it locally; CI checks it)" >&2
+    continue
+  fi
+  case "$FILE" in
     *.test.ts) TEST_FILES+=("$FILE") ;;
-    *.ts | *.tsx) NODE_FILES+=("$FILE") ;;
+    *) NODE_FILES+=("$FILE") ;;
   esac
 done
-
-# ensureTypechain: Generates typechain/ when one of the given files imports it and it is missing
-# or older than a contract under src/, so a fresh worktree or a just-edited contract type-checks
-# against current bindings instead of failing with "Cannot find module".
-#
-# Usage: ensureTypechain FILE...
-#
-# Returns: 0, or exits 1 when generation fails
-function ensureTypechain() {
-  if ! grep -qE "['\"](\.\./)+typechain['\"/]" -- "$@"; then
-    return 0
-  fi
-  local NEWER_CONTRACT=""
-  if [[ -f typechain/index.ts ]]; then
-    NEWER_CONTRACT=$(find src -name '*.sol' -newer typechain/index.ts -print -quit)
-    if [[ -z "$NEWER_CONTRACT" ]]; then
-      return 0
-    fi
-  fi
-
-  echo "typechain/ is missing or older than src/; generating it (bun typechain:incremental)" >&2
-  if ! bun typechain:incremental >&2; then
-    echo "TypeChain generation failed; fix the build above or run 'bun typechain' manually" >&2
-    exit 1
-  fi
-}
-
-if [[ $((${#NODE_FILES[@]} + ${#TEST_FILES[@]})) -gt 0 ]]; then
-  ensureTypechain ${NODE_FILES[@]+"${NODE_FILES[@]}"} ${TEST_FILES[@]+"${TEST_FILES[@]}"}
-fi
 
 STATUS=0
 if [[ ${#NODE_FILES[@]} -gt 0 ]]; then
