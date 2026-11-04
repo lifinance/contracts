@@ -199,17 +199,20 @@ describe('the Node-runtime fence runs where it has to run', () => {
       if (!staged)
         throw new Error('package.json lint-staged has no node-runtime entry')
 
-      // Longer than a Unix socket path may be (104 bytes on macOS, 108 on Linux):
-      // a launcher that binds a socket under TMPDIR fails here, as in a sandbox.
+      // Longer than a Unix socket path may be (108 bytes on Linux; recent Node on
+      // macOS binds up to ~250): a launcher that binds a socket under TMPDIR
+      // fails here, as in a sandbox.
       const parent = mkdtempSync(join(tmpdir(), 'no-socket-'))
-      const longTmp = join(parent, 'a'.repeat(120))
+      const longTmp = join(parent, 'a'.repeat(200))
       mkdirSync(longTmp)
       try {
         const result = Bun.spawnSync(
           [...staged.split(' '), 'script/utils/is-entrypoint.ts'],
           {
             cwd: REPO_ROOT,
-            env: { ...spawnEnv(), TMPDIR: longTmp },
+            // `bun test` sets NODE_ENV=test, under which consola drops the
+            // success summary asserted below.
+            env: { ...spawnEnv(), TMPDIR: longTmp, NODE_ENV: 'development' },
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,
@@ -218,6 +221,9 @@ describe('the Node-runtime fence runs where it has to run', () => {
 
         expect(result.stderr.toString()).not.toContain('listen')
         expect(result.exitCode).toBe(0)
+        expect(
+          `${result.stdout.toString()}${result.stderr.toString()}`
+        ).toMatch(/1 file\(s\) checked, 0 refused/)
       } finally {
         rmSync(parent, { recursive: true, force: true })
       }

@@ -232,10 +232,11 @@ describe('the fence runs where it has to run', () => {
       if (!STAGED_FENCE)
         throw new Error('package.json lint-staged has no funnel-fence entry')
 
-      // Longer than a Unix socket path may be (104 bytes on macOS, 108 on Linux):
-      // a launcher that binds a socket under TMPDIR fails here, as in a sandbox.
+      // Longer than a Unix socket path may be (108 bytes on Linux; recent Node on
+      // macOS binds up to ~250): a launcher that binds a socket under TMPDIR
+      // fails here, as in a sandbox.
       const parent = mkdtempSync(join(tmpdir(), 'no-socket-'))
-      const longTmp = join(parent, 'a'.repeat(120))
+      const longTmp = join(parent, 'a'.repeat(200))
       mkdirSync(longTmp)
       try {
         const result = Bun.spawnSync(
