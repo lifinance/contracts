@@ -89,10 +89,27 @@ const stage = (repo: string, files: Record<string, string | Buffer>): void => {
   git(repo, 'add', '-A')
 }
 
-const scan = (repo: string): IScanResult => {
+/**
+ * Runs the scan in a repository.
+ *
+ * @param repo - Repository to scan.
+ * @param gitConfig - Git config entries set for the run, as a user's global config would.
+ * @returns Exit status and combined output.
+ */
+const scan = (
+  repo: string,
+  gitConfig: Record<string, string> = {}
+): IScanResult => {
+  const env = childEnv()
+  const entries = Object.entries(gitConfig)
+  env['GIT_CONFIG_COUNT'] = String(entries.length)
+  entries.forEach(([key, value], index) => {
+    env[`GIT_CONFIG_KEY_${index}`] = key
+    env[`GIT_CONFIG_VALUE_${index}`] = value
+  })
   const result = spawnSync('bash', [SCRIPT], {
     cwd: repo,
-    env: childEnv(),
+    env,
     encoding: 'utf8',
   })
   return { status: result.status, output: `${result.stdout}${result.stderr}` }
@@ -274,6 +291,36 @@ describe('scan-staged-secrets .env values', () => {
     })
 
     expect(scan(repo).output).toContain('[b.txt:2] Secret from .env file found')
+  })
+
+  it('keeps scanning later files when diff.suppressBlankEmpty is set', () => {
+    const repo = makeRepo(`${SECRET_KEY}=${SECRET}\n`, {
+      'a.txt': 'a\n\nX\n\nc\n',
+      'b.txt': 'one\ntwo\nthree\n',
+    })
+    stage(repo, {
+      'a.txt': 'a\n\nY\n\nc\n',
+      'b.txt': `one\ntwo\nkey=${SECRET}\nthree\n`,
+    })
+
+    const { status, output } = scan(repo, {
+      'diff.suppressBlankEmpty': 'true',
+    })
+
+    expect(status).toBe(1)
+    expect(output).toContain('[b.txt:3] Secret from .env file found')
+  })
+
+  it('reports plain paths when grep.lineNumber and grep.column are set', () => {
+    const repo = makeRepo(`${SECRET_KEY}=${SECRET}\n`)
+    stage(repo, { 'a.txt': `x\n${SECRET}\n` })
+
+    const { output } = scan(repo, {
+      'grep.lineNumber': 'true',
+      'grep.column': 'true',
+    })
+
+    expect(output).toContain('[a.txt:2] Secret from .env file found')
   })
 
   it('scans binary files as text', () => {

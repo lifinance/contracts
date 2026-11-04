@@ -145,8 +145,9 @@ function writeAddedLines() {
     PATHSPECS+=(":(exclude)$EXCLUDED")
   done
 
-  # -U1 keeps the line above each change, so the marker on an unchanged line above still counts
-  if ! git -c core.quotePath=false diff --cached --no-color --no-ext-diff --no-textconv --text \
+  # -U1 keeps the line above each change, so the marker on an unchanged line above still counts.
+  # suppressBlankEmpty would drop the " " of blank context lines and desync the hunk counts below.
+  if ! git -c core.quotePath=false -c diff.suppressBlankEmpty=false diff --cached --no-color --no-ext-diff --no-textconv --text \
     --src-prefix=a/ --dst-prefix=b/ -U1 --diff-filter=ACMR -- "${PATHSPECS[@]}" \
     > "$TEMP_DIR/staged.diff"; then
     echo "scan-staged-secrets: could not read the staged diff (git diff --cached failed)" >&2
@@ -216,8 +217,9 @@ if [ ${#ENV_SECRET_VALUES[@]} -gt 0 ]; then
   printf '%s\n' "${ENV_SECRET_VALUES[@]}" > "$TEMP_DIR/patterns"
   # git grep instead of grep: BSD grep is slow with hundreds of -F patterns (~10s on 100k lines)
   # git grep --no-index only reads paths under its working directory
-  grepRecords git -C "$TEMP_DIR" grep --no-index --no-color -h -a -F -f patterns \
-    -- "${ADDED_LINES##*/}" > "$TEMP_DIR/secret_hits"
+  # grep.lineNumber / grep.column in a user's config would prefix every record
+  grepRecords git -C "$TEMP_DIR" grep --no-index --no-color --no-line-number --no-column -h -a \
+    -F -f patterns -- "${ADDED_LINES##*/}" > "$TEMP_DIR/secret_hits"
 
   # The prefilter also matches path and line-number fields; the content check below decides.
   while IFS="$SEP" read -r FILE LINE_NUMBER CONTENT; do
