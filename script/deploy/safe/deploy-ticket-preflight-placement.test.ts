@@ -136,21 +136,13 @@ const run = (
   args: string[],
   options: { env?: Record<string, string> } = {}
 ): { output: string; refused: boolean } => {
+  // Built from scratch rather than copied from this process, which holds the
+  // developer's env file: none of their settings may decide a case below.
   const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
+    PATH: process.env.PATH ?? '',
+    HOME: process.env.HOME ?? '',
+    ...(options.env ?? {}),
   }
-  // `bun test` sets NODE_ENV=test; this child is exercised as a CLI.
-  delete env.NODE_ENV
-  // Set empty rather than deleted, so a developer's own exported ticket cannot
-  // decide the cases below. A case that is about a supplied ticket overrides
-  // this through `options.env`.
-  env.SAFE_PROPOSAL_TICKET = ''
-  env.SAFE_PROPOSAL_REASON = ''
-  // The mirrors too: they are the channel that survives the env file, so a
-  // developer's inherited one would otherwise rescue the refusal cases.
-  env.RESOLVED_SAFE_PROPOSAL_TICKET = ''
-  env.RESOLVED_SAFE_PROPOSAL_REASON = ''
-  Object.assign(env, options.env ?? {})
   withholdCredentials(env)
   const shim = toolchainShim()
   env.PATH = `${shim}:${env.PATH ?? ''}`

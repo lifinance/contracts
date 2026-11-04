@@ -8,7 +8,7 @@
  * real `bunx` replaced by a stub that produces the output under test.
  */
 
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -58,6 +58,21 @@ const echoingBunxStub = (ticket: string): string => {
 }
 
 /**
+ * A working directory with an empty env file. `helperFunctions.sh` sources
+ * `.env` from its cwd, so running from the repo root would let a developer's
+ * own settings (e.g. direct-send mode) decide the cases below.
+ *
+ * @returns the sandbox root
+ */
+const sandbox = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'ticket-helper-repo-'))
+  for (const entry of ['script', 'config'])
+    symlinkSync(join(REPO_ROOT, entry), join(dir, entry))
+  writeFileSync(join(dir, '.env'), '')
+  return dir
+}
+
+/**
  * Runs the real helper and reports what the caller would see.
  *
  * @param args - the helper's arguments, environment first
@@ -79,17 +94,13 @@ const callHelper = (
   reasonMirror: string
   output: string
 } => {
+  // Built from scratch rather than copied from this process, which holds the
+  // developer's env file: none of their settings may decide a case below.
   const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-    // The post-clobber state a worker starts from, and the state a fresh run
-    // starts from: set empty either way so neither decides a case by accident.
-    SAFE_PROPOSAL_TICKET: '',
-    RESOLVED_SAFE_PROPOSAL_TICKET: '',
-    SAFE_PROPOSAL_REASON: '',
-    RESOLVED_SAFE_PROPOSAL_REASON: '',
+    PATH: process.env.PATH ?? '',
+    HOME: process.env.HOME ?? '',
     ...(options.env ?? {}),
   }
-  delete env.NODE_ENV
   let stub: string | undefined
   if (options.stubEchoesReasonFor !== undefined)
     stub = echoingBunxStub(options.stubEchoesReasonFor)
@@ -97,6 +108,7 @@ const callHelper = (
     stub = bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)
   if (stub !== undefined) env.PATH = `${stub}:${env.PATH ?? ''}`
 
+  const root = sandbox()
   const result = Bun.spawnSync(
     [
       'bash',
@@ -109,7 +121,7 @@ const callHelper = (
        echo "REASON_MIRROR=[$RESOLVED_SAFE_PROPOSAL_REASON]"`,
     ],
     {
-      cwd: REPO_ROOT,
+      cwd: root,
       env,
       timeout: TIMEOUT_MS,
       stdin: 'ignore',
@@ -119,6 +131,7 @@ const callHelper = (
   )
 
   if (stub !== undefined) rmSync(stub, { recursive: true, force: true })
+  rmSync(root, { recursive: true, force: true })
 
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
   if (result.signalCode !== null && result.signalCode !== undefined)
