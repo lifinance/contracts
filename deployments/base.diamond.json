@@ -45,9 +45,9 @@
         "Name": "AcrossFacetPackedV4",
         "Version": "1.0.0"
       },
-      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
+      "0x1221db5424DC22DF9f426ec38A4F31950f6a5600": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x65d6B9A368Be49bcA4964B66e54F828cAB64B8F9": {
         "Name": "GasZipFacet",
@@ -60,6 +60,10 @@
       "0x4B0eC145d216101844072BcEE574A0e8873770B6": {
         "Name": "CalldataVerificationFacet",
         "Version": "2.0.0"
+      },
+      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
+        "Name": "M0Facet",
+        "Version": "1.0.0"
       },
       "0x1841044080E6872c90Ac5048F0D1954CC546e9B7": {
         "Name": "WhitelistManagerFacet",
@@ -131,10 +135,6 @@
       },
       "0x6275c64C1DA8919D1F7F5D558D36A6D750C74838": {
         "Name": "CentrifugeFacet",
-        "Version": "1.0.0"
-      },
-      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
-        "Name": "M0Facet",
         "Version": "1.0.0"
       }
     },

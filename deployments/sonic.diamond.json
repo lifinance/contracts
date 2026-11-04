@@ -3,7 +3,7 @@
     "Facets": {
       "0x7052D07D749Cb8446E32098B7ba64ad12Cf638be": {
         "Name": "DiamondCutFacet",
-        "Version": "1.0.0"
+        "Version": "2.0.0"
       },
       "0xEB014fd2fd6e6f9C79d31f7fE4AF2B8B5694A03f": {
         "Name": "DiamondLoupeFacet",
@@ -29,9 +29,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
+      "0x1221db5424DC22DF9f426ec38A4F31950f6a5600": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0xa0353221443CA4E2e6A040F30A57B47F5A6d479D": {
         "Name": "SymbiosisFacet",

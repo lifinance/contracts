@@ -37,6 +37,10 @@
         "Name": "SupersetFacet",
         "Version": "1.1.0"
       },
+      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
+        "Name": "M0Facet",
+        "Version": "1.0.0"
+      },
       "0x317D089BBe46AaE816b27Eeb1ac26cFB7AB1850D": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
@@ -49,9 +53,9 @@
         "Name": "GasZipFacet",
         "Version": "2.0.4"
       },
-      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
+      "0x1221db5424DC22DF9f426ec38A4F31950f6a5600": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0": {
         "Name": "RelayDepositoryFacet",
@@ -132,10 +136,6 @@
       "0x94a3eDCa65424775651E6FbcE63c89c8cb69a66F": {
         "Name": "PaxosTransitFacet",
         "Version": "2.0.0"
-      },
-      "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
-        "Name": "M0Facet",
-        "Version": "1.0.0"
       }
     },
     "Periphery": {
