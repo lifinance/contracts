@@ -42,6 +42,7 @@ import * as selectorRegistry from './selector-registry'
 const FOUR_BYTE: Record<string, string> = {
   '0xdeadbeef': 'CodeIsLawZ95677371()',
   '0x13af4035': 'setOwner(address)',
+  '0x7200b829': 'confirmOwnershipTransfer()',
   [toFunctionSelector('fixtureWhitelistAlpha()')]: 'fixtureWhitelistAlpha()',
   [toFunctionSelector('fixtureWhitelistBeta()')]: 'fixtureWhitelistBeta()',
 }
@@ -448,6 +449,13 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     const lines = plain(await render('0xdeadbeef')).join('\n')
     expect(lines).toContain('[0xdeadbeef]')
     expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
+  })
+
+  it('renders a call that takes no arguments without a failure line', async () => {
+    const lines = plain(await render('0x7200b829')).join('\n')
+    expect(lines).toContain('confirmOwnershipTransfer [0x7200b829]')
+    expect(lines).toContain('no arguments')
+    expect(lines).not.toContain('COULD NOT')
   })
 
   it('reports empty calldata as empty rather than as a failure', async () => {

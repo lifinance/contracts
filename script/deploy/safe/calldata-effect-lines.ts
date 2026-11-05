@@ -417,7 +417,7 @@ async function decodeCall(
   for (const abi of candidates)
     try {
       const decoded = decodeFunctionData({ abi, data })
-      return { functionName: decoded.functionName, args: decoded.args }
+      return { functionName: decoded.functionName, args: decoded.args ?? [] }
     } catch {
       continue
     }
