@@ -57,9 +57,9 @@
         "Name": "PeripheryRegistryFacet",
         "Version": "1.0.0"
       },
-      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
+      "0x1221db5424DC22DF9f426ec38A4F31950f6a5600": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0xd69e5eA7458aBFF098e9240f81F733898535c7A0": {
         "Name": "GlacisFacet",
