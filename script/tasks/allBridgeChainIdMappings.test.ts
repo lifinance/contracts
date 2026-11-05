@@ -2,12 +2,7 @@ import { readFileSync } from 'fs'
 import { dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
-import {
-  describe,
-  expect,
-  it,
-  // eslint-disable-next-line import/no-unresolved
-} from 'bun:test'
+import { describe, expect, it } from 'bun:test'
 import {
   decodeFunctionData,
   encodeErrorResult,
