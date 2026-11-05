@@ -69,6 +69,8 @@ export const freshChildEnv = (
  * blank proposal-intent lines
  * @param links - checkout entries to link in; ones this checkout lacks are skipped
  * @returns the sandbox root
+ * @throws when the temp directory, a link or the env file cannot be created;
+ * the filesystem error propagates, leaving any partly built sandbox behind
  */
 export const sandboxCheckout = (
   envLines: readonly string[] = [],
