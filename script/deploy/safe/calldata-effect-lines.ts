@@ -27,12 +27,16 @@
  *   it is holding back.
  */
 
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import type { Address, Hex } from 'viem'
 import { decodeFunctionData, parseAbi } from 'viem'
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
+import { parseAttestableSelectors } from '../shared/attestableSelectors'
 
 import {
   asPrintable,
@@ -350,6 +354,8 @@ async function effectLines(
       return whitelistLines(args, called, context, pre)
     case 'registerPeripheryContract':
       return registerPeripheryLines(args, called, context, pre)
+    case 'setAttestableSelector':
+      return attestableSelectorLines(args, called, pre)
     case 'grantRole':
     case 'revokeRole':
     case 'renounceRole':
@@ -909,6 +915,82 @@ async function registerPeripheryLines(
     ),
     address
   )
+}
+
+async function attestableSelectorLines(
+  args: readonly unknown[],
+  called: Printable,
+  pre: string
+): Promise<string[]> {
+  const [selectorArg, enabled] = args
+  // Keyed by the decoded bool, as in whitelistLines; anything else is quoted.
+  const verb =
+    enabled === true
+      ? trustedMarkup('Enable for attested dispatch ')
+      : enabled === false
+      ? trustedMarkup('Disable for attested dispatch ')
+      : concatPrintable(
+          trustedMarkup('set enabled='),
+          quoted(enabled, GREEN),
+          trustedMarkup(' on ')
+        )
+  const selector = String(selectorArg ?? '').toLowerCase()
+  const expected = expectedAttestableEntry(selector)
+  const named =
+    expected?.confirmedName ??
+    getLocalSelectorInfo(selector)?.name ??
+    (await resolveSelectorsViaFourByte([selector])).get(selector)
+  const name = named
+    ? storedField(named, BLUE)
+    : color(GREY, trustedMarkup('no name for this selector'))
+  const listing = color(
+    GREY,
+    trustedMarkup(
+      expected
+        ? ' · listed in attestableSelectors'
+        : ' · not listed in attestableSelectors'
+    )
+  )
+  return [
+    `${pre}${called}${color(GREY, trustedMarkup(' · '))}${verb}${storedField(
+      selector,
+      CYAN
+    )}  ${name}${listing}`,
+  ]
+}
+
+/**
+ * The selector's entry in the repository's expected attestable set, if any.
+ *
+ * `confirmedName` is `<Facet>.<function>`, set only when the facet's build
+ * artifact still has the selector: CI holds the config to the build, but a
+ * signer may run on a tree that has drifted or was never built.
+ */
+function expectedAttestableEntry(
+  selector: string
+): { confirmedName?: string } | undefined {
+  try {
+    const raw: unknown = JSON.parse(
+      readFileSync(join(process.cwd(), 'config', 'global.json'), 'utf8')
+    )
+    if (
+      typeof raw !== 'object' ||
+      raw === null ||
+      !('attestableSelectors' in raw)
+    )
+      return undefined
+    const entry = parseAttestableSelectors(
+      raw.attestableSelectors
+    ).selectors.get(selector as Hex)
+    if (!entry) return undefined
+    return getArtifactSelectorInfo(entry.facet).has(selector)
+      ? { confirmedName: `${entry.facet}.${bareName(entry.signature)}` }
+      : {}
+  } catch {
+    // An unreadable or malformed config leaves the name to the registry and
+    // 4byte; the config's own tests report the malformation.
+    return undefined
+  }
 }
 
 /** The verbs for a role change, keyed by the function this repository decoded. */

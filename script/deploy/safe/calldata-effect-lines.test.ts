@@ -411,6 +411,104 @@ describe('buildCalldataEffectLines — selector names from the facet artifact', 
   })
 })
 
+describe('buildCalldataEffectLines — setAttestableSelector', () => {
+  const ABI_SET_ATTESTABLE = parseAbi([
+    'function setAttestableSelector(bytes4,bool)',
+  ])
+  const ENTRY = 'startFixtureBridge(uint256)'
+  const ENTRY_SELECTOR = toFunctionSelector(ENTRY)
+  const FACET_NAME = 'BridgeFixtureFacet'
+  const globalJson = (selectors: Record<string, string>) => ({
+    'config/global.json': JSON.stringify({
+      attestableSelectors: { networks: [], selectors },
+    }),
+  })
+  const listed = globalJson({ [ENTRY_SELECTOR]: `${FACET_NAME}.${ENTRY}` })
+  const built = {
+    [`out/${FACET_NAME}.sol/${FACET_NAME}.json`]: JSON.stringify({
+      methodIdentifiers: { [ENTRY]: ENTRY_SELECTOR.slice(2) },
+    }),
+  }
+
+  const call = (selector: `0x${string}`, enabled: boolean): `0x${string}` =>
+    encodeFunctionData({
+      abi: ABI_SET_ATTESTABLE,
+      functionName: 'setAttestableSelector',
+      args: [selector, enabled],
+    })
+
+  async function renderIn(
+    files: Record<string, string>,
+    data: `0x${string}`
+  ): Promise<string> {
+    const root = mkdtempSync(join(tmpdir(), 'calldata-effect-attestable-'))
+    for (const [relativePath, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(root, relativePath)), { recursive: true })
+      writeFileSync(join(root, relativePath), content)
+    }
+    const previousCwd = process.cwd()
+    process.chdir(root)
+    try {
+      return plain(await render(data)).join('\n')
+    } finally {
+      process.chdir(previousCwd)
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  beforeAll(async () => {
+    // Build the repo-rooted selector registries before any case leaves the
+    // repo root, so none of them is cached from a fixture directory.
+    await render(diamondCut(1))
+  })
+
+  it('names a listed selector by facet and function, both verbs', async () => {
+    for (const [enabled, verb] of [
+      [true, 'Enable'],
+      [false, 'Disable'],
+    ] as const) {
+      const lines = await renderIn(
+        { ...listed, ...built },
+        call(ENTRY_SELECTOR, enabled)
+      )
+      expect(lines).toContain(
+        `setAttestableSelector [0xcb82a010] · ${verb} for attested dispatch ${ENTRY_SELECTOR}  ${FACET_NAME}.startFixtureBridge · listed in attestableSelectors`
+      )
+    }
+  })
+
+  it('withholds the facet name when the build does not confirm the entry', async () => {
+    const lines = await renderIn(listed, call(ENTRY_SELECTOR, true))
+    expect(lines).not.toContain(FACET_NAME)
+    expect(lines).toContain(
+      `${ENTRY_SELECTOR}  no name for this selector · listed in attestableSelectors`
+    )
+  })
+
+  it('says when a selector is not listed, naming it from 4byte', async () => {
+    const lines = await renderIn(
+      { ...listed, ...built },
+      call('0x13af4035', true)
+    )
+    expect(lines).toContain(
+      '0x13af4035  setOwner(address) · not listed in attestableSelectors'
+    )
+  })
+
+  it('treats a missing or malformed config as not listed', async () => {
+    for (const files of [
+      built,
+      { ...built, 'config/global.json': JSON.stringify({}) },
+      { ...built, 'config/global.json': '{ not json' },
+      { ...built, ...globalJson({ [ENTRY_SELECTOR]: 'not a signature' }) },
+    ]) {
+      const lines = await renderIn(files, call(ENTRY_SELECTOR, true))
+      expect(lines).not.toContain(FACET_NAME)
+      expect(lines).toContain('not listed in attestableSelectors')
+    }
+  })
+})
+
 describe('buildCalldataEffectLines — the timelock envelope', () => {
   // The delay and the operation count left this line: the delay is read live
   // from the chain and refused by gate F, and the operation count is restated
