@@ -4,6 +4,7 @@ pragma solidity ^0.8.17;
 import { InvalidCallData } from "../Errors/GenericErrors.sol";
 import { IAttester } from "../Interfaces/IAttester.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
+import { LibUtil } from "../Libraries/LibUtil.sol";
 
 import { LibAttestableSelectors } from "../Libraries/LibAttestableSelectors.sol";
 
@@ -38,13 +39,12 @@ contract AttestedBridgeFacet {
 
     /// @notice Executes `_facetCalldata` on its Diamond facet, then calls `IAttester.attest` on the
     ///         registered attester with this call's arguments
-    /// @dev The second argument is the attester's data. It is unnamed because the facet never reads
-    ///      it: the assembly forwards it to the attester as part of the copied calldata. The
-    ///      dispatched call's return data is discarded
+    /// @dev The dispatched call's return data is discarded
     /// @param _facetCalldata The bridge facet call, selector included
+    /// @param _attesterData Opaque data for the attester; the facet never reads it
     function startBridgeAttested(
         bytes calldata _facetCalldata,
-        bytes calldata
+        bytes calldata _attesterData
     ) external payable {
         if (_facetCalldata.length < 4) revert InvalidCallData();
         bytes4 selector = bytes4(_facetCalldata);
@@ -60,35 +60,13 @@ contract AttestedBridgeFacet {
         ];
         if (attester.code.length == 0) revert AttesterNotRegistered();
 
-        bytes4 attestSelector = IAttester.attest.selector;
-        // One calldata copy serves both calls: `attest(bytes,bytes)` shares this function's
-        // argument encoding, so the attester receives the same bytes with only the selector
-        // swapped.
-        // solhint-disable-next-line no-inline-assembly
-        assembly ("memory-safe") {
-            let m := mload(0x40)
-            let size := calldatasize()
-            calldatacopy(m, 0, size)
-            if iszero(
-                delegatecall(
-                    gas(),
-                    facet,
-                    add(m, _facetCalldata.offset),
-                    _facetCalldata.length,
-                    0,
-                    0
-                )
-            ) {
-                returndatacopy(m, 0, returndatasize())
-                revert(m, returndatasize())
-            }
-            // Bytes 4..31 are the offset's high bytes: zero, as offset < calldatasize < 2^32.
-            mstore(m, attestSelector)
-            if iszero(call(gas(), attester, 0, m, size, 0, 0)) {
-                returndatacopy(m, 0, returndatasize())
-                revert(m, returndatasize())
-            }
-        }
+        // solhint-disable-next-line avoid-low-level-calls
+        (bool success, bytes memory result) = facet.delegatecall(
+            _facetCalldata
+        );
+        if (!success) LibUtil.revertWith(result);
+
+        IAttester(attester).attest(_facetCalldata, _attesterData);
     }
 
     /// @notice Enables or disables a bridge-entry selector for `startBridgeAttested`; Diamond

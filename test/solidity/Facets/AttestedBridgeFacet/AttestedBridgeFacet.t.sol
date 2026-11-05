@@ -252,16 +252,6 @@ abstract contract GatewayDiamondTestBase is Test {
         }
     }
 
-    function _withSelector(
-        bytes memory _data,
-        bytes4 _selector
-    ) internal pure returns (bytes memory out) {
-        out = bytes.concat(_data);
-        for (uint256 i; i < 4; ++i) {
-            out[i] = _selector[i];
-        }
-    }
-
     function _tail(
         bytes memory _data
     ) internal pure returns (bytes memory out) {
@@ -556,7 +546,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         assertEq(token.balanceOf(diamond), AMOUNT);
     }
 
-    function test_ForwardsTrailingCalldataVerbatim() public {
+    function test_AttesterGetsCanonicalArgsWithoutTrailingCalldata() public {
         RecordingAttester attester = _readyBridge();
         bytes memory call = _bridgeCall();
         bytes memory outer = bytes.concat(
@@ -573,11 +563,11 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         assertEq(attester.lastAttesterData(), ATTESTER_DATA);
         assertEq(
             attester.lastMsgData(),
-            _withSelector(outer, IAttester.attest.selector)
+            abi.encodeCall(IAttester.attest, (call, ATTESTER_DATA))
         );
     }
 
-    function test_ForwardsOverlappingRegionsVerbatim() public {
+    function test_AttesterGetsCanonicalArgsFromOverlappingRegions() public {
         RecordingAttester attester = _readyBridge();
         bytes memory call = _bridgeCall();
         bytes memory outer = abi.encodePacked(
@@ -593,7 +583,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         assertEq(attester.lastAttesterData(), call);
         assertEq(
             attester.lastMsgData(),
-            _withSelector(outer, IAttester.attest.selector)
+            abi.encodeCall(IAttester.attest, (call, call))
         );
         assertEq(token.balanceOf(diamond), AMOUNT);
     }
@@ -683,7 +673,7 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         DiamondCutFacet(diamond).diamondCut(cut, address(0), "");
     }
 
-    function test_ForwardsIdenticalBytesForAnyInput(
+    function test_AttesterGetsCanonicalArgsForAnyInput(
         uint96 amount,
         bytes calldata attesterData,
         bytes calldata trailing
@@ -705,7 +695,7 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
 
         assertEq(
             attester.lastMsgData(),
-            _withSelector(outer, IAttester.attest.selector)
+            abi.encodeCall(IAttester.attest, (call, attesterData))
         );
         assertEq(attester.lastFacetCalldata(), call);
         assertEq(attester.lastAttesterData(), attesterData);
@@ -810,7 +800,7 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
     }
 
     /// @dev Heads 0x40 and 0x20: attesterData is the facetCalldata length word.
-    function test_SelfReferentialHeadsForwardVerbatim() public {
+    function test_AttesterGetsCanonicalArgsFromSelfReferentialHeads() public {
         RecordingAttester attester = _readyBridge();
         bytes memory call = _bridgeCall();
         bytes memory outer = abi.encodePacked(
@@ -826,7 +816,7 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         assertEq(attester.lastAttesterData(), abi.encode(call.length));
         assertEq(
             attester.lastMsgData(),
-            _withSelector(outer, IAttester.attest.selector)
+            abi.encodeCall(IAttester.attest, (call, abi.encode(call.length)))
         );
     }
 

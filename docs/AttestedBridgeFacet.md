@@ -29,13 +29,10 @@ checks run before any external call.
 5. The facet is delegatecalled with `_facetCalldata`. The bridge runs exactly as on a
    direct call: same `msg.sender`, same `msg.value`, same validation, refunds and
    events. Its return data is discarded and a revert bubbles up unchanged.
-6. The attester is called with value 0 and this call's own calldata, with only the
-   selector swapped to `attest(bytes,bytes)`. The two functions share their argument
-   encoding, so the attester receives `_facetCalldata` and `_attesterData` byte for byte.
-   Its return data is discarded. A revert bubbles up unchanged and undoes the bridge, so
-   a bridge never completes without its attestation.
-
-One calldata copy serves both calls, which is why the dispatch is inline assembly.
+6. The attester is called with value 0 as `attest(_facetCalldata, _attesterData)`, so it
+   receives the exact bytes the facet ran and the caller's `_attesterData`, ABI-encoded
+   afresh. Its return data is discarded. A revert bubbles up unchanged and undoes the
+   bridge, so a bridge never completes without its attestation.
 
 ## Who calls it
 
