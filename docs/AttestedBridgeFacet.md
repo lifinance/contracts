@@ -56,7 +56,10 @@ repository and implements [`IAttester`](../src/Interfaces/IAttester.sol).
 
 The attester's inputs are caller-controlled. The only guarantee the facet adds is that
 the facet call with exactly these bytes succeeded in the same transaction, and that the
-Diamond is the caller. An attester must therefore:
+Diamond is the caller. The attester sees neither the original `msg.sender` nor
+`msg.value`: the Diamond calls it with value 0. Who bridged and how much native was sent
+can only come from `_facetCalldata`, never from `_attesterData`. An attester must
+therefore:
 
 - accept `attest` only from the Diamond;
 - decode the bridge facts it relies on (asset, amount, receiver, destination chain) from
