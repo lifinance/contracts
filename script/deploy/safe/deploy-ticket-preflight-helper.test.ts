@@ -8,18 +8,20 @@
  * real `bunx` replaced by a stub that produces the output under test.
  */
 
-import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
+  afterAll,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
+import { freshChildEnv, sandboxCheckout } from './spawn-env'
+
 const TIMEOUT_MS = 30_000
 
 /**
@@ -57,20 +59,15 @@ const echoingBunxStub = (ticket: string): string => {
   return dir
 }
 
-/**
- * A working directory with an empty env file. `helperFunctions.sh` sources
- * `.env` from its cwd, so running from the repo root would let a developer's
- * own settings (e.g. direct-send mode) decide the cases below.
- *
- * @returns the sandbox root
- */
-const sandbox = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), 'ticket-helper-repo-'))
-  for (const entry of ['script', 'config'])
-    symlinkSync(join(REPO_ROOT, entry), join(dir, entry))
-  writeFileSync(join(dir, '.env'), '')
-  return dir
-}
+// `helperFunctions.sh` sources `.env` from its cwd, so running from the repo
+// root would let a developer's own settings (e.g. direct-send mode) decide the
+// cases below.
+const SANDBOX_ROOT = sandboxCheckout([], ['script', 'config'])
+
+afterAll(() => {
+  // Symlinked entries are removed as links, never followed into the checkout.
+  rmSync(SANDBOX_ROOT, { recursive: true, force: true })
+})
 
 /**
  * Runs the real helper and reports what the caller would see.
@@ -94,13 +91,7 @@ const callHelper = (
   reasonMirror: string
   output: string
 } => {
-  // Built from scratch rather than copied from this process, which holds the
-  // developer's env file: none of their settings may decide a case below.
-  const env: Record<string, string> = {
-    PATH: process.env.PATH ?? '',
-    HOME: process.env.HOME ?? '',
-    ...(options.env ?? {}),
-  }
+  const env = freshChildEnv(options.env)
   let stub: string | undefined
   if (options.stubEchoesReasonFor !== undefined)
     stub = echoingBunxStub(options.stubEchoesReasonFor)
@@ -108,7 +99,6 @@ const callHelper = (
     stub = bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)
   if (stub !== undefined) env.PATH = `${stub}:${env.PATH ?? ''}`
 
-  const root = sandbox()
   const result = Bun.spawnSync(
     [
       'bash',
@@ -121,7 +111,7 @@ const callHelper = (
        echo "REASON_MIRROR=[$RESOLVED_SAFE_PROPOSAL_REASON]"`,
     ],
     {
-      cwd: root,
+      cwd: SANDBOX_ROOT,
       env,
       timeout: TIMEOUT_MS,
       stdin: 'ignore',
@@ -131,7 +121,6 @@ const callHelper = (
   )
 
   if (stub !== undefined) rmSync(stub, { recursive: true, force: true })
-  rmSync(root, { recursive: true, force: true })
 
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
   if (result.signalCode !== null && result.signalCode !== undefined)
@@ -201,6 +190,24 @@ describe('what the helper does once a ticket has been resolved', () => {
 
     expect(result.rc).toBe(0)
     expect(result.ticket).toBe(URL)
+  })
+
+  it("takes the caller's fresh export over a mirror an earlier rollout left", () => {
+    // A shell that ran an earlier rollout still holds its mirror, and the env
+    // file then blanks the fresh export, so a capture that kept the mirror
+    // handed this run the earlier rollout's ticket. The stub echoes what it
+    // was handed, so only the ticket that reached the resolver can pass.
+    const fresh = 'https://linear.app/lifi-linear/issue/EXSC-9999'
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: '$SAFE_PROPOSAL_TICKET',
+      env: {
+        SAFE_PROPOSAL_TICKET: fresh,
+        RESOLVED_SAFE_PROPOSAL_TICKET: URL,
+      },
+    })
+
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(fresh)
   })
 
   it('does not trust an inherited mirror, it re-resolves it', () => {
