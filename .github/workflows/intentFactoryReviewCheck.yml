@@ -1,13 +1,17 @@
 # Intent Factory Review Check
-# - Fails a PR that changes AttestedBridgeFacet, a bridge facet it dispatches, or code that shapes
-#   their calldata, until the Intent Factory team has reviewed its current head
+# - A reminder, not an approval gate: fails a PR that changes AttestedBridgeFacet, a bridge facet
+#   it dispatches, or code that shapes their calldata, until someone confirms with the
+#   IntentFactoryReviewed label that the Intent Factory team was consulted or the change does not
+#   affect them
 # - Why: Intent Factory's BridgeCommitmentLedger trusts what its facts adapters decode from the
 #   calldata these facets execute, so a change here can make an adapter describe a call that no
 #   longer happens
-# - Adding the IntentFactoryReviewed label records an `intent-factory-approval` commit status on
-#   the head it was added at. The check passes only when the PR's live head carries that status,
-#   so a run triggered by any other event can never approve a newer head
-# - A push removes the label so it can be added again after the next review
+# - Adding the label records an `intent-factory-approval` commit status on the head it was added
+#   at. The check passes only when the PR's live head carries that status, so a run triggered by
+#   any other event can never confirm a newer head
+# - A push removes the label so it can be added again after the next confirmation
+# - Limitation: anyone with write access, the PR author included, can add the label or post the
+#   status, so it records a confirmation, not a review by the Intent Factory team
 # - Reads only the event payload and the GitHub API, no checkout
 
 name: Intent Factory Review Check
@@ -62,10 +66,10 @@ jobs:
             --jq "[.[] | select(.context == \"$CONTEXT\" and .state == \"success\")] | length" \
             | awk '{ n += $1 } END { print n + 0 }')
           if [[ "$APPROVED" == "0" ]]; then
-            echo -e "\033[31mNo Intent Factory approval on the current head ($HEAD).\033[0m"
+            echo -e "\033[31mNo Intent Factory confirmation on the current head ($HEAD).\033[0m"
             echo -e "\033[31mThis PR changes AttestedBridgeFacet, a facet it dispatches,\033[0m"
             echo -e "\033[31mor code shaping their calldata, which Intent Factory decodes.\033[0m"
-            echo -e "\033[31mGet their review, then add the $LABEL label.\033[0m"
+            echo -e "\033[31mCheck with them, then add the $LABEL label.\033[0m"
             exit 1
           fi
-          echo -e "\033[32mIntent Factory approved $HEAD.\033[0m"
+          echo -e "\033[32mIntent Factory confirmation recorded for $HEAD.\033[0m"

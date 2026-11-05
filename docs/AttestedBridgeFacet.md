@@ -82,10 +82,11 @@ operation installs, while the operation can still be cancelled.
 A PR that changes this facet, `AcrossFacetV4`, `PolymerCCTPFacet`,
 `LiFiIntentEscrowFacetV2`, or the code that shapes their calldata (`ILiFi`, `LibSwap`,
 `SwapperV2`, `IAttester`, `LibAttestableSelectors`) fails the
-`Intent Factory Review Check` workflow until the `IntentFactoryReviewed` label is set:
-Intent Factory's facts adapters decode this calldata, so their team reviews such changes
-first. Adding the label approves the commit it was added at, and the check passes only
-for that commit. A later push removes the label, so new commits need a fresh review.
+`Intent Factory Review Check` workflow until the `IntentFactoryReviewed` label is set.
+Intent Factory's facts adapters decode this calldata, so the check is a reminder to
+coordinate with their team. It is not an approval gate: anyone with write access can set
+the label, which confirms that the team was consulted or that the change does not affect
+them. The label covers the commit it was added at, and a later push removes it.
 
 A selector enabled later with `setAttestableSelector` is a governance action, not a code
 change, so this check cannot see it. It fails closed: each Intent Factory adapter accepts
