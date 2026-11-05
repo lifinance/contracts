@@ -443,12 +443,11 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     expect(lines).toContain('CALLDATA COULD NOT BE DECODED')
   })
 
-  it('quotes a name the selector registry resolved rather than vouching for it', async () => {
-    // The registry answers this selector from a 4byte-style collision name, so
-    // the call is named but nothing decodes its body.
+  it('renders a zero-argument 4byte name that hashes to its selector as decoded', async () => {
     const lines = plain(await render('0xdeadbeef')).join('\n')
-    expect(lines).toContain('[0xdeadbeef]')
-    expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
+    expect(lines).toContain('CodeIsLawZ95677371 [0xdeadbeef]')
+    expect(lines).toContain('no arguments')
+    expect(lines).not.toContain('COULD NOT')
   })
 
   it('renders a call that takes no arguments without a failure line', async () => {
