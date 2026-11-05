@@ -33,6 +33,8 @@ import { TronWeb } from 'tronweb'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { generatePrivateKey } from 'viem/accounts'
 
+import { freshChildEnv } from '../safe/spawn-env'
+
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
 import { installRemoteIdentityShim, SHIM_BIN_DIR } from './remote-identity-shim'
 
@@ -158,7 +160,7 @@ const assertChildIsUsable = (
 /**
  * Runs a real propose CLI in a throwaway repo.
  * @param options - which CLI, its arguments, the repo to run it in, and the
- * `ENVIRONMENT` to set (deleted from the child's environment when omitted)
+ * `ENVIRONMENT` to set (left unset in the child's environment when omitted)
  * @returns the child's combined output and exit status
  */
 const spawnCli = (options: {
@@ -168,14 +170,9 @@ const spawnCli = (options: {
   environment?: string
   tronRpcUrl?: string
 }): { output: string; status: number | null } => {
-  // Built from scratch rather than copied from this process, which holds the
-  // developer's env file, keys and real proposal store included. `cwd` is the
-  // fixture repo, which has no env file for the child to re-load, so a name
-  // left out stays unset.
-  const env: Record<string, string> = {
-    PATH: process.env.PATH ?? '',
-    HOME: process.env.HOME ?? '',
-  }
+  // `cwd` is the fixture repo, which has no env file for the child to re-load,
+  // so a name left out stays unset.
+  const env = freshChildEnv()
   // Deliberately malformed rather than merely unroutable: the driver spends its
   // 30 s server-selection budget on an unreachable host, where a URI it cannot
   // parse throws on construction, so a probe that gets past the gate dies at
