@@ -457,6 +457,13 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     expect(lines).not.toContain('COULD NOT')
   })
 
+  it('does not hide a body behind a selector that takes no arguments', async () => {
+    const lines = plain(await render(`0x7200b829${'11'.repeat(32)}`)).join('\n')
+    expect(lines).toContain('confirmOwnershipTransfer [0x7200b829]')
+    expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
+    expect(lines).not.toContain('no arguments')
+  })
+
   it('reports empty calldata as empty rather than as a failure', async () => {
     const lines = plain(await render('0x')).join('\n')
     expect(lines).toContain('no calldata')
