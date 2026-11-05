@@ -23,6 +23,7 @@ import {
   getRevertData,
   getStaleAllBridgeKeys,
   isUnsupportedAllBridgeChainIdRevert,
+  loadAllBridgeMappings,
   parseAllBridgeMappings,
   selectMappingsNeedingUpdate,
   selectResolvingStaleKeys,
@@ -62,6 +63,18 @@ const UNSUPPORTED_REVERT: MappingReadResult = {
 const resolves = (value: bigint): MappingReadResult => ({
   status: 'success',
   result: value,
+})
+
+describe('loadAllBridgeMappings', () => {
+  it('loads the committed config from the repository root', () => {
+    const cwd = process.cwd()
+    process.chdir(REPO_ROOT)
+    try {
+      expect(loadAllBridgeMappings()).toEqual(configMappings)
+    } finally {
+      process.chdir(cwd)
+    }
+  })
 })
 
 describe('parseAllBridgeMappings', () => {
@@ -182,6 +195,12 @@ describe('selectResolvingStaleKeys', () => {
         [{ status: 'failure', error: { raw: '0xa9ad62f8' } }]
       )
     ).toThrow(/Failed to read chainId 5/)
+  })
+
+  it('throws when the result count does not match', () => {
+    expect(() => selectResolvingStaleKeys([5n, 14n], [resolves(137n)])).toThrow(
+      /Expected 2 read results, got 1/
+    )
   })
 })
 

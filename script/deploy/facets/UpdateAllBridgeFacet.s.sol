@@ -8,6 +8,8 @@ import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
+    error NoAllBridgeMappings();
+
     function run()
         public
         returns (address[] memory facets, bytes memory cutData)
@@ -24,29 +26,32 @@ contract DeployScript is UpdateScriptBase {
     function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/allbridge.json");
         json = vm.readFile(path);
-        // parseRaw + abi.decode fills struct fields in JSON key order, which some forge versions
-        // sort alphabetically, putting allBridgeChainId into the chainId slot
-        uint256 rowCount;
-        while (json.keyExists(_mappingKey(rowCount, ""))) rowCount++;
-
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](
-                rowCount
-            );
-        for (uint256 i = 0; i < rowCount; i++) {
-            chainIdConfigs[i] = AllBridgeFacet.ChainIdConfig({
-                chainId: json.readUint(_mappingKey(i, ".chainId")),
-                allBridgeChainId: json.readUint(
-                    _mappingKey(i, ".allBridgeChainId")
-                )
-            });
-        }
 
         return
             abi.encodeWithSelector(
                 AllBridgeFacet.initAllBridge.selector,
-                chainIdConfigs
+                _parseChainIdConfigs(json)
             );
+    }
+
+    /// @dev parseRaw + abi.decode fills struct fields in JSON key order, which some forge versions
+    ///      sort alphabetically, putting allBridgeChainId into the chainId slot
+    function _parseChainIdConfigs(
+        string memory _json
+    ) internal view returns (AllBridgeFacet.ChainIdConfig[] memory configs) {
+        uint256 rowCount;
+        while (_json.keyExists(_mappingKey(rowCount, ""))) rowCount++;
+        if (rowCount == 0) revert NoAllBridgeMappings();
+
+        configs = new AllBridgeFacet.ChainIdConfig[](rowCount);
+        for (uint256 i = 0; i < rowCount; i++) {
+            configs[i] = AllBridgeFacet.ChainIdConfig({
+                chainId: _json.readUint(_mappingKey(i, ".chainId")),
+                allBridgeChainId: _json.readUint(
+                    _mappingKey(i, ".allBridgeChainId")
+                )
+            });
+        }
     }
 
     function _mappingKey(

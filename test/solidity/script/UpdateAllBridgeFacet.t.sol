@@ -13,6 +13,12 @@ contract UpdateAllBridgeFacetHarness is UpdateAllBridgeFacetScript {
         return getCallData();
     }
 
+    function exposedParseChainIdConfigs(
+        string memory _json
+    ) public view returns (AllBridgeFacet.ChainIdConfig[] memory) {
+        return _parseChainIdConfigs(_json);
+    }
+
     function _readCutOptions()
         internal
         view
@@ -87,6 +93,40 @@ contract UpdateAllBridgeFacetTest is Test {
         assertEq(_allBridgeChainIdOf(configs, 137), 5);
     }
 
+    function test_ReadsFieldsByNameWhateverTheirOrderInTheObject() public {
+        // allBridgeChainId first in row 0: a decoder that fills fields by key order swaps them
+        string memory reordered = string.concat(
+            "{",
+            _quoted("mappings"),
+            ":[{",
+            _quoted("allBridgeChainId"),
+            ":5,",
+            _quoted("chainId"),
+            ":137},{",
+            _quoted("chainId"),
+            ":1201081091099710,",
+            _quoted("allBridgeChainId"),
+            ":7}]}"
+        );
+
+        AllBridgeFacet.ChainIdConfig[] memory configs = script
+            .exposedParseChainIdConfigs(reordered);
+
+        assertEq(configs.length, 2);
+        assertEq(configs[0].chainId, 137);
+        assertEq(configs[0].allBridgeChainId, 5);
+        assertEq(configs[1].chainId, 1201081091099710);
+        assertEq(configs[1].allBridgeChainId, 7);
+    }
+
+    function testRevert_ConfigWithoutMappings() public {
+        vm.expectRevert(
+            UpdateAllBridgeFacetScript.NoAllBridgeMappings.selector
+        );
+
+        script.exposedParseChainIdConfigs("{}");
+    }
+
     function _decodeInitCallData(
         bytes memory _callData
     ) internal pure returns (AllBridgeFacet.ChainIdConfig[] memory) {
@@ -96,6 +136,11 @@ contract UpdateAllBridgeFacetTest is Test {
         for (uint256 i = 0; i < args.length; i++) args[i] = _callData[i + 4];
 
         return abi.decode(args, (AllBridgeFacet.ChainIdConfig[]));
+    }
+
+    function _quoted(string memory _s) internal pure returns (string memory) {
+        string memory quote = string(abi.encodePacked(bytes1(0x22)));
+        return string.concat(quote, _s, quote);
     }
 
     function _rowKey(
