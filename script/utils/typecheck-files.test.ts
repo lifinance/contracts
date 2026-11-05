@@ -77,12 +77,21 @@ const makeRoot = (tsc: ITsc = { output: '', status: 0 }): string => {
   return root
 }
 
-const run = (root: string, ...files: string[]): IRunResult => {
+/**
+ * Runs the script in a checkout.
+ *
+ * @param root - Checkout to run in.
+ * @param files - Files to check.
+ * @param ci - Value of CI; empty runs it as a developer machine would, even on a CI runner.
+ * @returns Exit status, output and the tsc-files calls made.
+ */
+const runWith = (root: string, files: string[], ci: string): IRunResult => {
   const env: Record<string, string> = {}
   for (const [name, value] of Object.entries(process.env)) {
     if (value !== undefined) env[name] = value
   }
   withholdCredentials(env)
+  env['CI'] = ci
   env['PATH'] = `${join(root, 'bin')}:${env['PATH'] ?? ''}`
   const result = spawnSync('bash', [SCRIPT, ...files], {
     cwd: root,
@@ -99,6 +108,20 @@ const run = (root: string, ...files: string[]): IRunResult => {
     stderr: result.stderr,
     tscCalls,
   }
+}
+
+const run = (root: string, ...files: string[]): IRunResult =>
+  runWith(root, files, '')
+
+/**
+ * Creates every build output, so none counts as absent.
+ *
+ * @param root - Checkout to create them in.
+ */
+const buildOutputs = (root: string): void => {
+  write(root, 'typechain/index.ts', '')
+  write(root, 'diamond.json', '[]')
+  mkdirSync(join(root, 'out'))
 }
 
 const failing = (...lines: string[]): ITsc => ({
@@ -144,15 +167,63 @@ describe('typecheck-files.sh', () => {
     expect(run(root, DEMO).status).toBe(0)
   })
 
-  it('fails on a missing typechain/ module when typechain/ exists', () => {
-    const root = makeRoot(failing(MISSING_TYPECHAIN))
+  it('ignores the errors of a file that cannot find an absent out/ artifact', () => {
+    const missingArtifact = `${DEMO}(29,27): error TS2307: Cannot find module '../../out/ERC20/ERC20.sol/ERC20.json' or its corresponding type declarations.`
+    const root = makeRoot(failing(missingArtifact))
     write(root, 'typechain/index.ts', '')
     write(root, 'diamond.json', '[]')
+
+    expect(run(root, DEMO).status).toBe(0)
+  })
+
+  it('treats a typechain/ left empty by a failed generation as absent', () => {
+    const root = makeRoot(failing(MISSING_TYPECHAIN))
+    mkdirSync(join(root, 'typechain'))
+
+    expect(run(root, 'script/deploy/safe/deploy-safe.ts').status).toBe(0)
+  })
+
+  it('fails on a missing typechain/ module when typechain/ exists, with a rebuild hint', () => {
+    const root = makeRoot(failing(MISSING_TYPECHAIN))
+    buildOutputs(root)
 
     const result = run(root, 'script/deploy/safe/deploy-safe.ts')
 
     expect(result.status).toBe(1)
     expect(result.output).toContain(MISSING_TYPECHAIN)
+    expect(result.stderr).toContain(
+      "If these errors come from outdated build outputs, run 'bun build:typechain-and-abi'"
+    )
+  })
+
+  it('ignores nothing under CI, which generates the build outputs first', () => {
+    const root = makeRoot(failing(MISSING_TYPECHAIN))
+
+    const result = runWith(root, ['script/deploy/safe/deploy-safe.ts'], 'true')
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(MISSING_TYPECHAIN)
+  })
+
+  it('fails when tsc-files crashes after reporting a missing build output', () => {
+    const root = makeRoot(failing(MISSING_TYPECHAIN, 'tsc-files: crashed'))
+
+    const result = run(root, 'script/deploy/safe/deploy-safe.ts')
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('tsc-files: crashed')
+  })
+
+  it('keeps indented continuation lines of an ignored error ignored', () => {
+    const root = makeRoot(
+      failing(
+        FOLLOW_ON,
+        "  Type 'null' is not assignable to type 'string'.",
+        MISSING_FACTORY
+      )
+    )
+
+    expect(run(root, DEMO).status).toBe(0)
   })
 
   it('fails on an error in a file that can be judged, next to ignored ones', () => {

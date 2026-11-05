@@ -107,7 +107,8 @@ function loadEnvSecrets() {
     # credentials, and their values legitimately overlap with strings in
     # foundry.toml/networks.json (e.g. DO_NOT_VERIFY_IN_THESE_NETWORKS=...,localanvil,...).
     case "$KEY" in
-      DO_NOT_VERIFY_IN_THESE_NETWORKS | EXCLUDE_NETWORKS | EXCLUDE_PERIPHERY_CONTRACTS | EXCLUDE_FACET_CONTRACTS)
+      DO_NOT_VERIFY_IN_THESE_NETWORKS | EXCLUDE_NETWORKS | \
+        EXCLUDE_PERIPHERY_CONTRACTS | EXCLUDE_FACET_CONTRACTS)
         continue
         ;;
     esac
@@ -124,7 +125,8 @@ function loadEnvSecrets() {
 
     ENV_SECRET_KEYS+=("$KEY")
     ENV_SECRET_VALUES+=("$VALUE")
-  done < <(grep -v '^#' "$ENV_FILE" | sed 's/#.*//' | grep -v '^[[:space:]]*$' | sed 's/[[:space:]]*$//' || true)
+  done < <(grep -v '^#' "$ENV_FILE" | sed 's/#.*//' | grep -v '^[[:space:]]*$' |
+    sed 's/[[:space:]]*$//' || true)
   shopt -u nocasematch
 }
 
@@ -147,8 +149,9 @@ function writeAddedLines() {
 
   # -U1 keeps the line above each change, so the marker on an unchanged line above still counts.
   # suppressBlankEmpty would drop the " " of blank context lines and desync the hunk counts below.
-  if ! git -c core.quotePath=false -c diff.suppressBlankEmpty=false diff --cached --no-color --no-ext-diff --no-textconv --text \
-    --src-prefix=a/ --dst-prefix=b/ -U1 --diff-filter=ACMR -- "${PATHSPECS[@]}" \
+  if ! git -c core.quotePath=false -c diff.suppressBlankEmpty=false diff --cached --no-color \
+    --no-ext-diff --no-textconv --text --src-prefix=a/ --dst-prefix=b/ -U1 --diff-filter=ACMR \
+    -- "${PATHSPECS[@]}" \
     > "$TEMP_DIR/staged.diff"; then
     echo "scan-staged-secrets: could not read the staged diff (git diff --cached failed)" >&2
     exit 2
@@ -247,13 +250,14 @@ if [ -z "$SECRET_RESULTS" ] && [ -z "$PRIVATE_KEY_RESULTS" ]; then
 fi
 
 echo ""
-echo "-------------------------------------- RESULTS: ---------------------------------------------––"
+RULE="---------------------------------------------"
+printf '%s%s%s\n' "${RULE%???????}" " RESULTS: " "${RULE}––"
 printf '%s' "$SECRET_RESULTS"
 if [ -n "$SECRET_RESULTS" ] && [ -n "$PRIVATE_KEY_RESULTS" ]; then
   echo ""
 fi
 printf '%s' "$PRIVATE_KEY_RESULTS"
-echo "---------------------------------------------------------------------------------------------––"
+printf '%s%s%s\n' "$RULE" "$RULE" "---––"
 
 if [ -n "$SECRET_RESULTS" ]; then
   printf '\033[31m✗ %s\033[0m\n' "Secret value(s) from .env found. This code cannot be committed."
@@ -265,9 +269,12 @@ fi
 printf '\033[33m⚠ %s\033[0m\n' "Potential Ethereum private keys found"
 echo ""
 printf '\033[33m⚠ %s\033[0m\n' "NEXT STEPS"
-printf '\033[33m⚠ %s\033[0m\n' "Check each match carefully and make sure that no sensitive information is being committed"
-printf '\033[33m⚠ %s\033[0m\n' "If it did happen, undo the commit with 'git reset --soft HEAD~1', remove the secret(s) and commit again."
-printf '\033[31m✗ %s\033[0m\n' "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! BEFORE PUSHING TO GITHUB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+printf '\033[33m⚠ %s%s\033[0m\n' "Check each match carefully and make sure that " \
+  "no sensitive information is being committed"
+printf '\033[33m⚠ %s%s\033[0m\n' "If it did happen, undo the commit with " \
+  "'git reset --soft HEAD~1', remove the secret(s) and commit again."
+BANGS="!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+printf '\033[31m✗ %s%s%s\033[0m\n' "$BANGS" " BEFORE PUSHING TO GITHUB " "$BANGS"
 echo ""
 printf '\033[32m✓\033[0m %s\n' "Secret check completed (warnings only)"
 exit 0

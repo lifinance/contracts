@@ -7,12 +7,12 @@
 # ambient types apply to a whole program, not to a file.
 #
 # This check runs at commit time and must not build contracts. While a
-# gitignored build output (typechain/, diamond.json) is absent, a file that
-# cannot find it is not judged: its errors (the missing module and what follows
-# from it) are ignored with a notice, and errors in every other file still fail.
-# Going by tsc's errors rather than a file's own imports also covers files that
-# reach an output through another module (e.g. demoScriptHelpers.ts). CI
-# generates both outputs and checks everything.
+# gitignored build output (typechain/, diamond.json, out/) is absent, a file
+# that cannot find it is not judged: its errors (the missing module and what
+# follows from it) are ignored with a notice, and errors in every other file
+# still fail. Going by tsc's errors rather than a file's own imports also covers
+# files that reach an output through another module (e.g. demoScriptHelpers.ts).
+# Under CI (CI set), which generates the outputs first, nothing is ignored.
 #
 # Usage: typecheck-files.sh FILE...
 #   FILE - Path relative to the repo root; non-TS files are ignored
@@ -23,12 +23,19 @@
 set -euo pipefail
 
 ABSENT_OUTPUTS=()
-if [[ ! -d typechain ]]; then
-  ABSENT_OUTPUTS+=("typechain")
+if [[ -z "${CI:-}" ]]; then
+  # index.ts, not the directory: a failed `bun typechain` leaves typechain/ empty
+  if [[ ! -f typechain/index.ts ]]; then
+    ABSENT_OUTPUTS+=("typechain")
+  fi
+  if [[ ! -f diamond.json ]]; then
+    ABSENT_OUTPUTS+=("diamond\.json")
+  fi
+  if [[ ! -d out ]]; then
+    ABSENT_OUTPUTS+=("out")
+  fi
 fi
-if [[ ! -f diamond.json ]]; then
-  ABSENT_OUTPUTS+=("diamond\.json")
-fi
+BUILD_HINT="run 'bun build:typechain-and-abi' to generate the build outputs"
 
 # unjudgedFiles: Prints, one per line, the files in tsc OUTPUT that cannot find
 # an absent build output.
@@ -45,7 +52,8 @@ function unjudgedFiles() {
 }
 
 # judgedErrors: Prints the error lines of tsc OUTPUT in files not listed in
-# UNJUDGED, plus any error line tsc printed without a file.
+# UNJUDGED, any error line tsc printed without a file, and any other line that
+# is not an indented continuation (a crash or tool message is never ignored).
 #
 # Usage: judgedErrors OUTPUT UNJUDGED
 #   OUTPUT   - tsc-files output
@@ -53,12 +61,17 @@ function unjudgedFiles() {
 function judgedErrors() {
   # Through the environment: BSD awk refuses a newline in a -v value
   UNJUDGED="$2" awk '
-    BEGIN { N = split(ENVIRON["UNJUDGED"], LIST, "\n"); for (I = 1; I <= N; I++) SKIP[LIST[I]] = 1 }
+    BEGIN {
+      N = split(ENVIRON["UNJUDGED"], LIST, "\n")
+      for (I = 1; I <= N; I++) SKIP[LIST[I]] = 1
+    }
     / error TS[0-9]+:/ {
       FILE = $0
       if (FILE ~ /^[^(]+\([0-9]+,[0-9]+\): /) { sub(/\(.*/, "", FILE) } else { FILE = "" }
       if (!(FILE in SKIP)) print
+      next
     }
+    NF && !/^[[:space:]]/ { print }
   ' <<< "$1"
 }
 
@@ -91,16 +104,19 @@ function checkFiles() {
     fi
     if [[ -z "$JUDGED" ]]; then
       echo "Ignored the type errors in these files: they import a build output not generated" \
-        "in this checkout (run 'bun build:typechain-and-abi' to check them locally; CI" \
-        "checks them):" >&2
-      while IFS= read -r FILE; do
-        echo "  $FILE" >&2
+        "in this checkout ($BUILD_HINT and check them locally; CI checks them):" >&2
+      local UNJUDGED_FILE
+      while IFS= read -r UNJUDGED_FILE; do
+        echo "  $UNJUDGED_FILE" >&2
       done <<< "$UNJUDGED"
       return 0
     fi
   fi
 
   printf '%s\n' "$OUTPUT"
+  if grep -qE "(typechain|diamond\.json|/out/)" <<< "$OUTPUT"; then
+    echo "If these errors come from outdated build outputs, $BUILD_HINT." >&2
+  fi
   return 1
 }
 
