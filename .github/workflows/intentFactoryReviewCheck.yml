@@ -23,7 +23,6 @@ on:
       - 'src/Interfaces/IAttester.sol'
       - 'src/Interfaces/ILiFi.sol'
       - 'src/Libraries/LibAttestableSelectors.sol'
-      - 'src/Libraries/LibPeripheryRegistry.sol'
       - 'src/Libraries/LibSwap.sol'
       - 'src/Helpers/SwapperV2.sol'
 

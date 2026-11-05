@@ -14,16 +14,7 @@ import { AttestedBridgeFacet } from "lifi/Facets/AttestedBridgeFacet.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { IAttester } from "lifi/Interfaces/IAttester.sol";
 import { LibAttestableSelectors } from "lifi/Libraries/LibAttestableSelectors.sol";
-import { LibPeripheryRegistry } from "lifi/Libraries/LibPeripheryRegistry.sol";
 import { MockBridgeFacet } from "test/solidity/utils/MockBridgeFacet.sol";
-
-contract RegistryProbeFacet {
-    function probePeripheryRegistry(
-        string calldata _name
-    ) external view returns (address) {
-        return LibPeripheryRegistry.get(_name);
-    }
-}
 
 contract RecordingAttester is IAttester {
     bytes public lastFacetCalldata;
@@ -163,6 +154,8 @@ abstract contract GatewayDiamondTestBase is Test {
     event AttestableSelectorSet(bytes4 indexed selector, bool enabled);
 
     string internal constant BRIDGE_ATTESTER_KEY = "BridgeAttester";
+    bytes32 internal constant PERIPHERY_REGISTRY_NAMESPACE =
+        keccak256("com.lifi.facets.periphery_registry");
     uint256 internal constant AMOUNT = 5e18;
     bytes internal constant ATTESTER_DATA =
         hex"00112233445566778899aabbccddeeff";
@@ -185,8 +178,6 @@ abstract contract GatewayDiamondTestBase is Test {
             .registerPeripheryContract
             .selector;
         registry[1] = PeripheryRegistryFacet.getPeripheryContract.selector;
-        bytes4[] memory probe = new bytes4[](1);
-        probe[0] = RegistryProbeFacet.probePeripheryRegistry.selector;
         bytes4[] memory bridge = new bytes4[](1);
         bridge[0] = MockBridgeFacet.bridge.selector;
         bytes4[] memory sentinel = new bytes4[](2);
@@ -195,7 +186,7 @@ abstract contract GatewayDiamondTestBase is Test {
         bytes4[] memory reentering = new bytes4[](1);
         reentering[0] = ReenteringFacet.reenterGateway.selector;
 
-        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](6);
+        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](5);
         cut[0] = LibDiamond.FacetCut(
             address(new AttestedBridgeFacet()),
             LibDiamond.FacetCutAction.Add,
@@ -207,21 +198,16 @@ abstract contract GatewayDiamondTestBase is Test {
             registry
         );
         cut[2] = LibDiamond.FacetCut(
-            address(new RegistryProbeFacet()),
-            LibDiamond.FacetCutAction.Add,
-            probe
-        );
-        cut[3] = LibDiamond.FacetCut(
             address(new MockBridgeFacet()),
             LibDiamond.FacetCutAction.Add,
             bridge
         );
-        cut[4] = LibDiamond.FacetCut(
+        cut[3] = LibDiamond.FacetCut(
             address(new SentinelFacet()),
             LibDiamond.FacetCutAction.Add,
             sentinel
         );
-        cut[5] = LibDiamond.FacetCut(
+        cut[4] = LibDiamond.FacetCut(
             address(new ReenteringFacet()),
             LibDiamond.FacetCutAction.Add,
             reentering
@@ -308,7 +294,7 @@ abstract contract GatewayDiamondTestBase is Test {
             keccak256(
                 abi.encodePacked(
                     BRIDGE_ATTESTER_KEY,
-                    LibPeripheryRegistry.NAMESPACE
+                    PERIPHERY_REGISTRY_NAMESPACE
                 )
             );
     }
@@ -663,7 +649,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
     }
 
-    function test_LibPeripheryRegistryMatchesTheRegistryFacetSlot() public {
+    function test_BridgeAttesterSlotMatchesTheRegistryFacet() public {
         bytes32 namespace = 0xddb1a97e204589b19d70796e7a3363c86670116d11313290b7a7eb064a8f3da1;
         bytes32 slot = 0x2ea1c0530bb78d2f977ca48354f502a4489c9a6563d07a122a90ebb900c253fd;
         string memory key = "BridgeAttester";
@@ -672,18 +658,10 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         _registerAttester(attester);
 
         assertEq(keccak256(bytes(key)), keccak256(bytes(BRIDGE_ATTESTER_KEY)));
-        assertEq(LibPeripheryRegistry.NAMESPACE, namespace);
-        assertEq(
-            keccak256(bytes("com.lifi.facets.periphery_registry")),
-            namespace
-        );
+        assertEq(PERIPHERY_REGISTRY_NAMESPACE, namespace);
         assertEq(keccak256(abi.encodePacked(key, namespace)), slot);
         assertEq(
             PeripheryRegistryFacet(diamond).getPeripheryContract(key),
-            attester
-        );
-        assertEq(
-            RegistryProbeFacet(diamond).probePeripheryRegistry(key),
             attester
         );
         assertEq(LibBytes.toAddress(vm.load(diamond, slot)), attester);
@@ -899,25 +877,5 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         vm.expectRevert(AttestedBridgeFacet.SelectorNotAttestable.selector);
 
         AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
-    }
-
-    function test_RegistryGetMatchesTheRegistryFacetForAnyKey(
-        string calldata key,
-        address value
-    ) public {
-        PeripheryRegistryFacet(diamond).registerPeripheryContract(key, value);
-
-        assertEq(
-            RegistryProbeFacet(diamond).probePeripheryRegistry(key),
-            value
-        );
-        assertEq(
-            PeripheryRegistryFacet(diamond).getPeripheryContract(key),
-            value
-        );
-        bytes32 slot = keccak256(
-            abi.encodePacked(key, LibPeripheryRegistry.NAMESPACE)
-        );
-        assertEq(LibBytes.toAddress(vm.load(diamond, slot)), value);
     }
 }

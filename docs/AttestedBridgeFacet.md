@@ -84,7 +84,7 @@ operation installs, while the operation can still be cancelled.
 
 A PR that changes this facet, `AcrossFacetV4`, `PolymerCCTPFacet`,
 `LiFiIntentEscrowFacetV2`, or the code that shapes their calldata (`ILiFi`, `LibSwap`,
-`SwapperV2`, `IAttester`, `LibAttestableSelectors`, `LibPeripheryRegistry`) fails the
+`SwapperV2`, `IAttester`, `LibAttestableSelectors`) fails the
 `Intent Factory Review Check` workflow until the `IntentFactoryReviewed` label is set:
 Intent Factory's facts adapters decode this calldata, so their team reviews such changes
 first. Adding the label approves the commit it was added at, and the check passes only

@@ -6,7 +6,6 @@ import { IAttester } from "../Interfaces/IAttester.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 
 import { LibAttestableSelectors } from "../Libraries/LibAttestableSelectors.sol";
-import { LibPeripheryRegistry } from "../Libraries/LibPeripheryRegistry.sol";
 
 /// @title AttestedBridgeFacet
 /// @author LI.FI (https://li.fi)
@@ -19,6 +18,16 @@ import { LibPeripheryRegistry } from "../Libraries/LibPeripheryRegistry.sol";
 contract AttestedBridgeFacet {
     /// Storage ///
     string internal constant BRIDGE_ATTESTER_KEY = "BridgeAttester";
+    /// @dev `PeripheryRegistryFacet.NAMESPACE`, read here and written only by that facet
+    bytes32 internal constant PERIPHERY_REGISTRY_NAMESPACE =
+        keccak256("com.lifi.facets.periphery_registry");
+
+    /// Types ///
+
+    /// @dev Must match `PeripheryRegistryFacet.Storage`
+    struct PeripheryRegistryStorage {
+        mapping(string => address) contracts;
+    }
 
     /// Errors ///
 
@@ -46,7 +55,9 @@ contract AttestedBridgeFacet {
             .selectorToFacetAndPosition[selector]
             .facetAddress;
         if (facet == address(0)) revert LibDiamond.FunctionDoesNotExist();
-        address attester = LibPeripheryRegistry.get(BRIDGE_ATTESTER_KEY);
+        address attester = getPeripheryRegistryStorage().contracts[
+            BRIDGE_ATTESTER_KEY
+        ];
         if (attester.code.length == 0) revert AttesterNotRegistered();
 
         bytes4 attestSelector = IAttester.attest.selector;
@@ -96,5 +107,20 @@ contract AttestedBridgeFacet {
         bytes4 _selector
     ) external view returns (bool) {
         return LibAttestableSelectors.isAttestable(_selector);
+    }
+
+    /// Private Methods ///
+
+    /// @dev fetch the periphery registry's storage
+    function getPeripheryRegistryStorage()
+        private
+        pure
+        returns (PeripheryRegistryStorage storage s)
+    {
+        bytes32 namespace = PERIPHERY_REGISTRY_NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
     }
 }

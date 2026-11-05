@@ -23,7 +23,12 @@ contract AttestedBridgeFacetForkTest is Test {
     /// @dev From `deployments/base.diamond.json`, version 1.0.0
     address internal constant ACROSS_FACET_V4 =
         0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd;
+    /// @dev From `deployments/base.diamond.json`, version 1.0.0
+    address internal constant PERIPHERY_REGISTRY_FACET =
+        0xf1269030deB739edB0b7dABA9b701E102116d86c;
     string internal constant BRIDGE_ATTESTER_KEY = "BridgeAttester";
+    bytes32 internal constant BRIDGE_ATTESTER_SLOT =
+        0x2ea1c0530bb78d2f977ca48354f502a4489c9a6563d07a122a90ebb900c253fd;
     bytes32 internal constant LIFI_TRANSFER_STARTED =
         keccak256(
             "LiFiTransferStarted((bytes32,string,string,address,address,address,uint256,uint256,bool,bool))"
@@ -183,6 +188,34 @@ contract AttestedBridgeFacetForkTest is Test {
             IERC20(wrappedNative).balanceOf(spokePool) -
                 spokePoolWrappedBefore,
             AMOUNT
+        );
+    }
+
+    function test_LiveRegistryWritesTheSlotTheGatewayReads() public {
+        address attester = address(new RecordingAttester());
+
+        assertEq(
+            IDiamondLoupe(LIFI_DIAMOND).facetAddress(
+                PeripheryRegistryFacet.registerPeripheryContract.selector
+            ),
+            PERIPHERY_REGISTRY_FACET
+        );
+        assertEq(
+            keccak256(
+                abi.encodePacked(
+                    BRIDGE_ATTESTER_KEY,
+                    keccak256("com.lifi.facets.periphery_registry")
+                )
+            ),
+            BRIDGE_ATTESTER_SLOT
+        );
+        assertEq(vm.load(LIFI_DIAMOND, BRIDGE_ATTESTER_SLOT), bytes32(0));
+
+        _registerAttester(attester);
+
+        assertEq(
+            vm.load(LIFI_DIAMOND, BRIDGE_ATTESTER_SLOT),
+            LibBytes.toBytes32(attester)
         );
     }
 
