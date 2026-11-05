@@ -5,7 +5,14 @@ import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 
 /// @notice Stand-in bridge facet for the AttestedBridgeFacet unit tests: pulls tokens from the caller into the Diamond
 /// @dev Runs by delegatecall from the Diamond, so `msg.sender` and `msg.value` are the gateway caller's.
-///      Real bridge facets need a fork; AttestedBridgeFacet.fork.t.sol dispatches AcrossFacetV4.
+///      It stands in for a bridge facet, not for a third-party protocol. The unit suite tests the
+///      gateway itself: fuzzed amounts and attester data, trailing calldata, storage reads and
+///      revert bubbling. That needs a dispatched facet whose own checks and external calls never
+///      decide the outcome. A real AcrossFacetV4 with `vm.mockCall` on its spoke pool was ruled
+///      out: its bridge-data validation would reject most fuzzed inputs, and the mocked spoke
+///      pool would test nothing a fork does not test better. The real facets and protocols are
+///      covered in AttestedBridgeFacet.fork.t.sol: ERC20 and swap entrypoints of AcrossFacetV4,
+///      PolymerCCTPFacet and LiFiIntentEscrowFacetV2 on a Base fork.
 contract MockBridgeFacet {
     error TransferFromFailed();
 
