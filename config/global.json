@@ -151,6 +151,17 @@
       "worldchain"
     ]
   },
+  "attestableSelectors": {
+    "networks": [],
+    "selectors": {
+      "0xa1f1ce43": "AcrossFacetV4.startBridgeTokensViaAcrossV4((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,bytes32,bytes32,bytes32,uint256,uint128,bytes32,uint32,uint32,uint32,bytes))",
+      "0x1794958f": "AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(address,address,address,address,uint256,bytes,bool)[],(bytes32,bytes32,bytes32,bytes32,uint256,uint128,bytes32,uint32,uint32,uint32,bytes))",
+      "0x7dbcf1d9": "LiFiIntentEscrowFacetV2.startBridgeTokensViaLiFiIntentEscrowV2((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,bytes32,address,uint256,uint32,uint32,address,bytes32,bytes32,bytes32,uint128,(address,address,address,address,uint256,bytes,bool)[],bytes))",
+      "0x6d21c5df": "LiFiIntentEscrowFacetV2.swapAndStartBridgeTokensViaLiFiIntentEscrowV2((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(address,address,address,address,uint256,bytes,bool)[],(bytes32,bytes32,address,uint256,uint32,uint32,address,bytes32,bytes32,bytes32,uint128,(address,address,address,address,uint256,bytes,bool)[],bytes))",
+      "0xf434d6ca": "PolymerCCTPFacet.startBridgeTokensViaPolymerCCTP((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(uint256,uint256,bytes32,bytes32,uint32,address,bytes))",
+      "0x17917a4e": "PolymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(address,address,address,address,uint256,bytes,bool)[],(uint256,uint256,bytes32,bytes32,uint32,address,bytes))"
+    }
+  },
   "facetPeripheryCouplings": {
     "AcrossFacetV4": {
       "requires": "ReceiverAcrossV4",

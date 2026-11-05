@@ -111,6 +111,29 @@ The owner controls both the selector set and the `BridgeAttester` entry. Disabli
 selector or replacing the attester makes every later call that depends on it revert
 until the change is undone.
 
+### Expected set: `attestableSelectors`
+
+`config/global.json` → `attestableSelectors` records which selectors should be enabled,
+in the same shape as `config/whitelist.json`: `selectors` maps each selector to
+`"<Facet>.<signature>"`, and `networks` lists where that whole set is enabled. Three
+checks hold it to the code and the chain:
+
+- `script/deploy/shared/attestableSelectors.test.ts` (TS unit tests): every signature
+  hashes to the selector it is listed under, and every network exists and is EVM.
+- `AttestableSelectorsConfig.t.sol` (forge tests): every signature is still a function of
+  the facet it names in the build. A facet change that alters an enabled entrypoint's
+  signature fails in the PR that makes it.
+- The `attestable-selectors-match-config` health-check invariant probes
+  `isAttestableSelector` for every selector the Diamond routes and every listed one. An
+  enabled selector must be listed for that network and must route to the facet address in
+  `deployments/<network>.json`; a listed selector that is not enabled yet is a warning,
+  since config is merged before the timelocked `setAttestableSelector` executes.
+
+The flag is keyed by selector, so it survives a cut of the facet that serves it. The
+health check confirms the route, not the new code: when a dispatched facet is upgraded,
+confirming it is still `nonReentrant` and that Intent Factory's adapters still decode it
+is a review step.
+
 ## Reentrancy
 
 The facet has no `nonReentrant` modifier. It relies on the Diamond's shared guard:
@@ -165,4 +188,5 @@ The facet emits no event when it dispatches. The bridge facet emits its usual
 
 The facet has no constructor arguments. Before it can be used, the Diamond owner adds it
 with a diamond cut, registers the attester under `BridgeAttester`, and enables each
-bridge entrypoint with `setAttestableSelector`.
+bridge entrypoint with `setAttestableSelector`. Add the network to
+`attestableSelectors.networks` in the same rollout PR.

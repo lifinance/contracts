@@ -23,6 +23,7 @@ import {
   getAddress,
   getContract,
   parseAbi,
+  toFunctionSelector,
   zeroAddress,
   type Address,
   type Hex,
@@ -56,6 +57,12 @@ import {
   baseSemanticVersion,
   TARGET_STATE_VERSION_LATEST,
 } from './safe/pinned-target-state'
+import {
+  evaluateAttestableSelectors,
+  parseAttestableSelectors,
+  type IAttestableSelector,
+  type IAttestableSelectorsConfig,
+} from './shared/attestableSelectors'
 import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -141,6 +148,8 @@ export interface IHealthCheckGlobalConfig {
   whitelistPeripheryFunctions: Record<string, unknown>
   /** Contract name → networks it is allowlisted on; a contract absent from it is allowlisted everywhere. */
   whitelistPeripheryNetworks?: Record<string, unknown>
+  /** Selectors AttestedBridgeFacet is expected to dispatch, and where; see `attestableSelectors.ts`. */
+  attestableSelectors?: unknown
 }
 
 /** A single registered facet with its selector list, as read from `LiFiDiamond.facets()`. */
@@ -1486,6 +1495,112 @@ async function readWhitelistedSelectors(
     client: ctx.publicClient,
   })
   return manager.read.getWhitelistedSelectorsForContract([address as Address])
+}
+
+/** `AttestedBridgeFacet`'s own selectors, which the contract never lets be attestable. */
+const ATTESTED_BRIDGE_GATEWAY_SELECTORS: ReadonlySet<Hex> = new Set([
+  toFunctionSelector('startBridgeAttested(bytes,bytes)'),
+  toFunctionSelector('setAttestableSelector(bytes4,bool)'),
+  toFunctionSelector('isAttestableSelector(bytes4)'),
+])
+const IS_ATTESTABLE_SELECTOR = toFunctionSelector(
+  'isAttestableSelector(bytes4)'
+)
+
+/**
+ * Check the diamond's attestable selectors against `config/global.json` → `attestableSelectors`.
+ *
+ * The mapping cannot be listed on chain, so every selector the diamond routes is probed, plus each
+ * listed one: that covers every flag the gateway could act on, and a listed flag whose selector
+ * has since left the diamond. A flag on a selector that is neither routed nor listed is harmless
+ * (the gateway reverts `FunctionDoesNotExist`) and is not looked for.
+ */
+async function checkAttestableSelectors(
+  ctx: IHealthCheckContext
+): Promise<void> {
+  if (ctx.onChainFacets.length === 0) {
+    ctx.logWarn(
+      'On-chain facet list unavailable - attestable selectors not checked'
+    )
+    return
+  }
+  const routedTo = new Map<Hex, string>()
+  for (const facet of ctx.onChainFacets)
+    for (const selector of facet.selectors)
+      routedTo.set(selector.toLowerCase() as Hex, facet.address)
+  if (!routedTo.has(IS_ATTESTABLE_SELECTOR)) {
+    consola.info('AttestedBridgeFacet is not cut - nothing to check')
+    return
+  }
+  if (ctx.isTron || !ctx.publicClient) {
+    ctx.logWarn(
+      'AttestedBridgeFacet is cut, but its selectors are checked on EVM networks only'
+    )
+    return
+  }
+
+  let config: IAttestableSelectorsConfig
+  try {
+    config = parseAttestableSelectors(ctx.globalConfig.attestableSelectors)
+  } catch (error: unknown) {
+    ctx.logError(`config/global.json: ${String(error)}`)
+    return
+  }
+  const expected: ReadonlyMap<Hex, IAttestableSelector> = config.networks.has(
+    ctx.networkLower
+  )
+    ? config.selectors
+    : new Map()
+  const probed = new Set<Hex>(
+    [...routedTo.keys()].filter(
+      (selector) => !ATTESTED_BRIDGE_GATEWAY_SELECTORS.has(selector)
+    )
+  )
+  for (const selector of expected.keys()) probed.add(selector)
+
+  const gateway = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function isAttestableSelector(bytes4) external view returns (bool)',
+    ]),
+    client: ctx.publicClient,
+  })
+  let enabled: Map<Hex, boolean>
+  try {
+    // Concurrent so the client's multicall batching folds them into a few round-trips.
+    const selectors = [...probed]
+    const answers = await Promise.all(
+      selectors.map((selector) => gateway.read.isAttestableSelector([selector]))
+    )
+    enabled = new Map(
+      selectors.map((selector, i) => [selector, answers[i] === true])
+    )
+  } catch (error: unknown) {
+    report(
+      ctx,
+      error,
+      `could not read isAttestableSelector: ${redactUrls(String(error))}`
+    )
+    return
+  }
+
+  const { errors, warnings } = evaluateAttestableSelectors({
+    expected,
+    enabled,
+    routedTo,
+    deployedContracts: Object.fromEntries(
+      Object.entries(ctx.deployedContracts).map(([name, address]) => [
+        name,
+        String(address),
+      ])
+    ),
+  })
+  for (const message of errors) ctx.logError(message)
+  for (const message of warnings) ctx.logWarn(message)
+  if (errors.length === 0 && warnings.length === 0)
+    consola.success(
+      `Attestable selectors match config (${expected.size} expected, ${probed.size} probed)`
+    )
 }
 
 /**
@@ -3486,6 +3601,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
       consola.success(`${BRIDGE_ATTESTER} (${attester}) is not allowlisted`)
     },
+  },
+  {
+    name: 'attestable-selectors-match-config',
+    description:
+      'AttestedBridgeFacet dispatches only the selectors config lists for this network, each routed to its deploy-log facet',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Align setAttestableSelector with config/global.json attestableSelectors: enable each listed selector, disable any other. A listed selector that routes to another facet or to nothing means the facet changed since review: re-confirm it with the Intent Factory team, then update the config or disable the selector.',
+    run: checkAttestableSelectors,
   },
   {
     name: 'erc20proxy-owner',
