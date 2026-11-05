@@ -62,12 +62,17 @@ trap 'rm -rf "$TEMP_DIR"' EXIT
 # Usage: loadEnvSecrets ENV_FILE
 #   ENV_FILE - Path to the .env file; a missing file leaves both arrays empty
 #
-# Returns: 0
+# Returns: 0, or exits 2 when the file exists but cannot be read
 function loadEnvSecrets() {
   local ENV_FILE="$1"
 
   if [ ! -f "$ENV_FILE" ]; then
     return 0
+  fi
+  # Fail closed: an unreadable .env would otherwise load no values and pass every commit
+  if [ ! -r "$ENV_FILE" ]; then
+    echo "scan-staged-secrets: cannot read $ENV_FILE; fix its permissions and commit again" >&2
+    exit 2
   fi
 
   # Parameter expansions instead of sed/tr: one fork per .env line adds seconds to every commit.

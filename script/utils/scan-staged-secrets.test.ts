@@ -5,7 +5,13 @@
  */
 
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -351,6 +357,22 @@ describe('scan-staged-secrets .env values', () => {
     expect(status).toBe(0)
     expect(output).toContain('Secret check passed')
   })
+
+  // root reads a mode-000 file anyway, so the case only means something for other users
+  it.skipIf(process.getuid?.() === 0)(
+    'stops with status 2 when the .env file cannot be read',
+    () => {
+      const repo = makeRepo(`${SECRET_KEY}=${SECRET}\n`)
+      stage(repo, { 'a.txt': `${SECRET}\n` })
+      chmodSync(join(repo, '.env'), 0o000)
+
+      const { status, output } = scan(repo)
+
+      expect(status).toBe(2)
+      expect(output).toContain('cannot read')
+      expect(output).not.toContain('Secret check passed')
+    }
+  )
 })
 
 describe('scan-staged-secrets private keys', () => {
