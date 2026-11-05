@@ -24,16 +24,35 @@ contract DeployScript is UpdateScriptBase {
     function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/allbridge.json");
         json = vm.readFile(path);
-        bytes memory rawMappings = json.parseRaw(".mappings");
-        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
-            rawMappings,
-            (AllBridgeFacet.ChainIdConfig[])
-        );
+        // parseRaw + abi.decode fills struct fields in JSON key order, which some forge versions
+        // sort alphabetically, putting allBridgeChainId into the chainId slot
+        uint256 rowCount;
+        while (json.keyExists(_mappingKey(rowCount, ""))) rowCount++;
+
+        AllBridgeFacet.ChainIdConfig[]
+            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](
+                rowCount
+            );
+        for (uint256 i = 0; i < rowCount; i++) {
+            chainIdConfigs[i] = AllBridgeFacet.ChainIdConfig({
+                chainId: json.readUint(_mappingKey(i, ".chainId")),
+                allBridgeChainId: json.readUint(
+                    _mappingKey(i, ".allBridgeChainId")
+                )
+            });
+        }
 
         return
             abi.encodeWithSelector(
                 AllBridgeFacet.initAllBridge.selector,
                 chainIdConfigs
             );
+    }
+
+    function _mappingKey(
+        uint256 _index,
+        string memory _field
+    ) internal pure returns (string memory) {
+        return string.concat(".mappings[", vm.toString(_index), "]", _field);
     }
 }
