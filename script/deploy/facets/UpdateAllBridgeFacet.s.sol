@@ -9,6 +9,7 @@ contract DeployScript is UpdateScriptBase {
     using stdJson for string;
 
     error NoAllBridgeMappings();
+    error InvalidAllBridgeMapping(uint256 index);
 
     function run()
         public
@@ -34,8 +35,6 @@ contract DeployScript is UpdateScriptBase {
             );
     }
 
-    /// @dev parseRaw + abi.decode fills struct fields in JSON key order, which some forge versions
-    ///      sort alphabetically, putting allBridgeChainId into the chainId slot
     function _parseChainIdConfigs(
         string memory _json
     ) internal view returns (AllBridgeFacet.ChainIdConfig[] memory configs) {
@@ -45,11 +44,16 @@ contract DeployScript is UpdateScriptBase {
 
         configs = new AllBridgeFacet.ChainIdConfig[](rowCount);
         for (uint256 i = 0; i < rowCount; i++) {
+            uint256 chainId = _json.readUint(_mappingKey(i, ".chainId"));
+            uint256 allBridgeChainId = _json.readUint(
+                _mappingKey(i, ".allBridgeChainId")
+            );
+            if (chainId == 0 || allBridgeChainId == 0)
+                revert InvalidAllBridgeMapping(i);
+
             configs[i] = AllBridgeFacet.ChainIdConfig({
-                chainId: _json.readUint(_mappingKey(i, ".chainId")),
-                allBridgeChainId: _json.readUint(
-                    _mappingKey(i, ".allBridgeChainId")
-                )
+                chainId: chainId,
+                allBridgeChainId: allBridgeChainId
             });
         }
     }

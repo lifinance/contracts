@@ -127,6 +127,53 @@ contract UpdateAllBridgeFacetTest is Test {
         script.exposedParseChainIdConfigs("{}");
     }
 
+    function testRevert_ZeroChainId() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UpdateAllBridgeFacetScript.InvalidAllBridgeMapping.selector,
+                1
+            )
+        );
+
+        script.exposedParseChainIdConfigs(_twoRowConfig(0, 5));
+    }
+
+    function testRevert_ZeroAllBridgeChainId() public {
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                UpdateAllBridgeFacetScript.InvalidAllBridgeMapping.selector,
+                1
+            )
+        );
+
+        script.exposedParseChainIdConfigs(_twoRowConfig(137, 0));
+    }
+
+    /// @dev Row 0 is valid; row 1 carries the given values
+    function _twoRowConfig(
+        uint256 _chainId,
+        uint256 _allBridgeChainId
+    ) internal pure returns (string memory) {
+        return
+            string.concat(
+                "{",
+                _quoted("mappings"),
+                ":[{",
+                _quoted("chainId"),
+                ":1,",
+                _quoted("allBridgeChainId"),
+                ":1},{",
+                _quoted("chainId"),
+                ":",
+                vm.toString(_chainId),
+                ",",
+                _quoted("allBridgeChainId"),
+                ":",
+                vm.toString(_allBridgeChainId),
+                "}]}"
+            );
+    }
+
     function _decodeInitCallData(
         bytes memory _callData
     ) internal pure returns (AllBridgeFacet.ChainIdConfig[] memory) {
