@@ -25,6 +25,7 @@ import { encodeFunctionData, zeroAddress } from 'viem'
 
 import { DIRECT_BROADCAST_GATE_ALLOWED } from './deploy/shared/assert-direct-broadcast-gate'
 import { DIAMOND_CUT_ABI } from './deploy/shared/constants'
+import { freshChildEnv, sandboxCheckout } from './deploy/safe/spawn-env'
 
 const REPO_ROOT = join(import.meta.dir, '..')
 const HELPERS = join(REPO_ROOT, 'script', 'helperFunctions.sh')
@@ -46,13 +47,19 @@ const TESTNET = 'sepolia'
 const UNRECORDED_FACET = '0x00000000000000000000000000000000deadbeef'
 
 let workDir: string
+// Every child runs here rather than in the checkout: the gate CLI and anything a
+// harness spawns load `.env` from their cwd, so the developer's settings would
+// come back in for every name the environment leaves unset.
+let sandboxRoot: string
 
 beforeAll(() => {
   workDir = mkdtempSync(join(tmpdir(), 'send-or-propose-gate-'))
+  sandboxRoot = sandboxCheckout()
 })
 
 afterAll(() => {
   rmSync(workDir, { recursive: true, force: true })
+  rmSync(sandboxRoot, { recursive: true, force: true })
 })
 
 /**
@@ -89,9 +96,9 @@ const runHarness = (body: string): string => {
   )
   writeFileSync(harnessPath, body)
   return execFileSync('bash', [harnessPath], {
-    cwd: REPO_ROOT,
+    cwd: sandboxRoot,
     encoding: 'utf8',
-    env: { ...process.env, HELPERS },
+    env: freshChildEnv({ HELPERS }),
   }).trim()
 }
 
@@ -108,9 +115,9 @@ const runHarnessStreams = (
   )
   writeFileSync(harnessPath, body)
   const { stdout, stderr } = spawnSync('bash', [harnessPath], {
-    cwd: REPO_ROOT,
+    cwd: sandboxRoot,
     encoding: 'utf8',
-    env: { ...process.env, HELPERS },
+    env: freshChildEnv({ HELPERS }),
     stdio: ['ignore', 'pipe', 'pipe'],
   })
   return { stdout: stdout.trim(), stderr: stderr.trim() }
@@ -362,20 +369,16 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
    * @param calldata - calldata the gate has to read a cut out of
    */
   const run = (network: string, calldata: string) => {
-    // `bun test` sets NODE_ENV=test on this process; consola then silences
-    // info/success in the child, so the allow-path reasons these cases pin
-    // would arrive as "" even though the gate exited 0. Mirror
-    // funnel-deploy-gate.cli.test.ts: drop NODE_ENV so the child behaves as a
-    // real CLI.
-    const env = { ...(process.env as Record<string, string>) }
-    delete env.NODE_ENV
+    // Not copied from this process: `bun test` sets NODE_ENV=test on it, and
+    // consola then silences info/success in the child, so the allow-path
+    // reasons these cases pin would arrive as "" even though the gate exited 0.
     return spawnSync(
       'bunx',
       ['tsx', GATE_CLI, '--network', network, '--calldata', calldata],
       {
-        cwd: REPO_ROOT,
+        cwd: sandboxRoot,
         encoding: 'utf8',
-        env,
+        env: freshChildEnv(),
         stdio: ['ignore', 'pipe', 'pipe'],
       }
     )
@@ -470,8 +473,6 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
       try {
         symlinkSync(join(REPO_ROOT, 'script/deploy/shared'), linked, 'dir')
 
-        const env = { ...(process.env as Record<string, string>) }
-        delete env.NODE_ENV
         const { status, stdout, stderr } = spawnSync(
           'bunx',
           [
@@ -483,9 +484,9 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
             'not-hex',
           ],
           {
-            cwd: REPO_ROOT,
+            cwd: sandboxRoot,
             encoding: 'utf8',
-            env,
+            env: freshChildEnv(),
             stdio: ['ignore', 'pipe', 'pipe'],
           }
         )

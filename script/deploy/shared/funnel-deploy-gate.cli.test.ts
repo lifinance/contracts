@@ -33,6 +33,8 @@ import { TronWeb } from 'tronweb'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { generatePrivateKey } from 'viem/accounts'
 
+import { freshChildEnv } from '../safe/spawn-env'
+
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
 import { installRemoteIdentityShim, SHIM_BIN_DIR } from './remote-identity-shim'
 
@@ -158,7 +160,7 @@ const assertChildIsUsable = (
 /**
  * Runs a real propose CLI in a throwaway repo.
  * @param options - which CLI, its arguments, the repo to run it in, and the
- * `ENVIRONMENT` to set (deleted from the child's environment when omitted)
+ * `ENVIRONMENT` to set (left unset in the child's environment when omitted)
  * @returns the child's combined output and exit status
  */
 const spawnCli = (options: {
@@ -168,41 +170,21 @@ const spawnCli = (options: {
   environment?: string
   tronRpcUrl?: string
 }): { output: string; status: number | null } => {
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-  }
-  // `bun test` sets NODE_ENV=test; these children are exercised as CLIs
-  delete env.NODE_ENV
-  // Bun auto-loads the repo env file into THIS process, so the child inherits a
-  // real production environment unless every name is neutralised here. Deleting
-  // is not sufficient on its own: `config()` inside safe-utils re-reads the env
-  // file for any name that is unset, so the proposal store is pointed at an
-  // unroutable host rather than removed. An earlier version of this probe
-  // inherited the real store and queued a proposal on a production Safe, which
-  // takes a real nonce and blocks the queue behind it.
-  // Deleted, not set to a malformed value: `cwd` is the mkdtempSync fixture repo,
-  // which has no env file for bun to re-load, and four cases below assert the
-  // key-absent message that a malformed value would replace.
-  delete env.PRIVATE_KEY // spawn-env: child cwd has no .env
-  delete env.PRIVATE_KEY_PRODUCTION // spawn-env: child cwd has no .env
-  delete env.SAFE_SIGNER_PRIVATE_KEY // spawn-env: child cwd has no .env
+  // `cwd` is the fixture repo, which has no env file for the child to re-load,
+  // so a name left out stays unset.
+  const env = freshChildEnv()
   // Deliberately malformed rather than merely unroutable: the driver spends its
   // 30 s server-selection budget on an unreachable host, where a URI it cannot
   // parse throws on construction, so a probe that gets past the gate dies at
   // once instead of hanging the suite.
   env.SC_MONGODB_URI = 'blocked-in-tests://no-store'
   env.MONGODB_URI = env.SC_MONGODB_URI
-  if (options.environment === undefined) delete env.ENVIRONMENT
-  else env.ENVIRONMENT = options.environment
+  if (options.environment !== undefined) env.ENVIRONMENT = options.environment
   // the Tron funnel checks the ticket before the gate, so a probe without one
   // would never reach the gate at all
   env.SAFE_PROPOSAL_TICKET = 'EXSC-929'
-  // Deleted, then set per case: bun loads the repo env file into this process,
-  // and the devkit falls back to the public TronGrid host when the var is unset,
-  // so an inherited value silently decides which chain a case reads — that is
-  // how this suite read Tron mainnet in CI while passing locally. The Tron
-  // runner below names the host for every case it spawns.
-  delete env.RPC_URL_TRON // spawn-env: child cwd has no .env
+  // The devkit falls back to the public TronGrid host when this is unset, so
+  // the Tron runner below names the host for every case it spawns.
   if (options.tronRpcUrl !== undefined) env.RPC_URL_TRON = options.tronRpcUrl
   env.PATH = `${join(options.repoRoot, SHIM_BIN_DIR)}:${env.PATH ?? ''}`
 
