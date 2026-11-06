@@ -82,7 +82,7 @@ quote_style = "double"
 bracket_spacing = true
 int_types = "preserve"
 number_underscore = "preserve"
-ignore = ["src/**", "lib/**", "node_modules/**"]
+ignore = ["src/*.sol", "src/**", "lib/**", "node_modules/**"]
 
 [lint]
 lint_on_build = false
