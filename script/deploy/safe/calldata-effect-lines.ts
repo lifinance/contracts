@@ -417,7 +417,12 @@ async function decodeCall(
   for (const abi of candidates)
     try {
       const decoded = decodeFunctionData({ abi, data })
-      return { functionName: decoded.functionName, args: decoded.args }
+      if (decoded.args !== undefined)
+        return { functionName: decoded.functionName, args: decoded.args }
+      // viem never reads past the selector of a function with no inputs, so a
+      // body behind it would otherwise render as "no arguments" and go unseen.
+      if (data.length === 10)
+        return { functionName: decoded.functionName, args: [] }
     } catch {
       continue
     }

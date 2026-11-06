@@ -449,7 +449,7 @@
     "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "G",
     "wrappedNativeAddress": "0xBB859E225ac8Fb6BE1C7e38D87b767e95Fef0EbD",
-    "status": "active",
+    "status": "inactive",
     "type": "mainnet",
     "rpcUrl": "https://rpc.ankr.com/gravity",
     "verificationType": "oklink",
