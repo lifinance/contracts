@@ -25,6 +25,13 @@ are embedded in rule files.
 | Solhint | `bunx solhint <file>` |
 | Bash syntax | `bash -n <file>` |
 
+## Environment & resource access
+
+Run Mongo-backed scripts directly; they load `.env` themselves. Safe scripts need
+the `lifi-connect` tunnel: assume it's up, and if a script reports it down, hand
+that to the human. Never run the browser SSO login, open a prod tunnel, or use
+1Password/`op`. Details: `docs/Setup-agents.md`.
+
 ## SC feature-PR lifecycle
 
 Feature PRs go: self-test → PR ready + bot comments resolved → peer review
