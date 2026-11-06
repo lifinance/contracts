@@ -26,7 +26,6 @@ on:
       - 'src/Facets/LiFiIntentEscrowFacetV2.sol'
       - 'src/Interfaces/IAttester.sol'
       - 'src/Interfaces/ILiFi.sol'
-      - 'src/Libraries/LibAttestableSelectors.sol'
       - 'src/Libraries/LibSwap.sol'
       - 'src/Helpers/SwapperV2.sol'
 

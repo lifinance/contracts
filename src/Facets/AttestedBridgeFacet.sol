@@ -6,8 +6,6 @@ import { IAttester } from "../Interfaces/IAttester.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
 import { LibUtil } from "../Libraries/LibUtil.sol";
 
-import { LibAttestableSelectors } from "../Libraries/LibAttestableSelectors.sol";
-
 /// @title AttestedBridgeFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Delegatecalls an attestable bridge-entry selector, then reports the exact call bytes
@@ -18,6 +16,9 @@ import { LibAttestableSelectors } from "../Libraries/LibAttestableSelectors.sol"
 /// @custom:version 1.0.0
 contract AttestedBridgeFacet {
     /// Storage ///
+
+    bytes32 internal constant NAMESPACE =
+        keccak256("com.lifi.facets.attested_bridge");
     string internal constant BRIDGE_ATTESTER_KEY = "BridgeAttester";
     /// @dev `PeripheryRegistryFacet.NAMESPACE`, read here and written only by that facet
     bytes32 internal constant PERIPHERY_REGISTRY_NAMESPACE =
@@ -25,15 +26,24 @@ contract AttestedBridgeFacet {
 
     /// Types ///
 
+    struct Storage {
+        mapping(bytes4 => bool) attestable;
+    }
+
     /// @dev Must match `PeripheryRegistryFacet.Storage`
     struct PeripheryRegistryStorage {
         mapping(string => address) contracts;
     }
 
+    /// Events ///
+
+    event AttestableSelectorSet(bytes4 indexed selector, bool enabled);
+
     /// Errors ///
 
     error SelectorNotAttestable();
     error AttesterNotRegistered();
+    error GatewaySelectorNotAttestable();
 
     /// External Methods ///
 
@@ -48,8 +58,7 @@ contract AttestedBridgeFacet {
     ) external payable {
         if (_facetCalldata.length < 4) revert InvalidCallData();
         bytes4 selector = bytes4(_facetCalldata);
-        if (!LibAttestableSelectors.isAttestable(selector))
-            revert SelectorNotAttestable();
+        if (!getStorage().attestable[selector]) revert SelectorNotAttestable();
         address facet = LibDiamond
             .diamondStorage()
             .selectorToFacetAndPosition[selector]
@@ -75,7 +84,16 @@ contract AttestedBridgeFacet {
     /// @param _selector The bridge-entry selector
     /// @param _enabled Whether the gateway may dispatch it
     function setAttestableSelector(bytes4 _selector, bool _enabled) external {
-        LibAttestableSelectors.set(_selector, _enabled);
+        LibDiamond.enforceIsContractOwner();
+        if (
+            _selector == this.startBridgeAttested.selector ||
+            _selector == this.setAttestableSelector.selector ||
+            _selector == this.isAttestableSelector.selector
+        ) revert GatewaySelectorNotAttestable();
+
+        getStorage().attestable[_selector] = _enabled;
+
+        emit AttestableSelectorSet(_selector, _enabled);
     }
 
     /// @notice Returns whether `startBridgeAttested` may dispatch `_selector`
@@ -84,10 +102,19 @@ contract AttestedBridgeFacet {
     function isAttestableSelector(
         bytes4 _selector
     ) external view returns (bool) {
-        return LibAttestableSelectors.isAttestable(_selector);
+        return getStorage().attestable[_selector];
     }
 
     /// Private Methods ///
+
+    /// @dev fetch local storage
+    function getStorage() private pure returns (Storage storage s) {
+        bytes32 namespace = NAMESPACE;
+        // solhint-disable-next-line no-inline-assembly
+        assembly {
+            s.slot := namespace
+        }
+    }
 
     /// @dev fetch the periphery registry's storage
     function getPeripheryRegistryStorage()

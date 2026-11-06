@@ -13,7 +13,6 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { AttestedBridgeFacet } from "lifi/Facets/AttestedBridgeFacet.sol";
 import { ReentrancyGuard } from "lifi/Helpers/ReentrancyGuard.sol";
 import { IAttester } from "lifi/Interfaces/IAttester.sol";
-import { LibAttestableSelectors } from "lifi/Libraries/LibAttestableSelectors.sol";
 import { MockBridgeFacet } from "test/solidity/utils/MockBridgeFacet.sol";
 
 contract RecordingAttester is IAttester {
@@ -156,6 +155,8 @@ abstract contract GatewayDiamondTestBase is Test {
     string internal constant BRIDGE_ATTESTER_KEY = "BridgeAttester";
     bytes32 internal constant PERIPHERY_REGISTRY_NAMESPACE =
         keccak256("com.lifi.facets.periphery_registry");
+    bytes32 internal constant ATTESTED_BRIDGE_NAMESPACE =
+        keccak256("com.lifi.facets.attested_bridge");
     uint256 internal constant AMOUNT = 5e18;
     bytes internal constant ATTESTER_DATA =
         hex"00112233445566778899aabbccddeeff";
@@ -265,8 +266,7 @@ abstract contract GatewayDiamondTestBase is Test {
     function _attestableSlot(
         bytes4 _selector
     ) internal pure returns (bytes32) {
-        return
-            keccak256(abi.encode(_selector, LibAttestableSelectors.NAMESPACE));
+        return keccak256(abi.encode(_selector, ATTESTED_BRIDGE_NAMESPACE));
     }
 
     function _facetSlot(bytes4 _selector) internal pure returns (bytes32) {
@@ -318,25 +318,6 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         );
     }
 
-    function test_GatewaySelectorConstantsMatchTheFacet() public pure {
-        assertEq(
-            LibAttestableSelectors.START_BRIDGE_ATTESTED,
-            AttestedBridgeFacet.startBridgeAttested.selector
-        );
-        assertEq(
-            LibAttestableSelectors.SET_ATTESTABLE_SELECTOR,
-            AttestedBridgeFacet.setAttestableSelector.selector
-        );
-        assertEq(
-            LibAttestableSelectors.IS_ATTESTABLE_SELECTOR,
-            AttestedBridgeFacet.isAttestableSelector.selector
-        );
-        assertEq(
-            LibAttestableSelectors.NAMESPACE,
-            keccak256("com.lifi.library.attestable_selectors")
-        );
-    }
-
     function testRevert_SetAttestableSelectorFromNonOwner() public {
         vm.prank(makeAddr("stranger"));
         vm.expectRevert(OnlyContractOwner.selector);
@@ -355,7 +336,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         ];
         for (uint256 i; i < own.length; ++i) {
             vm.expectRevert(
-                LibAttestableSelectors.GatewaySelectorNotAttestable.selector
+                AttestedBridgeFacet.GatewaySelectorNotAttestable.selector
             );
 
             AttestedBridgeFacet(diamond).setAttestableSelector(own[i], true);
