@@ -101,7 +101,7 @@ import {
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-dotenv.config({ quiet: true })
+dotenv.config({ quiet: true, override: false })
 
 // ABI fragments for local v1.4.1 fallback
 const SAFE_ABI = [

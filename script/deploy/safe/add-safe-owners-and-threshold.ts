@@ -46,7 +46,7 @@ const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
 const green = (text: string) => ansi('32', text)
 const yellow = (text: string) => ansi('33', text)
 const red = (text: string) => ansi('31', text)
-dotenv.config({ quiet: true })
+dotenv.config({ quiet: true, override: false })
 
 interface ILedgerOptions {
   derivationPath?: string

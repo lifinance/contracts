@@ -23,7 +23,7 @@ import {
   type ParkedTaskStatus,
 } from './parked-tasks'
 
-dotenv.config({ quiet: true })
+dotenv.config({ quiet: true, override: false })
 
 const VALID_STATUSES = [
   'queued',
