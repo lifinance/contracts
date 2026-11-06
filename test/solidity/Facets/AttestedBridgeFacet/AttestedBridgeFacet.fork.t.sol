@@ -598,12 +598,12 @@ contract AttestedBridgeFacetForkTest is Test {
 
     function _assertAttested(
         bytes memory _call,
-        bytes memory _attesterData
+        bytes memory _expectedAttesterData
     ) internal view {
         assertEq(attester.calls(), 1);
         assertEq(attester.lastCaller(), LIFI_DIAMOND);
         assertEq(attester.lastFacetCalldata(), _call);
-        assertEq(attester.lastAttesterData(), _attesterData);
+        assertEq(attester.lastAttesterData(), _expectedAttesterData);
         assertEq(address(attester).balance, 0);
     }
 
