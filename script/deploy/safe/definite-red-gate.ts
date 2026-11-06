@@ -351,8 +351,8 @@ export const assertNoDefiniteRed = (
   const why = !verdict
     ? 'gates G, I, J and L were never evaluated for this transaction.'
     : verdict.gradedKey !== key
-    ? `the verdict on gates G, I, J and L is about a different transaction — it graded ${verdict.gradedKey} and this is ${key}.`
-    : verdict.reds.map((red) => `Gate ${red.gate}: ${red.reason}.`).join(' ')
+      ? `the verdict on gates G, I, J and L is about a different transaction — it graded ${verdict.gradedKey} and this is ${key}.`
+      : verdict.reds.map((red) => `Gate ${red.gate}: ${red.reason}.`).join(' ')
 
   throw new Error(
     `Definite red: this transaction will not be signed or executed. ${why} Nothing has been signed or broadcast.`

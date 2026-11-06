@@ -668,8 +668,8 @@ const grade = async (
       missing.length > 0
         ? 'missing'
         : written.some((value) => value === true)
-        ? 'paired'
-        : 'allowlisted',
+          ? 'paired'
+          : 'allowlisted',
     expected,
     signatures,
     observed,

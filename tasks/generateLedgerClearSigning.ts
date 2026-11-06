@@ -639,8 +639,8 @@ const main = defineCommand({
     const outputPath = args.outputFilePath
       ? resolveWithinCwd(args.outputFilePath)
       : args.ledgerFilePath
-      ? resolveWithinCwd(args.ledgerFilePath)
-      : undefined
+        ? resolveWithinCwd(args.ledgerFilePath)
+        : undefined
 
     if (!outputPath) {
       throw new Error(

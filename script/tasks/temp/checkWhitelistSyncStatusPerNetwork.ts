@@ -669,7 +669,7 @@ async function checkNetworkWhitelistStatus(
 
       const [v2Addresses, v2SelectorsArrays] = result as [
         Address[],
-        `0x${string}`[][]
+        `0x${string}`[][],
       ]
 
       // Extract V2 unique contracts and selectors
@@ -1107,8 +1107,8 @@ function printTable(results: IWhitelistStatus[]) {
     const networkColor = allDone
       ? 'green'
       : result.errors.length > 0
-      ? 'red'
-      : 'yellow'
+        ? 'red'
+        : 'yellow'
     const networkName = `${result.network} (${result.environment})`.padEnd(
       networkWidth
     )

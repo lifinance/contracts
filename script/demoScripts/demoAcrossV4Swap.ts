@@ -754,7 +754,7 @@ Examples (print only):
         args: readonly [
           IBridgeData,
           readonly ISwapData[],
-          IAcrossV4SwapFacetData
+          IAcrossV4SwapFacetData,
         ],
         options: { value: bigint }
       ) => Promise<Hex>

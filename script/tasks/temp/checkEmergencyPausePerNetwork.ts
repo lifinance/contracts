@@ -472,8 +472,8 @@ function printTable(results: IEmergencyPauseStatus[]): void {
         r.pauserWalletMatches === true
           ? ' ✓'
           : r.pauserWalletMatches === false
-          ? ' ✗ MISMATCH'
-          : ''
+            ? ' ✗ MISMATCH'
+            : ''
       pauserStr = `${r.pauserWalletOnChain}${marker}`.padEnd(pauserWidth)
     } else pauserStr = '—'.padEnd(pauserWidth)
 

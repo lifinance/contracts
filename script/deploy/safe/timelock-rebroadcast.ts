@@ -46,8 +46,7 @@ export interface IChainEndpoints {
   fallbacks: IRpcEndpoint[]
 }
 
-export interface IConfirmWithRebroadcastParams
-  extends IConfirmTimelockExecutionParams {
+export interface IConfirmWithRebroadcastParams extends IConfirmTimelockExecutionParams {
   hash: Hex
   /** Signed bytes of the submitted tx; without them nothing is re-sent. */
   rawTransaction?: Hex

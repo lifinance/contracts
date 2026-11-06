@@ -213,8 +213,8 @@ export const renderSlackPosts = (
             a.kind !== 'changed'
               ? ''
               : a.previous === a.finding.verdict
-              ? ' (reasons changed)'
-              : ` (was ${a.previous ?? 'unknown'})`
+                ? ' (reasons changed)'
+                : ` (was ${a.previous ?? 'unknown'})`
           }`
     const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
     const marker = a.kind === 'resolved' ? '✅' : '•'
