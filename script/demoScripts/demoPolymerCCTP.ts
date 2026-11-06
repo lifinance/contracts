@@ -40,7 +40,7 @@ import {
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // IMPORTANT: For Solana destinations, ensure the receiver address has an Associated Token Account (ATA) for USDC.
 // Without an ATA, the relayer will revert when trying to mint tokens on Solana, resulting in a poor state where

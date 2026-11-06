@@ -11,7 +11,7 @@ import {
 
 import { ADDRESS_USDC_ARB } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // Deposit native on ARB: http://arbiscan.io/tx/0x326fd0b008578febee831c5e0508b13b6083e034e215389bb4885aff84fac0c2

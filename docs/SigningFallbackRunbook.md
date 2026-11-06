@@ -257,14 +257,18 @@ ceremonies that would have worked, and block them most often.
 ## 3. What the environment needs
 
 Both entry points load `.env` themselves — `import 'dotenv/config'` in
-`propose-to-safe.ts`, `dotenv.config()` in `confirm-safe-tx.ts` — and
-`with-safe-tunnel.sh` greps the repo-root `.env` directly, so nothing has to
-be exported into your shell for the scripts to work.
+`propose-to-safe.ts`, `dotenv.config({ quiet: true, override: false })` in
+`confirm-safe-tx.ts` — and `with-safe-tunnel.sh` greps the repo-root `.env`
+directly, so nothing has to be exported into your shell for the scripts to
+work.
 
-**But an export still wins.** Neither call passes `override: true`, and dotenv
-only fills in names that are not already in `process.env`; `getPrivateKey`
-then reads `process.env[keyType]` directly. So a stale value exported earlier
-in the session silently beats the file. Check both, and never print a value:
+**But an export still wins.** dotenv only fills in names that are not already
+in `process.env`; `getPrivateKey` then reads `process.env[keyType]` directly.
+So a stale value exported earlier in the session silently beats the file.
+dotenv also takes its own options from `DOTENV_*` / `DOTENV_CONFIG_*`
+variables: `DOTENV_PATH` loads a different file, and `DOTENV_OVERRIDE` flips
+the precedence for `import 'dotenv/config'`. Check all of it, and never print
+a value:
 
 ```bash
 ENVCONFLICT=0   # an export beating the file is a stop, not a note
@@ -281,6 +285,10 @@ done
 [ -n "${SC_MONGODB_URI:-}" ]          && { echo '  ⚠ SC_MONGODB_URI is exported here — the export wins';          ENVCONFLICT=1; }
 [ -n "${PRIVATE_KEY_PRODUCTION:-}" ]  && { echo '  ⚠ PRIVATE_KEY_PRODUCTION is exported here — the export wins';  ENVCONFLICT=1; }
 [ -n "${SAFE_SIGNER_PRIVATE_KEY:-}" ] && { echo '  ⚠ SAFE_SIGNER_PRIVATE_KEY is exported here — the export wins'; ENVCONFLICT=1; }
+
+# dotenv's own settings change which file loads and which source wins.
+env | cut -d= -f1 | grep -E '^DOTENV_' \
+  && { echo '  ⚠ DOTENV_* settings are exported here (names above)'; ENVCONFLICT=1; }
 
 if [ "$ENVCONFLICT" -ne 0 ]; then
   echo "✗ STOP — two sources disagree and the export is the one that applies."

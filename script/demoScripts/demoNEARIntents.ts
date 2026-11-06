@@ -46,7 +46,7 @@ import {
   receiverToBytes32,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // NEARIntentsFacet types (for demo purposes, since typechain may not be generated yet)
 // eslint-disable-next-line @typescript-eslint/no-namespace -- Using namespace for type organization

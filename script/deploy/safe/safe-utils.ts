@@ -84,7 +84,7 @@ import {
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
 
-config()
+config({ quiet: true, override: false })
 
 const networks: Record<
   string,

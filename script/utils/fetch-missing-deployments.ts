@@ -7,7 +7,7 @@ import { readContractVersion } from '../deploy/shared/contract-version'
 
 import { getNetworkConfig } from './utils'
 
-config()
+config({ quiet: true })
 
 async function updateDeploymentLogs(network: string) {
   try {

@@ -23,7 +23,7 @@ import {
   type ISafeTxDocument,
 } from './safe-utils'
 
-dotenv.config()
+dotenv.config({ quiet: true, override: false })
 
 const VALID_STATUSES = [
   'pending',
