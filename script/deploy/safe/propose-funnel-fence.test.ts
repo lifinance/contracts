@@ -24,7 +24,7 @@ import {
 import { findViolations, MODULE_EXTENSIONS } from '../../utils/fence-runner'
 
 import { FUNNEL_ALLOWLIST, FUNNEL_FENCE } from './funnel-fence'
-import { withholdCredentials } from './spawn-env'
+import { withheldEnv } from './spawn-env'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const FENCE_SCRIPT = 'script/deploy/safe/funnel-fence.ts'
@@ -55,8 +55,7 @@ const lint = (source: string, virtualPath: string): string =>
   findViolations(FUNNEL_FENCE, source, virtualPath).join('\n')
 
 const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
+  const env = withheldEnv()
   // `bun test` sets NODE_ENV=test, under which consola drops the success summary
   // the CI run prints; the child should log as it does in CI.
   env['NODE_ENV'] = 'development'

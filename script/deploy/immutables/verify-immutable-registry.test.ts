@@ -18,11 +18,20 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withheldEnv } from '../safe/spawn-env'
+
 import { decideExit, mergeRequirements } from './verify-immutable-registry'
 
 const REGISTRY_PATH = 'script/deploy/resources/immutableRegistry.json'
 const REQUIREMENTS_PATH = 'script/deploy/resources/deployRequirements.json'
-const SCRIPT = 'script/deploy/immutables/verify-immutable-registry.ts'
+const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
+const SCRIPT = join(
+  REPO_ROOT,
+  'script/deploy/immutables/verify-immutable-registry.ts'
+)
+// The CLI runs with a fixture dir as cwd, where `bunx tsx` cannot see the repo's
+// pinned tsx and would fetch it from the npm registry.
+const TSX_BIN = join(REPO_ROOT, 'node_modules', '.bin', 'tsx')
 
 /** Shape-only stand-in; mergeRequirements copies configData without reading it. */
 const CONFIG_DATA = {
@@ -161,8 +170,26 @@ function makeRepo(files: Record<string, string>): string {
     mkdirSync(join(full, '..'), { recursive: true })
     writeFileSync(full, content)
   }
-  spawnSync('git', ['init', '-q'], { cwd: root })
-  spawnSync('git', ['add', '-A'], { cwd: root })
+  // The scan reads `git ls-files`, so a fixture git silently failed to build
+  // would leave the CLI cases passing or failing for the wrong reason.
+  for (const args of [
+    ['init', '-q'],
+    ['add', '-A'],
+  ]) {
+    // Withheld too: `git add` runs any clean filter the user's git config
+    // defines, and that filter inherits this environment.
+    const git = spawnSync('git', args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: withheldEnv(),
+    })
+    if (git.status !== 0)
+      throw new Error(
+        `git ${args.join(' ')} failed in ${root}: ${
+          git.error?.message ?? git.stderr
+        }`
+      )
+  }
   return root
 }
 
@@ -174,12 +201,25 @@ contract Clean {
 }
 `
 
+/**
+ * Runs the CLI in `root`. A child that never started has no status, which an
+ * exit-code assertion can misread, so a failed spawn throws instead.
+ */
+const runCli = (root: string, args: string[]) => {
+  const result = spawnSync(TSX_BIN, [SCRIPT, ...args], {
+    cwd: root,
+    encoding: 'utf8',
+    env: withheldEnv(),
+  })
+  if (result.error)
+    throw new Error(
+      `could not spawn ${TSX_BIN}: ${result.error.message}; run \`bun install\``
+    )
+  return result
+}
+
 const runGate = (root: string, args: string[] = []) =>
-  spawnSync(
-    'bunx',
-    ['tsx', join(process.cwd(), SCRIPT), '--out-dir', OUT_DIR, ...args],
-    { cwd: root, encoding: 'utf8' }
-  )
+  runCli(root, ['--out-dir', OUT_DIR, ...args])
 
 describe('verify-immutable-registry CLI', () => {
   it('scans exactly the src/*.sol files git tracks', () => {
@@ -279,11 +319,7 @@ describe('verify-immutable-registry CLI', () => {
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
-    const result = spawnSync(
-      'bunx',
-      ['tsx', join(process.cwd(), SCRIPT), '--out-dir'],
-      { cwd: root, encoding: 'utf8' }
-    )
+    const result = runCli(root, ['--out-dir'])
 
     expect(result.status).toBe(1)
     expect(result.stdout + result.stderr).toMatch(
