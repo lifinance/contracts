@@ -55,7 +55,11 @@ reverts `UnsupportedAllBridgeChainId`. The authoritative source for each network
 `allBridgeChainId` is the AllBridge `token-info` endpoint
 (`https://core.api.allbridgecoreapi.net/token-info`). After changing the config, run
 `script/tasks/proposeAllBridgeChainIdMappings.ts` to propose the equivalent on-chain
-mapping updates on every network where the facet is deployed.
+mapping updates on every network where the facet is deployed. The same timelock
+`scheduleBatch` also unsets stale keys: any `allBridgeChainId` value in
+`config/allbridge.json` that is not also a `chainId` there and still resolves on-chain
+gets an `unsetChainIdToAllBridgeChainId` call, placed after the set call when there is
+one. A network with no rows to set but stale keys to unset gets a batch of unsets only.
 
 Bridging to a non-EVM destination (e.g. Stellar) follows the standard non-EVM flow:
 `BridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel and the real recipient travels as

@@ -4,9 +4,11 @@
  * For each network where AllBridgeFacet is deployed, this script:
  * 1) Reads mappings from config/allbridge.json
  * 2) Multicalls getChainIdToAllBridgeChainId on the diamond and keeps only rows
- *    that are unset (UnsupportedAllBridgeChainId) or differ from config
- * 3) Builds a LiFiDiamond.setChainIdToAllBridgeChainId(ChainIdConfig[]) call
- * 4) Wraps them in TimelockController.scheduleBatch(...)
+ *    that are unset (UnsupportedAllBridgeChainId) or differ from config, plus the
+ *    stale keys an inverted seed left behind that still resolve
+ * 3) Builds a LiFiDiamond.setChainIdToAllBridgeChainId(ChainIdConfig[]) call followed
+ *    by one unsetChainIdToAllBridgeChainId(key) call per stale key
+ * 4) Wraps them in one TimelockController.scheduleBatch(...)
  * 5) Proposes the transaction to the network Safe and stores it in MongoDB
  *
  * Example:
@@ -23,8 +25,6 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import {
   createPublicClient,
-  decodeErrorResult,
-  encodeFunctionData,
   getAddress,
   http,
   parseAbi,
@@ -47,11 +47,19 @@ import {
   getViemChainForNetworkName,
   isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
+import { redactUrls } from '../utils/redactUrls'
 
-interface IChainIdMapping {
-  chainId: bigint
-  allBridgeChainId: number
-}
+import {
+  buildMappingRepairCalls,
+  GET_CHAIN_ID_TO_ALL_BRIDGE_CHAIN_ID_ABI,
+  getStaleAllBridgeKeys,
+  loadAllBridgeMappings,
+  selectMappingsNeedingUpdate,
+  selectResolvingStaleKeys,
+  type IAllBridgeChainIdMapping,
+  type IMappingRepairCalls,
+  type MappingReadResult,
+} from './allBridgeChainIdMappings'
 
 function castEnv(environment?: string): EnvironmentEnum {
   if (!environment) return EnvironmentEnum.production
@@ -98,147 +106,55 @@ function isNonZeroAddressString(value: unknown): value is string {
   )
 }
 
-function loadAllBridgeMappings(): IChainIdMapping[] {
-  const filePath = path.join(process.cwd(), 'config', 'allbridge.json')
-  const raw = fs.readFileSync(filePath, 'utf8')
-  const parsed = JSON.parse(raw) as {
-    mappings?: Array<{ chainId: unknown; allBridgeChainId: unknown }>
-  }
-
-  if (!parsed.mappings || !Array.isArray(parsed.mappings))
-    throw new Error(`Invalid config file format: ${filePath} missing mappings`)
-
-  const mappings: IChainIdMapping[] = parsed.mappings.map((m, idx) => {
-    const chainId = BigInt(String(m.chainId))
-    const allBridgeChainId = Number(m.allBridgeChainId)
-
-    if (chainId <= 0n)
-      throw new Error(
-        `Invalid mapping at index ${idx}: chainId=${String(m.chainId)}`
-      )
-    // AllBridge chain IDs start at 1; 0 is reserved for "unmapped"
-    if (!Number.isInteger(allBridgeChainId) || allBridgeChainId <= 0)
-      throw new Error(
-        `Invalid mapping at index ${idx}: allBridgeChainId=${String(
-          m.allBridgeChainId
-        )}`
-      )
-
-    return { chainId, allBridgeChainId }
-  })
-
-  if (mappings.length === 0) throw new Error(`No mappings found in ${filePath}`)
-
-  return mappings
-}
-
-function getRevertData(error: unknown): Hex | undefined {
-  if (!error || typeof error !== 'object') return undefined
-
-  if ('data' in error && typeof error.data === 'string')
-    return error.data as Hex
-
-  // viem stores the raw revert bytes on `raw` when the call ABI does not
-  // declare the reverting error (then `data` holds the decoded result, which
-  // is undefined). Needed to recognise errors like UnsupportedAllBridgeChainId.
-  if ('raw' in error && typeof (error as { raw?: unknown }).raw === 'string')
-    return (error as { raw: string }).raw as Hex
-
-  if ('cause' in error) return getRevertData(error.cause)
-
-  return undefined
-}
-
-async function filterMappingsNeedingUpdate(params: {
+async function readMappingRepairs(params: {
   network: string
   diamondAddress: Address
-  mappings: IChainIdMapping[]
-}): Promise<IChainIdMapping[]> {
-  const { network, diamondAddress, mappings } = params
+  mappings: IAllBridgeChainIdMapping[]
+  staleKeys: bigint[]
+}): Promise<{
+  mappingsToSet: IAllBridgeChainIdMapping[]
+  staleKeysToUnset: bigint[]
+}> {
+  const { network, diamondAddress, mappings, staleKeys } = params
 
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({ chain, transport: http() })
 
-  const getChainIdAbi = parseAbi([
-    'function getChainIdToAllBridgeChainId(uint256 chainId) view returns (uint256 allBridgeChainId)',
-  ])
-  const errorsAbi = parseAbi(['error UnsupportedAllBridgeChainId()'])
-
-  const results = await client.multicall({
-    contracts: mappings.map((m) => ({
+  const keys = [...mappings.map((m) => m.chainId), ...staleKeys]
+  const results = (await client.multicall({
+    contracts: keys.map((key) => ({
       address: diamondAddress,
-      abi: getChainIdAbi,
+      abi: GET_CHAIN_ID_TO_ALL_BRIDGE_CHAIN_ID_ABI,
       functionName: 'getChainIdToAllBridgeChainId',
-      args: [m.chainId],
+      args: [key],
     })),
     allowFailure: true,
-  })
+  })) as MappingReadResult[]
 
-  const needingUpdate: IChainIdMapping[] = []
-
-  for (let i = 0; i < mappings.length; i++) {
-    const mapping = mappings[i]
-    const result = results[i]
-    if (!mapping || !result)
-      throw new Error(`Missing multicall result for mapping index ${i}`)
-
-    if (result.status === 'success') {
-      if (Number(result.result) !== mapping.allBridgeChainId)
-        needingUpdate.push(mapping)
-      continue
+  try {
+    return {
+      mappingsToSet: selectMappingsNeedingUpdate(
+        mappings,
+        results.slice(0, mappings.length)
+      ),
+      staleKeysToUnset: selectResolvingStaleKeys(
+        staleKeys,
+        results.slice(mappings.length)
+      ),
     }
-
-    const revertData = getRevertData(result.error)
-    if (revertData) {
-      try {
-        const decoded = decodeErrorResult({ abi: errorsAbi, data: revertData })
-        if (decoded.errorName === 'UnsupportedAllBridgeChainId') {
-          needingUpdate.push(mapping)
-          continue
-        }
-      } catch {
-        // not UnsupportedAllBridgeChainId
-      }
-    }
-
-    const message =
-      result.error instanceof Error
-        ? result.error.message
-        : String(result.error)
-    throw new Error(
-      `Failed to read chainId ${mapping.chainId.toString()} on ${network}: ${message}`
-    )
+  } catch (e: unknown) {
+    const msg = redactUrls(e instanceof Error ? e.message : String(e))
+    throw new Error(`${msg} (on ${network})`)
   }
-
-  return needingUpdate
 }
 
 async function buildTimelockScheduleBatchCalldata(params: {
   network: string
   timelockAddress: Address
-  diamondAddress: Address
-  mappings: IChainIdMapping[]
+  calls: IMappingRepairCalls
 }): Promise<Hex> {
-  const { network, timelockAddress, diamondAddress, mappings } = params
-
-  const setChainIdAbi = parseAbi([
-    'function setChainIdToAllBridgeChainId((uint256 chainId, uint256 allBridgeChainId)[] chainIdConfigs)',
-  ])
-
-  const chainIdConfigs = mappings.map((m) => ({
-    chainId: m.chainId,
-    allBridgeChainId: BigInt(m.allBridgeChainId),
-  }))
-
-  const payload = encodeFunctionData({
-    abi: setChainIdAbi,
-    functionName: 'setChainIdToAllBridgeChainId',
-    args: [chainIdConfigs],
-  })
-
-  const targets: Address[] = [diamondAddress]
-  const values: bigint[] = [0n]
-  const payloads: Hex[] = [payload]
+  const { network, timelockAddress, calls } = params
+  const { targets, values, payloads } = calls
 
   const chain = getViemChainForNetworkName(network)
   const client = createPublicClient({ chain, transport: http() })
@@ -344,6 +260,7 @@ const main = defineCommand({
   async run({ args }) {
     const environment = castEnv(args.environment)
     const mappings = loadAllBridgeMappings()
+    const staleKeys = getStaleAllBridgeKeys(mappings)
 
     const excludeSet = new Set<string>()
     if (args.excludeNetworks) {
@@ -415,29 +332,43 @@ const main = defineCommand({
         const diamondAddress = getAddress(diamondRaw as Address)
         const timelockAddress = getAddress(timelockRaw as Address)
 
-        const mappingsToUpdate = await filterMappingsNeedingUpdate({
+        const { mappingsToSet, staleKeysToUnset } = await readMappingRepairs({
           network,
           diamondAddress,
           mappings,
+          staleKeys,
         })
 
-        if (mappingsToUpdate.length === 0) {
+        const calls = buildMappingRepairCalls({
+          diamondAddress,
+          mappingsToSet,
+          staleKeysToUnset,
+        })
+
+        if (calls.payloads.length === 0) {
           consola.info(
-            `[${network}] All ${mappings.length} mapping(s) up to date - skipping`
+            `[${network}] All ${mappings.length} mapping(s) up to date, no stale keys - skipping`
           )
           results.push({ network, ok: true })
           continue
         }
 
         consola.info(
-          `[${network}] ${mappingsToUpdate.length}/${mappings.length} mapping(s) need update`
+          `[${network}] ${mappingsToSet.length}/${
+            mappings.length
+          } mapping(s) need update, ${
+            staleKeysToUnset.length
+          } stale key(s) to unset${
+            staleKeysToUnset.length > 0
+              ? ` (${staleKeysToUnset.join(', ')})`
+              : ''
+          }`
         )
 
         const calldata = await buildTimelockScheduleBatchCalldata({
           network,
           timelockAddress,
-          diamondAddress,
-          mappings: mappingsToUpdate,
+          calls,
         })
 
         await proposeToSafe({
@@ -449,7 +380,7 @@ const main = defineCommand({
 
         results.push({ network, ok: true })
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const msg = redactUrls(e instanceof Error ? e.message : String(e))
         consola.error(`[${network}] ❌ Failed: ${msg}`)
         results.push({ network, ok: false, error: msg })
       }
