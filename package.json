@@ -124,9 +124,6 @@
     "update-whitelist-periphery": "bunx tsx ./script/tasks/updateWhitelistPeriphery.ts"
   },
   "dependencies": {
-    "@cowprotocol/cow-sdk": "9.3.0",
-    "@cowprotocol/sdk-cow-shed": "0.6.6",
-    "@cowprotocol/sdk-viem-adapter": "0.3.37",
     "@ethersproject/abi": "^5.8.0",
     "@ledgerhq/hw-app-eth": "^6.43.0",
     "@ledgerhq/hw-transport-node-hid": "^6.29.5",
