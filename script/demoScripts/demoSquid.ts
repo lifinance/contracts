@@ -9,7 +9,7 @@ import {
   type ILiFi,
   type SquidFacet,
 } from '../../typechain'
-config({ quiet: true })
+config()
 
 const ROUTE_TYPES: Record<string, number> = {
   CALL_BRIDGE: 0,
