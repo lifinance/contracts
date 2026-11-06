@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../utils/TestBase.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { OutputValidator } from "lifi/Periphery/OutputValidator.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
@@ -12,14 +14,16 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
-import { TransferFromFailed, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import {
+    TransferFromFailed,
+    InvalidReceiver
+} from "lifi/Errors/GenericErrors.sol";
 
 // Stub AcrossFacetV4 Contract
 contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
-    constructor(
-        IAcrossSpokePoolV4 _spokePool,
-        bytes32 _wrappedNative
-    ) AcrossFacetV4(_spokePool, _wrappedNative) {}
+    constructor(IAcrossSpokePoolV4 _spokePool, bytes32 _wrappedNative)
+        AcrossFacetV4(_spokePool, _wrappedNative)
+    { }
 }
 
 // Reverts on any native transfer; used to prove that zero-value native calls are skipped
@@ -43,9 +47,7 @@ contract OutputValidatorTest is TestBase {
     MockUniswapDEX private mockDEX;
 
     event TokensWithdrawn(
-        address assetId,
-        address payable receiver,
-        uint256 amount
+        address assetId, address payable receiver, uint256 amount
     );
 
     event OutputValidated(
@@ -72,19 +74,14 @@ contract OutputValidatorTest is TestBase {
 
         // Deploy Across V4 facet as the swap+bridge vehicle for the integration tests
         acrossBridge = new TestAcrossFacetV4(
-            IAcrossSpokePoolV4(SPOKE_POOL),
-            LibBytes.toBytes32(ADDRESS_WETH)
+            IAcrossSpokePoolV4(SPOKE_POOL), LibBytes.toBytes32(ADDRESS_WETH)
         );
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = acrossBridge
-            .startBridgeTokensViaAcrossV4
-            .selector;
-        functionSelectors[1] = acrossBridge
-            .swapAndStartBridgeTokensViaAcrossV4
-            .selector;
-        functionSelectors[2] = acrossBridge
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        acrossBridge.startBridgeTokensViaAcrossV4.selector;
+        functionSelectors[1] =
+        acrossBridge.swapAndStartBridgeTokensViaAcrossV4.selector;
+        functionSelectors[2] = acrossBridge.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(acrossBridge), functionSelectors);
         acrossBridge = TestAcrossFacetV4(address(diamond));
@@ -94,16 +91,13 @@ contract OutputValidatorTest is TestBase {
 
         // Whitelist MockDEX in the diamond
         acrossBridge.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactTokensForTokens.selector
+            address(mockDEX), mockDEX.swapExactTokensForTokens.selector
         );
         acrossBridge.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactTokensForETH.selector
+            address(mockDEX), mockDEX.swapExactTokensForETH.selector
         );
         acrossBridge.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactETHForTokens.selector
+            address(mockDEX), mockDEX.swapExactETHForTokens.selector
         );
 
         // Whitelist OutputValidator in the diamond
@@ -144,9 +138,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call from diamond
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         // Assert
@@ -171,9 +163,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call from diamond
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         // Assert
@@ -205,9 +195,7 @@ contract OutputValidatorTest is TestBase {
         dai.approve(address(outputValidator), actualAmount);
 
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         // Assert
@@ -237,16 +225,11 @@ contract OutputValidatorTest is TestBase {
         vm.deal(address(diamond), msgValue + diamondBalance);
 
         vm.expectEmit(true, true, true, true, address(outputValidator));
-        emit OutputValidated(
-            LibAsset.NULL_ADDRESS,
-            validationWallet,
-            msgValue
-        );
+        emit OutputValidated(LibAsset.NULL_ADDRESS, validationWallet, msgValue);
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 10 + 100 = 110 ether
@@ -286,15 +269,12 @@ contract OutputValidatorTest is TestBase {
 
         vm.expectEmit(true, true, true, true, address(outputValidator));
         emit OutputValidated(
-            LibAsset.NULL_ADDRESS,
-            validationWallet,
-            excessAmount
+            LibAsset.NULL_ADDRESS, validationWallet, excessAmount
         );
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 2 + 100 = 102 ether
@@ -333,8 +313,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 10 + 5 = 15 ether
@@ -371,8 +350,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call with zero msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 200 + 0 = 200 ether
@@ -415,8 +393,7 @@ contract OutputValidatorTest is TestBase {
         // Act - outputAmount (200) > expectedAmount (10) enters the excess branch, but msg.value
         // is 0, so the guard must skip the transfer and the call must not revert
         outputValidator.validateNativeOutput{ value: 0 }(
-            expectedAmount,
-            address(revertingWallet)
+            expectedAmount, address(revertingWallet)
         );
 
         // Assert
@@ -447,8 +424,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 150 + 50 = 200 ether
@@ -486,8 +462,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - call with msg.value
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = diamondBalance + msgValue = 100 + 50 = 150 ether
@@ -528,9 +503,7 @@ contract OutputValidatorTest is TestBase {
         // Act & Assert - should revert when validationWalletAddress is address(0)
         vm.expectRevert(InvalidReceiver.selector);
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            address(0)
+            address(dai), expectedAmount, address(0)
         ); // This should trigger the revert
 
         vm.stopPrank();
@@ -551,9 +524,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - should succeed and transfer all tokens to validation wallet
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         // Assert - all tokens should be transferred to validation wallet
@@ -588,9 +559,7 @@ contract OutputValidatorTest is TestBase {
         // Act - call from diamond
         vm.expectRevert(TransferFromFailed.selector);
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         vm.stopPrank();
@@ -611,9 +580,7 @@ contract OutputValidatorTest is TestBase {
         // Act - call from diamond
         vm.expectRevert(TransferFromFailed.selector);
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         vm.stopPrank();
@@ -637,9 +604,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - should succeed
         outputValidator.validateERC20Output(
-            address(dai),
-            expectedAmount,
-            validationWallet
+            address(dai), expectedAmount, validationWallet
         );
 
         // Assert - positive slippage (actual - expected) transferred to validation wallet
@@ -662,8 +627,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - should succeed
         outputValidator.validateNativeOutput{ value: msgValue }(
-            expectedAmount,
-            validationWallet
+            expectedAmount, validationWallet
         );
 
         // Assert - with logic: outputAmount = msgValue = 100 ether
@@ -761,8 +725,8 @@ contract OutputValidatorTest is TestBase {
         });
 
         // Across V4 specific data
-        AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
-            .AcrossV4Data({
+        AcrossFacetV4.AcrossV4Data memory acrossData =
+            AcrossFacetV4.AcrossV4Data({
                 receiverAddress: LibBytes.toBytes32(address(this)),
                 refundAddress: LibBytes.toBytes32(USER_SENDER),
                 sendingAssetId: LibBytes.toBytes32(address(dai)),
@@ -783,9 +747,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - execute the complete transaction with DEX swap + output validation + bridge
         acrossBridge.swapAndStartBridgeTokensViaAcrossV4(
-            bridgeData,
-            swapData,
-            acrossData
+            bridgeData, swapData, acrossData
         );
         vm.stopPrank();
 
@@ -874,8 +836,8 @@ contract OutputValidatorTest is TestBase {
         });
 
         // Across V4 specific data
-        AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
-            .AcrossV4Data({
+        AcrossFacetV4.AcrossV4Data memory acrossData =
+            AcrossFacetV4.AcrossV4Data({
                 receiverAddress: LibBytes.toBytes32(USER_SENDER),
                 refundAddress: LibBytes.toBytes32(USER_SENDER),
                 sendingAssetId: LibBytes.toBytes32(address(usdc)),
@@ -895,9 +857,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - execute the complete transaction with DEX swap + output validation + bridge
         acrossBridge.swapAndStartBridgeTokensViaAcrossV4{ value: inputAmount }(
-            bridgeData,
-            swapData,
-            acrossData
+            bridgeData, swapData, acrossData
         );
         vm.stopPrank();
 
@@ -910,9 +870,7 @@ contract OutputValidatorTest is TestBase {
 
         // Verify user's input native tokens were spent
         assertEq(
-            USER_SENDER.balance,
-            0,
-            "User should have spent all input ETH"
+            USER_SENDER.balance, 0, "User should have spent all input ETH"
         );
     }
 
@@ -993,8 +951,8 @@ contract OutputValidatorTest is TestBase {
         });
 
         // Across V4 specific data (native bridge uses WRAPPED_NATIVE as inputToken)
-        AcrossFacetV4.AcrossV4Data memory acrossData = AcrossFacetV4
-            .AcrossV4Data({
+        AcrossFacetV4.AcrossV4Data memory acrossData =
+            AcrossFacetV4.AcrossV4Data({
                 receiverAddress: LibBytes.toBytes32(USER_SENDER),
                 refundAddress: LibBytes.toBytes32(USER_SENDER),
                 sendingAssetId: LibBytes.toBytes32(ADDRESS_WETH),
@@ -1017,9 +975,7 @@ contract OutputValidatorTest is TestBase {
 
         // Act - execute the complete transaction with DEX swap + output validation + bridge
         acrossBridge.swapAndStartBridgeTokensViaAcrossV4(
-            bridgeData,
-            swapData,
-            acrossData
+            bridgeData, swapData, acrossData
         );
         vm.stopPrank();
 
@@ -1042,5 +998,5 @@ contract OutputValidatorTest is TestBase {
     }
 
     // Needed to receive native tokens in tests
-    receive() external payable {}
+    receive() external payable { }
 }

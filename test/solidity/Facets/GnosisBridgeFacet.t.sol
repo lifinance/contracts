@@ -5,14 +5,20 @@ import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 import { IGnosisBridgeRouter } from "lifi/Interfaces/IGnosisBridgeRouter.sol";
-import { TransferFromFailed, InvalidConfig, InvalidSendingToken } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TransferFromFailed,
+    InvalidConfig,
+    InvalidSendingToken
+} from "lifi/Errors/GenericErrors.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GnosisBridgeFacet Contract
 contract TestGnosisBridgeFacet is GnosisBridgeFacet, TestWhitelistManagerBase {
-    constructor(
-        IGnosisBridgeRouter _xDaiBridge
-    ) GnosisBridgeFacet(_xDaiBridge) {}
+    constructor(IGnosisBridgeRouter _xDaiBridge)
+        GnosisBridgeFacet(_xDaiBridge)
+    { }
 }
 
 contract GnosisBridgeFacetTest is TestBaseFacet {
@@ -43,38 +49,30 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = gnosisBridgeFacet
-            .startBridgeTokensViaGnosisBridge
-            .selector;
-        functionSelectors[1] = gnosisBridgeFacet
-            .swapAndStartBridgeTokensViaGnosisBridge
-            .selector;
-        functionSelectors[2] = gnosisBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = gnosisBridgeFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        gnosisBridgeFacet.startBridgeTokensViaGnosisBridge.selector;
+        functionSelectors[1] =
+        gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge.selector;
+        functionSelectors[2] =
+        gnosisBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        gnosisBridgeFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(gnosisBridgeFacet), functionSelectors);
 
         gnosisBridgeFacet = TestGnosisBridgeFacet(address(diamond));
 
         gnosisBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         gnosisBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForETH.selector
+            address(uniswap), uniswap.swapExactTokensForETH.selector
         );
         gnosisBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
         gnosisBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapETHForExactTokens.selector
+            address(uniswap), uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(gnosisBridgeFacet), "GnosisFacet");
@@ -124,17 +122,19 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         gnosisBridgeFacet.startBridgeTokensViaGnosisBridge(bridgeData);
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData);
+            }(
+                bridgeData, swapData
+            );
         } else {
             gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge(
-                bridgeData,
-                swapData
+                bridgeData, swapData
             );
         }
     }
@@ -146,9 +146,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(defaultDAIAmount)
+            ADDRESS_DAI, USER_SENDER, -int256(defaultDAIAmount)
         )
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
     {
@@ -170,9 +168,7 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(
-            ADDRESS_USDS,
-            USER_SENDER,
-            -int256(defaultUSDSAmount)
+            ADDRESS_USDS, USER_SENDER, -int256(defaultUSDSAmount)
         )
         assertBalanceChange(ADDRESS_USDS, USER_RECEIVER, 0)
     {
@@ -198,16 +194,14 @@ contract GnosisBridgeFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         usdc.approve(
-            address(gnosisBridgeFacet),
-            10_000 * 10 ** usdc.decimals()
+            address(gnosisBridgeFacet), 10_000 * 10 ** usdc.decimals()
         );
 
         setDefaultSwapData();
         bridgeData.hasSourceSwaps = true;
 
         gnosisBridgeFacet.swapAndStartBridgeTokensViaGnosisBridge(
-            bridgeData,
-            swapData
+            bridgeData, swapData
         );
 
         vm.stopPrank();

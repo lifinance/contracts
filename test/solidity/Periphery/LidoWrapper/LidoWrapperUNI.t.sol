@@ -27,9 +27,7 @@ contract LidoWrapperTestUNI is TestBase {
 
         // deploy lido wrapper
         lidoWrapper = new LidoWrapper(
-            ST_ETH_ADDRESS,
-            WST_ETH_ADDRESS,
-            USER_DIAMOND_OWNER
+            ST_ETH_ADDRESS, WST_ETH_ADDRESS, USER_DIAMOND_OWNER
         );
 
         // transfer stETH from whale to USER_SENDER
@@ -47,10 +45,8 @@ contract LidoWrapperTestUNI is TestBase {
         IStETH(ST_ETH_ADDRESS).unwrap(whaleBalance / 2);
 
         // IERC20(ST_ETH_ADDRESS).approve(address(this), type(uint256).max);
-        IERC20(WST_ETH_ADDRESS).approve(
-            address(lidoWrapper),
-            type(uint256).max
-        );
+        IERC20(WST_ETH_ADDRESS)
+            .approve(address(lidoWrapper), type(uint256).max);
 
         vm.stopPrank();
     }
@@ -58,19 +54,15 @@ contract LidoWrapperTestUNI is TestBase {
     function test_canUnwrapWstEthTokens() public {
         vm.startPrank(USER_SENDER);
 
-        uint256 balanceStBefore = IERC20(ST_ETH_ADDRESS).balanceOf(
-            USER_SENDER
-        );
-        uint256 balanceWstBefore = IERC20(WST_ETH_ADDRESS).balanceOf(
-            USER_SENDER
-        );
+        uint256 balanceStBefore = IERC20(ST_ETH_ADDRESS).balanceOf(USER_SENDER);
+        uint256 balanceWstBefore =
+            IERC20(WST_ETH_ADDRESS).balanceOf(USER_SENDER);
 
         lidoWrapper.unwrapWstETHToStETH(balanceWstBefore);
 
         uint256 balanceStAfter = IERC20(ST_ETH_ADDRESS).balanceOf(USER_SENDER);
-        uint256 balanceWstAfter = IERC20(WST_ETH_ADDRESS).balanceOf(
-            USER_SENDER
-        );
+        uint256 balanceWstAfter =
+            IERC20(WST_ETH_ADDRESS).balanceOf(USER_SENDER);
         assertTrue(balanceStAfter > balanceStBefore);
         assertTrue(balanceWstAfter == 0);
     }
@@ -78,25 +70,20 @@ contract LidoWrapperTestUNI is TestBase {
     function test_canWrapStEthTokens() public {
         vm.startPrank(USER_SENDER);
 
-        uint256 stEthBalanceBefore = IERC20(ST_ETH_ADDRESS).balanceOf(
-            USER_SENDER
-        );
-        uint256 wstEthBalanceBefore = IERC20(WST_ETH_ADDRESS).balanceOf(
-            USER_SENDER
-        );
+        uint256 stEthBalanceBefore =
+            IERC20(ST_ETH_ADDRESS).balanceOf(USER_SENDER);
+        uint256 wstEthBalanceBefore =
+            IERC20(WST_ETH_ADDRESS).balanceOf(USER_SENDER);
 
         // Approve the LidoWrapper contract to spend stETH
-        IERC20(ST_ETH_ADDRESS).approve(
-            address(lidoWrapper),
-            stEthBalanceBefore
-        );
+        IERC20(ST_ETH_ADDRESS)
+            .approve(address(lidoWrapper), stEthBalanceBefore);
 
         // Wrap stETH to wstETH
         lidoWrapper.wrapStETHToWstETH(stEthBalanceBefore);
 
-        uint256 stEthBalanceAfter = IERC20(ST_ETH_ADDRESS).balanceOf(
-            USER_SENDER
-        );
+        uint256 stEthBalanceAfter =
+            IERC20(ST_ETH_ADDRESS).balanceOf(USER_SENDER);
         uint256 wstEthBalance = IERC20(WST_ETH_ADDRESS).balanceOf(USER_SENDER);
 
         assertTrue(stEthBalanceAfter <= 1);

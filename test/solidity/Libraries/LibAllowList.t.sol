@@ -40,8 +40,7 @@ contract LibAllowListTest is Test {
     function test_AddAndRemoveSinglePair() public {
         // --- Add Pair ---
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         _assertStateSyncedAndCorrect(
             StateAssertion({
@@ -58,8 +57,7 @@ contract LibAllowListTest is Test {
 
         // --- Remove Pair ---
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         _assertStateSyncedAndCorrect(
             StateAssertion({
@@ -78,16 +76,13 @@ contract LibAllowListTest is Test {
     function test_AddAndRemovePairMultipleTimes() public {
         // Add the same pair three times
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
 
         // State should be as if it were added once
@@ -106,13 +101,11 @@ contract LibAllowListTest is Test {
 
         // Remove the pair once
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         // Remove it again (should be idempotent and do not revert)
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
 
         // State should be empty
@@ -133,8 +126,7 @@ contract LibAllowListTest is Test {
     function test_RemoveNonExistentPair() public {
         // Try to remove a pair that was never added
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
 
         // State should be empty
@@ -157,34 +149,31 @@ contract LibAllowListTest is Test {
     function test_ContractReferenceCountingWithMultipleSelectors() public {
         // Add two different selectors to the same contract
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
 
         // Check state after additions
         // New Granular State
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Selector A should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Selector B should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             2,
             "New: Contract should have 2 selectors"
         );
@@ -214,30 +203,28 @@ contract LibAllowListTest is Test {
 
         // Remove one selector
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
 
         // Check state after first removal
         // New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Selector A should be removed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Selector B should remain"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             1,
             "New: Contract should have 1 selector left"
         );
@@ -267,30 +254,28 @@ contract LibAllowListTest is Test {
 
         // Remove the second selector
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
 
         // Check state after first second
         // New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Selector A should be removed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Selector B should be removed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: Contract should have 0 selectors left"
         );
@@ -324,41 +309,35 @@ contract LibAllowListTest is Test {
 
         // Add the same selector to two different contracts
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
-        LibAllowList.addAllowedContractSelector(
-            address(contract2),
-            SELECTOR_A
-        );
+        LibAllowList.addAllowedContractSelector(address(contract2), SELECTOR_A);
 
         // Check state after additions
         // New Granular State
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_A
+                address(contract2), SELECTOR_A
             ),
             "New: Pair 2 should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             1,
             "New: Contract should have 1 selectors left"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             1,
             "New: Contract should have 1 selectors left"
         );
@@ -388,37 +367,34 @@ contract LibAllowListTest is Test {
 
         // Remove selector from the first contract
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
 
         // Check state after first removal
         // New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should NOT be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_A
+                address(contract2), SELECTOR_A
             ),
             "New: Pair 2 should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: Contract should have 0 selectors left"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             1,
             "New: Contract should have 1 selectors left"
         );
@@ -448,36 +424,33 @@ contract LibAllowListTest is Test {
 
         // Remove selector from the second contract
         LibAllowList.removeAllowedContractSelector(
-            address(contract2),
-            SELECTOR_A
+            address(contract2), SELECTOR_A
         );
 
         // New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_A
+                address(contract2), SELECTOR_A
             ),
             "New: Pair 2 should NOT be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: Contract should have 0 selectors left"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             0,
             "New: Contract should have 0 selectors left"
         );
@@ -512,22 +485,21 @@ contract LibAllowListTest is Test {
         // in LibSwap.SwapData, but prevents any function calls to it.
         // Used for DEX integrations where the approval contract differs from the router contract.
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            APPROVE_TO_SELECTOR
+            address(testContract), APPROVE_TO_SELECTOR
         );
 
         // Check New Granular State
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                APPROVE_TO_SELECTOR
+                address(testContract), APPROVE_TO_SELECTOR
             ),
             "New: ApproveTo-Only Selector should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             1,
             "New: Contract should have 1 selector"
         );
@@ -553,22 +525,21 @@ contract LibAllowListTest is Test {
 
         // Remove approve target status
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            APPROVE_TO_SELECTOR
+            address(testContract), APPROVE_TO_SELECTOR
         );
 
         // Check New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                APPROVE_TO_SELECTOR
+                address(testContract), APPROVE_TO_SELECTOR
             ),
             "New: ApproveTo-Only Selector should NOT be allowed after removal"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: Contract should have 0 selectors left"
         );
@@ -600,63 +571,51 @@ contract LibAllowListTest is Test {
 
         // Setup
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
-        LibAllowList.addAllowedContractSelector(
-            address(contract2),
-            SELECTOR_B
-        );
-        LibAllowList.addAllowedContractSelector(
-            address(contract2),
-            SELECTOR_C
-        );
+        LibAllowList.addAllowedContractSelector(address(contract2), SELECTOR_B);
+        LibAllowList.addAllowedContractSelector(address(contract2), SELECTOR_C);
 
         // Check initial state
         // Check New Granular State
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Pair 2 should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_B
+                address(contract2), SELECTOR_B
             ),
             "New: Pair 3 should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_C
+                address(contract2), SELECTOR_C
             ),
             "New: Pair 4 should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             2,
             "New: Contract should have 2 selectors left"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             2,
             "New: Contract should have 2 selectors left"
         );
@@ -694,51 +653,46 @@ contract LibAllowListTest is Test {
 
         // Action: Remove SELECTOR_B from testContract
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
 
         // Check intermediate state
         // Check New Granular State
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Pair 2 should NOT be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_B
+                address(contract2), SELECTOR_B
             ),
             "New: Pair 3 should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_C
+                address(contract2), SELECTOR_C
             ),
             "New: Pair 4 should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             1,
             "New: Contract should have 1 selectors left"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             2,
             "New: Contract should have 2 selectors left"
         );
@@ -776,51 +730,46 @@ contract LibAllowListTest is Test {
 
         // Action: Remove SELECTOR_A from testContract
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
 
         // Check final state for contract1
         // Check New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Pair 2 should NOT be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_B
+                address(contract2), SELECTOR_B
             ),
             "New: Pair 3 should be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_C
+                address(contract2), SELECTOR_C
             ),
             "New: Pair 4 should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: Contract should have 0 selectors left"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             2,
             "New: Contract should have 2 selectors left"
         );
@@ -858,51 +807,46 @@ contract LibAllowListTest is Test {
 
         // Action: Remove SELECTOR_B from contract2
         LibAllowList.removeAllowedContractSelector(
-            address(contract2),
-            SELECTOR_B
+            address(contract2), SELECTOR_B
         );
 
         // Check state after removing SELECTOR_B from contract2
         // Check New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Pair 2 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_B
+                address(contract2), SELECTOR_B
             ),
             "New: Pair 3 should NOT be allowed"
         );
         assertTrue(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_C
+                address(contract2), SELECTOR_C
             ),
             "New: Pair 4 should be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: testContract should have 0 selectors"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             1,
             "New: contract2 should have 1 selector left"
         );
@@ -940,51 +884,46 @@ contract LibAllowListTest is Test {
 
         // Action: Remove SELECTOR_C from contract2 (last selector)
         LibAllowList.removeAllowedContractSelector(
-            address(contract2),
-            SELECTOR_C
+            address(contract2), SELECTOR_C
         );
 
         // Check final state - everything should be cleaned up
         // Check New Granular State
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_A
+                address(testContract), SELECTOR_A
             ),
             "New: Pair 1 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(testContract),
-                SELECTOR_B
+                address(testContract), SELECTOR_B
             ),
             "New: Pair 2 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_B
+                address(contract2), SELECTOR_B
             ),
             "New: Pair 3 should NOT be allowed"
         );
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                SELECTOR_C
+                address(contract2), SELECTOR_C
             ),
             "New: Pair 4 should NOT be allowed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(testContract))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            )
+            .length,
             0,
             "New: testContract should have 0 selectors"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(address(contract2))
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(address(contract2))
+            .length,
             0,
             "New: contract2 should have 0 selectors"
         );
@@ -1024,20 +963,19 @@ contract LibAllowListTest is Test {
     function test_IterableListMaintainsCorrectOrderAfterRemoval() public {
         // Add three selectors
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_C
+            address(testContract), SELECTOR_C
         );
 
-        bytes4[] memory selectors = LibAllowList
-            .getWhitelistedSelectorsForContract(address(testContract));
+        bytes4[] memory selectors =
+            LibAllowList.getWhitelistedSelectorsForContract(
+                address(testContract)
+            );
         assertEq(selectors.length, 3);
         assertEq(selectors[0], SELECTOR_A);
         assertEq(selectors[1], SELECTOR_B);
@@ -1045,19 +983,14 @@ contract LibAllowListTest is Test {
 
         // Remove the middle one (B). The last one (C) should take its place.
         LibAllowList.removeAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
 
         selectors = LibAllowList.getWhitelistedSelectorsForContract(
             address(testContract)
         );
         assertEq(selectors.length, 2);
-        assertEq(
-            selectors[0],
-            SELECTOR_A,
-            "First element should be unchanged"
-        );
+        assertEq(selectors[0], SELECTOR_A, "First element should be unchanged");
         assertEq(
             selectors[1],
             SELECTOR_C,
@@ -1075,8 +1008,7 @@ contract LibAllowListTest is Test {
         // Expect a revert when adding a zero selector
         vm.expectRevert(InvalidCallData.selector);
         this._addAllowedContractSelectorExternal(
-            address(testContract),
-            bytes4(0)
+            address(testContract), bytes4(0)
         );
     }
 
@@ -1098,17 +1030,12 @@ contract LibAllowListTest is Test {
 
         // Setup: Add contracts normally
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_A
+            address(testContract), SELECTOR_A
         );
         LibAllowList.addAllowedContractSelector(
-            address(testContract),
-            SELECTOR_B
+            address(testContract), SELECTOR_B
         );
-        LibAllowList.addAllowedContractSelector(
-            address(contract2),
-            SELECTOR_C
-        );
+        LibAllowList.addAllowedContractSelector(address(contract2), SELECTOR_C);
 
         // Access storage to manually manipulate state (simulating V1->V2 migration edge case)
         LibAllowList.AllowListStorage storage als = _getAllowListStorage();
@@ -1127,15 +1054,13 @@ contract LibAllowListTest is Test {
         // Remove pair - when reference count hits 0, _removeAllowedSelector is called
         // with oneBasedIndex == 0, hitting cleanup path at line 252-256
         LibAllowList.removeAllowedContractSelector(
-            address(contract2),
-            selectorX
+            address(contract2), selectorX
         );
 
         // Verify cleanup: selector should be removed from all mappings
         assertFalse(
             LibAllowList.contractSelectorIsAllowed(
-                address(contract2),
-                selectorX
+                address(contract2), selectorX
             )
         );
 
@@ -1152,15 +1077,13 @@ contract LibAllowListTest is Test {
 
         // Remove first selector
         LibAllowList.removeAllowedContractSelector(
-            address(contract3),
-            selectorY
+            address(contract3), selectorY
         );
 
         // Remove last selector - this triggers _removeAllowedContract with contractToIndex == 0
         // This hits cleanup path, clearing legacy contractAllowList
         LibAllowList.removeAllowedContractSelector(
-            address(contract3),
-            selectorZ
+            address(contract3), selectorZ
         );
 
         // Verify cleanup: contract should be removed from all mappings
@@ -1181,22 +1104,22 @@ contract LibAllowListTest is Test {
     }
 
     /// @dev A single helper to check all states for simple cases.
-    function _assertStateSyncedAndCorrect(
-        StateAssertion memory _params
-    ) internal {
+    function _assertStateSyncedAndCorrect(StateAssertion memory _params)
+        internal
+    {
         // Check New Granular State
         assertEq(
             LibAllowList.contractSelectorIsAllowed(
-                _params.contractAddr,
-                _params.selector
+                _params.contractAddr, _params.selector
             ),
             _params.pairShouldExist,
             "New: Granular pair check failed"
         );
         assertEq(
-            LibAllowList
-                .getWhitelistedSelectorsForContract(_params.contractAddr)
-                .length,
+            LibAllowList.getWhitelistedSelectorsForContract(
+                _params.contractAddr
+            )
+            .length,
             _params.localSelectorCount,
             "New: Local selector count mismatch"
         );

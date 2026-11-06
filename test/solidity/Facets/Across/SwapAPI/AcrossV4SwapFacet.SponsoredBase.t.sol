@@ -4,14 +4,20 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondTest } from "../../../utils/DiamondTest.sol";
-import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../../utils/TestWhitelistManagerBase.sol";
 import { MockUniswapDEX } from "../../../utils/MockUniswapDEX.sol";
 import { TestToken } from "../../../utils/TestToken.sol";
 
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
-import { ISponsoredOFTSrcPeriphery } from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
-import { ISponsoredCCTPSrcPeriphery } from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
+import {
+    ISponsoredOFTSrcPeriphery
+} from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
+import {
+    ISponsoredCCTPSrcPeriphery
+} from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 contract MockSponsoredOftSrcPeriphery is ISponsoredOFTSrcPeriphery {
@@ -25,17 +31,18 @@ contract MockSponsoredOftSrcPeriphery is ISponsoredOFTSrcPeriphery {
         return TOKEN_ADDRESS;
     }
 
-    function deposit(
-        Quote calldata,
-        bytes calldata
-    ) external payable override {}
+    function deposit(Quote calldata, bytes calldata)
+        external
+        payable
+        override
+    { }
 }
 
 contract MockSponsoredCctpSrcPeriphery is ISponsoredCCTPSrcPeriphery {
-    function depositForBurn(
-        SponsoredCCTPQuote calldata,
-        bytes calldata
-    ) external override {}
+    function depositForBurn(SponsoredCCTPQuote calldata, bytes calldata)
+        external
+        override
+    { }
 }
 
 contract TestAcrossV4SwapFacetSponsored is
@@ -58,7 +65,7 @@ contract TestAcrossV4SwapFacetSponsored is
             _sponsoredCctpSrcPeriphery,
             _backendSigner
         )
-    {}
+    { }
 }
 
 abstract contract AcrossV4SwapFacetSponsoredTestBase is Test, DiamondTest {
@@ -98,19 +105,18 @@ abstract contract AcrossV4SwapFacetSponsoredTestBase is Test, DiamondTest {
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
         TestAcrossV4SwapFacetSponsored facetImpl = new TestAcrossV4SwapFacetSponsored(
-                ISpokePoolPeriphery(address(0)),
-                SPOKE_POOL,
-                WRAPPED_NATIVE,
-                address(oftPeriphery),
-                address(cctpPeriphery),
-                backendSigner
-            );
+            ISpokePoolPeriphery(address(0)),
+            SPOKE_POOL,
+            WRAPPED_NATIVE,
+            address(oftPeriphery),
+            address(cctpPeriphery),
+            backendSigner
+        );
 
         bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = facetImpl.startBridgeTokensViaAcrossV4Swap.selector;
-        selectors[1] = facetImpl
-            .swapAndStartBridgeTokensViaAcrossV4Swap
-            .selector;
+        selectors[1] =
+        facetImpl.swapAndStartBridgeTokensViaAcrossV4Swap.selector;
         selectors[2] = facetImpl.addAllowedContractSelector.selector;
         addFacet(diamond, address(facetImpl), selectors);
 
@@ -118,8 +124,7 @@ abstract contract AcrossV4SwapFacetSponsoredTestBase is Test, DiamondTest {
 
         TestAcrossV4SwapFacetSponsored(address(diamond))
             .addAllowedContractSelector(
-                address(dex),
-                MockUniswapDEX.swapExactTokensForTokens.selector
+                address(dex), MockUniswapDEX.swapExactTokensForTokens.selector
             );
     }
 

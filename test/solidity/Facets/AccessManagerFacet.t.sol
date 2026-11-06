@@ -2,7 +2,11 @@
 pragma solidity ^0.8.17;
 
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { UnAuthorized, CannotAuthoriseSelf, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
+import {
+    UnAuthorized,
+    CannotAuthoriseSelf,
+    OnlyContractOwner
+} from "lifi/Errors/GenericErrors.sol";
 import { LibAccess } from "lifi/Libraries/LibAccess.sol";
 import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 
@@ -25,9 +29,8 @@ contract AccessManagerFacetTest is TestBaseLocal {
 
         bytes4[] memory allowedFunctionSelectors = new bytes4[](2);
         allowedFunctionSelectors[0] = accessMgr.setCanExecute.selector;
-        allowedFunctionSelectors[1] = accessMgr
-            .addressCanExecuteMethod
-            .selector;
+        allowedFunctionSelectors[1] =
+        accessMgr.addressCanExecuteMethod.selector;
         addFacet(diamond, address(accessMgr), allowedFunctionSelectors);
 
         bytes4[] memory restrictedFunctionSelectors = new bytes4[](1);
@@ -53,9 +56,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f),
-            true
+            RestrictedContract.restrictedMethod.selector, address(0xb33f), true
         );
 
         vm.stopPrank();
@@ -68,9 +69,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f),
-            true
+            RestrictedContract.restrictedMethod.selector, address(0xb33f), true
         );
         accessMgr.setCanExecute(
             RestrictedContract.restrictedMethod.selector,
@@ -92,9 +91,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.expectRevert(CannotAuthoriseSelf.selector);
 
         accessMgr.setCanExecute(
-            AccessManagerFacet.setCanExecute.selector,
-            address(accessMgr),
-            true
+            AccessManagerFacet.setCanExecute.selector, address(accessMgr), true
         );
 
         vm.stopPrank();
@@ -106,9 +103,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.expectRevert(OnlyContractOwner.selector);
 
         accessMgr.setCanExecute(
-            AccessManagerFacet.setCanExecute.selector,
-            address(0xb33f),
-            true
+            AccessManagerFacet.setCanExecute.selector, address(0xb33f), true
         );
 
         vm.stopPrank();
@@ -116,8 +111,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
 
     function test_DefaultAccessIsFalse() public {
         bool canExecute = accessMgr.addressCanExecuteMethod(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f)
+            RestrictedContract.restrictedMethod.selector, address(0xb33f)
         );
 
         assertEq(canExecute, false, "Default access should be false");
@@ -127,16 +121,13 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f),
-            true
+            RestrictedContract.restrictedMethod.selector, address(0xb33f), true
         );
 
         vm.stopPrank();
 
         bool canExecute = accessMgr.addressCanExecuteMethod(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f)
+            RestrictedContract.restrictedMethod.selector, address(0xb33f)
         );
 
         assertEq(canExecute, true, "Access should be granted");
@@ -146,9 +137,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f),
-            true
+            RestrictedContract.restrictedMethod.selector, address(0xb33f), true
         );
 
         accessMgr.setCanExecute(
@@ -160,8 +149,7 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.stopPrank();
 
         bool canExecute = accessMgr.addressCanExecuteMethod(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f)
+            RestrictedContract.restrictedMethod.selector, address(0xb33f)
         );
 
         assertEq(canExecute, false, "Access should be revoked");
@@ -171,22 +159,17 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f),
-            true
+            RestrictedContract.restrictedMethod.selector, address(0xb33f), true
         );
 
         vm.stopPrank();
 
         bool canExecute = accessMgr.addressCanExecuteMethod(
-            bytes4(keccak256("anotherMethod()")),
-            address(0xb33f)
+            bytes4(keccak256("anotherMethod()")), address(0xb33f)
         );
 
         assertEq(
-            canExecute,
-            false,
-            "Different method selector should return false"
+            canExecute, false, "Different method selector should return false"
         );
     }
 
@@ -194,16 +177,13 @@ contract AccessManagerFacetTest is TestBaseLocal {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         accessMgr.setCanExecute(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xb33f),
-            true
+            RestrictedContract.restrictedMethod.selector, address(0xb33f), true
         );
 
         vm.stopPrank();
 
         bool canExecute = accessMgr.addressCanExecuteMethod(
-            RestrictedContract.restrictedMethod.selector,
-            address(0xcafe)
+            RestrictedContract.restrictedMethod.selector, address(0xcafe)
         );
 
         assertEq(canExecute, false, "Different executor should return false");

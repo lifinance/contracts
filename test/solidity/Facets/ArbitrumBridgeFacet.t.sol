@@ -4,17 +4,18 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 import { IGatewayRouter } from "lifi/Interfaces/IGatewayRouter.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ArbitrumBridgeFacet Contract
 contract TestArbitrumBridgeFacet is
     ArbitrumBridgeFacet,
     TestWhitelistManagerBase
 {
-    constructor(
-        IGatewayRouter _gatewayRouter,
-        IGatewayRouter _inbox
-    ) ArbitrumBridgeFacet(_gatewayRouter, _inbox) {}
+    constructor(IGatewayRouter _gatewayRouter, IGatewayRouter _inbox)
+        ArbitrumBridgeFacet(_gatewayRouter, _inbox)
+    { }
 }
 
 contract ArbitrumBridgeFacetTest is TestBaseFacet {
@@ -36,41 +37,33 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
         initTestBase();
 
         arbitrumBridgeFacet = new TestArbitrumBridgeFacet(
-            IGatewayRouter(GATEWAY_ROUTER),
-            IGatewayRouter(INBOX)
+            IGatewayRouter(GATEWAY_ROUTER), IGatewayRouter(INBOX)
         );
 
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = arbitrumBridgeFacet
-            .startBridgeTokensViaArbitrumBridge
-            .selector;
-        functionSelectors[1] = arbitrumBridgeFacet
-            .swapAndStartBridgeTokensViaArbitrumBridge
-            .selector;
-        functionSelectors[2] = arbitrumBridgeFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        arbitrumBridgeFacet.startBridgeTokensViaArbitrumBridge.selector;
+        functionSelectors[1] =
+        arbitrumBridgeFacet.swapAndStartBridgeTokensViaArbitrumBridge.selector;
+        functionSelectors[2] =
+        arbitrumBridgeFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(arbitrumBridgeFacet), functionSelectors);
 
         arbitrumBridgeFacet = TestArbitrumBridgeFacet(address(diamond));
 
         arbitrumBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         arbitrumBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         arbitrumBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(
-            address(arbitrumBridgeFacet),
-            "ArbitrumFacet"
+            address(arbitrumBridgeFacet), "ArbitrumFacet"
         );
 
         bridgeData.bridge = "arbitrum";
@@ -82,35 +75,42 @@ contract ArbitrumBridgeFacetTest is TestBaseFacet {
             maxGasPrice: MAX_GAS_PRICE
         });
 
-        cost = addToMessageValue =
-            MAX_SUBMISSION_COST +
-            MAX_GAS_PRICE *
-            MAX_GAS;
+        cost = addToMessageValue = MAX_SUBMISSION_COST + MAX_GAS_PRICE
+            * MAX_GAS;
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             arbitrumBridgeFacet.startBridgeTokensViaArbitrumBridge{
                 value: bridgeData.minAmount + addToMessageValue
-            }(bridgeData, arbitrumData);
+            }(
+                bridgeData, arbitrumData
+            );
         } else {
             arbitrumBridgeFacet.startBridgeTokensViaArbitrumBridge{
                 value: addToMessageValue
-            }(bridgeData, arbitrumData);
+            }(
+                bridgeData, arbitrumData
+            );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             arbitrumBridgeFacet.swapAndStartBridgeTokensViaArbitrumBridge{
                 value: swapData[0].fromAmount + addToMessageValue
-            }(bridgeData, swapData, arbitrumData);
+            }(
+                bridgeData, swapData, arbitrumData
+            );
         } else {
             arbitrumBridgeFacet.swapAndStartBridgeTokensViaArbitrumBridge{
                 value: addToMessageValue
-            }(bridgeData, swapData, arbitrumData);
+            }(
+                bridgeData, swapData, arbitrumData
+            );
         }
     }
 }

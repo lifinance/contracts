@@ -137,7 +137,7 @@ async function createLedgerAccount({
       return `0x${result.r}${result.s}${result.v.toString(16)}`
     },
     async signTransaction<
-      TTransactionSerializable extends TransactionSerializable
+      TTransactionSerializable extends TransactionSerializable,
     >(transaction: TTransactionSerializable) {
       try {
         // Load all needed imports first
@@ -228,7 +228,7 @@ async function createLedgerAccount({
     // Implement signTypedData method for EIP-712 support
     async signTypedData<
       const TTypedData extends TypedData | Record<string, unknown>,
-      TPrimaryType extends keyof TTypedData | 'EIP712Domain' = keyof TTypedData
+      TPrimaryType extends keyof TTypedData | 'EIP712Domain' = keyof TTypedData,
     >(parameters: TypedDataDefinition<TTypedData, TPrimaryType>) {
       const { default: Eth } = await import('@ledgerhq/hw-app-eth')
       const eth = new Eth(transport)

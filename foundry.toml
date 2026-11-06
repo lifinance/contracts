@@ -71,6 +71,19 @@ out = "out/zksync"
 zksolc = "1.5.15"
 foundry_zksync = "v0.0.32"
 
+# Mirrors the former prettier-plugin-solidity options (printWidth 79, tabWidth 4, double quotes).
+# src/ is excluded: forge fmt cannot reproduce prettier-solidity's layout, and reformatting
+# audited contracts would change their audit source hashes and bytecode metadata. Lint-staged
+# and the agent hook pass explicit paths, which bypass `ignore`, so they skip src/ themselves.
+[fmt]
+line_length = 79
+tab_width = 4
+quote_style = "double"
+bracket_spacing = true
+int_types = "preserve"
+number_underscore = "preserve"
+ignore = ["src/*.sol", "src/**", "lib/**", "node_modules/**"]
+
 [lint]
 lint_on_build = false
 

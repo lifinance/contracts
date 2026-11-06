@@ -5,11 +5,10 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("DiamondLoupeFacet") {}
+    constructor() DeployScriptBase("DiamondLoupeFacet") { }
 
     function run() public returns (DiamondLoupeFacet deployed) {
-        deployed = DiamondLoupeFacet(
-            deploy(type(DiamondLoupeFacet).creationCode)
-        );
+        deployed =
+            DiamondLoupeFacet(deploy(type(DiamondLoupeFacet).creationCode));
     }
 }

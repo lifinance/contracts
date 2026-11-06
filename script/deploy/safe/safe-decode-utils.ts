@@ -977,8 +977,8 @@ export async function formatDecodedTxDataForDisplay(
         typeof initCalldataRaw === 'string'
           ? (initCalldataRaw as Hex)
           : initCalldataRaw instanceof Uint8Array
-          ? bytesToHex(initCalldataRaw)
-          : ('0x' as Hex)
+            ? bytesToHex(initCalldataRaw)
+            : ('0x' as Hex)
       const hasInitCall =
         initAddress &&
         String(initAddress) !== '0x0000000000000000000000000000000000000000' &&
@@ -1233,8 +1233,8 @@ const asHex = (value: unknown): Hex =>
   typeof value === 'string'
     ? (value as Hex)
     : value instanceof Uint8Array
-    ? bytesToHex(value)
-    : ('0x' as Hex)
+      ? bytesToHex(value)
+      : ('0x' as Hex)
 
 /**
  * @param entry - one decoded `FacetCut` tuple, as viem returns it
@@ -1243,8 +1243,8 @@ const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
   const tuple = Array.isArray(entry)
     ? entry
     : isRecord(entry)
-    ? [entry.facetAddress, entry.action]
-    : undefined
+      ? [entry.facetAddress, entry.action]
+      : undefined
   if (!tuple) return undefined
   const [facetAddress, action] = tuple
   if (typeof facetAddress !== 'string') return undefined
@@ -1509,5 +1509,5 @@ export const collectDiamondCutTargets = (
  */
 const message = (error: unknown): string =>
   error instanceof Error
-    ? error.message.split('\n')[0] ?? 'undecodable'
+    ? (error.message.split('\n')[0] ?? 'undecodable')
     : String(error)

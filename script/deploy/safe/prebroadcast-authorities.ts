@@ -298,8 +298,8 @@ export const resolveExpectedAuthority = (
     source.from === 'deployments'
       ? deployments[source.contractName]
       : source.from === 'pinnedDeployments'
-      ? pinnedDeployments?.[source.contractName]
-      : globalConfig[source.key]
+        ? pinnedDeployments?.[source.contractName]
+        : globalConfig[source.key]
   if (typeof raw !== 'string') return undefined
   const address = raw.trim().toLowerCase()
   return /^0x[0-9a-f]{40}$/.test(address) ? address : undefined

@@ -3,21 +3,36 @@ pragma solidity ^0.8.17;
 
 import { TestBase, ILiFi, LibSwap, ERC20 } from "../utils/TestBase.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { MockUniswapDEX } from "../utils/MockUniswapDEX.sol";
 import { TestToken } from "../utils/TestToken.sol";
-import { MockFraxHopV2Tempo, MockFraxOFT, MockTipFeeManager } from "../utils/MockFraxHopV2Tempo.sol";
+import {
+    MockFraxHopV2Tempo,
+    MockFraxOFT,
+    MockTipFeeManager
+} from "../utils/MockFraxHopV2Tempo.sol";
 import { FraxFacet } from "lifi/Facets/FraxFacet.sol";
 import { IFraxHopV2, IFraxOFT } from "lifi/Interfaces/IFraxHopV2.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NotInitialized, OnlyContractOwner, TokenNotSupported, TransferFromFailed, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
+import {
+    InformationMismatch,
+    InvalidCallData,
+    InvalidConfig,
+    InvalidNonEVMReceiver,
+    InvalidReceiver,
+    NotInitialized,
+    OnlyContractOwner,
+    TokenNotSupported,
+    TransferFromFailed,
+    UnsupportedChainId
+} from "lifi/Errors/GenericErrors.sol";
 
 // Stub FraxFacet: adds the whitelist-manager selectors so pre-bridge swaps can be tested
 contract TestFraxFacet is FraxFacet, TestWhitelistManagerBase {
-    constructor(
-        IFraxHopV2 _hop,
-        address _tipFeeManager,
-        address _pathUsd
-    ) FraxFacet(_hop, _tipFeeManager, _pathUsd) {}
+    constructor(IFraxHopV2 _hop, address _tipFeeManager, address _pathUsd)
+        FraxFacet(_hop, _tipFeeManager, _pathUsd)
+    { }
 }
 
 /// @notice Fork tests for the standard (native-fee) FraxFacet path against the real
@@ -41,9 +56,8 @@ contract FraxFacetTest is TestBaseFacet {
     // an arbitrary non-zero 32-byte Solana pubkey (cannot be validated on-chain)
     bytes32 internal constant SOLANA_RECEIVER = bytes32(uint256(0x5011a9a));
 
-    event FraxChainMappingsInitialized(
-        FraxFacet.ChainIdConfig[] chainIdConfigs
-    );
+    event FraxChainMappingsInitialized(FraxFacet
+                .ChainIdConfig[] chainIdConfigs);
     event FraxChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
     event FraxChainIdToEidUnset(uint256 indexed chainId);
 
@@ -63,13 +77,11 @@ contract FraxFacetTest is TestBaseFacet {
     {
         configs = new FraxFacet.ChainIdConfig[](3);
         configs[0] = FraxFacet.ChainIdConfig({
-            chainId: DST_CHAINID_FRAXTAL,
-            lzEid: DST_EID_FRAXTAL
+            chainId: DST_CHAINID_FRAXTAL, lzEid: DST_EID_FRAXTAL
         }); // Fraxtal
         configs[1] = FraxFacet.ChainIdConfig({ chainId: 8453, lzEid: 30184 }); // Base
         configs[2] = FraxFacet.ChainIdConfig({
-            chainId: LIFI_CHAIN_ID_SOLANA,
-            lzEid: DST_EID_SOLANA
+            chainId: LIFI_CHAIN_ID_SOLANA, lzEid: DST_EID_SOLANA
         }); // Solana (non-EVM)
     }
 
@@ -92,13 +104,10 @@ contract FraxFacetTest is TestBaseFacet {
 
         bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = fraxFacet.startBridgeTokensViaFrax.selector;
-        functionSelectors[1] = fraxFacet
-            .swapAndStartBridgeTokensViaFrax
-            .selector;
+        functionSelectors[1] =
+        fraxFacet.swapAndStartBridgeTokensViaFrax.selector;
         functionSelectors[2] = fraxFacet.addAllowedContractSelector.selector;
-        functionSelectors[3] = fraxFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[3] = fraxFacet.removeAllowedContractSelector.selector;
         functionSelectors[4] = fraxFacet.initFrax.selector;
         functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
         functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
@@ -117,14 +126,11 @@ contract FraxFacetTest is TestBaseFacet {
         mockDex = new MockUniswapDEX();
         deal(FRXUSD, address(mockDex), 1_000_000 * 1e18);
         mockDex.setSwapOutput(
-            defaultUSDCAmount,
-            ERC20(FRXUSD),
-            defaultFrxAmount
+            defaultUSDCAmount, ERC20(FRXUSD), defaultFrxAmount
         );
 
         fraxFacet.addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapExactTokensForTokens.selector
+            address(mockDex), mockDex.swapExactTokensForTokens.selector
         );
 
         setFacetAddressInTestBase(address(fraxFacet), "FraxFacet");
@@ -150,20 +156,17 @@ contract FraxFacetTest is TestBaseFacet {
 
     /// @dev Live native LZ fee for bridging `amount` of frxUSD to Fraxtal
     function _quote(uint256 amount) internal view returns (uint256) {
-        return
-            _quoteTo(
-                DST_EID_FRAXTAL,
-                bytes32(uint256(uint160(USER_RECEIVER))),
-                amount
-            );
+        return _quoteTo(
+            DST_EID_FRAXTAL, bytes32(uint256(uint160(USER_RECEIVER))), amount
+        );
     }
 
     /// @dev Live native LZ fee for bridging `amount` of frxUSD to an arbitrary EID/recipient
-    function _quoteTo(
-        uint32 dstEid,
-        bytes32 recipient,
-        uint256 amount
-    ) internal view returns (uint256) {
+    function _quoteTo(uint32 dstEid, bytes32 recipient, uint256 amount)
+        internal
+        view
+        returns (uint256)
+    {
         return IFraxHopV2(HOP).quote(FRXUSD, dstEid, recipient, amount, 0, "");
     }
 
@@ -197,36 +200,39 @@ contract FraxFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             fraxFacet.startBridgeTokensViaFrax{ value: bridgeData.minAmount }(
-                bridgeData,
-                fraxData
+                bridgeData, fraxData
             );
         } else {
             fraxFacet.startBridgeTokensViaFrax{ value: fraxData.nativeFee }(
-                bridgeData,
-                fraxData
+                bridgeData, fraxData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             fraxFacet.swapAndStartBridgeTokensViaFrax{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, fraxData);
+            }(
+                bridgeData, swapData, fraxData
+            );
         } else {
             fraxFacet.swapAndStartBridgeTokensViaFrax{
                 value: fraxData.nativeFee
-            }(bridgeData, swapData, fraxData);
+            }(
+                bridgeData, swapData, fraxData
+            );
         }
     }
 
     // FraxFacet supports only ERC20 OFTs; no native path
-    function testBase_CanBridgeNativeTokens() public override {}
+    function testBase_CanBridgeNativeTokens() public override { }
 
     // FraxFacet supports only ERC20 OFTs; no native path
-    function testBase_CanSwapAndBridgeNativeTokens() public override {}
+    function testBase_CanSwapAndBridgeNativeTokens() public override { }
 
     function testBase_CanBridgeTokens() public override {
         uint256 senderBefore = frxUSD.balanceOf(USER_SENDER);
@@ -244,8 +250,7 @@ contract FraxFacetTest is TestBaseFacet {
         assertEq(frxUSD.balanceOf(address(diamond)), 0);
         assertEq(address(diamond).balance, 0);
         assertEq(
-            frxUSD.balanceOf(USER_SENDER),
-            senderBefore - defaultFrxAmount
+            frxUSD.balanceOf(USER_SENDER), senderBefore - defaultFrxAmount
         );
     }
 
@@ -306,8 +311,7 @@ contract FraxFacetTest is TestBaseFacet {
         assertEq(usdc.balanceOf(address(diamond)), 0);
         assertEq(address(diamond).balance, 0);
         assertEq(
-            usdc.balanceOf(USER_SENDER),
-            senderUsdcBefore - defaultUSDCAmount
+            usdc.balanceOf(USER_SENDER), senderUsdcBefore - defaultUSDCAmount
         );
     }
 
@@ -381,7 +385,9 @@ contract FraxFacetTest is TestBaseFacet {
 
         fraxFacet.startBridgeTokensViaFrax{
             value: fraxData.nativeFee + excess
-        }(bridgeData, fraxData);
+        }(
+            bridgeData, fraxData
+        );
         vm.stopPrank();
 
         // the excess (and any LZ overpayment) is forwarded to the refundRecipient
@@ -396,8 +402,7 @@ contract FraxFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
 
         fraxFacet.startBridgeTokensViaFrax{ value: fraxData.nativeFee - 1 }(
-            bridgeData,
-            fraxData
+            bridgeData, fraxData
         );
         vm.stopPrank();
     }
@@ -427,8 +432,7 @@ contract FraxFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
 
         fraxFacet.startBridgeTokensViaFrax{ value: fraxData.nativeFee }(
-            bridgeData,
-            fraxData
+            bridgeData, fraxData
         );
         vm.stopPrank();
     }
@@ -496,11 +500,8 @@ contract FraxFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         fraxData.dstEid = DST_EID_SOLANA;
         fraxData.nonEVMReceiver = SOLANA_RECEIVER;
-        fraxData.nativeFee = _quoteTo(
-            DST_EID_SOLANA,
-            SOLANA_RECEIVER,
-            defaultFrxAmount
-        );
+        fraxData.nativeFee =
+            _quoteTo(DST_EID_SOLANA, SOLANA_RECEIVER, defaultFrxAmount);
 
         uint256 senderBefore = frxUSD.balanceOf(USER_SENDER);
 
@@ -509,9 +510,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit BridgeToNonEVMChainBytes32(
-            bridgeData.transactionId,
-            LIFI_CHAIN_ID_SOLANA,
-            SOLANA_RECEIVER
+            bridgeData.transactionId, LIFI_CHAIN_ID_SOLANA, SOLANA_RECEIVER
         );
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
@@ -539,8 +538,7 @@ contract FraxFacetTest is TestBaseFacet {
         // the real hop accepted the Solana route end-to-end (frxUSD is a self-OFT, so the
         // bridged amount is burned from the diamond rather than transferred to the hop)
         assertEq(
-            frxUSD.balanceOf(USER_SENDER),
-            senderBefore - defaultFrxAmount
+            frxUSD.balanceOf(USER_SENDER), senderBefore - defaultFrxAmount
         );
         assertEq(frxUSD.balanceOf(address(diamond)), 0);
         assertEq(address(diamond).balance, 0);
@@ -552,11 +550,8 @@ contract FraxFacetTest is TestBaseFacet {
         bridgeData.hasSourceSwaps = true;
         fraxData.dstEid = DST_EID_SOLANA;
         fraxData.nonEVMReceiver = SOLANA_RECEIVER;
-        fraxData.nativeFee = _quoteTo(
-            DST_EID_SOLANA,
-            SOLANA_RECEIVER,
-            defaultFrxAmount
-        );
+        fraxData.nativeFee =
+            _quoteTo(DST_EID_SOLANA, SOLANA_RECEIVER, defaultFrxAmount);
 
         vm.startPrank(USER_SENDER);
         setDefaultSwapDataSingleDAItoUSDC();
@@ -564,9 +559,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit BridgeToNonEVMChainBytes32(
-            bridgeData.transactionId,
-            LIFI_CHAIN_ID_SOLANA,
-            SOLANA_RECEIVER
+            bridgeData.transactionId, LIFI_CHAIN_ID_SOLANA, SOLANA_RECEIVER
         );
         // the mock DEX swaps to exactly defaultFrxAmount (a clean dust-rate multiple), so
         // the emitted minAmount equals the pre-set bridgeData.minAmount
@@ -766,8 +759,7 @@ contract FraxFacetTest is TestBaseFacet {
 
     function test_DefaultChainMappingsSeeded() public {
         assertEq(
-            fraxFacet.getFraxChainIdToEid(DST_CHAINID_FRAXTAL),
-            DST_EID_FRAXTAL
+            fraxFacet.getFraxChainIdToEid(DST_CHAINID_FRAXTAL), DST_EID_FRAXTAL
         );
         assertEq(fraxFacet.getFraxChainIdToEid(8453), 30184);
     }
@@ -780,8 +772,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function test_CanSetChainIdToEid() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 137, lzEid: 30109 });
 
         vm.expectEmit(true, true, true, true, address(fraxFacet));
@@ -804,8 +796,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_SetChainIdToEidFromNonOwner() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 137, lzEid: 30109 });
 
         vm.prank(USER_SENDER);
@@ -814,8 +806,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_SetChainIdToEidEmpty() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](0);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](0);
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectRevert(InvalidConfig.selector);
@@ -823,8 +815,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_SetChainIdToEidZeroChainId() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 0, lzEid: 30109 });
 
         vm.prank(USER_DIAMOND_OWNER);
@@ -833,8 +825,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_SetChainIdToEidZeroEid() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 137, lzEid: 0 });
 
         vm.prank(USER_DIAMOND_OWNER);
@@ -845,14 +837,11 @@ contract FraxFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToEidBeforeInit() public {
         // fresh standalone facet: diamond-storage owner defaults to address(0),
         // and the mapping has never been initialized
-        TestFraxFacet fresh = new TestFraxFacet(
-            IFraxHopV2(HOP),
-            address(0),
-            address(0)
-        );
+        TestFraxFacet fresh =
+            new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
 
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 137, lzEid: 30109 });
 
         vm.prank(address(0));
@@ -894,8 +883,7 @@ contract FraxFacetTest is TestBaseFacet {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                UnsupportedChainId.selector,
-                DST_CHAINID_FRAXTAL
+                UnsupportedChainId.selector, DST_CHAINID_FRAXTAL
             )
         );
         initiateBridgeTxWithFacet(false);
@@ -916,8 +904,7 @@ contract FraxFacetTest is TestBaseFacet {
         fraxFacet.getFraxChainIdToEid(8453);
         vm.expectRevert(
             abi.encodeWithSelector(
-                UnsupportedChainId.selector,
-                DST_CHAINID_FRAXTAL
+                UnsupportedChainId.selector, DST_CHAINID_FRAXTAL
             )
         );
         fraxFacet.getFraxChainIdToEid(DST_CHAINID_FRAXTAL);
@@ -930,8 +917,8 @@ contract FraxFacetTest is TestBaseFacet {
         vm.prank(USER_DIAMOND_OWNER);
         fraxFacet.unsetFraxChainIdToEid(chainIds);
 
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 8453, lzEid: 30184 });
 
         vm.prank(USER_DIAMOND_OWNER);
@@ -970,11 +957,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_RemoveChainIdToEidBeforeInit() public {
-        TestFraxFacet fresh = new TestFraxFacet(
-            IFraxHopV2(HOP),
-            address(0),
-            address(0)
-        );
+        TestFraxFacet fresh =
+            new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
 
         uint256[] memory chainIds = new uint256[](1);
         chainIds[0] = 8453;
@@ -985,11 +969,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function test_InitFraxEmitsAndSetsMappings() public {
-        TestFraxFacet fresh = new TestFraxFacet(
-            IFraxHopV2(HOP),
-            address(0),
-            address(0)
-        );
+        TestFraxFacet fresh =
+            new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
         FraxFacet.ChainIdConfig[] memory configs = _defaultChainIdConfigs();
 
         vm.prank(address(0));
@@ -1003,8 +984,7 @@ contract FraxFacetTest is TestBaseFacet {
         fresh.initFrax(configs);
 
         assertEq(
-            fresh.getFraxChainIdToEid(DST_CHAINID_FRAXTAL),
-            DST_EID_FRAXTAL
+            fresh.getFraxChainIdToEid(DST_CHAINID_FRAXTAL), DST_EID_FRAXTAL
         );
         assertEq(fresh.getFraxChainIdToEid(8453), 30184);
     }
@@ -1016,8 +996,8 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_InitFraxEmpty() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](0);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](0);
 
         vm.prank(USER_DIAMOND_OWNER);
         vm.expectRevert(InvalidConfig.selector);
@@ -1025,13 +1005,10 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_InitFraxZeroChainId() public {
-        TestFraxFacet fresh = new TestFraxFacet(
-            IFraxHopV2(HOP),
-            address(0),
-            address(0)
-        );
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        TestFraxFacet fresh =
+            new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 0, lzEid: 30255 });
 
         vm.prank(address(0));
@@ -1040,16 +1017,12 @@ contract FraxFacetTest is TestBaseFacet {
     }
 
     function testRevert_InitFraxZeroEid() public {
-        TestFraxFacet fresh = new TestFraxFacet(
-            IFraxHopV2(HOP),
-            address(0),
-            address(0)
-        );
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        TestFraxFacet fresh =
+            new TestFraxFacet(IFraxHopV2(HOP), address(0), address(0));
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({
-            chainId: DST_CHAINID_FRAXTAL,
-            lzEid: 0
+            chainId: DST_CHAINID_FRAXTAL, lzEid: 0
         });
 
         vm.prank(address(0));
@@ -1119,20 +1092,15 @@ contract FraxFacetTempoTest is TestBase {
         hop.setFeeConfig(address(pathUsd), FEE_QUOTE);
 
         fraxFacet = new TestFraxFacet(
-            IFraxHopV2(address(hop)),
-            address(tipFeeManager),
-            address(pathUsd)
+            IFraxHopV2(address(hop)), address(tipFeeManager), address(pathUsd)
         );
 
         bytes4[] memory functionSelectors = new bytes4[](8);
         functionSelectors[0] = fraxFacet.startBridgeTokensViaFrax.selector;
-        functionSelectors[1] = fraxFacet
-            .swapAndStartBridgeTokensViaFrax
-            .selector;
+        functionSelectors[1] =
+        fraxFacet.swapAndStartBridgeTokensViaFrax.selector;
         functionSelectors[2] = fraxFacet.addAllowedContractSelector.selector;
-        functionSelectors[3] = fraxFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[3] = fraxFacet.removeAllowedContractSelector.selector;
         functionSelectors[4] = fraxFacet.initFrax.selector;
         functionSelectors[5] = fraxFacet.setFraxChainIdToEid.selector;
         functionSelectors[6] = fraxFacet.getFraxChainIdToEid.selector;
@@ -1142,8 +1110,8 @@ contract FraxFacetTempoTest is TestBase {
         fraxFacet = TestFraxFacet(payable(address(diamond)));
 
         // seed the chainId -> LayerZero EID mapping (owner-only): Fraxtal 252 -> 30255
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({ chainId: 252, lzEid: 30255 });
         vm.prank(USER_DIAMOND_OWNER);
         fraxFacet.initFrax(configs);
@@ -1290,13 +1258,10 @@ contract FraxFacetTempoTest is TestBase {
         MockUniswapDEX mockDex = new MockUniswapDEX();
         bridgedToken.mint(address(mockDex), BRIDGE_AMOUNT);
         mockDex.setSwapOutput(
-            defaultUSDCAmount,
-            ERC20(address(bridgedToken)),
-            BRIDGE_AMOUNT
+            defaultUSDCAmount, ERC20(address(bridgedToken)), BRIDGE_AMOUNT
         );
         fraxFacet.addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapExactTokensForTokens.selector
+            address(mockDex), mockDex.swapExactTokensForTokens.selector
         );
 
         address[] memory path = new address[](2);
@@ -1333,9 +1298,7 @@ contract FraxFacetTempoTest is TestBase {
         emit LiFiTransferStarted(bridgeData);
 
         fraxFacet.swapAndStartBridgeTokensViaFrax{ value: 0 }(
-            bridgeData,
-            swapData,
-            fraxData
+            bridgeData, swapData, fraxData
         );
         vm.stopPrank();
 
@@ -1373,9 +1336,7 @@ contract FraxFacetTempoTest is TestBase {
         vm.expectRevert(InvalidCallData.selector);
 
         fraxFacet.swapAndStartBridgeTokensViaFrax{ value: 1 }(
-            bridgeData,
-            swapData,
-            fraxData
+            bridgeData, swapData, fraxData
         );
         vm.stopPrank();
     }
@@ -1442,11 +1403,10 @@ contract FraxFacetTempoTest is TestBase {
     ///      reachable in this suite because Tempo itself is not forkable (see suite header);
     ///      the EVM-fee path's Solana coverage runs against the real hop in FraxFacetTest.
     function test_Tempo_CanBridgeToSolanaWithBytes32Receiver() public {
-        FraxFacet.ChainIdConfig[]
-            memory configs = new FraxFacet.ChainIdConfig[](1);
+        FraxFacet.ChainIdConfig[] memory configs =
+            new FraxFacet.ChainIdConfig[](1);
         configs[0] = FraxFacet.ChainIdConfig({
-            chainId: LIFI_CHAIN_ID_SOLANA,
-            lzEid: 30168
+            chainId: LIFI_CHAIN_ID_SOLANA, lzEid: 30168
         });
         vm.prank(USER_DIAMOND_OWNER);
         fraxFacet.setFraxChainIdToEid(configs);

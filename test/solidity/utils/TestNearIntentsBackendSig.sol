@@ -42,38 +42,40 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         address refundRecipient;
     }
 
-    function _buildDomainSeparator(
-        uint256 _chainId
-    ) internal view returns (bytes32) {
-        return
-            _domainSeparator(
-                NEAR_DOMAIN_NAME,
-                EIP712_VERSION,
-                _chainId,
-                nearIntentsVerifyingContract
-            );
+    function _buildDomainSeparator(uint256 _chainId)
+        internal
+        view
+        returns (bytes32)
+    {
+        return _domainSeparator(
+            NEAR_DOMAIN_NAME,
+            EIP712_VERSION,
+            _chainId,
+            nearIntentsVerifyingContract
+        );
     }
 
-    function _buildStructHash(
-        NEARIntentsPayload memory _payload
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    NEARINTENTS_PAYLOAD_TYPEHASH,
-                    _payload.transactionId,
-                    _payload.minAmount,
-                    _payload.receiver,
-                    _payload.depositAddress,
-                    _payload.destinationChainId,
-                    _payload.sendingAssetId,
-                    _payload.deadline,
-                    _payload.quoteId,
-                    _payload.minAmountOut,
-                    _payload.destinationAsset,
-                    _payload.refundRecipient
-                )
-            );
+    function _buildStructHash(NEARIntentsPayload memory _payload)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encode(
+                NEARINTENTS_PAYLOAD_TYPEHASH,
+                _payload.transactionId,
+                _payload.minAmount,
+                _payload.receiver,
+                _payload.depositAddress,
+                _payload.destinationChainId,
+                _payload.sendingAssetId,
+                _payload.deadline,
+                _payload.quoteId,
+                _payload.minAmountOut,
+                _payload.destinationAsset,
+                _payload.refundRecipient
+            )
+        );
     }
 
     function _createNEARIntentsPayload(
@@ -90,20 +92,19 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
             ? _nonEvmReceiver
             : bytes32(uint256(uint160(_bridgeData.receiver)));
 
-        return
-            NEARIntentsPayload({
-                transactionId: _bridgeData.transactionId,
-                minAmount: _bridgeData.minAmount,
-                receiver: receiverBytes32,
-                depositAddress: _depositAddress,
-                destinationChainId: _bridgeData.destinationChainId,
-                sendingAssetId: _bridgeData.sendingAssetId,
-                deadline: _deadline,
-                quoteId: _quoteId,
-                minAmountOut: _minAmountOut,
-                destinationAsset: _destinationAsset,
-                refundRecipient: _refundRecipient
-            });
+        return NEARIntentsPayload({
+            transactionId: _bridgeData.transactionId,
+            minAmount: _bridgeData.minAmount,
+            receiver: receiverBytes32,
+            depositAddress: _depositAddress,
+            destinationChainId: _bridgeData.destinationChainId,
+            sendingAssetId: _bridgeData.sendingAssetId,
+            deadline: _deadline,
+            quoteId: _quoteId,
+            minAmountOut: _minAmountOut,
+            destinationAsset: _destinationAsset,
+            refundRecipient: _refundRecipient
+        });
     }
 
     function _generateValidNearDataWithPrivateKeyAndDeadline(
@@ -132,17 +133,16 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         bytes32 digestHash = _digest(domainSeparatorHash, structHash);
         bytes memory signature = _signDigest(_privateKey, digestHash);
 
-        return
-            NEARIntentsFacet.NEARIntentsData({
-                nonEVMReceiver: _nonEvmReceiver,
-                destinationAsset: nearIntentsDestinationAsset,
-                depositAddress: _depositAddress,
-                quoteId: _quoteId,
-                deadline: _deadline,
-                minAmountOut: _minAmountOut,
-                refundRecipient: nearIntentsRefundRecipient,
-                signature: signature
-            });
+        return NEARIntentsFacet.NEARIntentsData({
+            nonEVMReceiver: _nonEvmReceiver,
+            destinationAsset: nearIntentsDestinationAsset,
+            depositAddress: _depositAddress,
+            quoteId: _quoteId,
+            deadline: _deadline,
+            minAmountOut: _minAmountOut,
+            refundRecipient: nearIntentsRefundRecipient,
+            signature: signature
+        });
     }
 
     function _generateValidNearDataWithPrivateKey(
@@ -154,17 +154,16 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         uint256 _privateKey
     ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
         uint256 deadline = block.timestamp + 1 hours;
-        return
-            _generateValidNearDataWithPrivateKeyAndDeadline(
-                _depositAddress,
-                _currentBridgeData,
-                _chainId,
-                _quoteId,
-                _minAmountOut,
-                bytes32(0),
-                deadline,
-                _privateKey
-            );
+        return _generateValidNearDataWithPrivateKeyAndDeadline(
+            _depositAddress,
+            _currentBridgeData,
+            _chainId,
+            _quoteId,
+            _minAmountOut,
+            bytes32(0),
+            deadline,
+            _privateKey
+        );
     }
 
     function _generateValidNearData(
@@ -174,15 +173,14 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         bytes32 _quoteId,
         uint256 _minAmountOut
     ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
-        return
-            _generateValidNearDataWithPrivateKey(
-                _depositAddress,
-                _currentBridgeData,
-                _chainId,
-                _quoteId,
-                _minAmountOut,
-                backendSignerPrivateKey
-            );
+        return _generateValidNearDataWithPrivateKey(
+            _depositAddress,
+            _currentBridgeData,
+            _chainId,
+            _quoteId,
+            _minAmountOut,
+            backendSignerPrivateKey
+        );
     }
 
     function _generateValidNearDataWithNonEVM(
@@ -194,16 +192,15 @@ abstract contract TestNearIntentsBackendSig is TestEIP712, LiFiData {
         bytes32 _nonEvmReceiver
     ) internal view returns (NEARIntentsFacet.NEARIntentsData memory) {
         uint256 deadline = block.timestamp + 1 hours;
-        return
-            _generateValidNearDataWithPrivateKeyAndDeadline(
-                _depositAddress,
-                _currentBridgeData,
-                _chainId,
-                _quoteId,
-                _minAmountOut,
-                _nonEvmReceiver,
-                deadline,
-                backendSignerPrivateKey
-            );
+        return _generateValidNearDataWithPrivateKeyAndDeadline(
+            _depositAddress,
+            _currentBridgeData,
+            _chainId,
+            _quoteId,
+            _minAmountOut,
+            _nonEvmReceiver,
+            deadline,
+            backendSignerPrivateKey
+        );
     }
 }

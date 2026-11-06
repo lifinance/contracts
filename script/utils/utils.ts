@@ -503,9 +503,8 @@ export async function getContractAddress(
       filesToTry.push(resolve(root, 'deployments/tron.json'))
 
   for (const deploymentFile of filesToTry) {
-    const deployments = await readJsonFile<Record<string, string>>(
-      deploymentFile
-    )
+    const deployments =
+      await readJsonFile<Record<string, string>>(deploymentFile)
     if (deployments) {
       const address = deployments[contract] || null
       if (address) return address

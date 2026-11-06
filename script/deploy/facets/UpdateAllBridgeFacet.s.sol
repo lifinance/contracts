@@ -25,15 +25,11 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/allbridge.json");
         json = vm.readFile(path);
         bytes memory rawMappings = json.parseRaw(".mappings");
-        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
-            rawMappings,
-            (AllBridgeFacet.ChainIdConfig[])
-        );
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            abi.decode(rawMappings, (AllBridgeFacet.ChainIdConfig[]));
 
-        return
-            abi.encodeWithSelector(
-                AllBridgeFacet.initAllBridge.selector,
-                chainIdConfigs
-            );
+        return abi.encodeWithSelector(
+            AllBridgeFacet.initAllBridge.selector, chainIdConfigs
+        );
     }
 }

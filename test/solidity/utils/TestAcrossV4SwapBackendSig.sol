@@ -8,10 +8,9 @@ import { TestEIP712 } from "./TestEIP712.sol";
 /// @title TestAcrossV4SwapBackendSig
 /// @notice Payload-specific signature helpers for `AcrossV4SwapFacet` Swap API tests.
 abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(
-            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-        );
+    bytes32 private constant EIP712_DOMAIN_TYPEHASH = keccak256(
+        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+    );
 
     // EIP-712 typehash for AcrossV4SwapPayload:
     // keccak256("AcrossV4SwapPayload(bytes32 transactionId,uint256 minAmount,address receiver,uint256 destinationChainId,address sendingAssetId,uint8 swapApiTarget,bytes32 callDataHash)");
@@ -22,19 +21,20 @@ abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
     uint256 internal backendSignerPk;
     address internal backendSigner;
 
-    function _domainSeparator(
-        address _verifyingContract
-    ) internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    EIP712_DOMAIN_TYPEHASH,
-                    keccak256(bytes("LI.FI Across V4 Swap Facet")),
-                    keccak256(bytes("1")),
-                    block.chainid,
-                    _verifyingContract
-                )
-            );
+    function _domainSeparator(address _verifyingContract)
+        internal
+        view
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encode(
+                EIP712_DOMAIN_TYPEHASH,
+                keccak256(bytes("LI.FI Across V4 Swap Facet")),
+                keccak256(bytes("1")),
+                block.chainid,
+                _verifyingContract
+            )
+        );
     }
 
     function _acrossV4SwapDigest(
@@ -56,14 +56,11 @@ abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
             )
         );
 
-        return
-            keccak256(
-                abi.encodePacked(
-                    "\x19\x01",
-                    _domainSeparator(_verifyingContract),
-                    structHash
-                )
-            );
+        return keccak256(
+            abi.encodePacked(
+                "\x19\x01", _domainSeparator(_verifyingContract), structHash
+            )
+        );
     }
 
     function _signAcrossV4Swap(
@@ -73,10 +70,7 @@ abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
         address _verifyingContract
     ) internal view returns (bytes memory) {
         bytes32 digestHash = _acrossV4SwapDigest(
-            _bridgeData,
-            _swapApiTarget,
-            _callData,
-            _verifyingContract
+            _bridgeData, _swapApiTarget, _callData, _verifyingContract
         );
 
         return _signDigest(backendSignerPk, digestHash);
@@ -90,23 +84,19 @@ abstract contract TestAcrossV4SwapBackendSig is TestEIP712 {
     ) internal returns (AcrossV4SwapFacet.AcrossV4SwapFacetData memory) {
         bytes memory signature = "";
         if (
-            _swapApiTarget == AcrossV4SwapFacet.SwapApiTarget.SpokePool ||
-            _swapApiTarget ==
-            AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery
+            _swapApiTarget == AcrossV4SwapFacet.SwapApiTarget.SpokePool
+                || _swapApiTarget
+                    == AcrossV4SwapFacet.SwapApiTarget.SpokePoolPeriphery
         ) {
             signature = _signAcrossV4Swap(
-                _bridgeData,
-                _swapApiTarget,
-                _callData,
-                _verifyingContract
+                _bridgeData, _swapApiTarget, _callData, _verifyingContract
             );
         }
 
-        return
-            AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: _swapApiTarget,
-                callData: _callData,
-                signature: signature
-            });
+        return AcrossV4SwapFacet.AcrossV4SwapFacetData({
+            swapApiTarget: _swapApiTarget,
+            callData: _callData,
+            signature: signature
+        });
     }
 }

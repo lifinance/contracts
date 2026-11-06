@@ -5,8 +5,12 @@ import { TestBase } from "../utils/TestBase.sol";
 import { Patcher } from "../../../src/Periphery/Patcher.sol";
 import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { ILiFi } from "../../../src/Interfaces/ILiFi.sol";
-import { RelayDepositoryFacet } from "../../../src/Facets/RelayDepositoryFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    RelayDepositoryFacet
+} from "../../../src/Facets/RelayDepositoryFacet.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { MockRelayDepository } from "../utils/MockRelayDepository.sol";
 
 error MockFailure();
@@ -35,10 +39,11 @@ contract MockValueSource {
         return value;
     }
 
-    function getBalance(
-        address token,
-        address account
-    ) external view returns (uint256) {
+    function getBalance(address token, address account)
+        external
+        view
+        returns (uint256)
+    {
         if (shouldFail) {
             revert MockFailure();
         }
@@ -77,10 +82,10 @@ contract MockTarget {
         emit CallReceived(_value, msg.sender, msg.value);
     }
 
-    function processMultipleValues(
-        uint256 _value1,
-        uint256 _value2
-    ) external payable {
+    function processMultipleValues(uint256 _value1, uint256 _value2)
+        external
+        payable
+    {
         if (shouldFail) {
             revert TargetFailure();
         }
@@ -93,7 +98,8 @@ contract MockTarget {
 
     function processComplexData(
         uint256 _amount,
-        address /* _token */,
+        address,
+        /* _token */
         uint256 _deadline
     ) external payable {
         if (shouldFail) {
@@ -107,9 +113,11 @@ contract MockTarget {
     }
 
     // Function that returns data for testing return data length
-    function processValueWithReturn(
-        uint256 _value
-    ) external payable returns (uint256 result, bool success) {
+    function processValueWithReturn(uint256 _value)
+        external
+        payable
+        returns (uint256 result, bool success)
+    {
         if (shouldFail) {
             revert TargetFailure();
         }
@@ -204,9 +212,9 @@ contract TestRelayDepositoryFacet is
     RelayDepositoryFacet,
     TestWhitelistManagerBase
 {
-    constructor(
-        address _relayDepository
-    ) RelayDepositoryFacet(_relayDepository) {}
+    constructor(address _relayDepository)
+        RelayDepositoryFacet(_relayDepository)
+    { }
 }
 
 contract PatcherTest is TestBase {
@@ -249,18 +257,15 @@ contract PatcherTest is TestBase {
 
         // Deploy mock depository and facet for RelayDepositoryFacet tests
         mockDepository = new MockRelayDepository(ALLOCATOR_ADDRESS);
-        relayDepositoryFacet = new TestRelayDepositoryFacet(
-            address(mockDepository)
-        );
+        relayDepositoryFacet =
+            new TestRelayDepositoryFacet(address(mockDepository));
 
         // Add facet to diamond for proper event emission
         bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = relayDepositoryFacet
-            .startBridgeTokensViaRelayDepository
-            .selector;
-        functionSelectors[1] = relayDepositoryFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector;
+        functionSelectors[1] =
+        relayDepositoryFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
         relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
@@ -271,17 +276,14 @@ contract PatcherTest is TestBase {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
@@ -309,17 +311,14 @@ contract PatcherTest is TestBase {
         valueSource.setValue(dynamicValue);
         vm.deal(address(patcher), ethValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), ethValue);
@@ -344,18 +343,15 @@ contract PatcherTest is TestBase {
         valueSource.setValue(dynamicValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processMultipleValues.selector,
-            uint256(0),
-            uint256(0)
+            target.processMultipleValues.selector, uint256(0), uint256(0)
         );
 
         uint256[] memory offsets = new uint256[](2);
         offsets[0] = 4;
         offsets[1] = 36;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue * 2, address(patcher), 0);
@@ -383,9 +379,7 @@ contract PatcherTest is TestBase {
         valueSource2.setValue(value2);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processMultipleValues.selector,
-            uint256(0),
-            uint256(0)
+            target.processMultipleValues.selector, uint256(0), uint256(0)
         );
 
         address[] memory valueSources = new address[](2);
@@ -393,12 +387,9 @@ contract PatcherTest is TestBase {
         valueSources[1] = address(valueSource2);
 
         bytes[] memory valueGetters = new bytes[](2);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
-        valueGetters[1] = abi.encodeWithSelector(
-            valueSource2.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
+        valueGetters[1] =
+            abi.encodeWithSelector(valueSource2.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
@@ -427,17 +418,14 @@ contract PatcherTest is TestBase {
         uint256 dynamicValue = 77777;
         valueSource.setValue(dynamicValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(patcher));
         emit CallReceived(dynamicValue, address(this), 0);
@@ -459,17 +447,14 @@ contract PatcherTest is TestBase {
     {
         valueSource.setShouldFail(true);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert(Patcher.FailedToGetDynamicValue.selector);
         patcher.executeWithDynamicPatches(
@@ -488,17 +473,14 @@ contract PatcherTest is TestBase {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = originalCalldata.length;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert(Patcher.InvalidPatchOffset.selector);
         patcher.executeWithDynamicPatches(
@@ -517,16 +499,13 @@ contract PatcherTest is TestBase {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](0);
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert(Patcher.InvalidPatchOffset.selector);
         patcher.executeWithDynamicPatches(
@@ -543,17 +522,14 @@ contract PatcherTest is TestBase {
     function testRevert_ExecuteWithDynamicPatches_ZeroAddress_ValueSource()
         public
     {
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert(Patcher.ZeroAddress.selector);
         patcher.executeWithDynamicPatches(
@@ -570,17 +546,14 @@ contract PatcherTest is TestBase {
     function testRevert_ExecuteWithDynamicPatches_ZeroAddress_FinalTarget()
         public
     {
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert(Patcher.ZeroAddress.selector);
         patcher.executeWithDynamicPatches(
@@ -603,18 +576,14 @@ contract PatcherTest is TestBase {
         valueSources[1] = address(valueSource);
 
         bytes[] memory valueGetters = new bytes[](1);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
         offsetGroups[1] = new uint256[](1);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         vm.expectRevert(Patcher.MismatchedArrayLengths.selector);
         patcher.executeWithMultiplePatches(
@@ -635,18 +604,14 @@ contract PatcherTest is TestBase {
         valueSources[0] = address(valueSource);
 
         bytes[] memory valueGetters = new bytes[](1);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](1);
         offsetGroups[0] = new uint256[](1);
         offsetGroups[0][0] = 4;
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         vm.expectRevert(Patcher.ZeroAddress.selector);
         patcher.executeWithMultiplePatches(
@@ -667,18 +632,14 @@ contract PatcherTest is TestBase {
         valueSources[0] = address(0);
 
         bytes[] memory valueGetters = new bytes[](1);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](1);
         offsetGroups[0] = new uint256[](1);
         offsetGroups[0][0] = 4;
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         vm.expectRevert(Patcher.ZeroAddress.selector);
         patcher.executeWithMultiplePatches(
@@ -697,17 +658,13 @@ contract PatcherTest is TestBase {
         valueSources[0] = address(valueSource);
 
         bytes[] memory valueGetters = new bytes[](1);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](1);
         offsetGroups[0] = new uint256[](0);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         vm.expectRevert(Patcher.InvalidPatchOffset.selector);
         patcher.executeWithMultiplePatches(
@@ -737,16 +694,12 @@ contract PatcherTest is TestBase {
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            token.balanceOf.selector,
-            holder
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(token.balanceOf.selector, holder);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(
-            balance + block.timestamp + 1 hours,
-            address(patcher),
-            0
+            balance + block.timestamp + 1 hours, address(patcher), 0
         );
 
         patcher.executeWithDynamicPatches(
@@ -768,17 +721,14 @@ contract PatcherTest is TestBase {
         valueSource.setValue(dynamicValue);
         target.setShouldFail(true);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert();
         patcher.executeWithDynamicPatches(
@@ -801,16 +751,14 @@ contract PatcherTest is TestBase {
         silentFailTarget.setShouldFail(true);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            silentFailTarget.processValue.selector,
-            uint256(0)
+            silentFailTarget.processValue.selector, uint256(0)
         );
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectRevert(Patcher.CallExecutionFailed.selector);
         patcher.executeWithDynamicPatches(
@@ -833,22 +781,17 @@ contract PatcherTest is TestBase {
         valueSource.setValue(value1);
         valueSource2.setValue(value2);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         address[] memory valueSources = new address[](2);
         valueSources[0] = address(valueSource);
         valueSources[1] = address(valueSource2);
 
         bytes[] memory valueGetters = new bytes[](2);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
-        valueGetters[1] = abi.encodeWithSelector(
-            valueSource2.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
+        valueGetters[1] =
+            abi.encodeWithSelector(valueSource2.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
@@ -878,16 +821,14 @@ contract PatcherTest is TestBase {
         valueSource.setValue(dynamicValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(12345)
+            target.processValue.selector, uint256(12345)
         );
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(0, address(patcher), 0);
@@ -910,17 +851,14 @@ contract PatcherTest is TestBase {
         uint256 dynamicValue = type(uint256).max;
         valueSource.setValue(dynamicValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(type(uint256).max, address(patcher), 0);
@@ -947,17 +885,14 @@ contract PatcherTest is TestBase {
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.prank(user);
         token.approve(address(patcher), tokenBalance);
@@ -999,9 +934,7 @@ contract PatcherTest is TestBase {
         token.mint(user, tokenBalance);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processMultipleValues.selector,
-            uint256(0),
-            uint256(0)
+            target.processMultipleValues.selector, uint256(0), uint256(0)
         );
 
         address[] memory valueSources = new address[](2);
@@ -1009,12 +942,9 @@ contract PatcherTest is TestBase {
         valueSources[1] = address(valueSource2);
 
         bytes[] memory valueGetters = new bytes[](2);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
-        valueGetters[1] = abi.encodeWithSelector(
-            valueSource2.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
+        valueGetters[1] =
+            abi.encodeWithSelector(valueSource2.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
@@ -1055,17 +985,14 @@ contract PatcherTest is TestBase {
 
         address user = address(0x9999);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.expectEmit(true, true, true, true, address(target));
         emit CallReceived(dynamicValue, address(patcher), 0);
@@ -1099,17 +1026,14 @@ contract PatcherTest is TestBase {
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.prank(user);
         vm.expectRevert();
@@ -1137,17 +1061,14 @@ contract PatcherTest is TestBase {
         uint256 approvalAmount = 500 ether;
         token.mint(user, tokenBalance);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.prank(user);
         token.approve(address(patcher), approvalAmount);
@@ -1175,17 +1096,14 @@ contract PatcherTest is TestBase {
         address user = address(0xABCD);
         vm.deal(user, ethValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         // User sends native tokens with the call
         vm.expectEmit(true, true, true, true, address(target));
@@ -1223,17 +1141,14 @@ contract PatcherTest is TestBase {
         token.mint(user, tokenBalance);
         vm.deal(user, ethValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.prank(user);
         token.approve(address(patcher), tokenBalance);
@@ -1271,17 +1186,14 @@ contract PatcherTest is TestBase {
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.prank(user);
         token.approve(address(patcher), tokenBalance);
@@ -1329,9 +1241,7 @@ contract PatcherTest is TestBase {
         token.mint(user, tokenBalance);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processMultipleValues.selector,
-            uint256(0),
-            uint256(0)
+            target.processMultipleValues.selector, uint256(0), uint256(0)
         );
 
         address[] memory valueSources = new address[](2);
@@ -1339,12 +1249,9 @@ contract PatcherTest is TestBase {
         valueSources[1] = address(valueSource2);
 
         bytes[] memory valueGetters = new bytes[](2);
-        valueGetters[0] = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
-        valueGetters[1] = abi.encodeWithSelector(
-            valueSource2.getValue.selector
-        );
+        valueGetters[0] = abi.encodeWithSelector(valueSource.getValue.selector);
+        valueGetters[1] =
+            abi.encodeWithSelector(valueSource2.getValue.selector);
 
         uint256[][] memory offsetGroups = new uint256[][](2);
         offsetGroups[0] = new uint256[](1);
@@ -1386,10 +1293,8 @@ contract PatcherTest is TestBase {
     function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Bytes()
         public
     {
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
@@ -1414,10 +1319,8 @@ contract PatcherTest is TestBase {
     function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Bool()
         public
     {
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
@@ -1443,10 +1346,8 @@ contract PatcherTest is TestBase {
     function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Address()
         public
     {
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
@@ -1477,10 +1378,8 @@ contract PatcherTest is TestBase {
     function testRevert_ExecuteWithDynamicPatches_InvalidReturnDataLength_Multiple()
         public
     {
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
@@ -1506,17 +1405,14 @@ contract PatcherTest is TestBase {
         uint256 dynamicValue = 12345;
         valueSource.setValue(dynamicValue);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         // Expect PatchExecuted event
         vm.expectEmit(true, true, true, true, address(patcher));
@@ -1548,17 +1444,14 @@ contract PatcherTest is TestBase {
         uint256 tokenBalance = 1000 ether;
         token.mint(user, tokenBalance);
 
-        bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValue.selector,
-            uint256(0)
-        );
+        bytes memory originalCalldata =
+            abi.encodeWithSelector(target.processValue.selector, uint256(0));
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         vm.prank(user);
         token.approve(address(patcher), tokenBalance);
@@ -1566,10 +1459,7 @@ contract PatcherTest is TestBase {
         // Expect TokensDeposited event
         vm.expectEmit(true, true, true, true, address(patcher));
         emit TokensDeposited(
-            user,
-            address(token),
-            tokenBalance,
-            address(target)
+            user, address(token), tokenBalance, address(target)
         );
 
         // Expect PatchExecuted event
@@ -1603,16 +1493,14 @@ contract PatcherTest is TestBase {
         valueSource.setValue(dynamicValue);
 
         bytes memory originalCalldata = abi.encodeWithSelector(
-            target.processValueWithReturn.selector,
-            uint256(0)
+            target.processValueWithReturn.selector, uint256(0)
         );
 
         uint256[] memory offsets = new uint256[](1);
         offsets[0] = 4;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            valueSource.getValue.selector
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(valueSource.getValue.selector);
 
         // Expect PatchExecuted event with 64 bytes return data (uint256 + bool)
         vm.expectEmit(true, true, true, true, address(patcher));
@@ -1624,16 +1512,15 @@ contract PatcherTest is TestBase {
             64 // processValueWithReturn returns (uint256, bool) = 32 + 32 = 64 bytes
         );
 
-        (bool success, bytes memory returnData) = patcher
-            .executeWithDynamicPatches(
-                address(valueSource),
-                valueGetter,
-                address(target),
-                0,
-                originalCalldata,
-                offsets,
-                false
-            );
+        (bool success, bytes memory returnData) = patcher.executeWithDynamicPatches(
+            address(valueSource),
+            valueGetter,
+            address(target),
+            0,
+            originalCalldata,
+            offsets,
+            false
+        );
 
         // Verify the call succeeded
         assertTrue(success);
@@ -1642,10 +1529,8 @@ contract PatcherTest is TestBase {
         assertEq(returnData.length, 64, "Return data should be 64 bytes");
 
         // Decode and verify the return values
-        (uint256 returnedValue, bool returnedSuccess) = abi.decode(
-            returnData,
-            (uint256, bool)
-        );
+        (uint256 returnedValue, bool returnedSuccess) =
+            abi.decode(returnData, (uint256, bool));
         assertEq(
             returnedValue,
             dynamicValue * 2,
@@ -1712,24 +1597,23 @@ contract PatcherTest is TestBase {
             hasDestinationCall: false
         });
 
-        RelayDepositoryFacet.RelayDepositoryData
-            memory depositoryData = RelayDepositoryFacet.RelayDepositoryData({
+        RelayDepositoryFacet.RelayDepositoryData memory depositoryData =
+            RelayDepositoryFacet.RelayDepositoryData({
                 orderId: bytes32("test-order-id"),
                 depositorAddress: USER_SENDER
             });
 
         uint256 bridgeAmount = 1000 ether;
-        uint256 expectedMinAmount = (bridgeAmount * (10000 - slippageBps)) /
-            10000;
+        uint256 expectedMinAmount =
+            (bridgeAmount * (10000 - slippageBps)) / 10000;
 
         token.mint(address(patcher), expectedMinAmount);
 
         vm.prank(address(patcher));
         token.approve(address(relayDepositoryFacet), expectedMinAmount);
 
-        uint256 depositoryBalanceBefore = token.balanceOf(
-            address(mockDepository)
-        );
+        uint256 depositoryBalanceBefore =
+            token.balanceOf(address(mockDepository));
 
         // Find offset dynamically by comparing encodings with different minAmount values
         bytes memory calldataWithZero = abi.encodeWithSelector(
@@ -1738,9 +1622,10 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData
+        bridgeData.
         // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
-            .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        minAmount =
+            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,
@@ -1748,10 +1633,8 @@ contract PatcherTest is TestBase {
         );
         bridgeData.minAmount = 0; // Reset
 
-        uint256 minAmountOffset = _findMinAmountOffset(
-            calldataWithZero,
-            calldataWithMarker
-        );
+        uint256 minAmountOffset =
+            _findMinAmountOffset(calldataWithZero, calldataWithMarker);
 
         bytes memory originalCalldata = calldataWithZero;
 
@@ -1777,12 +1660,10 @@ contract PatcherTest is TestBase {
             false
         );
 
-        uint256 depositoryBalanceAfter = token.balanceOf(
-            address(mockDepository)
-        );
+        uint256 depositoryBalanceAfter =
+            token.balanceOf(address(mockDepository));
         assertEq(
-            depositoryBalanceAfter,
-            depositoryBalanceBefore + expectedMinAmount
+            depositoryBalanceAfter, depositoryBalanceBefore + expectedMinAmount
         );
     }
 
@@ -1805,8 +1686,8 @@ contract PatcherTest is TestBase {
             hasDestinationCall: false
         });
 
-        RelayDepositoryFacet.RelayDepositoryData
-            memory depositoryData = RelayDepositoryFacet.RelayDepositoryData({
+        RelayDepositoryFacet.RelayDepositoryData memory depositoryData =
+            RelayDepositoryFacet.RelayDepositoryData({
                 orderId: bytes32("balance-patch-request"),
                 depositorAddress: USER_SENDER
             });
@@ -1816,9 +1697,8 @@ contract PatcherTest is TestBase {
         vm.prank(address(patcher));
         token.approve(address(relayDepositoryFacet), tokenBalance);
 
-        uint256 depositoryBalanceBefore = token.balanceOf(
-            address(mockDepository)
-        );
+        uint256 depositoryBalanceBefore =
+            token.balanceOf(address(mockDepository));
 
         // Find offset dynamically by comparing encodings with different minAmount values
         bytes memory calldataWithZero = abi.encodeWithSelector(
@@ -1827,9 +1707,10 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData
+        bridgeData.
         // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
-            .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        minAmount =
+            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,
@@ -1837,20 +1718,16 @@ contract PatcherTest is TestBase {
         );
         bridgeData.minAmount = 0; // Reset
 
-        uint256 minAmountOffset = _findMinAmountOffset(
-            calldataWithZero,
-            calldataWithMarker
-        );
+        uint256 minAmountOffset =
+            _findMinAmountOffset(calldataWithZero, calldataWithMarker);
 
         bytes memory originalCalldata2 = calldataWithZero;
 
         uint256[] memory offsets2 = new uint256[](1);
         offsets2[0] = minAmountOffset;
 
-        bytes memory valueGetter = abi.encodeWithSelector(
-            token.balanceOf.selector,
-            patcher
-        );
+        bytes memory valueGetter =
+            abi.encodeWithSelector(token.balanceOf.selector, patcher);
 
         // Execute patcher - this will patch minAmount in the calldata
         patcher.executeWithDynamicPatches(
@@ -1863,12 +1740,10 @@ contract PatcherTest is TestBase {
             false
         );
 
-        uint256 depositoryBalanceAfter = token.balanceOf(
-            address(mockDepository)
-        );
+        uint256 depositoryBalanceAfter =
+            token.balanceOf(address(mockDepository));
         assertEq(
-            depositoryBalanceAfter,
-            depositoryBalanceBefore + tokenBalance
+            depositoryBalanceAfter, depositoryBalanceBefore + tokenBalance
         );
     }
 
@@ -1891,15 +1766,13 @@ contract PatcherTest is TestBase {
             hasDestinationCall: false
         });
 
-        RelayDepositoryFacet.RelayDepositoryData
-            memory depositoryData = RelayDepositoryFacet.RelayDepositoryData({
-                orderId: bytes32("fail-request"),
-                depositorAddress: USER_SENDER
+        RelayDepositoryFacet.RelayDepositoryData memory depositoryData =
+            RelayDepositoryFacet.RelayDepositoryData({
+                orderId: bytes32("fail-request"), depositorAddress: USER_SENDER
             });
 
-        uint256 depositoryBalanceBefore = token.balanceOf(
-            address(mockDepository)
-        );
+        uint256 depositoryBalanceBefore =
+            token.balanceOf(address(mockDepository));
 
         bytes memory originalCalldata = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
@@ -1913,9 +1786,10 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData
+        bridgeData.
         // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
-            .minAmount = 0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        minAmount =
+            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,
@@ -1924,10 +1798,7 @@ contract PatcherTest is TestBase {
         bridgeData.minAmount = 0;
 
         uint256[] memory offsets = new uint256[](1);
-        offsets[0] = _findMinAmountOffset(
-            calldataWithZero,
-            calldataWithMarker
-        );
+        offsets[0] = _findMinAmountOffset(calldataWithZero, calldataWithMarker);
 
         bytes memory valueGetter = abi.encodeWithSelector(
             priceOracle.calculateMinAmount.selector,
@@ -1947,9 +1818,8 @@ contract PatcherTest is TestBase {
             false
         );
 
-        uint256 depositoryBalanceAfter = token.balanceOf(
-            address(mockDepository)
-        );
+        uint256 depositoryBalanceAfter =
+            token.balanceOf(address(mockDepository));
         assertEq(depositoryBalanceAfter, depositoryBalanceBefore);
     }
 }

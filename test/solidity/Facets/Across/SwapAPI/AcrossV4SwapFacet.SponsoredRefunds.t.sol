@@ -4,13 +4,19 @@ pragma solidity ^0.8.17;
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { TestBase } from "../../../utils/TestBase.sol";
 import { TestHelpers } from "../../../utils/TestHelpers.sol";
-import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../../utils/TestWhitelistManagerBase.sol";
 import { MockUniswapDEX } from "../../../utils/MockUniswapDEX.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
-import { ISponsoredOFTSrcPeriphery } from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
-import { ISponsoredCCTPSrcPeriphery } from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
+import {
+    ISponsoredOFTSrcPeriphery
+} from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
+import {
+    ISponsoredCCTPSrcPeriphery
+} from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
 
@@ -35,7 +41,7 @@ contract TestAcrossV4SwapFacetSponsoredRefunds is
             _sponsoredCctpSrcPeriphery,
             _backendSigner
         )
-    {}
+    { }
 }
 
 contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
@@ -65,42 +71,35 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         backendSigner = vm.addr(0xA11CE);
 
         address spokePoolPeriphery = getConfigAddressFromPath(
-            "across.json",
-            ".arbitrum.spokePoolPeriphery"
+            "across.json", ".arbitrum.spokePoolPeriphery"
         );
         address spokePool = getConfigAddressFromPath(
-            "across.json",
-            ".arbitrum.acrossSpokePool"
+            "across.json", ".arbitrum.acrossSpokePool"
         );
         address wrappedNative = getConfigAddressFromPath(
-            "networks.json",
-            ".arbitrum.wrappedNativeAddress"
+            "networks.json", ".arbitrum.wrappedNativeAddress"
         );
         sponsoredOftSrcPeriphery = getConfigAddressFromPath(
-            "across.json",
-            ".arbitrum.sponsoredOftSrcPeriphery"
+            "across.json", ".arbitrum.sponsoredOftSrcPeriphery"
         );
         sponsoredCctpSrcPeriphery = getConfigAddressFromPath(
-            "across.json",
-            ".arbitrum.sponsoredCctpSrcPeriphery"
+            "across.json", ".arbitrum.sponsoredCctpSrcPeriphery"
         );
 
         TestAcrossV4SwapFacetSponsoredRefunds facetImpl = new TestAcrossV4SwapFacetSponsoredRefunds(
-                ISpokePoolPeriphery(spokePoolPeriphery),
-                spokePool,
-                wrappedNative,
-                sponsoredOftSrcPeriphery,
-                sponsoredCctpSrcPeriphery,
-                backendSigner
-            );
+            ISpokePoolPeriphery(spokePoolPeriphery),
+            spokePool,
+            wrappedNative,
+            sponsoredOftSrcPeriphery,
+            sponsoredCctpSrcPeriphery,
+            backendSigner
+        );
 
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = facetImpl
-            .startBridgeTokensViaAcrossV4Swap
-            .selector;
-        functionSelectors[1] = facetImpl
-            .swapAndStartBridgeTokensViaAcrossV4Swap
-            .selector;
+        functionSelectors[0] =
+        facetImpl.startBridgeTokensViaAcrossV4Swap.selector;
+        functionSelectors[1] =
+        facetImpl.swapAndStartBridgeTokensViaAcrossV4Swap.selector;
         functionSelectors[2] = facetImpl.addAllowedContractSelector.selector;
         addFacet(diamond, address(facetImpl), functionSelectors);
 
@@ -108,9 +107,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         setFacetAddressInTestBase(address(diamond), "AcrossV4SwapFacet");
     }
 
-    function _decodeSponsoredOftWithRefundRecipient(
-        address refundRecipient
-    )
+    function _decodeSponsoredOftWithRefundRecipient(address refundRecipient)
         internal
         pure
         returns (
@@ -120,17 +117,14 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         )
     {
         (quote, signature) = abi.decode(
-            SPONSORED_OFT_CALLDATA,
-            (ISponsoredOFTSrcPeriphery.Quote, bytes)
+            SPONSORED_OFT_CALLDATA, (ISponsoredOFTSrcPeriphery.Quote, bytes)
         );
         quote.unsignedParams.refundRecipient = refundRecipient;
         callData = abi.encode(quote, signature);
     }
 
     /// @param _refundRecipient Address to receive positive-slippage refunds (used in facet callData).
-    function _decodeSponsoredCctp(
-        address _refundRecipient
-    )
+    function _decodeSponsoredCctp(address _refundRecipient)
         internal
         pure
         returns (
@@ -153,10 +147,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         address receiver
     ) internal returns (MockUniswapDEX mockDEX) {
         mockDEX = deployFundAndWhitelistMockDEX(
-            receiver,
-            outputToken,
-            outputAmount,
-            0
+            receiver, outputToken, outputAmount, 0
         );
 
         delete swapData;
@@ -197,10 +188,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         uint256 swapOutputAmount = quotedAmount + 1;
 
         _setSwapDataDaiToTokenAndDeployMockDex(
-            ADDRESS_USDT,
-            quotedAmount,
-            swapOutputAmount,
-            address(diamond)
+            ADDRESS_USDT, quotedAmount, swapOutputAmount, address(diamond)
         );
 
         ILiFi.BridgeData memory localBridgeData;
@@ -209,18 +197,16 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         localBridgeData.integrator = "";
         localBridgeData.referrer = address(0);
         localBridgeData.sendingAssetId = ADDRESS_USDT;
-        localBridgeData.receiver = address(
-            uint160(uint256(quote.signedParams.finalRecipient))
-        );
+        localBridgeData.receiver =
+            address(uint160(uint256(quote.signedParams.finalRecipient)));
         localBridgeData.minAmount = quotedAmount;
         localBridgeData.destinationChainId = 999;
         localBridgeData.hasSourceSwaps = true;
         localBridgeData.hasDestinationCall = false;
 
         AcrossV4SwapFacet.AcrossV4SwapFacetData memory facetData;
-        facetData.swapApiTarget = AcrossV4SwapFacet
-            .SwapApiTarget
-            .SponsoredOFTSrcPeriphery;
+        facetData.swapApiTarget =
+        AcrossV4SwapFacet.SwapApiTarget.SponsoredOFTSrcPeriphery;
         facetData.callData = peripheryCallData;
         facetData.signature = "";
 
@@ -234,20 +220,19 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         vm.expectCall(
             sponsoredOftSrcPeriphery,
             abi.encodeWithSelector(
-                ISponsoredOFTSrcPeriphery.deposit.selector,
-                quote,
-                signature
+                ISponsoredOFTSrcPeriphery.deposit.selector, quote, signature
             )
         );
 
         acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap{
             value: 0.01 ether
-        }(localBridgeData, swapData, facetData);
+        }(
+            localBridgeData, swapData, facetData
+        );
         vm.stopPrank();
 
         assertEq(
-            usdt.balanceOf(refundRecipient),
-            refundBalanceBefore + refundAmount
+            usdt.balanceOf(refundRecipient), refundBalanceBefore + refundAmount
         );
     }
 
@@ -256,8 +241,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
     {
         address refundRecipient = address(0);
         (
-            ISponsoredOFTSrcPeriphery.Quote memory quote,
-            ,
+            ISponsoredOFTSrcPeriphery.Quote memory quote,,
             bytes memory peripheryCallData
         ) = _decodeSponsoredOftWithRefundRecipient(refundRecipient);
 
@@ -265,10 +249,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         uint256 swapOutputAmount = quotedAmount + 1;
 
         _setSwapDataDaiToTokenAndDeployMockDex(
-            ADDRESS_USDT,
-            quotedAmount,
-            swapOutputAmount,
-            address(diamond)
+            ADDRESS_USDT, quotedAmount, swapOutputAmount, address(diamond)
         );
 
         ILiFi.BridgeData memory localBridgeData;
@@ -277,18 +258,16 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         localBridgeData.integrator = "";
         localBridgeData.referrer = address(0);
         localBridgeData.sendingAssetId = ADDRESS_USDT;
-        localBridgeData.receiver = address(
-            uint160(uint256(quote.signedParams.finalRecipient))
-        );
+        localBridgeData.receiver =
+            address(uint160(uint256(quote.signedParams.finalRecipient)));
         localBridgeData.minAmount = quotedAmount;
         localBridgeData.destinationChainId = 999;
         localBridgeData.hasSourceSwaps = true;
         localBridgeData.hasDestinationCall = false;
 
         AcrossV4SwapFacet.AcrossV4SwapFacetData memory facetData;
-        facetData.swapApiTarget = AcrossV4SwapFacet
-            .SwapApiTarget
-            .SponsoredOFTSrcPeriphery;
+        facetData.swapApiTarget =
+        AcrossV4SwapFacet.SwapApiTarget.SponsoredOFTSrcPeriphery;
         facetData.callData = peripheryCallData;
         facetData.signature = "";
 
@@ -299,7 +278,9 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
 
         acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap{
             value: 0.01 ether
-        }(localBridgeData, swapData, facetData);
+        }(
+            localBridgeData, swapData, facetData
+        );
         vm.stopPrank();
     }
 
@@ -319,10 +300,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
 
         // Mock swap: DAI -> native USDC on Arbitrum (burnToken).
         _setSwapDataDaiToTokenAndDeployMockDex(
-            USDC_ARBITRUM,
-            quotedAmount,
-            swapOutputAmount,
-            address(diamond)
+            USDC_ARBITRUM, quotedAmount, swapOutputAmount, address(diamond)
         );
 
         ILiFi.BridgeData memory localBridgeData;
@@ -331,25 +309,22 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         localBridgeData.integrator = "";
         localBridgeData.referrer = address(0);
         localBridgeData.sendingAssetId = USDC_ARBITRUM;
-        localBridgeData.receiver = address(
-            uint160(uint256(quote.finalRecipient))
-        );
+        localBridgeData.receiver =
+            address(uint160(uint256(quote.finalRecipient)));
         localBridgeData.minAmount = quotedAmount;
         localBridgeData.destinationChainId = 999;
         localBridgeData.hasSourceSwaps = true;
         localBridgeData.hasDestinationCall = false;
 
         AcrossV4SwapFacet.AcrossV4SwapFacetData memory facetData;
-        facetData.swapApiTarget = AcrossV4SwapFacet
-            .SwapApiTarget
-            .SponsoredCCTPSrcPeriphery;
+        facetData.swapApiTarget =
+        AcrossV4SwapFacet.SwapApiTarget.SponsoredCCTPSrcPeriphery;
         facetData.callData = peripheryCallData;
         facetData.signature = "";
 
         uint256 refundAmount = swapOutputAmount - quotedAmount;
-        uint256 refundRecipientBalBefore = ERC20(USDC_ARBITRUM).balanceOf(
-            refundRecipient
-        );
+        uint256 refundRecipientBalBefore =
+            ERC20(USDC_ARBITRUM).balanceOf(refundRecipient);
 
         vm.startPrank(USER_SENDER);
         dai.approve(address(diamond), swapData[0].fromAmount);
@@ -364,9 +339,7 @@ contract AcrossV4SwapFacetSponsoredRefundsTest is TestBase, TestHelpers {
         );
 
         acrossV4SwapFacet.swapAndStartBridgeTokensViaAcrossV4Swap(
-            localBridgeData,
-            swapData,
-            facetData
+            localBridgeData, swapData, facetData
         );
         vm.stopPrank();
 
