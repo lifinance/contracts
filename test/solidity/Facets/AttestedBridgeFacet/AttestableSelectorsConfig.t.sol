@@ -9,8 +9,13 @@ import { Test } from "forge-std/Test.sol";
 ///         that makes it, until the config (and the on-chain selector set) is updated.
 contract AttestableSelectorsConfigTest is Test {
     string internal constant SELECTORS_PATH = ".attestableSelectors.selectors";
+    string internal constant BUILD_PROBE =
+        "out/AttestedBridgeFacet.sol/AttestedBridgeFacet.json";
 
     function test_EverySelectorIsAFunctionOfItsFacet() public {
+        // `forge coverage` does not write `out/`; the plain test run always does.
+        if (!vm.isFile(BUILD_PROBE)) vm.skip(true);
+
         string memory config = vm.readFile("config/global.json");
         string[] memory selectors = vm.parseJsonKeys(config, SELECTORS_PATH);
         assertGt(selectors.length, 0, "attestableSelectors lists nothing");
@@ -28,8 +33,10 @@ contract AttestableSelectorsConfigTest is Test {
                 facet,
                 ".json"
             );
-            // `forge coverage` does not write `out/`; the plain test run always does.
-            if (!vm.isFile(artifactPath)) vm.skip(true);
+            assertTrue(
+                vm.isFile(artifactPath),
+                string.concat(entry, ": no build artifact for ", facet)
+            );
 
             string memory artifact = vm.readFile(artifactPath);
             string memory key = string.concat(
