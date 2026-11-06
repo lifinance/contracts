@@ -147,7 +147,7 @@
       "bash script/utils/typecheck-files.sh"
     ],
     "*.sol": [
-      "forge fmt",
+      "bash -c 'files=(); for f in \"$@\"; do case \"${f#$PWD/}\" in src/*) ;; *) files+=(\"$f\") ;; esac; done; [ ${#files[@]} -eq 0 ] || forge fmt \"${files[@]}\" # src/ is not forge-formatted (audited sources)' _",
       "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ],
     "*.md": [
