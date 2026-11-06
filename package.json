@@ -91,8 +91,8 @@
     "lint:js:fix": "oxlint --type-aware --fix .",
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:sol:fix": "solhint \"src/**/*.sol\" --fix",
-    "lint:funnel": "bunx tsx script/deploy/safe/funnel-fence.ts .",
-    "lint:node-runtime": "bunx tsx script/utils/node-runtime-fence.ts script tasks",
+    "lint:funnel": "node --import tsx script/deploy/safe/funnel-fence.ts .",
+    "lint:node-runtime": "node --import tsx script/utils/node-runtime-fence.ts script tasks",
     "lint:md": "bunx --no-install --bun markdownlint-cli2 \"**/*.md\"",
     "lint:md:fix": "bunx --no-install --bun markdownlint-cli2 --fix \"**/*.md\"",
     "lint:fix": "bun lint:js:fix && bun lint:sol:fix",
@@ -152,8 +152,8 @@
     "*.{ts,js}": [
       "prettier --write",
       "oxlint --type-aware --fix --no-error-on-unmatched-pattern",
-      "bunx tsx script/deploy/safe/funnel-fence.ts",
-      "bunx tsx script/utils/node-runtime-fence.ts",
+      "node --import tsx script/deploy/safe/funnel-fence.ts",
+      "node --import tsx script/utils/node-runtime-fence.ts",
       "bash script/utils/typecheck-files.sh"
     ],
     "*.sol": [
