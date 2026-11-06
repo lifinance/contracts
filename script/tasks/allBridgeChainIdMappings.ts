@@ -15,6 +15,8 @@ import {
   type Hex,
 } from 'viem'
 
+import { redactUrls } from '../utils/redactUrls'
+
 export interface IAllBridgeChainIdMapping {
   chainId: bigint
   allBridgeChainId: number
@@ -155,7 +157,9 @@ export function isUnsupportedAllBridgeChainIdRevert(error: unknown): boolean {
 }
 
 function describeReadFailure(key: bigint, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
+  const message = redactUrls(
+    error instanceof Error ? error.message : String(error)
+  )
   return new Error(`Failed to read chainId ${key.toString()}: ${message}`)
 }
 

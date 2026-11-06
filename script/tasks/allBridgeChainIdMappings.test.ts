@@ -171,6 +171,26 @@ describe('selectMappingsNeedingUpdate', () => {
     ).toThrow(/Failed to read chainId 137: over rate limit/)
   })
 
+  it('redacts endpoints embedded in a read failure', () => {
+    const endpoint = 'https://rpc.example.invalid/v2/sekret'
+    let thrown: unknown
+    try {
+      selectMappingsNeedingUpdate(mappings, [
+        {
+          status: 'failure',
+          error: new Error(`HTTP request failed. URL: ${endpoint}`),
+        },
+        resolves(14n),
+        resolves(1n),
+      ])
+    } catch (e) {
+      thrown = e
+    }
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toContain('[redacted-url]')
+    expect((thrown as Error).message).not.toContain(endpoint)
+  })
+
   it('throws when the result count does not match', () => {
     expect(() => selectMappingsNeedingUpdate(mappings, [])).toThrow(
       /Expected 3 read results/
