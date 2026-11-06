@@ -60,6 +60,19 @@ only the quick-start; this is the full guide.
    # Edit .env with your configuration
    ```
 
+5. Generate the build outputs the demo scripts import (`typechain/`,
+   `diamond.json`), once per clone or worktree and again after changing a
+   contract's ABI:
+
+   ```bash
+   bun build:typechain-and-abi
+   ```
+
+   Both are gitignored and the git hooks never build contracts, so until they
+   exist the local type check ignores the type errors in files that import
+   them, directly or through a helper; CI checks those files against freshly
+   generated outputs.
+
 ## Cursor IDE setup
 
 For optimal AI assistance in Cursor IDE:
