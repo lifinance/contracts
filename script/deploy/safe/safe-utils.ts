@@ -2118,9 +2118,10 @@ export async function getSafeMongoCollection(): Promise<{
     await client.close().catch(() => undefined)
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(
-      'Could not reach the Safe MongoDB via lifi-connect. Start the tunnel with ' +
-        '`lifi-connect prod smart-contracts` and ensure SC_MONGODB_URI points at ' +
-        'the forwarded localhost port. Setup guide: ' +
+      'Could not reach the Safe MongoDB via lifi-connect. Opening the tunnel is a ' +
+        'human-only step: run `lifi-connect prod smart-contracts` in your own ' +
+        'terminal and ensure SC_MONGODB_URI points at the forwarded localhost port. ' +
+        'Setup guide: ' +
         'https://app.notion.com/p/lifi/Accessing-Resources-with-Port-Forwarding-396f0ff14ac78098bf13f06d4a428845 ' +
         `- Underlying error: ${detail}`
     )
