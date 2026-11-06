@@ -79,7 +79,7 @@ jobs:
         if: env.SKIP_UPDATE != 'true'
         uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
         with:
-          node-version: '22'
+          node-version: '26'
 
       - name: Checkout target repository
         if: env.SKIP_UPDATE != 'true'
