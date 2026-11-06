@@ -408,7 +408,7 @@ new base is not what was audited.
   [MultisigSigningProcess.md §8.1](./MultisigSigningProcess.md#81-reading-the-build-provenance-attestation).
   If a sync conflicts on it, take upstream's version.
 - Committing a sync-conflict resolution locally runs the pre-commit
-  formatting hook (`forge fmt`), which can reformat the Tron bypass in `LibAsset.sol`
+  pre-commit hook, which has reformatted the Tron bypass in `LibAsset.sol`
   and failed `version-control`. Commit with `HUSKY=0`, or check that
   `git diff origin/main HEAD -- src/Libraries/LibAsset.sol src/Helpers/WithdrawablePeriphery.sol`
   prints nothing before pushing.

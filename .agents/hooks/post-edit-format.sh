@@ -14,6 +14,9 @@ case "$FILE" in
   *.ts|*.js)
     cd "$ROOT" && bunx oxfmt "$FILE" >/dev/null 2>&1
     ;;
+  "$ROOT"/src/*.sol)
+    # Audited contracts are not forge-formatted (see [fmt] in foundry.toml)
+    ;;
   *.sol)
     cd "$ROOT" && forge fmt "$FILE" >/dev/null 2>&1
     ;;
