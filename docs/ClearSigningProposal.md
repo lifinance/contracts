@@ -207,7 +207,7 @@ Note what this does **not** do: a descriptor change that alters an **already-cov
 
 `--check --tests` catches the common half of that automatically: for every covered format it compares the descriptor's displayed labels, in order, against the case's `expected.fields[*].label` and fails on a mismatch (a field over an array path, such as `_swapData.[].fromAmount`, renders once per element, so its label may repeat, or be absent for an empty array). It also fails when a version of a `VARIANT_CASES` function has no case for that variant, so a struct change that adds a selector does not silently drop its variant coverage. Both sides are in-repo, so a renamed label fails the PR that renames it rather than the sync after merge. **Value** drift is still unguarded — only the reference runner can say what a field renders to — so a template change that alters a value while keeping its label needs the deliberate pass.
 
-The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | prettier --parser json --print-width 120`) or the fixture carries a whole-file reformat diff. The sync workflow does this.
+The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | oxfmt -c <config with printWidth 120> --stdin-filepath file.json`; oxfmt is Prettier-compatible) or the fixture carries a whole-file reformat diff. The sync workflow does this.
 
 ## Validating the proposal locally
 

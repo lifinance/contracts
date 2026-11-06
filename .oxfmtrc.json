@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "bracketSpacing": true,
+  "semi": false,
+  "trailingComma": "es5",
+  "printWidth": 80,
+  "tabWidth": 2,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "*.*",
+    "!*.ts",
+    "!*.js",
+    "export/",
+    "deployments/",
+    "artifacts/",
+    "cache/",
+    "coverage/",
+    "node_modules/",
+    "typechain/",
+    "lib/",
+    "templates/"
+  ]
+}
