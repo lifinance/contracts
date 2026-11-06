@@ -4843,6 +4843,14 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/nexroute.svg",
       "webUrl": "https://nexroute.io",
       "contracts": {
+        "base": [
+          {
+            "address": "0xf0E976E8460fdbc8B563816Fea2cf89CB7D55eA7",
+            "functions": {
+              "0xf8989325": ""
+            }
+          }
+        ],
         "bsc": [
           {
             "address": "0x6c9534e06a4aa13abf296278a194385f7ca16e70",
@@ -4867,6 +4875,12 @@
           },
           {
             "address": "0x58C8fa6dC39040A382fE787C5C8A12F0CdCe1289",
+            "functions": {
+              "0xf8989325": ""
+            }
+          },
+          {
+            "address": "0xf0E976E8460fdbc8B563816Fea2cf89CB7D55eA7",
             "functions": {
               "0xf8989325": ""
             }
