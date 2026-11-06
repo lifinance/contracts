@@ -11,7 +11,11 @@
 
 import { randomBytes } from 'crypto'
 
-import { COW_SHED_FACTORY, COW_SHED_IMPLEMENTATION } from '@cowprotocol/cow-sdk'
+import {
+  COW_SHED_1_0_0_VERSION,
+  COW_SHED_FACTORY as COW_SHED_FACTORY_BY_VERSION,
+  COW_SHED_IMPLEMENTATION as COW_SHED_IMPLEMENTATION_BY_VERSION,
+} from '@cowprotocol/sdk-cow-shed'
 import { consola } from 'consola'
 import { ethers } from 'ethers'
 import {
@@ -30,6 +34,12 @@ import {
   generateExecuteWithDynamicPatchesCalldata,
   generateBalanceOfCalldata,
 } from './patcherHelpers'
+
+// cow-sdk 5 exported the CowShed 1.0.0 addresses as plain constants; the
+// standalone package keys them by version. Keep using 1.0.0.
+const COW_SHED_FACTORY = COW_SHED_FACTORY_BY_VERSION[COW_SHED_1_0_0_VERSION]
+const COW_SHED_IMPLEMENTATION =
+  COW_SHED_IMPLEMENTATION_BY_VERSION[COW_SHED_1_0_0_VERSION]
 
 // EIP-1967 transparent proxy creation bytecode for CowShed user proxies
 // This bytecode creates a minimal proxy that delegates calls to the CowShed implementation

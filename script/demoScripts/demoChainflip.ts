@@ -31,7 +31,7 @@ import {
   type SupportedChain,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // Contract addresses and ABIs
 const RECEIVER_CHAINFLIP = deployments.ReceiverChainflip

@@ -36,7 +36,7 @@ import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
 import { getRPCEnvVarName, getRPCFallbacksEnvVarName, OUT_ROOT } from './utils'
 
-dotenv.config()
+dotenv.config({ quiet: true })
 
 const colors = {
   reset: '\x1b[0m',

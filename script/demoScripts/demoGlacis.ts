@@ -28,7 +28,7 @@ import {
   zeroPadAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
-dotenvConfig()
+dotenvConfig({ quiet: true })
 
 // #region ABIs
 

@@ -11,12 +11,13 @@
 // =============================================================================
 
 import { SupportedChainId, OrderKind, TradingSdk } from '@cowprotocol/cow-sdk'
+import { ViemAdapter } from '@cowprotocol/sdk-viem-adapter'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { ethers } from 'ethers'
 import type { Hex } from 'viem'
 import {
   parseUnits,
+  createPublicClient,
   createWalletClient,
   http,
   getContract,
@@ -116,18 +117,25 @@ async function executeCowSwapDemo(options: {
     destinationChainId: 8453n, // BASE chain ID
   })
 
-  // Create ethers provider and signer for CoW SDK
-  const provider = new ethers.providers.JsonRpcProvider(
-    arbitrum.rpcUrls.default.http[0]
-  )
-  const ethersSigner = new ethers.Wallet(options.privateKey, provider)
+  // CoW SDK 7+ needs a provider adapter; use the viem one with the same
+  // Arbitrum RPC and private key the ethers signer used before
+  const adapter = new ViemAdapter({
+    provider: createPublicClient({
+      chain: arbitrum,
+      transport: http(arbitrum.rpcUrls.default.http[0]),
+    }),
+    signer: options.privateKey as Hex,
+  })
 
   // Initialize CoW SDK with proper TraderParameters
-  const cowSdk = new TradingSdk({
-    chainId: SupportedChainId.ARBITRUM_ONE,
-    signer: ethersSigner,
-    appCode: 'lifi-demo' as any, // Cast to any to satisfy the AppCode type
-  })
+  const cowSdk = new TradingSdk(
+    {
+      chainId: SupportedChainId.ARBITRUM_ONE,
+      appCode: 'lifi-demo',
+    },
+    {},
+    adapter
+  )
 
   // Create the order parameters
   const parameters = {
@@ -166,7 +174,10 @@ async function executeCowSwapDemo(options: {
       }, 30000)
 
       try {
-        const orderId = await cowSdk.postSwapOrder(parameters, advancedSettings)
+        const { orderId } = await cowSdk.postSwapOrder(
+          parameters,
+          advancedSettings
+        )
         clearTimeout(timeoutId)
 
         consola.success(`Order created with hash: ${orderId}`)

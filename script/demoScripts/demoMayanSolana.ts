@@ -15,7 +15,7 @@ import {
   type MayanFacet,
 } from '../../typechain'
 
-config()
+config({ quiet: true })
 
 const main = async () => {
   const RPC_URL = process.env.ETH_NODE_URI_BSC
