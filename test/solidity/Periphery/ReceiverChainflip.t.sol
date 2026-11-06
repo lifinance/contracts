@@ -33,17 +33,16 @@ contract ReceiverChainflipTest is TestBase {
         initTestBase();
 
         chainflipVault = getConfigAddressFromPath(
-            "chainflip.json",
-            ".chainflipVault.mainnet"
+            "chainflip.json", ".chainflipVault.mainnet"
         );
         vm.label(chainflipVault, "Chainflip Vault");
 
-        (erc20Proxy, executor) = DeployPeripheryHelpers
-            .deployERC20ProxyAndExecutor(address(this), address(this));
+        (erc20Proxy, executor) =
+            DeployPeripheryHelpers.deployERC20ProxyAndExecutor(
+                address(this), address(this)
+            );
         receiver = new ReceiverChainflip(
-            address(this),
-            address(executor),
-            chainflipVault
+            address(this), address(executor), chainflipVault
         );
         vm.label(address(receiver), "ReceiverChainflip");
         vm.label(address(executor), "Executor");
@@ -66,9 +65,7 @@ contract ReceiverChainflipTest is TestBase {
 
     function test_ContractIsSetUpCorrectly() public {
         receiver = new ReceiverChainflip(
-            address(this),
-            address(executor),
-            chainflipVault
+            address(this), address(executor), chainflipVault
         );
 
         assertEq(address(receiver.executor()) == address(executor), true);
@@ -112,21 +109,15 @@ contract ReceiverChainflipTest is TestBase {
         uint256 initialReceiverDAI = dai.balanceOf(receiverAddress);
 
         // encode payload with mock data
-        (
-            bytes memory payload,
-            uint256 amountOutMin
-        ) = _getValidChainflipPayload(ADDRESS_USDC, ADDRESS_DAI);
+        (bytes memory payload, uint256 amountOutMin) =
+            _getValidChainflipPayload(ADDRESS_USDC, ADDRESS_DAI);
 
         // fake a call from Chainflip vault
         vm.startPrank(chainflipVault);
 
         vm.expectEmit(true, true, true, true, address(executor));
         emit LiFiTransferCompleted(
-            guid,
-            ADDRESS_USDC,
-            receiverAddress,
-            amountOutMin,
-            block.timestamp
+            guid, ADDRESS_USDC, receiverAddress, amountOutMin, block.timestamp
         );
 
         receiver.cfReceive(
@@ -168,8 +159,7 @@ contract ReceiverChainflipTest is TestBase {
             receivingAssetId: ADDRESS_USDC,
             fromAmount: defaultUSDCAmount,
             callData: abi.encodeWithSelector(
-                mockDEX.mockSwapWillRevertWithReason.selector,
-                revertReason
+                mockDEX.mockSwapWillRevertWithReason.selector, revertReason
             ),
             requiresDeposit: false
         });
@@ -213,8 +203,7 @@ contract ReceiverChainflipTest is TestBase {
             receivingAssetId: ADDRESS_DAI,
             fromAmount: 1 ether,
             callData: abi.encodeWithSelector(
-                mockDEX.mockSwapWillRevertWithReason.selector,
-                revertReason
+                mockDEX.mockSwapWillRevertWithReason.selector, revertReason
             ),
             requiresDeposit: false
         });
@@ -273,11 +262,8 @@ contract ReceiverChainflipTest is TestBase {
             requiresDeposit: false
         });
 
-        bytes memory payload = abi.encode(
-            guid,
-            swapData,
-            address(nonEthReceiver)
-        );
+        bytes memory payload =
+            abi.encode(guid, swapData, address(nonEthReceiver));
 
         vm.startPrank(chainflipVault);
 
@@ -301,10 +287,8 @@ contract ReceiverChainflipTest is TestBase {
         uint256 initialReceiverDAI = dai.balanceOf(receiverAddress);
 
         // encode payload with mock data
-        (
-            bytes memory payload,
-            uint256 amountOutMin
-        ) = _getValidChainflipPayloadNative(0.01 ether);
+        (bytes memory payload, uint256 amountOutMin) =
+            _getValidChainflipPayloadNative(0.01 ether);
 
         // fake a call from Chainflip vault
         vm.startPrank(chainflipVault);
@@ -376,9 +360,11 @@ contract ReceiverChainflipTest is TestBase {
     }
 
     // Add helper function for native token swap data
-    function _getValidChainflipPayloadNative(
-        uint256 amountIn
-    ) public view returns (bytes memory callData, uint256 amountOutMin) {
+    function _getValidChainflipPayloadNative(uint256 amountIn)
+        public
+        view
+        returns (bytes memory callData, uint256 amountOutMin)
+    {
         // create swapdata for ETH -> DAI
         address[] memory path = new address[](2);
         path[0] = ADDRESS_WRAPPED_NATIVE;

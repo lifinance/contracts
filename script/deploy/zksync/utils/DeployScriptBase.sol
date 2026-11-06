@@ -18,11 +18,13 @@ contract DeployScriptBase is ScriptBase {
         salt = keccak256(abi.encodePacked(saltPrefix, contractName));
     }
 
-    function getConstructorArgs() internal virtual returns (bytes memory) {}
+    function getConstructorArgs() internal virtual returns (bytes memory) { }
 
-    function deploy(
-        bytes memory creationCode
-    ) internal virtual returns (address payable deployed) {
+    function deploy(bytes memory creationCode)
+        internal
+        virtual
+        returns (address payable deployed)
+    {
         bytes memory constructorArgs = getConstructorArgs();
 
         // Get bytecode hash from zkout for accurate CREATE2 prediction
@@ -31,11 +33,8 @@ contract DeployScriptBase is ScriptBase {
         // Predict CREATE2 address using zkSync's ContractDeployer
         // NOTE: foundry-zksync routes CREATE2 through ZKSYNC_CREATE2_FACTORY,
         // so we use that as the sender for prediction
-        address predicted = predictCreate2Address(
-            bytecodeHash,
-            salt,
-            constructorArgs
-        );
+        address predicted =
+            predictCreate2Address(bytecodeHash, salt, constructorArgs);
 
         if (LibAsset.isContract(predicted)) {
             return payable(predicted);
@@ -44,10 +43,8 @@ contract DeployScriptBase is ScriptBase {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy using CREATE2 opcode - foundry-zksync routes through ZKSYNC_CREATE2_FACTORY
-        bytes memory deploymentBytecode = bytes.concat(
-            creationCode,
-            constructorArgs
-        );
+        bytes memory deploymentBytecode =
+            bytes.concat(creationCode, constructorArgs);
         assembly {
             let len := mload(deploymentBytecode)
             let data := add(deploymentBytecode, 0x20)

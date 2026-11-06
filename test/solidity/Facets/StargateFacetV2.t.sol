@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { InformationMismatch } from "src/Errors/GenericErrors.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 import { IStargate } from "lifi/Interfaces/IStargate.sol";
@@ -12,9 +14,9 @@ import { OFTComposeMsgCodec } from "lifi/Periphery/ReceiverStargateV2.sol";
 
 // Stub StargateFacetV2 Contract
 contract TestStargateFacetV2 is StargateFacetV2, TestWhitelistManagerBase {
-    constructor(
-        address _tokenMessagingAddress
-    ) StargateFacetV2(_tokenMessagingAddress) {}
+    constructor(address _tokenMessagingAddress)
+        StargateFacetV2(_tokenMessagingAddress)
+    { }
 }
 
 contract StargateFacetV2Test is TestBaseFacet {
@@ -55,18 +57,14 @@ contract StargateFacetV2Test is TestBaseFacet {
         defaultUSDCAmount = 100 * 10 ** usdc.decimals();
 
         bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = stargateFacetV2
-            .startBridgeTokensViaStargate
-            .selector;
-        functionSelectors[1] = stargateFacetV2
-            .swapAndStartBridgeTokensViaStargate
-            .selector;
-        functionSelectors[2] = stargateFacetV2
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = stargateFacetV2
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        stargateFacetV2.startBridgeTokensViaStargate.selector;
+        functionSelectors[1] =
+        stargateFacetV2.swapAndStartBridgeTokensViaStargate.selector;
+        functionSelectors[2] =
+        stargateFacetV2.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        stargateFacetV2.removeAllowedContractSelector.selector;
         functionSelectors[4] = stargateFacetV2.tokenMessaging.selector;
 
         addFacet(diamond, address(stargateFacetV2), functionSelectors);
@@ -74,28 +72,22 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         // whitelist DEX and feeCollector addresses and function selectors in diamond
         stargateFacetV2.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         stargateFacetV2.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapETHForExactTokens.selector
+            address(uniswap), uniswap.swapETHForExactTokens.selector
         );
         stargateFacetV2.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForETH.selector
+            address(uniswap), uniswap.swapExactTokensForETH.selector
         );
         stargateFacetV2.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
         stargateFacetV2.addAllowedContractSelector(
-            address(feeCollector),
-            feeCollector.collectNativeFees.selector
+            address(feeCollector), feeCollector.collectNativeFees.selector
         );
         stargateFacetV2.addAllowedContractSelector(
-            address(feeCollector),
-            feeCollector.collectTokenFees.selector
+            address(feeCollector), feeCollector.collectTokenFees.selector
         );
 
         // set facet address in TestBase
@@ -138,18 +130,24 @@ contract StargateFacetV2Test is TestBaseFacet {
         if (isNative) {
             stargateFacetV2.startBridgeTokensViaStargate{
                 value: bridgeData.minAmount + addToMessageValue
-            }(bridgeData, stargateData);
+            }(
+                bridgeData, stargateData
+            );
         } else {
             stargateFacetV2.startBridgeTokensViaStargate{
                 value: addToMessageValue
-            }(bridgeData, stargateData);
+            }(
+                bridgeData, stargateData
+            );
         }
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal override {
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
             value: addToMessageValue
-        }(bridgeData, swapData, stargateData);
+        }(
+            bridgeData, swapData, stargateData
+        );
     }
 
     /// Additional Tests ///
@@ -161,7 +159,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_BridgeERC20TokensWithInsufficientMsgValueForFee()
@@ -174,7 +174,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee - 1
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_ReceiverAddressesDontMatchWhenNoDestCall() public {
@@ -186,7 +188,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_canBridgeERC20TokensWithExistingNonZeroAllowance() public {
@@ -200,7 +204,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_canBridgeERC20TokensWithExistingZeroAllowance() public {
@@ -214,7 +220,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_canBridgeERC20TokensWithExistingMaxAllowance() public {
@@ -228,7 +236,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_canBridgeERC20TokensWithDestCall() public {
@@ -247,7 +257,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_BridgeERC20TokensWithDestCallButNoCalldata() public {
@@ -259,7 +271,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         vm.expectRevert(InformationMismatch.selector);
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_BridgeERC20TokensWithDestCallWrongReceiverAddress()
@@ -276,7 +290,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         vm.expectRevert(InformationMismatch.selector);
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_BridgeERC20TokensWithDestCallBusMode() public {
@@ -290,7 +306,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         vm.expectRevert(InformationMismatch.selector);
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_canBridgeERC20TokensWithExistingNonZeroApproval() public {
@@ -311,7 +329,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         // execute call
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_CanSwapAndBridgeERC20Tokens() public {
@@ -324,18 +344,18 @@ contract StargateFacetV2Test is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
-            value: swapData[0].fromAmount +
-                stargateData.fee.nativeFee +
-                1 ether
-        }(bridgeData, swapData, stargateData);
+            value: swapData[0].fromAmount + stargateData.fee.nativeFee
+                + 1 ether
+        }(
+            bridgeData, swapData, stargateData
+        );
     }
 
     function test_WillNotLeaveAnyDustWhenSwappingBeforeBridging() public {
         vm.startPrank(USER_SENDER);
 
-        uint256 initialUSDCBalanceDiamond = usdc.balanceOf(
-            address(stargateFacetV2)
-        );
+        uint256 initialUSDCBalanceDiamond =
+            usdc.balanceOf(address(stargateFacetV2));
 
         // prepare swap data
         address[] memory path = new address[](2);
@@ -376,8 +396,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         // update stargateData
         stargateData.sendParams.amountLD = bridgeData.minAmount;
         stargateData.sendParams.minAmountLD =
-            (bridgeData.minAmount * 9e4) /
-            1e5;
+            (bridgeData.minAmount * 9e4) / 1e5;
         weth.approve(address(stargateFacetV2), defaultNativeAmount);
 
         vm.expectEmit(true, true, true, true, address(stargateFacetV2));
@@ -387,17 +406,17 @@ contract StargateFacetV2Test is TestBaseFacet {
         // than available in the contract and thus leave some dust
         // the facet should update this parameter after swapping with the amountOut
         // of the swap, thus not leaving any dust in the contract
-        bridgeData.minAmount = stargateData.sendParams.amountLD =
-            amountOut -
-            100;
+        bridgeData.minAmount = stargateData.sendParams.amountLD = amountOut
+            - 100;
 
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, swapData, stargateData);
-
-        uint256 finalUSDCBalanceDiamond = usdc.balanceOf(
-            address(stargateFacetV2)
+        }(
+            bridgeData, swapData, stargateData
         );
+
+        uint256 finalUSDCBalanceDiamond =
+            usdc.balanceOf(address(stargateFacetV2));
 
         assertEq(initialUSDCBalanceDiamond, finalUSDCBalanceDiamond);
         assertEq(weth.balanceOf(address(stargateFacetV2)), 0);
@@ -410,14 +429,15 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                InvalidAssetId.selector,
-                stargateData.assetId
+                InvalidAssetId.selector, stargateData.assetId
             )
         );
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     // NATIVE
@@ -429,7 +449,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: bridgeData.minAmount + stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_BridgeNativeTokensWithInsufficientMsgValue() public {
@@ -442,7 +464,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: bridgeData.minAmount + stargateData.fee.nativeFee - 1
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_CanBridgeNativeTokensWithDestCall() public {
@@ -465,7 +489,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.startBridgeTokensViaStargate{
             value: bridgeData.minAmount + stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     function test_revert_BridgeNativeTokensWithDestCallButNoCalldata() public {
@@ -478,7 +504,9 @@ contract StargateFacetV2Test is TestBaseFacet {
         vm.expectRevert(InformationMismatch.selector);
         stargateFacetV2.startBridgeTokensViaStargate{
             value: bridgeData.minAmount + stargateData.fee.nativeFee
-        }(bridgeData, stargateData);
+        }(
+            bridgeData, stargateData
+        );
     }
 
     // SWAP AND BRIDGE
@@ -497,7 +525,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, swapData, stargateData);
+        }(
+            bridgeData, swapData, stargateData
+        );
     }
 
     function test_CanSwapAndBridgeNativeTokensWithDestCall() public {
@@ -526,7 +556,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, swapData, stargateData);
+        }(
+            bridgeData, swapData, stargateData
+        );
     }
 
     function test_revert_SwapAndBridgeNativeTokensWithDestCallButNoCalldata()
@@ -548,7 +580,9 @@ contract StargateFacetV2Test is TestBaseFacet {
 
         stargateFacetV2.swapAndStartBridgeTokensViaStargate{
             value: stargateData.fee.nativeFee
-        }(bridgeData, swapData, stargateData);
+        }(
+            bridgeData, swapData, stargateData
+        );
     }
 
     function testBase_CanBridgeTokens_fuzzed(uint256 amount) public override {
@@ -558,16 +592,12 @@ contract StargateFacetV2Test is TestBaseFacet {
     function test_contractIsSetUpCorrectly() public {
         stargateFacetV2 = new TestStargateFacetV2(address(0));
 
-        assertEq(
-            address(stargateFacetV2.tokenMessaging()) == address(0),
-            true
-        );
+        assertEq(address(stargateFacetV2.tokenMessaging()) == address(0), true);
 
         stargateFacetV2 = new TestStargateFacetV2(TOKEN_MESSAGING);
 
         assertEq(
-            address(stargateFacetV2.tokenMessaging()) == TOKEN_MESSAGING,
-            true
+            address(stargateFacetV2.tokenMessaging()) == TOKEN_MESSAGING, true
         );
     }
 
@@ -671,9 +701,7 @@ contract StargateFacetV2Test is TestBaseFacet {
         stargateData.fee = fees;
     }
 
-    function _getUpdateWhitelistParameters(
-        uint256 length
-    )
+    function _getUpdateWhitelistParameters(uint256 length)
         internal
         view
         returns (address[] memory addresses, uint256[] memory values)

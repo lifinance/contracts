@@ -8,7 +8,7 @@ import { CentrifugeFacet } from "lifi/Facets/CentrifugeFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("CentrifugeFacet") {}
+    constructor() DeployScriptBase("CentrifugeFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/centrifuge.json");
 
         address tokenBridge = _getConfigContractAddress(
-            path,
-            string.concat(".tokenBridge.", network)
+            path, string.concat(".tokenBridge.", network)
         );
 
         return abi.encode(tokenBridge);

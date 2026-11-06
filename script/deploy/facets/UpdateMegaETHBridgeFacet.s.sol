@@ -32,19 +32,15 @@ contract DeployScript is UpdateScriptBase {
         json = vm.readFile(path);
 
         address defaultBridge = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".defaultBridge")
+            path, string.concat(".", network, ".defaultBridge")
         );
 
-        bytes memory rawConfig = json.parseRaw(
-            string.concat(".", network, ".tokens")
-        );
+        bytes memory rawConfig =
+            json.parseRaw(string.concat(".", network, ".tokens"));
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 
         bytes memory callData = abi.encodeWithSelector(
-            MegaETHBridgeFacet.initMegaETH.selector,
-            configs,
-            defaultBridge
+            MegaETHBridgeFacet.initMegaETH.selector, configs, defaultBridge
         );
 
         return callData;

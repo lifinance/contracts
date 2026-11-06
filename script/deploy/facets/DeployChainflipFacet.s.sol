@@ -8,7 +8,7 @@ import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ChainflipFacet") {}
+    constructor() DeployScriptBase("ChainflipFacet") { }
 
     function run()
         public
@@ -25,8 +25,7 @@ contract DeployScript is DeployScriptBase {
 
         // Read the Chainflip vault address from config
         address chainflipVault = _getConfigContractAddress(
-            path,
-            string.concat(".chainflipVault.", network)
+            path, string.concat(".chainflipVault.", network)
         );
 
         return abi.encode(chainflipVault);

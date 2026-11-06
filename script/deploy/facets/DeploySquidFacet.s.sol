@@ -8,7 +8,7 @@ import { SquidFacet } from "lifi/Facets/SquidFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("SquidFacet") {}
+    constructor() DeployScriptBase("SquidFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/squid.json");
 
         address router = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".router")
+            path, string.concat(".", network, ".router")
         );
 
         return abi.encode(router);

@@ -13,9 +13,7 @@ contract UpdateScriptBase is ScriptBase {
 
     error InvalidHexDigit(uint8 d);
     error NetworkChainIdMismatch(
-        string network,
-        uint256 configured,
-        uint256 actual
+        string network, uint256 configured, uint256 actual
     );
     error DiamondAddressMismatch(address fromDeployments, address expected);
     error DiamondHasNoCode(address diamond);
@@ -71,12 +69,7 @@ contract UpdateScriptBase is ScriptBase {
         noBroadcast = options.noBroadcast || options.verificationMode;
 
         path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
         json = _readDeploymentsJson();
         diamond = useDefaultDiamond
@@ -112,9 +105,8 @@ contract UpdateScriptBase is ScriptBase {
         options.selectorArtifactsDir = vm.envExists("SELECTOR_ARTIFACTS_DIR")
             ? vm.envString("SELECTOR_ARTIFACTS_DIR")
             : DEFAULT_SELECTOR_ARTIFACTS_DIR;
-        options.verificationMode =
-            vm.envExists("CUT_VERIFICATION_MODE") &&
-            vm.envBool("CUT_VERIFICATION_MODE");
+        options.verificationMode = vm.envExists("CUT_VERIFICATION_MODE")
+            && vm.envBool("CUT_VERIFICATION_MODE");
         options.diamondStateBlock = vm.envExists("DIAMOND_STATE_BLOCK")
             ? vm.envUint("DIAMOND_STATE_BLOCK")
             : 0;
@@ -132,28 +124,27 @@ contract UpdateScriptBase is ScriptBase {
     ///      The config path is fixed rather than honouring NETWORKS_JSON_FILE_PATH: a trust anchor
     ///      that an env var can redirect is not one.
     function _checkDiamondAddress() internal view {
-        string memory networksJson = vm.readFile(
-            string.concat(root, "/config/networks.json")
-        );
+        string memory networksJson =
+            vm.readFile(string.concat(root, "/config/networks.json"));
         string memory chainIdKey = string.concat(".", network, ".chainId");
 
         if (networksJson.keyExists(chainIdKey)) {
             uint256 configuredChainId = networksJson.readUint(chainIdKey);
-            if (configuredChainId != block.chainid)
+            if (configuredChainId != block.chainid) {
                 revert NetworkChainIdMismatch(
-                    network,
-                    configuredChainId,
-                    block.chainid
+                    network, configuredChainId, block.chainid
                 );
+            }
         }
 
         if (
-            cutOptions.expectedDiamond != address(0) &&
-            cutOptions.expectedDiamond != diamond
+            cutOptions.expectedDiamond != address(0)
+                && cutOptions.expectedDiamond != diamond
         ) revert DiamondAddressMismatch(diamond, cutOptions.expectedDiamond);
 
-        if (cutOptions.verificationMode && diamond.code.length == 0)
+        if (cutOptions.verificationMode && diamond.code.length == 0) {
             revert DiamondHasNoCode(diamond);
+        }
     }
 
     /// @dev buildDiamondCut reads the live diamond, so the resulting calldata is only reproducible
@@ -166,41 +157,46 @@ contract UpdateScriptBase is ScriptBase {
 
         if (cutOptions.diamondStateBlock == 0) revert DiamondStateNotPinned();
 
-        if (block.number != cutOptions.diamondStateBlock)
+        if (block.number != cutOptions.diamondStateBlock) {
             revert DiamondStateBlockMismatch(
-                cutOptions.diamondStateBlock,
-                block.number
+                cutOptions.diamondStateBlock, block.number
             );
+        }
 
-        if (cutOptions.facetAddress == address(0))
+        if (cutOptions.facetAddress == address(0)) {
             revert FacetAddressOverrideRequired();
+        }
 
-        if (cutOptions.expectedDiamond == address(0))
+        if (cutOptions.expectedDiamond == address(0)) {
             revert ExpectedDiamondAddressRequired();
+        }
     }
 
     /// @dev For scripts that resolve facet addresses themselves instead of through update(), so the
     ///      overrides never reach them. Refusing is the honest answer: such a run would otherwise
     ///      report a confident match computed entirely from the local, proposer-written state.
     function _rejectVerificationMode() internal view {
-        if (cutOptions.verificationMode) revert VerificationModeNotSupported();
+        if (cutOptions.verificationMode) {
+            revert VerificationModeNotSupported();
+        }
     }
 
     /// @dev The address a proposal claims for the new facet is proven legitimate by bytecode
     ///      attestation elsewhere; here it only has to be injectable so the cut can be rebuilt
     ///      without trusting the local deployments file.
-    function _resolveFacetAddress(
-        string memory _name
-    ) internal view returns (address) {
-        if (cutOptions.facetAddress != address(0))
+    function _resolveFacetAddress(string memory _name)
+        internal
+        view
+        returns (address)
+    {
+        if (cutOptions.facetAddress != address(0)) {
             return cutOptions.facetAddress;
+        }
 
         return json.readAddress(string.concat(".", _name));
     }
 
-    function update(
-        string memory name
-    )
+    function update(string memory name)
         internal
         virtual
         returns (address[] memory facets, bytes memory cutData)
@@ -208,10 +204,7 @@ contract UpdateScriptBase is ScriptBase {
         return update(name, _resolveFacetAddress(name));
     }
 
-    function update(
-        string memory name,
-        address updater
-    )
+    function update(string memory name, address updater)
         internal
         virtual
         returns (address[] memory facets, bytes memory cutData)
@@ -247,9 +240,7 @@ contract UpdateScriptBase is ScriptBase {
 
         if (cut.length > 0) {
             cutter.diamondCut(
-                cut,
-                callData.length > 0 ? updater : address(0),
-                callData
+                cut, callData.length > 0 ? updater : address(0), callData
             );
         }
 
@@ -258,14 +249,15 @@ contract UpdateScriptBase is ScriptBase {
         vm.stopBroadcast();
     }
 
-    function getExcludes() internal virtual returns (bytes4[] memory) {}
+    function getExcludes() internal virtual returns (bytes4[] memory) { }
 
-    function getCallData() internal virtual returns (bytes memory) {}
+    function getCallData() internal virtual returns (bytes memory) { }
 
-    function getSelectors(
-        string memory _facetName,
-        bytes4[] memory _exclude
-    ) internal virtual returns (bytes4[] memory selectors) {
+    function getSelectors(string memory _facetName, bytes4[] memory _exclude)
+        internal
+        virtual
+        returns (bytes4[] memory selectors)
+    {
         string[] memory cmd = new string[](4);
         cmd[0] = "script/deploy/zksync/utils/contract-selectors.sh";
         cmd[1] = _facetName;
@@ -279,10 +271,9 @@ contract UpdateScriptBase is ScriptBase {
         selectors = abi.decode(res, (bytes4[]));
     }
 
-    function buildDiamondCut(
-        bytes4[] memory newSelectors,
-        address newFacet
-    ) internal {
+    function buildDiamondCut(bytes4[] memory newSelectors, address newFacet)
+        internal
+    {
         address oldFacet;
 
         selectorsToAdd = new bytes4[](0);
@@ -303,9 +294,8 @@ contract UpdateScriptBase is ScriptBase {
 
         // Get selectors to remove
         if (oldFacet != address(0)) {
-            bytes4[] memory oldSelectors = loupe.facetFunctionSelectors(
-                oldFacet
-            );
+            bytes4[] memory oldSelectors =
+                loupe.facetFunctionSelectors(oldFacet);
             for (uint256 i; i < oldSelectors.length; i++) {
                 bool found = false;
                 for (uint256 j; j < newSelectors.length; j++) {
@@ -352,10 +342,9 @@ contract UpdateScriptBase is ScriptBase {
         }
     }
 
-    function buildInitialCut(
-        bytes4[] memory newSelectors,
-        address newFacet
-    ) internal {
+    function buildInitialCut(bytes4[] memory newSelectors, address newFacet)
+        internal
+    {
         cut.push(
             LibDiamond.FacetCut({
                 facetAddress: newFacet,
@@ -392,15 +381,12 @@ contract UpdateScriptBase is ScriptBase {
         address refundWallet = json.readAddress(".refundWallet");
 
         // get function selectors that should be approved for refundWallet
-        bytes memory rawConfig = json.parseRaw(
-            ".approvedSelectorsForRefundWallet"
-        );
+        bytes memory rawConfig =
+            json.parseRaw(".approvedSelectorsForRefundWallet");
 
         // parse raw data from config into FunctionSelector array
-        FunctionSelector[] memory funcSelectorsToBeApproved = abi.decode(
-            rawConfig,
-            (FunctionSelector[])
-        );
+        FunctionSelector[] memory funcSelectorsToBeApproved =
+            abi.decode(rawConfig, (FunctionSelector[]));
 
         emit log("funcSelectorsToBeApproved: ");
         emit log_uint(funcSelectorsToBeApproved.length);
@@ -410,11 +396,12 @@ contract UpdateScriptBase is ScriptBase {
             emit log("funcSelectorsToBeApproved: ");
             emit log(funcSelectorsToBeApproved[i].name);
             // Register refundWallet as authorized wallet to call these functions
-            AccessManagerFacet(diamond).setCanExecute(
-                bytes4(funcSelectorsToBeApproved[i].selector),
-                refundWallet,
-                true
-            );
+            AccessManagerFacet(diamond)
+                .setCanExecute(
+                    bytes4(funcSelectorsToBeApproved[i].selector),
+                    refundWallet,
+                    true
+                );
         }
     }
 }
