@@ -8,8 +8,8 @@
  * - `import.meta` members Node does not provide. The one the type checker cannot
  *   catch is `import.meta.main`: `@types/node` declares it, but `tsx` leaves it
  *   `undefined` for a `.ts` entry on every Node version, so a CLI guarded by it
- *   exits 0 without doing anything. The rule allowlists the members Node 22
- *   implements rather than denylisting Bun's, so `dir`, `file`, `path`, `env`
+ *   exits 0 without doing anything. The rule allowlists the members a `.ts` entry
+ *   gets under `tsx` rather than denylisting Bun's, so `dir`, `file`, `path`, `env`
  *   and a destructured or passed-around `import.meta` are refused as well.
  * - the name `Bun` anywhere, and `bun` / `bun:*` loaded by import, `import()` or
  *   `require()`. `tsconfig.node.json` already rejects these for the files

@@ -20,14 +20,16 @@ on:
     paths:
       - 'src/**/*.sol'
 
-permissions:
-  contents: read # required to fetch repository contents
-  security-events: write # required to upload SARIF results to GitHub Code Scanning
+permissions: {}
 
 jobs:
   static-analysis:
     name: Static Analysis Security Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # required to fetch repository contents
+      security-events: write # required to upload SARIF results to GitHub Code Scanning
+      pull-requests: read # required by dorny/paths-filter to read changed files on PRs
     timeout-minutes: 15
 
     steps:
@@ -38,23 +40,32 @@ jobs:
 
       - name: Get added, renamed, modified Solidity Files
         id: changed-files
-        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3.0.4
         with:
-          files: |
-            src/**/*.sol
+          list-files: json
+          filters: |
+            sol:
+              - added|copied|modified|renamed: 'src/**/*.sol'
 
+      # The Olympix action splits its `args` input on whitespace, so a path containing any
+      # would be scanned as fragments; a newline would also write extra lines to GITHUB_ENV.
       - name: Convert Changed Files to Args
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.sol == 'true'
         id: format-args
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.sol_files }}
         run: |
-          args=$(echo "$ALL_CHANGED_FILES" | xargs -n 1 printf -- "-p %s ")
-          echo "ARGS=$args" >> $GITHUB_ENV
+          if jq -e 'any(.[]; test("\\s"))' <<< "$ALL_CHANGED_FILES" > /dev/null; then
+            echo -e "\033[31mA changed Solidity path contains whitespace, which Olympix args cannot carry:\033[0m"
+            jq -r '.[] | select(test("\\s"))' <<< "$ALL_CHANGED_FILES"
+            exit 1
+          fi
+          args=$(jq -r 'map("-p " + .) | join(" ")' <<< "$ALL_CHANGED_FILES")
+          echo "ARGS=$args" >> "$GITHUB_ENV"
 
       - name: Run Olympix Integrated Security
         id: olympix
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.sol == 'true'
         uses: olympix/integrated-security@79cbce2446c47a8381bef23d09528e9ef08cc066 # main
         env:
           OLYMPIX_API_TOKEN: ${{ secrets.OLYMPIX_API_TOKEN }}
@@ -63,7 +74,7 @@ jobs:
 
       - name: Verify Olympix produced a SARIF report
         id: sarif-check
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-files.outputs.sol == 'true'
         env:
           OLYMPIX_OUTCOME: ${{ steps.olympix.outcome }}
         run: |
@@ -85,7 +96,7 @@ jobs:
           fi
 
       - name: Upload Result to GitHub Code Scanning
-        if: steps.changed-files.outputs.any_changed == 'true' && steps.sarif-check.outputs.sarif_exists == 'true'
+        if: steps.changed-files.outputs.sol == 'true' && steps.sarif-check.outputs.sarif_exists == 'true'
         uses: github/codeql-action/upload-sarif@38b3b7bf288d49ccf58644769dc7a6afdccd05eb # v3
         with:
           sarif_file: olympix.sarif
