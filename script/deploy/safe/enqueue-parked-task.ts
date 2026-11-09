@@ -16,7 +16,7 @@ import { execSync } from 'node:child_process'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 import { getAddress, type Address } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
@@ -26,8 +26,6 @@ import {
   getParkedTasksCollection,
   type IParkedTaskInput,
 } from './parked-tasks'
-
-dotenv.config({ quiet: true, override: false })
 
 /** Resolves the enqueuer identity from git; falls back to `unknown` off a checkout. */
 function resolveEnqueuer(): string {

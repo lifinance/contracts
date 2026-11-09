@@ -9,7 +9,7 @@
  *
  * Hosts are printed without their path or query string: an RPC URL routinely carries an API key.
  */
-import 'dotenv/config'
+import '../utils/loadEnv'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'

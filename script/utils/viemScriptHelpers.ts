@@ -12,7 +12,7 @@ import {
   formatAddressForNetworkCliDisplay,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import './loadEnv'
 import {
   defineChain,
   encodeFunctionData,
@@ -35,8 +35,6 @@ import { normalizeRpcUrlForNetwork } from '../mongoDb/rpcEndpoints'
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
 import { getRPCEnvVarName, getRPCFallbacksEnvVarName, OUT_ROOT } from './utils'
-
-dotenv.config({ quiet: true })
 
 const colors = {
   reset: '\x1b[0m',

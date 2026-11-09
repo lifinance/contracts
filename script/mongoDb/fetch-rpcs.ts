@@ -2,7 +2,7 @@ import fs from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { config } from 'dotenv'
+import '../utils/loadEnv'
 import { MongoClient } from 'mongodb'
 
 import networks from '../../config/networks.json'
@@ -15,8 +15,6 @@ import {
   selectEndpoints,
   type IRpcEndpoint,
 } from './rpcEndpoints'
-
-config({ quiet: true })
 
 async function fetchRpcEndpoints(environment: string): Promise<{
   [network: string]: IRpcEndpoint[]

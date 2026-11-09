@@ -12,7 +12,7 @@ import {
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 import { type Collection } from 'mongodb'
 import {
   createPublicClient,
@@ -259,8 +259,6 @@ import {
   enqueueTimelockOpIfApplicable,
   isScheduleBatchCalldata,
 } from './timelock-queue'
-
-dotenv.config({ quiet: true, override: false })
 
 // One set of sign-time codehash dependencies per run: they hold a MongoDB
 // connection and a rebuild cache, and a rebuild repeated per network would

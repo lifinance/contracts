@@ -16,7 +16,7 @@ import {
   isTronTvmChainId,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import { config } from 'dotenv'
+import '../../utils/loadEnv'
 import {
   MongoClient,
   type Collection,
@@ -83,8 +83,6 @@ import {
   type IPickTimelockSaltAction,
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
-
-config({ quiet: true, override: false })
 
 const networks: Record<
   string,

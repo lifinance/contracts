@@ -63,7 +63,7 @@ import {
 } from '@safe-global/safe-deployments'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 import {
   type Address,
   type Hash,
@@ -100,8 +100,6 @@ import {
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-
-dotenv.config({ quiet: true, override: false })
 
 // ABI fragments for local v1.4.1 fallback
 const SAFE_ABI = [

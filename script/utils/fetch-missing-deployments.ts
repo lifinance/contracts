@@ -1,13 +1,11 @@
 import fs from 'fs'
 import path from 'path'
 
-import { config } from 'dotenv'
+import './loadEnv'
 
 import { readContractVersion } from '../deploy/shared/contract-version'
 
 import { getNetworkConfig } from './utils'
-
-config({ quiet: true })
 
 async function updateDeploymentLogs(network: string) {
   try {

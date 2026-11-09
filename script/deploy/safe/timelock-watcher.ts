@@ -11,7 +11,7 @@
  *   bunx tsx ./script/deploy/safe/timelock-watcher.ts [--network <name>] [--stateFile <path>]
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { existsSync } from 'fs'
 import { readFile, writeFile } from 'fs/promises'

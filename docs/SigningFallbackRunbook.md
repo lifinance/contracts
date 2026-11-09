@@ -256,19 +256,17 @@ ceremonies that would have worked, and block them most often.
 
 ## 3. What the environment needs
 
-Both entry points load `.env` themselves — `import 'dotenv/config'` in
-`propose-to-safe.ts`, `dotenv.config({ quiet: true, override: false })` in
-`confirm-safe-tx.ts` — and `with-safe-tunnel.sh` greps the repo-root `.env`
-directly, so nothing has to be exported into your shell for the scripts to
-work.
+Both entry points load `.env` themselves, through `script/utils/loadEnv.ts`,
+and `with-safe-tunnel.sh` greps the repo-root `.env` directly, so nothing has
+to be exported into your shell for the scripts to work.
 
-**But an export still wins.** dotenv only fills in names that are not already
-in `process.env`; `getPrivateKey` then reads `process.env[keyType]` directly.
-So a stale value exported earlier in the session silently beats the file.
-dotenv also takes its own options from `DOTENV_*` / `DOTENV_CONFIG_*`
-variables: `DOTENV_PATH` loads a different file, and `DOTENV_OVERRIDE` flips
-the precedence for `import 'dotenv/config'`. Check all of it, and never print
-a value:
+**But an export still wins.** `loadEnv.ts` passes `override: false`, so dotenv
+only fills in names that are not already in `process.env`, even with
+`DOTENV_OVERRIDE` exported; `getPrivateKey` then reads `process.env[keyType]`
+directly. So a stale value exported earlier in the session silently beats the
+file. dotenv still takes its other options from `DOTENV_*` / `DOTENV_CONFIG_*`
+variables — `DOTENV_PATH` loads a different file — so the check below stops on
+any of them. Check all of it, and never print a value:
 
 ```bash
 ENVCONFLICT=0   # an export beating the file is a stop, not a note
