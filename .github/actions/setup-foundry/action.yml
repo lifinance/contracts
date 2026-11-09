@@ -116,8 +116,19 @@ runs:
       # The only GITHUB_PATH write is the fixed ~/.foundry/bin, which foundry-toolchain adds too.
       run: | # zizmor: ignore[github-env]
         set -euo pipefail
-        if PATH="$HOME/.foundry/bin:$PATH" bash script/utils/verify-foundry-version.sh --quiet; then
-          echo "$HOME/.foundry/bin" >> "$GITHUB_PATH"
+        bin="$HOME/.foundry/bin"
+        complete=true
+        # Skipping the install skips every tool, so each must be present and runnable, not just
+        # forge; checking inside $bin also keeps a forge elsewhere on PATH from passing.
+        for tool in forge cast anvil chisel; do
+          if [ ! -x "$bin/$tool" ] || ! "$bin/$tool" --version >/dev/null 2>&1; then
+            complete=false
+          fi
+        done
+        # A miss is expected here, so the script's failure output is not an error.
+        if [ "$complete" = true ] \
+          && PATH="$bin:$PATH" bash script/utils/verify-foundry-version.sh --quiet 2>/dev/null; then
+          echo "$bin" >> "$GITHUB_PATH"
           echo "Using cached foundry; skipping install"
           echo "match=true" >> "$GITHUB_OUTPUT"
         else
@@ -156,5 +167,7 @@ runs:
           forge-build-v2-${{ github.workflow }}-${{ inputs.cache-key-suffix }}-${{ runner.os }}-${{ steps.pin.outputs.version }}-
 
     - name: Verify foundry version
+      # The cache-reuse step already ran this check on the binary it kept.
+      if: steps.cached.outputs.match != 'true'
       shell: bash
       run: bash script/utils/verify-foundry-version.sh
