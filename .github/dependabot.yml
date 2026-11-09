@@ -9,3 +9,33 @@ updates:
     schedule:
       # Check for updates to GitHub Actions every week
       interval: 'weekly'
+
+  # npm dependencies resolved through bun.lock. Minor and patch bumps arrive as one
+  # grouped PR per month; major bumps still get their own PR each.
+  - package-ecosystem: 'bun'
+    directory: '/'
+    schedule:
+      interval: 'monthly'
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      bun-minor-and-patch:
+        update-types:
+          - 'minor'
+          - 'patch'
+    # Held back until migrated: @typechain/ethers-v5 11 breaks the published
+    # lifi-contract-types API, Prettier 3 (with prettier-plugin-solidity 2 and
+    # solhint-plugin-prettier 0.1) reformats .sol and TS/JS files repo-wide, and
+    # TypeScript 7 drops the compiler API the node-runtime and placement fences use.
+    ignore:
+      - dependency-name: '@typechain/ethers-v5'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'prettier'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'prettier-plugin-solidity'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'solhint-plugin-prettier'
+        versions: ['>=0.1.0']
+      - dependency-name: 'typescript'
+        update-types: ['version-update:semver-major']
