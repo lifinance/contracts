@@ -16,6 +16,10 @@
 
 set -euo pipefail
 
+# Byte-wise matching: under a UTF-8 locale BSD tr exits on bytes that are not valid UTF-8,
+# which every PDF or other binary file contains
+export LC_ALL=C
+
 DISABLE_WITH_COMMENT="pre-commit-checker: not a secret"
 ETH_PRIVATE_KEY_PATTERN='(^|[^0-9a-fA-F])[0-9a-fA-F]{64}([^0-9a-fA-F]|$)'
 KNOWN_FALSE_POSITIVES=(

@@ -100,13 +100,15 @@ const stage = (repo: string, files: Record<string, string | Buffer>): void => {
  *
  * @param repo - Repository to scan.
  * @param gitConfig - Git config entries set for the run, as a user's global config would.
+ * @param extraEnv - Environment variables set for the run, e.g. a user's locale.
  * @returns Exit status and combined output.
  */
 const scan = (
   repo: string,
-  gitConfig: Record<string, string> = {}
+  gitConfig: Record<string, string> = {},
+  extraEnv: Record<string, string> = {}
 ): IScanResult => {
-  const env = childEnv()
+  const env = { ...childEnv(), ...extraEnv }
   const entries = Object.entries(gitConfig)
   env['GIT_CONFIG_COUNT'] = String(entries.length)
   entries.forEach(([key, value], index) => {
@@ -339,6 +341,22 @@ describe('scan-staged-secrets .env values', () => {
     })
 
     expect(scan(repo).status).toBe(1)
+  })
+
+  it('scans a file with invalid UTF-8 bytes under a UTF-8 locale', () => {
+    const repo = makeRepo(`${SECRET_KEY}=${SECRET}\n`)
+    const invalidUtf8 = Buffer.from([0xff, 0xfe, 0xc3, 0x28, 0x0a])
+    stage(repo, { 'clean.bin': invalidUtf8 })
+
+    const clean = scan(repo, {}, { LC_ALL: 'en_US.UTF-8' })
+    expect(clean.output).not.toContain('Illegal byte sequence')
+    expect(clean.status).toBe(0)
+
+    stage(repo, {
+      'leak.bin': Buffer.concat([invalidUtf8, Buffer.from(SECRET)]),
+    })
+
+    expect(scan(repo, {}, { LC_ALL: 'en_US.UTF-8' }).status).toBe(1)
   })
 
   it('treats an added line that starts with "++" as content, not a diff header', () => {
