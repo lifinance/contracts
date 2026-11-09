@@ -126,7 +126,7 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.0.0",
-    "@cowprotocol/cow-sdk": "^5.10.3",
+    "@cowprotocol/cow-sdk": "^9.3.0",
     "@ethersproject/abi": "^5.8.0",
     "@ledgerhq/hw-app-eth": "^6.43.0",
     "@ledgerhq/hw-transport-node-hid": "^6.29.5",
