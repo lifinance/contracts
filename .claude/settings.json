@@ -42,7 +42,10 @@
       "Bash(mongodump *)",
       "Bash(mongorestore *)",
       "Bash(mongoexport *)",
-      "Bash(mongoimport *)"
+      "Bash(mongoimport *)",
+      "Bash(lifi-connect prod*)",
+      "Bash(aws sso login*)",
+      "Bash(op *)"
     ]
   },
   "hooks": {
