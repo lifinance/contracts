@@ -131,6 +131,10 @@ contract LibAssetTest is TestBaseLocal {
             "delegatedEoa"
         );
 
+        // EIP-7702 delegations require Prague; contracts still compile for
+        // cancun, only this test's execution context is switched
+        vm.setEvmVersion("prague");
+
         vm.signAndAttachDelegation(address(implementer), delegatedEoaKey);
 
         bool result = implementer.isContract(delegatedEoa);
