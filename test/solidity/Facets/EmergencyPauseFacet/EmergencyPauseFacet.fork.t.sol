@@ -170,7 +170,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         address facetAddress = DiamondLoupeFacet(address(emergencyPauseFacet))
             .facetAddress(
                 PeripheryRegistryFacet(address(emergencyPauseFacet))
-                    .registerPeripheryContract.selector
+                    .registerPeripheryContract
+                    .selector
             );
 
         // remove facet
@@ -192,7 +193,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
             DiamondLoupeFacet(address(emergencyPauseFacet))
                 .facetAddress(
                     PeripheryRegistryFacet(address(emergencyPauseFacet))
-                        .registerPeripheryContract.selector
+                        .registerPeripheryContract
+                        .selector
                 ) == address(0)
         );
 
@@ -208,7 +210,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         address facetAddress = DiamondLoupeFacet(address(emergencyPauseFacet))
             .facetAddress(
                 PeripheryRegistryFacet(address(emergencyPauseFacet))
-                    .registerPeripheryContract.selector
+                    .registerPeripheryContract
+                    .selector
             );
 
         // remove facet
@@ -230,7 +233,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
             DiamondLoupeFacet(address(emergencyPauseFacet))
                 .facetAddress(
                     PeripheryRegistryFacet(address(emergencyPauseFacet))
-                        .registerPeripheryContract.selector
+                        .registerPeripheryContract
+                        .selector
                 ) == address(0)
         );
 
@@ -246,7 +250,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         address facetAddress = DiamondLoupeFacet(address(emergencyPauseFacet))
             .facetAddress(
                 PeripheryRegistryFacet(address(emergencyPauseFacet))
-                    .registerPeripheryContract.selector
+                    .registerPeripheryContract
+                    .selector
             );
 
         // try to remove facet

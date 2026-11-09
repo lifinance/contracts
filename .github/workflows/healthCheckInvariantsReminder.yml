@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Detect facet/periphery vs. invariant-registry changes
         id: filter
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             contracts:
@@ -43,7 +43,7 @@ jobs:
               - 'script/deploy/healthCheckInvariants.ts'
 
       - name: Post or clear reminder comment
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           # true when the PR touches a facet/periphery contract but NOT the invariant registry
           SHOULD_NUDGE: ${{ steps.filter.outputs.contracts == 'true' && steps.filter.outputs.invariants != 'true' }}

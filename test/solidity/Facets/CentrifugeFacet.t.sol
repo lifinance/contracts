@@ -210,7 +210,8 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         // deep inside a funds-flow assert
         (uint64 poolId,) = ICentrifugeSpoke(
                 ICentrifugeTokenBridgeExtended(address(TOKEN_BRIDGE)).spoke()
-            ).shareTokenDetails(ADDRESS_SHARE_TOKEN);
+            )
+            .shareTokenDetails(ADDRESS_SHARE_TOKEN);
         assertGt(uint256(poolId), 0);
 
         centrifugeFacet = new TestCentrifugeFacet(TOKEN_BRIDGE);

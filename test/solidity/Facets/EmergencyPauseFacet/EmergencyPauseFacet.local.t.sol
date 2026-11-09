@@ -147,7 +147,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
         // get function selectors of OwnershipFacet
         bytes4[] memory ownershipFunctionSelectors = IDiamondLoupe(
                 address(diamond)
-            ).facetFunctionSelectors(ownershipFacetAddress);
+            )
+            .facetFunctionSelectors(ownershipFacetAddress);
 
         // pause diamond first
         test_PauserWalletCanPauseDiamond();
@@ -254,7 +255,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
         address facetAddress = DiamondLoupeFacet(address(diamond))
             .facetAddress(
                 PeripheryRegistryFacet(address(diamond))
-                    .registerPeripheryContract.selector
+                    .registerPeripheryContract
+                    .selector
             );
 
         // remove facet
@@ -276,7 +278,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
             DiamondLoupeFacet(address(diamond))
                 .facetAddress(
                     PeripheryRegistryFacet(address(diamond))
-                        .registerPeripheryContract.selector
+                        .registerPeripheryContract
+                        .selector
                 ) == address(0)
         );
 
@@ -298,7 +301,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
         address facetAddress = DiamondLoupeFacet(address(diamond))
             .facetAddress(
                 PeripheryRegistryFacet(address(diamond))
-                    .registerPeripheryContract.selector
+                    .registerPeripheryContract
+                    .selector
             );
 
         // remove facet
@@ -320,7 +324,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
             DiamondLoupeFacet(address(diamond))
                 .facetAddress(
                     PeripheryRegistryFacet(address(diamond))
-                        .registerPeripheryContract.selector
+                        .registerPeripheryContract
+                        .selector
                 ) == address(0)
         );
 
@@ -350,7 +355,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
         // get address of EmergencyPauseFacet
         address emergencyPauseAddress = DiamondLoupeFacet(address(diamond))
             .facetAddress(
-                EmergencyPauseFacet(payable(address(diamond))).pauseDiamond
+                EmergencyPauseFacet(payable(address(diamond)))
+                    .pauseDiamond
                     .selector
             );
 
@@ -371,7 +377,8 @@ contract EmergencyPauseFacetLOCALTest is TestBaseLocal {
         address facetAddress = DiamondLoupeFacet(address(diamond))
             .facetAddress(
                 PeripheryRegistryFacet(address(diamond))
-                    .registerPeripheryContract.selector
+                    .registerPeripheryContract
+                    .selector
             );
 
         // try to remove facet
