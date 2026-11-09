@@ -672,6 +672,30 @@ describe('readEnvEndpoints', () => {
     })
   })
 
+  it('promotes the first fallback when the primary is blank', () => {
+    const endpoints = readEnvEndpoints(
+      [
+        'ETH_NODE_URI_FLOW=""',
+        `ETH_NODE_URI_FLOW_FALLBACKS="${KEYED_DRPC} ${KEYLESS_PUBLIC}"`,
+      ].join('\n')
+    )
+    expect(endpoints).toEqual({
+      ETH_NODE_URI_FLOW: [
+        { url: KEYED_DRPC, priority: 2 },
+        { url: KEYLESS_PUBLIC, priority: 1 },
+      ],
+    })
+  })
+
+  it('keeps fallbacks whose primary line is missing', () => {
+    const endpoints = readEnvEndpoints(
+      `ETH_NODE_URI_FLOW_FALLBACKS="${KEYED_DRPC}"`
+    )
+    expect(endpoints).toEqual({
+      ETH_NODE_URI_FLOW: [{ url: KEYED_DRPC, priority: 1 }],
+    })
+  })
+
   it('returns nothing for an empty file', () => {
     expect(readEnvEndpoints('')).toEqual({})
   })

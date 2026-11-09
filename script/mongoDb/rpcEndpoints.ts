@@ -271,7 +271,8 @@ const RPC_ENV_VAR = /^ETH_NODE_URI_[A-Z0-9_]+$/
  * Read the RPC endpoints an env file already assigns, in the shape `buildEnvLines` writes.
  *
  * Lets a writer that has only degraded endpoints to offer keep what the file holds instead of
- * replacing it. Empty assignments are skipped, so a blank placeholder never counts as configured.
+ * replacing it. Every configured URL is kept: with the primary blank or missing, the first
+ * fallback takes its place, and a network with no URL at all is left out.
  *
  * @param envContent - Raw env file content.
  * @returns Priority-ordered endpoints keyed by primary env var name.
@@ -280,17 +281,27 @@ export function readEnvEndpoints(
   envContent: string
 ): Record<string, IRpcEndpoint[]> {
   const values = parse(envContent)
+  const primaryEnvVars = new Set(
+    Object.keys(values)
+      .filter((key) => RPC_ENV_VAR.test(key))
+      .map((key) =>
+        key.endsWith(FALLBACKS_ENV_VAR_SUFFIX)
+          ? key.slice(0, -FALLBACKS_ENV_VAR_SUFFIX.length)
+          : key
+      )
+  )
   const endpointsByEnvVar: Record<string, IRpcEndpoint[]> = {}
 
-  for (const [envVar, primary] of Object.entries(values)) {
-    if (!RPC_ENV_VAR.test(envVar)) continue
-    if (envVar.endsWith(FALLBACKS_ENV_VAR_SUFFIX)) continue
-    if (!primary.trim()) continue
-
-    const fallbacks = (values[`${envVar}${FALLBACKS_ENV_VAR_SUFFIX}`] ?? '')
+  for (const envVar of primaryEnvVars) {
+    const urls = [
+      values[envVar] ?? '',
+      values[`${envVar}${FALLBACKS_ENV_VAR_SUFFIX}`] ?? '',
+    ]
+      .join(' ')
       .split(/\s+/)
       .filter(Boolean)
-    const urls = [primary.trim(), ...fallbacks]
+    if (!urls.length) continue
+
     endpointsByEnvVar[envVar] = urls.map((url, index) => ({
       url,
       priority: urls.length - index,
