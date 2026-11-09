@@ -55,6 +55,8 @@ Every deployable contract carries `@custom:version X.Y.Z` (semver). Bump rules:
 
 **Cascade**: if a library you depend on bumps MAJOR, evaluate whether consumers are affected and bump them accordingly.
 
+**Tron fork** (`lifinance/contracts-tron`): a contract identical to `main` keeps `main`'s version; one that differs carries `<main-version>-tron`, then `-tron-r2`, `-tron-r3` for further Tron-only revisions on the same baseline. The base always equals the version on `main` the fork last synced, so one version maps to one bytecode.
+
 **GenericErrors.sol** is a shared library — never remove or rename existing errors (selectors are part of the ABI).
 
 ## Blank Lines ([CONV:BLANKLINES])
