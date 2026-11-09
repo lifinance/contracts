@@ -4,6 +4,7 @@
  */
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
+import { parse } from 'dotenv'
 
 export interface IRpcEndpoint {
   url: string
@@ -262,6 +263,41 @@ export function buildEnvLines(
         ...entries,
       ]
     })
+}
+
+const RPC_ENV_VAR = /^ETH_NODE_URI_[A-Z0-9_]+$/
+
+/**
+ * Read the RPC endpoints an env file already assigns, in the shape `buildEnvLines` writes.
+ *
+ * Lets a writer that has only degraded endpoints to offer keep what the file holds instead of
+ * replacing it. Empty assignments are skipped, so a blank placeholder never counts as configured.
+ *
+ * @param envContent - Raw env file content.
+ * @returns Priority-ordered endpoints keyed by primary env var name.
+ */
+export function readEnvEndpoints(
+  envContent: string
+): Record<string, IRpcEndpoint[]> {
+  const values = parse(envContent)
+  const endpointsByEnvVar: Record<string, IRpcEndpoint[]> = {}
+
+  for (const [envVar, primary] of Object.entries(values)) {
+    if (!RPC_ENV_VAR.test(envVar)) continue
+    if (envVar.endsWith(FALLBACKS_ENV_VAR_SUFFIX)) continue
+    if (!primary.trim()) continue
+
+    const fallbacks = (values[`${envVar}${FALLBACKS_ENV_VAR_SUFFIX}`] ?? '')
+      .split(/\s+/)
+      .filter(Boolean)
+    const urls = [primary.trim(), ...fallbacks]
+    endpointsByEnvVar[envVar] = urls.map((url, index) => ({
+      url,
+      priority: urls.length - index,
+    }))
+  }
+
+  return endpointsByEnvVar
 }
 
 /**

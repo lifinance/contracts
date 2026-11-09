@@ -18,6 +18,7 @@ import {
   hostOf,
   lowestPriorityFor,
   normalizeRpcUrlForNetwork,
+  readEnvEndpoints,
   repairOrder,
   selectEndpoints,
   type IRpcEndpoint,
@@ -629,5 +630,49 @@ describe('normalizeRpcUrlForNetwork', () => {
 
   it('returns an unparsable url unchanged rather than throwing', () => {
     expect(normalizeRpcUrlForNetwork('tron', 'not a url')).toBe('not a url')
+  })
+})
+
+describe('readEnvEndpoints', () => {
+  it('reads a primary together with its fallbacks, in order', () => {
+    const endpoints = readEnvEndpoints(
+      [
+        `ETH_NODE_URI_ETHERLINK="${KEYED_DRPC}"`,
+        `ETH_NODE_URI_ETHERLINK_FALLBACKS="${KEYLESS_PROVIDER} ${KEYLESS_PUBLIC}"`,
+      ].join('\n')
+    )
+    expect(
+      endpoints.ETH_NODE_URI_ETHERLINK?.map((endpoint) => endpoint.url)
+    ).toEqual([KEYED_DRPC, KEYLESS_PROVIDER, KEYLESS_PUBLIC])
+    expect(Object.keys(endpoints)).toEqual(['ETH_NODE_URI_ETHERLINK'])
+  })
+
+  it('round-trips what buildEnvLines writes', () => {
+    const content = buildEnvLines({
+      ETH_NODE_URI_ETHERLINK: [
+        { url: KEYED_DRPC, priority: 2 },
+        { url: KEYLESS_PUBLIC, priority: 1 },
+      ],
+      ETH_NODE_URI_FLOW: [{ url: KEYLESS_PROVIDER, priority: 1 }],
+    }).join('\n')
+    expect(buildEnvLines(readEnvEndpoints(content)).join('\n')).toBe(content)
+  })
+
+  it('skips blank placeholders, comments and non-RPC variables', () => {
+    const endpoints = readEnvEndpoints(
+      [
+        'ETH_NODE_URI_FLOW=""',
+        `# ETH_NODE_URI_BASE="${KEYED_DRPC}"`,
+        'PRIVATE_KEY="0xabc"',
+        `ETH_NODE_URI_GNOSIS=${KEYLESS_PUBLIC}`,
+      ].join('\n')
+    )
+    expect(endpoints).toEqual({
+      ETH_NODE_URI_GNOSIS: [{ url: KEYLESS_PUBLIC, priority: 1 }],
+    })
+  })
+
+  it('returns nothing for an empty file', () => {
+    expect(readEnvEndpoints('')).toEqual({})
   })
 })
