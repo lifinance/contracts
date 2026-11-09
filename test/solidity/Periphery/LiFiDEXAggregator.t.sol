@@ -131,11 +131,14 @@ abstract contract LiFiDexAggregatorTest is TestBase {
     }
 
     function setupHyperEVM() internal {
+        // The pinned HyperEVM block is a 2M-gas "small block", too small to
+        // deploy the aggregator, so it is deployed before forking.
+        _initializeDexAggregator(USER_DIAMOND_OWNER);
+        vm.makePersistent(address(liFiDEXAggregator));
+
         customRpcUrlForForking = "ETH_NODE_URI_HYPEREVM";
         customBlockNumberForForking = 4433562;
         fork();
-
-        _initializeDexAggregator(USER_DIAMOND_OWNER);
     }
 
     function setUp() public virtual {
