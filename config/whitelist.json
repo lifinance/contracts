@@ -1417,14 +1417,6 @@
             }
           }
         ],
-        "gravity": [
-          {
-            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
-            "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
-            }
-          }
-        ],
         "mantle": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
@@ -4438,14 +4430,6 @@
             }
           }
         ],
-        "gravity": [
-          {
-            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
-            "functions": {
-              "0x3f0bde25": "IceCreamSwap()"
-            }
-          }
-        ],
         "soneium": [
           {
             "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
@@ -6826,64 +6810,6 @@
           {
             "selector": "0x00a32e6c",
             "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      }
-    ],
-    "gravity": [
-      {
-        "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
           }
         ]
       }

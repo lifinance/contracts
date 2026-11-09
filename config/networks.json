@@ -421,25 +421,6 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
   },
-  "gravity": {
-    "name": "gravity",
-    "chainId": 1625,
-    "nativeAddress": "0x0000000000000000000000000000000000000000",
-    "nativeCurrency": "G",
-    "wrappedNativeAddress": "0xBB859E225ac8Fb6BE1C7e38D87b767e95Fef0EbD",
-    "status": "inactive",
-    "type": "mainnet",
-    "rpcUrl": "https://rpc.ankr.com/gravity",
-    "verificationType": "oklink",
-    "explorerUrl": "https://www.oklink.com/gravity-alpha",
-    "explorerApiUrl": "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY",
-    "multicallAddress": "0xf8ac4BEB2F75d2cFFb588c63251347fdD629B92c",
-    "safeAddress": "0x7F9fc7c740F499E4c79cc4dD1883b3D69025CB42",
-    "gasZipChainId": 240,
-    "isZkEVM": false,
-    "targetEvmVersion": "cancun",
-    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1"
-  },
   "hemi": {
     "name": "hemi",
     "chainId": 43111,

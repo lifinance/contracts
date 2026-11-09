@@ -98,7 +98,6 @@ harmony = "${ETH_NODE_URI_HARMONY}"
 hemi = "${ETH_NODE_URI_HEMI}"
 hyperevm = "${ETH_NODE_URI_HYPEREVM}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
-gravity = "${ETH_NODE_URI_GRAVITY}"
 etherlink = "${ETH_NODE_URI_ETHERLINK}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
 injective = "${ETH_NODE_URI_INJECTIVE}"
@@ -169,7 +168,6 @@ flow = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://evm.flowscan.i
 fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=252", chain = "252" }
 fuse = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.fuse.io/api?", chain = "122" , verifier = "blockscout"}
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
-gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
 hemi = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.hemi.xyz/api", chain = "43111", verifier = "blockscout" }
 hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=999", chain = "999" }
 etherlink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
