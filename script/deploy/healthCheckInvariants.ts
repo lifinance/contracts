@@ -368,7 +368,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'ink',
       'kaia',
       'linea',
-      'lisk',
       'mantle',
       'metis',
       'mode',
