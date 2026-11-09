@@ -360,7 +360,6 @@ export const CORE_FACET_EXEMPTIONS: ICoreFacetExemption[] = [
       'fraxtal',
       'fuse',
       'gnosis',
-      'gravity',
       'hemi',
       'hyperevm',
       'immutablezkevm',

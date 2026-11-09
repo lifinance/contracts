@@ -2498,10 +2498,10 @@ function iterateAllNetworksOriginal() {
     #####  GET ALL NETWORKS #####
 
     local NETWORKS=($(getIncludedNetworksArray)) # to get all included networks
-    # local NETWORKS=("arbitrum" "aurora" "base" "bsc" "cronos" "gravity" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
+    # local NETWORKS=("arbitrum" "aurora" "base" "bsc" "cronos" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
     # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "mainnet" "optimism" "polygon") # <<<<< AllBridgeFacet
     # local NETWORKS=("abstract" "fraxtal" "lisk" "sei" "sophon" "swellchain" "unichain")
-    # local NETWORKS=("base" "arbitrum" "bsc" "katana" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "apechain" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "swellchain")
+    # local NETWORKS=("base" "arbitrum" "bsc" "katana" "etherlink" "plume" "superposition" "cronos" "scroll" "apechain" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "swellchain")
     # local NETWORKS=("plume" "taiko" "xlayer" "zksync")
     # local NETWORKS=("vana" "fraxtal" "sophon")
 

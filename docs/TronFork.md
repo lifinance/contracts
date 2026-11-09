@@ -66,7 +66,7 @@ of the fork rather than an unanswerable question in `main`.
 ### What actually differs in the fork (the delta)
 
 The fork stays close to upstream, but the delta is more than one line:
-**24 files across 7 categories**, deploy logs aside (the fork's `main` diffed
+**23 files across 7 categories**, deploy logs aside (the fork's `main` diffed
 against its merge-base with this repo's `main`, 2026-10-12). Everything here
 is Tron-enablement, CI, test, config or audit — **no product features**.
 
@@ -91,8 +91,7 @@ is Tron-enablement, CI, test, config or audit — **no product features**.
 - **Scripts (4)** — `script/tasks/checkTronOverlays.ts`, its rule engine
   `tronOverlayGuard.ts`, and their unit tests: the machinery behind the
   overlay check.
-- **Agent rules (2)** — `100-solidity-basics.md` documents the `-tron`
-  versioning overlay; `400-solidity-tests.md` uses a Tron test-naming
+- **Agent rules (1)** — `400-solidity-tests.md` uses a Tron test-naming
   example.
 - **Audit (3)** — `auditLog.json` entries for `LibAsset 2.1.3-tron` and
   `WithdrawablePeriphery 1.0.0-tron`, the

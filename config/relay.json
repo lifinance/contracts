@@ -37,13 +37,13 @@
   "cronos": {
     "relayDepository": "0x59916da825d2d2ec1bf878d71c88826f6633ecca"
   },
+  "elysium": {
+    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
+  },
   "flow": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "gnosis": {
-    "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
-  },
-  "gravity": {
     "relayDepository": "0x4cd00e387622c35bddb9b4c962c136462338bc31"
   },
   "hyperevm": {

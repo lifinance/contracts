@@ -588,37 +588,6 @@
       }
     }
   },
-  "gravity": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "2.0.4",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "LayerSwapFacet": "latest",
-        "RelayDepositoryFacet": "latest",
-        "StargateFacetV2": "latest",
-        "ReceiverStargateV2": "latest",
-        "SymbiosisFacet": "latest"
-      }
-    }
-  },
   "hemi": {
     "production": {
       "LiFiDiamond": {
@@ -2274,6 +2243,33 @@
         "LiFiIntentEscrowFacetV2": "latest",
         "ReceiverOIF": "latest",
         "PolymerCCTPFacet": "latest"
+      }
+    }
+  },
+  "elysium": {
+    "production": {
+      "LiFiDiamond": {
+        "AccessManagerFacet": "latest",
+        "CalldataVerificationFacet": "latest",
+        "DiamondCutFacet": "latest",
+        "DiamondLoupeFacet": "latest",
+        "EmergencyPauseFacet": "latest",
+        "GenericSwapFacetV3": "latest",
+        "LiFiIntentEscrowFacetV2": "latest",
+        "LiFiTimelockController": "latest",
+        "OwnershipFacet": "latest",
+        "PeripheryRegistryFacet": "latest",
+        "RelayDepositoryFacet": "latest",
+        "WhitelistManagerFacet": "latest",
+        "WithdrawFacet": "latest",
+        "LiFiDiamond": "latest",
+        "ERC20Proxy": "latest",
+        "Executor": "latest",
+        "FeeForwarder": "latest",
+        "OutputValidator": "latest",
+        "Permit2Proxy": "latest",
+        "TokenWrapper": "latest",
+        "ReceiverOIF": "latest"
       }
     }
   }
