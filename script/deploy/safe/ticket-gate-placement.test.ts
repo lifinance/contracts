@@ -10,38 +10,42 @@
  * Spawns the real entry points, following `facetCompanionReminder.test.ts`.
  */
 
+import { rmSync } from 'fs'
 import { join } from 'path'
 
 import {
+  afterAll,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withholdCredentials } from './spawn-env'
+import {
+  freshChildEnv,
+  sandboxCheckout,
+  withholdCredentials,
+} from './spawn-env'
 
 const REFUSAL = 'No Linear ticket supplied'
 
 /** 20 seconds: long enough to reach the gate, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
 
+// The children load `.env` from their cwd, so run from the checkout they would
+// read the developer's settings (e.g. direct-send mode) back in.
+const SANDBOX_ROOT = sandboxCheckout()
+
+afterAll(() => {
+  rmSync(SANDBOX_ROOT, { recursive: true, force: true })
+})
+
 const run = (
   script: string,
   args: string[],
   ticket?: string
 ): { output: string; refused: boolean } => {
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-  }
-  // `bun test` sets NODE_ENV=test; these children are exercised as CLIs, so they
-  // must not run as if under a test harness.
-  delete env.NODE_ENV
-  // Set empty rather than deleted: the child re-loads the repo env file for
-  // every name this environment leaves unset, so a delete here would hand a
-  // developer's own ticket to the run and decide the cases below for them.
-  env.SAFE_PROPOSAL_TICKET = ''
-  if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
+  const env = freshChildEnv({ SAFE_PROPOSAL_TICKET: ticket ?? '' })
   // One case below asserts a run is NOT refused, which means letting it go on to
   // a branch that sends directly — with a real key that branch signs, and with a
   // real store URI the pass after it proposes.
@@ -50,6 +54,7 @@ const run = (
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],
     {
+      cwd: SANDBOX_ROOT,
       env,
       timeout: TIMEOUT_MS,
       // stdin closed so an interactive prompt cannot hang the suite.

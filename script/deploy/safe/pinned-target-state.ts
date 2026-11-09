@@ -592,22 +592,23 @@ export const PINNED_GIT_TIMEOUT_MS = 60_000
 const execFileAsync = promisify(execFile)
 
 /**
- * The git reads the pinned anchor is taken through, run off the event loop so
- * the signer's network requests are read while git works.
+ * Runs git off the event loop, so the signer's network requests are read while
+ * git works.
  *
  * Output is captured rather than inherited, so a routine miss — a source lookup
  * tries each candidate directory in turn — never prints a raw `fatal:` into the
  * signer's terminal mid-ceremony. The rejection still carries the failure.
  *
- * @param repoRoot - the clone whose `origin` is read and fetched
+ * @param repoRoot - the clone git runs in; defaults to this checkout
  * @param timeoutMs - how long one git call may run before it is killed and fails
- * @returns The git seam every pinned read goes through
+ * @returns A runner taking git's arguments and resolving to its stdout
+ * @throws When git exits non-zero, times out or overflows its buffer
  */
-export const createPinnedStateGit = (
-  repoRoot: string,
+export const createPinnedGitRunner = (
+  repoRoot: string = REPO_ROOT,
   timeoutMs: number = PINNED_GIT_TIMEOUT_MS
-): IPinnedStateGit => {
-  const git = async (args: string[]): Promise<string> => {
+): ((args: string[]) => Promise<string>) => {
+  return async (args: string[]): Promise<string> => {
     const pending = execFileAsync('git', args, {
       cwd: repoRoot,
       encoding: 'utf8',
@@ -617,6 +618,20 @@ export const createPinnedStateGit = (
     pending.child.stdin?.end()
     return (await pending).stdout
   }
+}
+
+/**
+ * The git reads the pinned anchor is taken through.
+ *
+ * @param repoRoot - the clone whose `origin` is read and fetched
+ * @param timeoutMs - how long one git call may run before it is killed and fails
+ * @returns The git seam every pinned read goes through
+ */
+export const createPinnedStateGit = (
+  repoRoot: string,
+  timeoutMs: number = PINNED_GIT_TIMEOUT_MS
+): IPinnedStateGit => {
+  const git = createPinnedGitRunner(repoRoot, timeoutMs)
   return {
     // `get-url` rather than `config remote.origin.url`, because it applies any
     // insteadOf rewrite and so reports where a fetch would actually go.

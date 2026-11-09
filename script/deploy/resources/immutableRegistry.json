@@ -11,17 +11,6 @@
       "authorityBearing": true
     }
   },
-  "AcrossFacet": {
-    "spokePool": {
-      "source": "config",
-      "configData": "_spokePool",
-      "authorityBearing": true
-    },
-    "wrappedNative": {
-      "source": "config",
-      "configData": "_wrappedNativeAddress"
-    }
-  },
   "AcrossFacetPackedV4": {
     "SPOKEPOOL": {
       "source": "config",

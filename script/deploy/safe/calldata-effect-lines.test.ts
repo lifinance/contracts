@@ -42,6 +42,7 @@ import * as selectorRegistry from './selector-registry'
 const FOUR_BYTE: Record<string, string> = {
   '0xdeadbeef': 'CodeIsLawZ95677371()',
   '0x13af4035': 'setOwner(address)',
+  '0x7200b829': 'confirmOwnershipTransfer()',
   [toFunctionSelector('fixtureWhitelistAlpha()')]: 'fixtureWhitelistAlpha()',
   [toFunctionSelector('fixtureWhitelistBeta()')]: 'fixtureWhitelistBeta()',
 }
@@ -442,12 +443,25 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     expect(lines).toContain('CALLDATA COULD NOT BE DECODED')
   })
 
-  it('quotes a name the selector registry resolved rather than vouching for it', async () => {
-    // The registry answers this selector from a 4byte-style collision name, so
-    // the call is named but nothing decodes its body.
+  it('renders a zero-argument 4byte name that hashes to its selector as decoded', async () => {
     const lines = plain(await render('0xdeadbeef')).join('\n')
-    expect(lines).toContain('[0xdeadbeef]')
+    expect(lines).toContain('CodeIsLawZ95677371 [0xdeadbeef]')
+    expect(lines).toContain('no arguments')
+    expect(lines).not.toContain('COULD NOT')
+  })
+
+  it('renders a call that takes no arguments without a failure line', async () => {
+    const lines = plain(await render('0x7200b829')).join('\n')
+    expect(lines).toContain('confirmOwnershipTransfer [0x7200b829]')
+    expect(lines).toContain('no arguments')
+    expect(lines).not.toContain('COULD NOT')
+  })
+
+  it('does not hide a body behind a selector that takes no arguments', async () => {
+    const lines = plain(await render(`0x7200b829${'11'.repeat(32)}`)).join('\n')
+    expect(lines).toContain('confirmOwnershipTransfer [0x7200b829]')
     expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
+    expect(lines).not.toContain('no arguments')
   })
 
   it('reports empty calldata as empty rather than as a failure', async () => {

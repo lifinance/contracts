@@ -749,22 +749,22 @@ describe('priceImmutables', () => {
     // registry label that stops resolving cannot pass the suite.
     const observed = [
       {
-        name: 'spokePool',
+        name: 'SPOKEPOOL',
         value: slot(SPOKE_POOL),
         slotByteCount: 32,
         byteCount: 96,
       },
     ]
     const merged: DeployRequirements = {
-      AcrossFacet: {
-        ...(realRequirements as DeployRequirements).AcrossFacet,
-        immutables: realRegistry.AcrossFacet,
+      AcrossFacetV4: {
+        ...(realRequirements as DeployRequirements).AcrossFacetV4,
+        immutables: realRegistry.AcrossFacetV4,
       },
     }
 
     const result = priceImmutables(
       {
-        contractName: 'AcrossFacet',
+        contractName: 'AcrossFacetV4',
         observed,
         network: 'arbitrum',
         environment: 'production',
