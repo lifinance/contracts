@@ -1880,6 +1880,15 @@
               "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
             }
           }
+        ],
+        "elysium": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
         ]
       }
     },
@@ -4589,6 +4598,14 @@
               "0x3f0bde25": "IceCreamSwap()"
             }
           }
+        ],
+        "elysium": [
+          {
+            "address": "0x6af335771d1ddf7dd1501ecc89e978455fe5c6dd",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
         ]
       }
     },
@@ -6382,6 +6399,54 @@
       {
         "name": "OutputValidator",
         "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
+    "elysium": [
+      {
+        "name": "FeeForwarder",
+        "address": "0x4526C1294A3231e0D921FBB3d086620D69BF1d03",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x9cB69783F3f17A00A6A605358D8f7855efC35F09",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x14B3998dC894e753cEF7C762DC84DC7B767FdDCC",
         "selectors": [
           {
             "selector": "0x27444dab",
