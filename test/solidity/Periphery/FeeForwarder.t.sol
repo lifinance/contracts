@@ -2,8 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../utils/TestBase.sol";
+import { TestToken } from "../utils/TestToken.sol";
+import { MockFeeOnTransferToken } from "../utils/MockTokenFeeOnTransfer.sol";
 import { FeeForwarder } from "lifi/Periphery/FeeForwarder.sol";
-import { InvalidConfig, InvalidReceiver, NullAddrIsNotAnERC20Token, ETHTransferFailed, InsufficientBalance } from "lifi/Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, NullAddrIsNotAnERC20Token, ETHTransferFailed, InsufficientBalance, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 contract FeeForwarderTest is TestBase {
     FeeForwarder private feeForwarder;
@@ -21,6 +23,10 @@ contract FeeForwarderTest is TestBase {
     uint256 internal constant AMOUNT_NATIVE_SMALL = 0.1 ether;
     uint256 internal constant AMOUNT_NATIVE_MEDIUM = 0.5 ether;
     uint256 internal constant AMOUNT_NATIVE_LARGE = 0.8 ether;
+
+    // Fee shares are out of 1e18
+    uint64 internal constant FULL_SHARE = 1e18;
+    uint64 internal constant ONE_BPS = 1e14;
 
     event FeesForwarded(
         address indexed token,
@@ -779,6 +785,474 @@ contract FeeForwarderTest is TestBase {
         ); // 0.5 + 0.1 ether
         assertEq(USER_SENDER.balance, balanceBefore - AMOUNT_NATIVE_SMALL);
         assertEq(address(feeForwarder).balance, 0);
+    }
+
+    function test_ForwardERC20FeesSharesTransfersSharesOfCallerBalance()
+        public
+    {
+        // Arrange - 0.5% and 0.25% of the sender's full 100,000 USDC balance
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](2);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 50 * ONE_BPS
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: 25 * ONE_BPS
+        });
+
+        uint256 expectedFirst = (initialTokenBalance * 50) / 10_000; // 500 USDC
+        uint256 expectedSecond = (initialTokenBalance * 25) / 10_000; // 250 USDC
+
+        FeeForwarder.FeeDistribution[]
+            memory expectedForwarded = new FeeForwarder.FeeDistribution[](2);
+        expectedForwarded[0] = FeeForwarder.FeeDistribution({
+            recipient: USER_RECEIVER,
+            amount: expectedFirst
+        });
+        expectedForwarded[1] = FeeForwarder.FeeDistribution({
+            recipient: USER_REFUND,
+            amount: expectedSecond
+        });
+
+        // Act & Assert
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+
+        vm.expectEmit(true, true, true, true, address(feeForwarder));
+        emit FeesForwarded(address(usdc), expectedForwarded);
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(USER_RECEIVER), expectedFirst);
+        assertEq(usdc.balanceOf(USER_REFUND), expectedSecond);
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            initialTokenBalance - expectedFirst - expectedSecond
+        );
+    }
+
+    function test_ForwardERC20FeesSharesRoundsSharesDown() public {
+        // Arrange - 30 bps of 999 base units is 2.997, so the share is 2
+        deal(address(usdc), USER_SENDER, 999);
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 30 * ONE_BPS
+        });
+
+        // Act
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+
+        // Assert
+        assertEq(usdc.balanceOf(USER_RECEIVER), 2);
+        assertEq(usdc.balanceOf(USER_SENDER), 997);
+    }
+
+    function test_ForwardERC20FeesSharesWithTotalOfFullBalance() public {
+        // Arrange - shares add up to exactly 10_000 bps
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](2);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 6_000 * ONE_BPS
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: 4_000 * ONE_BPS
+        });
+
+        // Act
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+
+        // Assert
+        assertEq(
+            usdc.balanceOf(USER_RECEIVER),
+            (initialTokenBalance * 6_000) / 10_000
+        );
+        assertEq(
+            usdc.balanceOf(USER_REFUND),
+            (initialTokenBalance * 4_000) / 10_000
+        );
+        assertEq(usdc.balanceOf(USER_SENDER), 0);
+    }
+
+    function testRevert_ForwardERC20FeesSharesWithTotalAboveFullBalance()
+        public
+    {
+        // Arrange - one unit past the full share
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](2);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 6_000 * ONE_BPS
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: 4_000 * ONE_BPS + 1
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+
+        // Act & Assert
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                FeeForwarder.InvalidTotalShares.selector,
+                uint256(FULL_SHARE) + 1
+            )
+        );
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+    }
+
+    function test_ForwardERC20FeesSharesSkipsZeroShares() public {
+        // Arrange - 1 bps of 10 base units rounds to 0, and a 0 bps entry is 0 as well
+        deal(address(usdc), USER_SENDER, 10);
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](2);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: ONE_BPS
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: 0
+        });
+
+        FeeForwarder.FeeDistribution[]
+            memory expectedForwarded = new FeeForwarder.FeeDistribution[](2);
+        expectedForwarded[0] = FeeForwarder.FeeDistribution({
+            recipient: USER_RECEIVER,
+            amount: 0
+        });
+        expectedForwarded[1] = FeeForwarder.FeeDistribution({
+            recipient: USER_REFUND,
+            amount: 0
+        });
+
+        // Act & Assert
+        vm.startPrank(USER_SENDER);
+
+        vm.expectCall(
+            address(usdc),
+            abi.encodeWithSelector(usdc.transferFrom.selector),
+            0
+        );
+
+        vm.expectEmit(true, true, true, true, address(feeForwarder));
+        emit FeesForwarded(address(usdc), expectedForwarded);
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(USER_SENDER), 10);
+    }
+
+    function test_ForwardERC20FeesSharesWithEmptyDistributions() public {
+        // Arrange
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](0);
+        FeeForwarder.FeeDistribution[]
+            memory expectedForwarded = new FeeForwarder.FeeDistribution[](0);
+
+        // Act & Assert
+        vm.startPrank(USER_SENDER);
+
+        vm.expectEmit(true, true, true, true, address(feeForwarder));
+        emit FeesForwarded(address(usdc), expectedForwarded);
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(USER_SENDER), initialTokenBalance);
+    }
+
+    function testRevert_ForwardERC20FeesSharesWithZeroRecipient() public {
+        // Arrange
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: address(0),
+            share: 50 * ONE_BPS
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+
+        // Act & Assert
+        vm.expectRevert(InvalidReceiver.selector);
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ForwardERC20FeesSharesWithZeroRecipientAndZeroShare()
+        public
+    {
+        // Arrange - 1 bps of 10 base units rounds to 0, so no transfer would catch it
+        deal(address(usdc), USER_SENDER, 10);
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: address(0),
+            share: ONE_BPS
+        });
+
+        vm.startPrank(USER_SENDER);
+
+        // Act & Assert
+        vm.expectRevert(InvalidReceiver.selector);
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_ForwardERC20FeesSharesWhenNativeTokenProvided()
+        public
+    {
+        // Arrange
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 50 * ONE_BPS
+        });
+
+        // Act & Assert
+        vm.prank(USER_SENDER);
+        // balanceOf on an address without code returns no data, so the revert carries none
+        vm.expectRevert(bytes(""));
+
+        feeForwarder.forwardERC20FeesShares(address(0), distributions);
+    }
+
+    function testRevert_ForwardERC20FeesSharesWithoutAllowance() public {
+        // Arrange
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 50 * ONE_BPS
+        });
+
+        // Act & Assert
+        vm.prank(USER_SENDER);
+        vm.expectRevert(TransferFromFailed.selector);
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+    }
+
+    function testFuzz_ForwardERC20FeesSharesNeverExceedsCallerBalance(
+        uint256 _balance,
+        uint64 _firstShare,
+        uint64 _secondShare
+    ) public {
+        // Arrange
+        _balance = bound(_balance, 0, type(uint128).max);
+        _firstShare = uint64(bound(_firstShare, 0, FULL_SHARE));
+        _secondShare = uint64(
+            bound(_secondShare, 0, FULL_SHARE - _firstShare)
+        );
+
+        TestToken token = new TestToken("Fuzz", "FUZZ", 18);
+        token.mint(USER_SENDER, _balance);
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](2);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: _firstShare
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: _secondShare
+        });
+
+        // Act
+        vm.startPrank(USER_SENDER);
+
+        token.approve(address(feeForwarder), type(uint256).max);
+        feeForwarder.forwardERC20FeesShares(address(token), distributions);
+
+        vm.stopPrank();
+
+        // Assert
+        uint256 first = token.balanceOf(USER_RECEIVER);
+        uint256 second = token.balanceOf(USER_REFUND);
+        assertEq(first, (_balance * _firstShare) / FULL_SHARE);
+        assertEq(second, (_balance * _secondShare) / FULL_SHARE);
+        assertLe(first + second, _balance);
+        assertEq(token.balanceOf(USER_SENDER), _balance - first - second);
+    }
+
+    function test_ForwardERC20FeesSharesChargesFractionalBps() public {
+        // Arrange - 0.3, 1.5 and 12.5 bps of 100 USDC
+        deal(address(usdc), USER_SENDER, 100 * 10 ** usdc.decimals());
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](3);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: (3 * ONE_BPS) / 10
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: (15 * ONE_BPS) / 10
+        });
+        distributions[2] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_PAUSER,
+            share: (125 * ONE_BPS) / 10
+        });
+
+        // Act
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+
+        // Assert
+        assertEq(usdc.balanceOf(USER_RECEIVER), 3_000);
+        assertEq(usdc.balanceOf(USER_REFUND), 15_000);
+        assertEq(usdc.balanceOf(USER_PAUSER), 125_000);
+        assertEq(usdc.balanceOf(USER_SENDER), 100_000_000 - 143_000);
+    }
+
+    function testRevert_ForwardERC20FeesSharesWithTotalAboveFullBalanceAtLastEntry()
+        public
+    {
+        // Arrange - the first two shares fit, the third pushes the total past 1e18
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](3);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 5_000 * ONE_BPS
+        });
+        distributions[1] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_REFUND,
+            share: 4_000 * ONE_BPS
+        });
+        distributions[2] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_PAUSER,
+            share: 1_001 * ONE_BPS
+        });
+
+        uint256 receiverBalanceBefore = usdc.balanceOf(USER_RECEIVER);
+        uint256 refundBalanceBefore = usdc.balanceOf(USER_REFUND);
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(feeForwarder), type(uint256).max);
+
+        // Act & Assert
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                FeeForwarder.InvalidTotalShares.selector,
+                uint256(10_001) * ONE_BPS
+            )
+        );
+
+        feeForwarder.forwardERC20FeesShares(address(usdc), distributions);
+
+        vm.stopPrank();
+
+        // the transfers to the first two recipients were rolled back
+        assertEq(usdc.balanceOf(USER_RECEIVER), receiverBalanceBefore);
+        assertEq(usdc.balanceOf(USER_REFUND), refundBalanceBefore);
+        assertEq(usdc.balanceOf(USER_SENDER), initialTokenBalance);
+    }
+
+    function test_ForwardERC20FeesSharesWithFeeOnTransferToken() public {
+        // Arrange - the token burns 1% of every transfer
+        MockFeeOnTransferToken token = new MockFeeOnTransferToken(
+            "Fee On Transfer",
+            "FOT",
+            18,
+            100
+        );
+        token.mint(USER_SENDER, 1_000_000);
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: 10 * ONE_BPS
+        });
+
+        FeeForwarder.FeeDistribution[]
+            memory expectedForwarded = new FeeForwarder.FeeDistribution[](1);
+        expectedForwarded[0] = FeeForwarder.FeeDistribution({
+            recipient: USER_RECEIVER,
+            amount: 1_000
+        });
+
+        // Act & Assert
+        vm.startPrank(USER_SENDER);
+
+        token.approve(address(feeForwarder), type(uint256).max);
+
+        vm.expectEmit(true, true, true, true, address(feeForwarder));
+        emit FeesForwarded(address(token), expectedForwarded);
+
+        feeForwarder.forwardERC20FeesShares(address(token), distributions);
+
+        vm.stopPrank();
+
+        // the event and the caller's debit carry the computed amount, the recipient gets it net
+        // of the token's own transfer fee
+        assertEq(token.balanceOf(USER_SENDER), 1_000_000 - 1_000);
+        assertEq(token.balanceOf(USER_RECEIVER), 990);
+    }
+
+    function test_ForwardERC20FeesSharesWithMaxBalanceDoesNotOverflow()
+        public
+    {
+        // Arrange - balance * share exceeds uint256 here, the result does not
+        TestToken token = new TestToken("Max", "MAX", 18);
+        token.mint(USER_SENDER, type(uint256).max);
+
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution({
+            recipient: USER_RECEIVER,
+            share: FULL_SHARE / 2
+        });
+
+        // Act
+        vm.startPrank(USER_SENDER);
+
+        token.approve(address(feeForwarder), type(uint256).max);
+        feeForwarder.forwardERC20FeesShares(address(token), distributions);
+
+        vm.stopPrank();
+
+        // Assert
+        assertEq(token.balanceOf(USER_RECEIVER), type(uint256).max / 2);
     }
 }
 

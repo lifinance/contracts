@@ -19,7 +19,7 @@ The native refund is derived from `msg.value` minus the sum of the distributed a
 
 ## How To Use
 
-The contract supports ERC20 and native assets with two dedicated functions.
+The contract supports ERC20 and native assets with three dedicated functions.
 
 ### Forwarding ERC20 Fees
 
@@ -39,6 +39,43 @@ function forwardERC20Fees(
 - Native token addresses (address(0)) will cause the transaction to revert naturally
 - Empty arrays will succeed and emit the FeesForwarded event
 - Zero amounts will succeed but transfer nothing
+
+### Forwarding ERC20 Fees as a Share of the Output
+
+```solidity
+/// @notice Forwards shares of the caller's ERC20 balance to the specified recipients
+/// @param token address of the token being forwarded
+/// @param distributions array of recipients and their shares out of 1e18
+function forwardERC20FeesShares(
+    address token,
+    FeeShareDistribution[] calldata distributions
+)
+```
+
+Used as a swap step right after the swap that produces `token`, so the fee is a share of the actual output instead of a fixed amount computed off-chain from `toAmountMin`.
+
+Each amount is `balanceOf(caller) * share / 1e18`, rounded down. `1e18` is 100% and `1e14` is 1 bps, so a share can express fractional bps such as 0.3 or 12.5 bps. The amount is computed with `FixedPointMathLib.fullMulDiv`, so the multiplication cannot overflow. The balance is read once before the first transfer; whatever the shares leave behind stays with the caller.
+
+**Important Notes:**
+
+- The caller must have approved this contract to spend the tokens
+- Put **all** fees for `token` into a single call. A second call computes its shares from the balance the first one already reduced, so the fees compound
+- The fee base is the caller's full balance of `token`, including any balance it held before the swap (same full-balance pattern as [OutputValidator](OutputValidator.md)). `GenericSwapFacetV3` pays that full balance to the receiver
+- Use it only in `GenericSwapFacetV3`. `SwapperV2` bridge flows credit only the balance increase, so tokens donated to the diamond raise the user's fee and, once the bridged amount drops below `minAmount`, make the route revert. This is not enforced on-chain: the diamond's allowlist cannot tell which facet runs the step, so route builders must reject this selector in bridge routes
+- Reverts with `InvalidTotalShares(totalShares)` once the running total of the shares passes `1e18`; `totalShares` is the running total at that share
+- Reverts with `InvalidReceiver` for a zero-address recipient, whatever its share
+- A share that rounds to zero (or a 0 share entry) is skipped instead of transferred, so tokens that revert on zero-value transfers don't fail the call. The recipient is still listed in the event with amount 0
+- The `FeesForwarded` event carries the computed amounts, in input order
+- With a fee-on-transfer token, the event and the caller's balance reduction carry the computed amount; the recipient receives it net of the token's transfer fee
+- ERC20 only: `address(0)` reverts without error data (the `balanceOf` call has no code to run)
+
+**Using it in `GenericSwapFacetV3`:**
+
+- Make the fee step the last step of the route, so `token` is the route's output. A later step that swaps `token` uses a `fromAmount` fixed off-chain: on a better fill the extra `token` goes to the receiver unswapped as positive slippage, and if the balance net of fees falls below that `fromAmount` the route reverts
+- Set `sendingAssetId` and `receivingAssetId` of the fee step to `token`, so the facet does not refund the step's sending asset as positive slippage
+- Set `requiresDeposit` to `false`: with it set, the facet pulls `fromAmount` from the user
+- Set `fromAmount` to the quoted output of the previous step. It does not affect the fee: the facet renews its max approval to this contract once the allowance drops below `fromAmount`, and reports it as the step's input amount in `AssetSwapped`. The fee step's `AssetSwapped` shows the facet's full balance as `toAmount`; the forwarded amounts are in `FeesForwarded`
+- The facet checks `minAmountOut` against its balance **after** all steps, so pass the amount net of fees
 
 ### Forwarding Native Fees
 
@@ -70,6 +107,15 @@ struct FeeDistribution {
 }
 ```
 
+### FeeShareDistribution Struct
+
+```solidity
+struct FeeShareDistribution {
+  address recipient; // The address that will receive the fee share
+  uint64 share; // The share of the caller's balance, out of 1e18 (1e18 = 100%)
+}
+```
+
 ## Events
 
 ### FeesForwarded
@@ -79,7 +125,7 @@ event FeesForwarded(address indexed token, FeeDistribution[] distributions);
 ```
 
 - **token**: The address of the token that was forwarded (address(0) for native tokens)
-- **distributions**: Array of fee distributions that were processed
+- **distributions**: Array of fee distributions that were processed (for `forwardERC20FeesShares`, the computed amounts)
 
 **Note**: This event is always emitted, even for empty arrays, as it's outside the distribution loop.
 
@@ -88,8 +134,9 @@ event FeesForwarded(address indexed token, FeeDistribution[] distributions);
 The contract uses minimal error checking for gas optimization:
 
 - **InvalidConfig**: Thrown when constructor receives zero address as owner
-- **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset)
+- **InvalidReceiver**: Thrown when distribution recipient is zero address (via LibAsset; checked up front in `forwardERC20FeesShares`)
 - **Natural Failures**: Insufficient balance or approvals will cause natural reverts
+- **InvalidTotalShares(totalShares)**: Thrown by `forwardERC20FeesShares` when the shares add up to more than `1e18`; carries the running total at the first share past the limit
 - **InsufficientBalance(required, balance)**: Thrown by `forwardNativeFees` when the distributions sum to more than `msg.value` **and** the contract's own balance was able to cover the shortfall — the invocation is refusing to spend funds its caller did not provide. Without such a balance the failing transfer reverts first with `ETHTransferFailed`, so under-funding surfaces as one of these two errors depending on whether a stray balance is present
 
 ## Security Considerations
@@ -99,7 +146,8 @@ The contract uses minimal error checking for gas optimization:
 - **Automatic Refunds**: The unspent part of `msg.value` is automatically returned to the caller
 - **Zero Address Protection**: Zero recipient addresses are validated and will revert
 - **Reentrancy**: Native fees are paid out with all gas forwarded, so a recipient can call back into `forwardNativeFees` while the outer call is still running. Re-entry is not blocked; it is made unprofitable. Because each invocation refunds `msg.value` minus its own distributions, a nested call can never be paid from the outer call's undistributed funds or from a stray balance — it reverts with `InsufficientBalance` instead. A `nonReentrant` guard would block the nested call outright, but costs a measured +7,266 gas per call on this contract (a quarter of a single native distribution), because the repo's guard writes a storage slot and Solidity 0.8.17 has no transient storage.
-- **Recipients Are Trusted For Liveness**: A fee recipient cannot take funds it was not allocated, but it can still make the whole call fail — by reverting in its `receive` hook, or by letting a failed nested call bubble up. `LibAsset.transferNativeAsset` has no `try/catch`, so any recipient failure reverts the entire invocation and, with it, the surrounding route. Only include recipients that are trusted not to grief.
+- **Re-entry Into The Diamond**: Every function hands control to the recipients: `forwardNativeFees` sends native value with all gas forwarded, and the ERC20 functions call `transferFrom`, which notifies the recipient on hook tokens (ERC777, ERC1363 and similar). A recipient can therefore re-enter the diamond while the route's output is still in flight, and `GenericSwapFacetV3` does not prevent this: a nested route can spend the diamond's balance of the output asset, and the outer route still succeeds as long as `minAmountOut` is left for the receiver.
+- **Recipients Are Trusted For Funds And Liveness**: Within this contract a recipient cannot take funds it was not allocated, but through re-entry into the diamond a contract recipient paid in native or in a hook token can take up to the route's slippage allowance (output minus `minAmountOut`) plus any stray diamond balance of that asset. It can also make the whole call fail — by reverting in its `receive` hook, or by letting a failed nested call bubble up. `LibAsset.transferNativeAsset` has no `try/catch`, so any recipient failure reverts the entire invocation and, with it, the surrounding route. Only include trusted recipients; until `GenericSwapFacetV3` blocks re-entry, a recipient that is a contract must be a known integrator address.
 
 ## Gas Usage Estimates
 

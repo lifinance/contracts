@@ -61,9 +61,9 @@
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
       },
-      "0xa385254749E33619a3f494490dDC5d413dC2A126": {
+      "0x93C8E204d6913Fc7B80E01CBDB6Eb16D5F9a4ca3": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x6fE64248aecf7a8fC8a11cc63B804Bb75C2BAf04": {
         "Name": "GardenFacet",
@@ -82,7 +82,7 @@
       "ERC20Proxy": "0x0E76008a3C431BC818faF6b76a809bc285896D46",
       "Executor": "0x7cfA0f3A811AEb3aC454F344aacaBA16aaFe828c",
       "FeeCollector": "0x0604811F11863AA7904CF07c27875c80134744c7",
-      "FeeForwarder": "0xEDff4051B8286d2333149429F019dC10E23570da",
+      "FeeForwarder": "0x906A51f3d8dF12B7030D5299D1098dd89fFe830b",
       "GasZipPeriphery": "0xbD21C9E5536a483888c81B59a48797cd0f981086",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0xB479A5FF1b2Bda4D5F13fCAfF0C3Cd6102019F6B",

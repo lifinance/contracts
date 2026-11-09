@@ -1,3 +1,93 @@
+import { existsSync, mkdtempSync, symlinkSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
+
+const REPO_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..'
+)
+
+/**
+ * The lines `.env.example` ships blank for the proposal intent. Every checkout
+ * derived from it carries them, and they are what overwrites a caller's export
+ * when the framework sources the file, so a sandbox without them is the one
+ * shape where that overwrite cannot happen.
+ */
+const ENV_EXAMPLE_BLANKS: readonly string[] = [
+  'SAFE_PROPOSAL_TICKET=',
+  'SAFE_PROPOSAL_REASON=',
+]
+
+/**
+ * The checkout entries a deploy or proposal entry point reads before it
+ * reaches its gates. Symlinked rather than copied, so a sandbox exercises this
+ * checkout's real scripts and config.
+ */
+const CHECKOUT_ENTRIES: readonly string[] = [
+  '.git',
+  'config',
+  'deployments',
+  'foundry.toml',
+  'lib',
+  'node_modules',
+  'package.json',
+  'script',
+  'src',
+  'tsconfig.json',
+]
+
+/**
+ * An environment for a spawned child, built from scratch rather than copied
+ * from the test process, which holds the developer's env file: none of their
+ * settings may decide what the child does.
+ *
+ * @param extra - the names the case sets, applied over the base
+ * @returns `PATH` and `HOME` from this process plus `extra`
+ */
+export const freshChildEnv = (
+  extra: Record<string, string> = {}
+): Record<string, string> => ({
+  PATH: process.env.PATH ?? '',
+  HOME: process.env.HOME ?? '',
+  ...extra,
+})
+
+/**
+ * A working directory of symlinks into this checkout with an env file of its
+ * own, for a child that loads `.env` from its cwd — a bash script sourcing it,
+ * or a TypeScript module importing `dotenv/config`. Building the environment
+ * from scratch does not hold for such a child run from the checkout: it reads
+ * the developer's file back for every name the environment leaves unset.
+ *
+ * The caller removes the directory; `rmSync` removes the links as links and
+ * never follows them into the checkout.
+ *
+ * @param envLines - the env file's lines, written ahead of `.env.example`'s
+ * blank proposal-intent lines
+ * @param links - checkout entries to link in; ones this checkout lacks are skipped
+ * @returns the sandbox root
+ * @throws when the temp directory, a link or the env file cannot be created;
+ * the filesystem error propagates, leaving any partly built sandbox behind
+ */
+export const sandboxCheckout = (
+  envLines: readonly string[] = [],
+  links: readonly string[] = CHECKOUT_ENTRIES
+): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'spawn-sandbox-'))
+  for (const entry of links) {
+    const source = join(REPO_ROOT, entry)
+    if (existsSync(source)) symlinkSync(source, join(dir, entry))
+  }
+  writeFileSync(
+    join(dir, '.env'),
+    `${[...envLines, ...ENV_EXAMPLE_BLANKS].join('\n')}\n`
+  )
+  return dir
+}
+
 /**
  * The credential values handed to children spawned by the placement probes.
  *

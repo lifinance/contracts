@@ -46,15 +46,18 @@ import {
   gradeDelay,
   gradeDelegatecall,
   gradeIdentity,
+  gradeRollback,
   gradeState,
   gradeTargets,
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
+  registrationChangesOf,
   scheduledAtReaderFor,
   stageOf,
   type IAuthorityContext,
   type ICheckOutcome,
+  type TDeployLogHistory,
 } from './timelock-watcher-verdict'
 
 const TIMELOCK: Address = '0x5604A94A3438C3074EFFF803fab14B7244fe4E29'
@@ -984,6 +987,7 @@ describe('buildWatcherCancelInput', () => {
       identity: 'match',
       codehash: { check: 'codehash', status: 'fail', detail: '' },
       authorities: pass('authorities'),
+      rollback: pass('rollback'),
       stage: 'pending',
       signTimeRecordPresent: false,
     })
@@ -992,11 +996,24 @@ describe('buildWatcherCancelInput', () => {
     expect(evaluateCancelDecision(input).action).not.toBe('execute')
   })
 
+  it('carries a rollback into the matrix as an integrity mismatch', () => {
+    const input = buildWatcherCancelInput({
+      identity: 'match',
+      codehash: pass('codehash'),
+      authorities: pass('authorities'),
+      rollback: { check: 'rollback', status: 'fail', detail: '' },
+      stage: 'pending',
+      signTimeRecordPresent: true,
+    })
+    expect(input.integrity).toBe('mismatch')
+  })
+
   it('reports an unreadable leg as an error, not a match', () => {
     const input = buildWatcherCancelInput({
       identity: 'match',
       codehash: pass('codehash'),
       authorities: { check: 'authorities', status: 'unknown', detail: '' },
+      rollback: pass('rollback'),
       stage: undefined,
       signTimeRecordPresent: true,
     })
@@ -1010,6 +1027,7 @@ describe('buildWatcherCancelInput', () => {
       identity: 'match',
       codehash: pass('codehash'),
       authorities: pass('authorities'),
+      rollback: pass('rollback'),
       stage: 'ready',
       signTimeRecordPresent: true,
     })
@@ -1084,6 +1102,217 @@ describe('pendingRegistrationsOf', () => {
       opOf([{ target: DIAMOND, data: register(ZERO_ADDRESS as Address) }]),
     ]
     expect(pendingRegistrationsOf(ops, DIAMOND, known).size).toBe(0)
+  })
+})
+
+describe('gradeRollback', () => {
+  const V1: Address = '0xC18D9E84b8687A2645447A61e52c455Dac1675e1'
+  const V2: Address = '0xCE40449B773a3E6E5e769ADb4e567179d4828cbd'
+  const NEVER_LISTED: Address = '0x0000000000000000000000000000000000005555'
+  const deployments = { LiFiDiamond: DIAMOND, FeeForwarder: V2 }
+  const history: TDeployLogHistory = {
+    ok: true,
+    firstListed: new Map([
+      ['LiFiDiamond', new Map([[DIAMOND.toLowerCase(), 0]])],
+      [
+        'FeeForwarder',
+        new Map([
+          [V1.toLowerCase(), 1],
+          [V2.toLowerCase(), 2],
+        ]),
+      ],
+    ]),
+  }
+  const register = (name: string, address: Address): Hex =>
+    encodeFunctionData({
+      abi: [
+        parseAbiItem(
+          'function registerPeripheryContract(string _name, address _contractAddress)'
+        ),
+      ],
+      args: [name, address],
+    })
+  const unread = async (): Promise<TDeployLogHistory> => {
+    throw new Error('the history must not be read')
+  }
+  const grade = (
+    op: IScannedOperation,
+    options: {
+      read?: () => Promise<TDeployLogHistory>
+      main?: Record<string, unknown>
+      diamond?: string | undefined
+    } = {}
+  ): Promise<ICheckOutcome> =>
+    gradeRollback(
+      registrationChangesOf(
+        op,
+        'diamond' in options ? options.diamond : DIAMOND,
+        options.main ?? deployments
+      ),
+      options.read ?? (async () => history)
+    )
+
+  it('fails a registration rolling FeeForwarder back to an address main listed earlier', async () => {
+    const op = opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    const outcome = await grade(op)
+    expect(outcome.check).toBe('rollback')
+    expect(outcome.status).toBe('fail')
+    expect(outcome.detail).toContain('FeeForwarder')
+    expect(outcome.detail).toContain(V1)
+    expect(outcome.detail).toContain(V2)
+  })
+
+  it('fails a rollback of a name main no longer lists, naming that', async () => {
+    const outcome = await grade(
+      opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }]),
+      { main: { LiFiDiamond: DIAMOND } }
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.detail).toContain('lists none now')
+  })
+
+  it('passes a re-proposal of a rollout main merged and then reverted', async () => {
+    const outcome = await grade(
+      opOf([{ target: DIAMOND, data: register('FeeForwarder', V2) }]),
+      { main: { LiFiDiamond: DIAMOND, FeeForwarder: V1 } }
+    )
+    expect(outcome.status).toBe('pass')
+  })
+
+  it('grades only the registration a name is left with', async () => {
+    const restored = await grade(
+      opOf([
+        { target: DIAMOND, data: register('FeeForwarder', V1) },
+        { target: DIAMOND, data: register('FeeForwarder', V2) },
+      ]),
+      { read: unread }
+    )
+    expect(restored.status).toBe('pass')
+    const rolledBack = await grade(
+      opOf([
+        { target: DIAMOND, data: register('FeeForwarder', NEVER_LISTED) },
+        { target: DIAMOND, data: register('FeeForwarder', V1) },
+      ])
+    )
+    expect(rolledBack.status).toBe('fail')
+    expect(rolledBack.detail).toStartWith('call 1 ')
+  })
+
+  it('makes the operation a mismatch whatever gate K returned', async () => {
+    const rollback = await grade(
+      opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    )
+    for (const codehash of [
+      gradeCodehash({ kind: 'deferred', reason: 'no time left' }),
+      gradeCodehash({ kind: 'error', reason: 'rebuild failed' }),
+      gradeCodehash({
+        kind: 'cached',
+        status: 'unknown',
+        detail: 'v1.0.0 cannot be rebuilt',
+      }),
+    ]) {
+      const checks = allPass().map((c) =>
+        c.check === 'rollback'
+          ? rollback
+          : c.check === 'codehash'
+          ? codehash
+          : c
+      )
+      const result = classifyOperation(checks)
+      expect(result.verdict).toBe('mismatch')
+      expect(result.reasons).toHaveLength(1)
+      expect(result.reasons[0]).toStartWith('rollback: ')
+    }
+  })
+
+  it('passes a registration of an address main never listed for the name', async () => {
+    const op = opOf([
+      { target: DIAMOND, data: register('FeeForwarder', NEVER_LISTED) },
+    ])
+    expect((await grade(op)).status).toBe('pass')
+  })
+
+  it('passes an address main listed only under another name', async () => {
+    const op = opOf([{ target: DIAMOND, data: register('Executor', V1) }])
+    expect((await grade(op)).status).toBe('pass')
+  })
+
+  it('passes the address main lists now, in any case, without reading history', async () => {
+    const op = opOf([
+      {
+        target: DIAMOND,
+        data: register('FeeForwarder', V2.toLowerCase() as Address),
+      },
+    ])
+    expect((await grade(op, { read: unread })).status).toBe('pass')
+  })
+
+  it('leaves an unregister, a nested registration and another target to the other checks', async () => {
+    const nested = encodeFunctionData({
+      abi: parseAbi([
+        'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures)',
+      ]),
+      args: [
+        DIAMOND,
+        0n,
+        register('FeeForwarder', V1),
+        0,
+        0n,
+        0n,
+        0n,
+        ZERO_ADDRESS as Address,
+        ZERO_ADDRESS as Address,
+        '0x',
+      ],
+    })
+    for (const op of [
+      opOf([
+        {
+          target: DIAMOND,
+          data: register('FeeForwarder', ZERO_ADDRESS as Address),
+        },
+      ]),
+      opOf([{ target: SAFE, data: nested }]),
+      opOf([{ target: SAFE, data: register('FeeForwarder', V1) }]),
+    ])
+      expect((await grade(op, { read: unread })).status).toBe('pass')
+  })
+
+  it('is unknown, never pass, when main history could not be read', async () => {
+    const op = opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    const outcome = await grade(op, {
+      read: async () => ({ ok: false, reason: 'the clone is shallow' }),
+    })
+    expect(outcome.status).toBe('unknown')
+    expect(outcome.detail).toContain('the clone is shallow')
+  })
+
+  it("is unknown when main's history does not show its current address", async () => {
+    const outcome = await grade(
+      opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }]),
+      { main: { LiFiDiamond: DIAMOND, FeeForwarder: NEVER_LISTED } }
+    )
+    expect(outcome.status).toBe('unknown')
+    expect(outcome.detail).toContain(NEVER_LISTED)
+  })
+
+  it('is unknown for a registration the decoder cannot open', async () => {
+    const op = opOf([
+      {
+        target: DIAMOND,
+        data: register('FeeForwarder', V1).slice(0, 80) as Hex,
+      },
+    ])
+    const outcome = await grade(op, { read: unread })
+    expect(outcome.status).toBe('unknown')
+    expect(outcome.detail).toContain('does not decode')
+  })
+
+  it('passes an operation that registers nothing, with no diamond known', async () => {
+    const op = opOf([{ target: DIAMOND, data: register('FeeForwarder', V1) }])
+    expect((await grade(op, { diamond: undefined, read: unread })).status).toBe(
+      'pass'
+    )
   })
 })
 

@@ -30,6 +30,8 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
     address internal constant FEE_COLLECTOR =
         0xbD6C7B0d2f68c2b7805d88388319cfB6EcB50eA9;
     address internal constant INTEGRATOR_WALLET = address(0xb33f);
+    // 12.5 bps, out of 1e18
+    uint64 internal constant INTEGRATOR_FEE_SHARE = 0.00125e18;
 
     // -----
 
@@ -119,6 +121,10 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
         genericSwapFacetV3.addAllowedContractSelector(
             address(feeForwarder),
             feeForwarder.forwardNativeFees.selector
+        );
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(feeForwarder),
+            feeForwarder.forwardERC20FeesShares.selector
         );
 
         // set facet address in TestBase
@@ -1424,6 +1430,249 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             usdc.balanceOf(SOME_WALLET),
             receiverBalanceBefore + amountToReceiver
         );
+    }
+
+    // MULTISWAP SWAP TO ERC20 THEN FORWARD A SHARE OF THE OUTPUT (FeeForwarder)
+
+    function _produceSwapDataSwapToERC20AndForwardERC20FeeShare()
+        private
+        view
+        returns (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 integratorFee,
+            uint256 amountToReceiver
+        )
+    {
+        amountIn = 100 * 10 ** dai.decimals();
+
+        // Swap1: DAI to USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_DAI;
+        path[1] = ADDRESS_USDC;
+
+        uint256[] memory amounts = uniswap.getAmountsOut(amountIn, path);
+        uint256 swapOutput = amounts[1];
+
+        swapData = new LibSwap.SwapData[](2);
+        swapData[0] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            ADDRESS_DAI,
+            ADDRESS_USDC,
+            amountIn,
+            abi.encodeWithSelector(
+                uniswap.swapExactTokensForTokens.selector,
+                amountIn,
+                swapOutput,
+                path,
+                address(genericSwapFacetV3),
+                block.timestamp + 20 minutes
+            ),
+            true
+        );
+
+        // Swap2: forward 12.5 bps of the actual USDC output to an integrator
+        FeeForwarder.FeeShareDistribution[]
+            memory distributions = new FeeForwarder.FeeShareDistribution[](1);
+        distributions[0] = FeeForwarder.FeeShareDistribution(
+            INTEGRATOR_WALLET,
+            INTEGRATOR_FEE_SHARE
+        );
+        swapData[1] = LibSwap.SwapData(
+            address(feeForwarder),
+            address(feeForwarder),
+            ADDRESS_USDC,
+            ADDRESS_USDC,
+            swapOutput, // quoted output; the share is computed from the balance
+            abi.encodeWithSelector(
+                feeForwarder.forwardERC20FeesShares.selector,
+                ADDRESS_USDC,
+                distributions
+            ),
+            false
+        );
+
+        integratorFee = (swapOutput * INTEGRATOR_FEE_SHARE) / 1e18;
+        amountToReceiver = swapOutput - integratorFee;
+    }
+
+    function test_CanSwapToERC20ThenForwardShareOfOutputViaFeeForwarder()
+        public
+    {
+        vm.startPrank(DAI_HOLDER);
+
+        dai.approve(address(genericSwapFacetV3), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 integratorFee,
+            uint256 amountToReceiver
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
+
+        uint256 integratorBalanceBefore = usdc.balanceOf(INTEGRATOR_WALLET);
+        uint256 receiverBalanceBefore = usdc.balanceOf(SOME_WALLET);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            ADDRESS_DAI, // fromAssetId,
+            ADDRESS_USDC, // toAssetId,
+            amountIn, // fromAmount,
+            amountToReceiver // toAmount (swap output minus the fee share)
+        );
+
+        // minAmountOut is checked after the fee leg, so it is the net amount
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountToReceiver,
+            swapData
+        );
+
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(INTEGRATOR_WALLET),
+            integratorBalanceBefore + integratorFee
+        );
+        assertEq(
+            usdc.balanceOf(SOME_WALLET),
+            receiverBalanceBefore + amountToReceiver
+        );
+        assertEq(usdc.balanceOf(address(genericSwapFacetV3)), 0);
+    }
+
+    function test_SwapToERC20ThenForwardShareIncludesPreExistingBalance()
+        public
+    {
+        // the facet pays its full balance to the receiver, so a balance it already held is
+        // part of the fee base and of the receiver's payout alike
+        uint256 preExistingBalance = 10 * 10 ** usdc.decimals();
+        deal(ADDRESS_USDC, address(genericSwapFacetV3), preExistingBalance);
+
+        vm.startPrank(DAI_HOLDER);
+
+        dai.approve(address(genericSwapFacetV3), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            ,
+            uint256 integratorFeeOnOutput,
+            uint256 amountToReceiverFromOutput
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
+
+        uint256 swapOutput = integratorFeeOnOutput +
+            amountToReceiverFromOutput;
+        uint256 integratorFee = ((swapOutput + preExistingBalance) *
+            INTEGRATOR_FEE_SHARE) / 1e18;
+        uint256 amountToReceiver = swapOutput +
+            preExistingBalance -
+            integratorFee;
+
+        uint256 integratorBalanceBefore = usdc.balanceOf(INTEGRATOR_WALLET);
+        uint256 receiverBalanceBefore = usdc.balanceOf(SOME_WALLET);
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountToReceiver,
+            swapData
+        );
+
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(INTEGRATOR_WALLET),
+            integratorBalanceBefore + integratorFee
+        );
+        assertEq(
+            usdc.balanceOf(SOME_WALLET),
+            receiverBalanceBefore + amountToReceiver
+        );
+        assertEq(usdc.balanceOf(address(genericSwapFacetV3)), 0);
+    }
+
+    function testRevert_SwapToERC20ThenForwardShareWithGrossMinAmountOut()
+        public
+    {
+        vm.startPrank(DAI_HOLDER);
+
+        dai.approve(address(genericSwapFacetV3), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            ,
+            uint256 integratorFee,
+            uint256 amountToReceiver
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
+
+        uint256 grossMinAmountOut = amountToReceiver + integratorFee;
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                CumulativeSlippageTooHigh.selector,
+                grossMinAmountOut,
+                amountToReceiver
+            )
+        );
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            grossMinAmountOut,
+            swapData
+        );
+
+        vm.stopPrank();
+    }
+
+    function test_FeeShareStepAssetSwappedReportsQuotedInputAndNetBalance()
+        public
+    {
+        vm.startPrank(DAI_HOLDER);
+
+        dai.approve(address(genericSwapFacetV3), 100 * 10 ** dai.decimals());
+
+        (
+            LibSwap.SwapData[] memory swapData,
+            ,
+            ,
+            uint256 amountToReceiver
+        ) = _produceSwapDataSwapToERC20AndForwardERC20FeeShare();
+
+        // fromAmount is the quoted output set off-chain, toAmount the facet's balance after the fee
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit AssetSwapped(
+            bytes32(0),
+            address(feeForwarder),
+            ADDRESS_USDC,
+            ADDRESS_USDC,
+            swapData[1].fromAmount,
+            amountToReceiver,
+            block.timestamp
+        );
+
+        genericSwapFacetV3.swapTokensMultipleV3ERC20ToERC20(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            amountToReceiver,
+            swapData
+        );
+
+        vm.stopPrank();
     }
 
     // MULTISWAP COLLECT NATIVE FEE AND SWAP TO ERC20
