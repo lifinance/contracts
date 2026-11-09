@@ -85,6 +85,10 @@
         "Name": "FraxFacet",
         "Version": "1.0.0"
       },
+      "0x113E97921874646413572F2C43562463c378b6f5": {
+        "Name": "StargateFacetV2",
+        "Version": "1.0.1"
+      },
       "0x1a9eAdc142Fc447FcE6Da00D23B0691c74B8916B": {
         "Name": "PolymerCCTPFacet",
         "Version": "3.1.0"
@@ -96,17 +100,13 @@
       "0x6FC60C42ba4B11f93034d5FEc025Ef1d0c200491": {
         "Name": "GenericSwapFacetV3",
         "Version": "2.0.0"
-      },
-      "0x113E97921874646413572F2C43562463c378b6f5": {
-        "Name": "StargateFacetV2",
-        "Version": "1.0.1"
       }
     },
     "Periphery": {
       "ERC20Proxy": "0x57ec2C57fA654aABAeCc63c8dad47cb6efaCCC24",
       "Executor": "0x2a202Ed587F0BC7dfa80ea1DD943d8470492Dd0F",
       "FeeCollector": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-      "FeeForwarder": "0x72015d314542457cBB6BF14318d82464E4D413ec",
+      "FeeForwarder": "0xd7C2Aa1BfD2Aa089D1a9e2b3ecd7cc0A6b268FcF",
       "GasZipPeriphery": "0x645e8096781d98810226595B3e2411B5CcC4899E",
       "LidoWrapper": "",
       "LiFiDEXAggregator": "0x37A06533fbfad7060D4bA071f0AaF241937DbaC1",

@@ -3,7 +3,9 @@
 # this script is designed to be called by a Github action ("Verify Emergency Pause Readiness")
 # it is the READ-ONLY companion to the break-glass pause script
 # (script/emergency/emergencyPauseBreakGlass.sh): it verifies that the emergency pause CAN fire
-# on every production diamond, WITHOUT firing it.
+# on every production diamond of an active network, WITHOUT firing it. Networks whose
+# config/networks.json status is not "active" are skipped with a notice, although the
+# break-glass script itself still targets them.
 #
 # Checks:
 #   Secret check (offline, fail-fast): the address derived from PRIVATE_KEY_PAUSER_WALLET matches
@@ -19,6 +21,7 @@
 
 
 # load helper functions (also sources script/universalCast.sh)
+# shellcheck source=script/helperFunctions.sh disable=SC1091
 source ./script/helperFunctions.sh
 
 # ---------------------------------------------------------------------------------------
@@ -584,9 +587,14 @@ function main {
   ##### On-chain checks: pauserWallet() + governance, per production diamond
   local NETWORKS=()
   checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
+  local NETWORK
   while IFS= read -r NETWORK; do
+    if ! isNetworkActive "$NETWORK"; then
+      echo "skipping $NETWORK (status is not active in networks.json)"
+      continue
+    fi
     NETWORKS+=("$NETWORK")
-  done < <(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH")
+  done < <(getAllNetworksArray)
 
   echo "Verifying on-chain pauserWallet + governance across ${#NETWORKS[@]} networks (throttled parallel; log may appear interleaved)..."
 
@@ -654,7 +662,7 @@ function main {
   if [[ "$RETURN" -ne 0 ]]; then
     error "Emergency pause readiness check FAILED for one or more networks (see logs above)."
   else
-    success "Emergency pause readiness check passed: secret valid and every production diamond agrees."
+    success "Emergency pause readiness check passed: secret valid and every production diamond on an active network agrees."
   fi
   return "$RETURN"
 }
