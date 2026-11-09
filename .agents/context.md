@@ -27,9 +27,9 @@ are embedded in rule files.
 
 ## Environment & resource access
 
-Run Mongo-backed scripts directly; they load `.env` themselves. Safe scripts need
-the `lifi-connect` tunnel: assume it's up, and if a script reports it down, hand
-that to the human. Never run the browser SSO login, open a prod tunnel, or use
+Run Mongo-backed scripts via their `bun run` package script, without pre-checking
+access; they load `.env` themselves. Safe scripts need the `lifi-connect` tunnel:
+assume it's up, and if a script reports it down, hand that to the human. Never run the browser SSO login, open a prod tunnel, or use
 1Password/`op`. Details: `docs/Setup-agents.md`.
 
 ## SC feature-PR lifecycle
