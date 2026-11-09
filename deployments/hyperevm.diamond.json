@@ -49,9 +49,9 @@
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
       },
-      "0xaB5E50E147d20Ef2DFf2E93fB6b8Fb5723Fe0b81": {
+      "0x65c4cE91c213684112B42CFBF4B5Aff4Db49c4B3": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x4e4C11D9999616A3670820b65e6A7026D3E42Dd7": {
         "Name": "LiFiIntentEscrowFacetV2",

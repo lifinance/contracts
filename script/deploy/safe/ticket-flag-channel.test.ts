@@ -15,21 +15,36 @@
  * whole content of that section, so a script in neither fails the run.
  */
 
-import { readFileSync } from 'fs'
+import { readFileSync, rmSync } from 'fs'
 import { join, relative } from 'path'
 
 import {
+  afterAll,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import {
+  freshChildEnv,
+  sandboxCheckout,
+  withholdCredentials,
+} from './spawn-env'
+
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const SCRIPT_ROOT = join(REPO_ROOT, 'script')
 
 /** 20 seconds: long enough to reach the check, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
+
+// The funnels load `.env` from their cwd, so run from the checkout they would
+// read the developer's settings back in for every name left unset here.
+const SANDBOX_ROOT = sandboxCheckout()
+
+afterAll(() => {
+  rmSync(SANDBOX_ROOT, { recursive: true, force: true })
+})
 
 /**
  * Every funnel that refuses a run at its own entry, with the channels it
@@ -207,39 +222,17 @@ const runRefused = (
   args: string[],
   envTicket?: string
 ): string => {
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-  }
-  // These children are exercised as CLIs, not under a harness.
-  delete env.NODE_ENV
-  env.SAFE_PROPOSAL_TICKET = ''
-  if (envTicket !== undefined) env.SAFE_PROPOSAL_TICKET = envTicket
-  // Set, never deleted: bun loads the repo `.env` inside the child for every
-  // name the passed environment leaves unset, so deleting these hands back a
-  // real production signer key and the real proposal store — on the one funnel
-  // whose next step signs on every production mainnet in turn.
-  //
-  // Malformed rather than merely wrong, so a child that got past the ticket
-  // check dies before it can act: a key viem cannot parse throws where a
-  // valid-but-unfunded one would derive an address and go on to open the
-  // store, and a URI the driver rejects on construction throws where an
-  // unreachable host would first spend 30 s selecting a server.
-  //
-  // This covers only the funnels that sign with a key. The caller passes
-  // `--ledger=false` where a funnel would otherwise reach for a device, which
-  // no environment value can blunt.
-  for (const name of [
-    'PRIVATE_KEY',
-    'PRIVATE_KEY_PRODUCTION',
-    'SAFE_SIGNER_PRIVATE_KEY',
-  ])
-    env[name] = 'blocked-in-tests-not-a-key'
-  for (const name of ['MONGODB_URI', 'SC_MONGODB_URI'])
-    env[name] = 'blocked-in-tests://no-store'
+  const env = freshChildEnv({ SAFE_PROPOSAL_TICKET: envTicket ?? '' })
+  // Malformed stand-ins, so a child that got past the ticket check dies before
+  // it can act. This covers only the funnels that sign with a key. The caller
+  // passes `--ledger=false` where a funnel would otherwise reach for a device,
+  // which no environment value can blunt.
+  withholdCredentials(env)
 
   const result = Bun.spawnSync(
     [process.execPath, join(SCRIPT_ROOT, script), ...args],
     {
+      cwd: SANDBOX_ROOT,
       env,
       timeout: TIMEOUT_MS,
       stdin: 'ignore',
