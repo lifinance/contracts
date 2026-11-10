@@ -11,6 +11,7 @@
   "sortPackageJson": false,
   "ignorePatterns": [
     "*.*",
+    "!*/",
     "!*.ts",
     "!*.js",
     "export/",
@@ -22,8 +23,7 @@
     "typechain/",
     "lib/",
     "templates/",
-    // Type-broken on main before the oxfmt migration (fails tsc); left unformatted so the
-    // validateScripts typecheck of changed files does not flag pre-existing errors.
+    // Fails tsc. Any change to it makes validateScripts typecheck it and fail CI.
     "script/demoScripts/demoChainflip.ts"
   ]
 }
