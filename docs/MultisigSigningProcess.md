@@ -515,7 +515,17 @@ signer sees:
    (`selector-registry.ts`), then one batched `api.4byte.sourcify.dev` lookup
    for the rest, which supplies the full signature instead. A selector none
    of them names reads "no name for this selector". The name is stated, not
-   graded.
+   graded. A call whose arguments decode is re-encoded in the standard ABI
+   layout and compared with its calldata (`unreadBytes`): extra bytes after
+   the arguments add a red `N BYTES AFTER THE ARGUMENTS ARE NOT SHOWN` line
+   with a preview of those bytes, and any other difference (an offset that
+   skips bytes, say) adds a red
+   `ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT — SOME BYTES ARE NOT SHOWN` line
+   with a preview of the calldata. Both show
+   under the call they belong to, including a call nested in a timelock
+   `schedule` / `scheduleBatch`. They are display only and block nothing, and
+   only THE CALLDATA DOES checks this: `formatDecodedTxDataForDisplay` does
+   not.
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present, and the
