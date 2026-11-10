@@ -8,7 +8,7 @@ import { stdJson } from "forge-std/Script.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GenericSwapFacetV3") {}
+    constructor() DeployScriptBase("GenericSwapFacetV3") { }
 
     function run()
         public
@@ -27,9 +27,8 @@ contract DeployScript is DeployScriptBase {
         string memory json = vm.readFile(path);
 
         // extract network's native address
-        address nativeAddress = json.readAddress(
-            string.concat(".", network, ".nativeAddress")
-        );
+        address nativeAddress =
+            json.readAddress(string.concat(".", network, ".nativeAddress"));
 
         return abi.encode(nativeAddress);
     }

@@ -28,15 +28,11 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/polymercctp.json");
         json = vm.readFile(path);
         bytes memory rawMappings = json.parseRaw(".mappings");
-        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
-            rawMappings,
-            (PolymerCCTPFacet.ChainIdConfig[])
-        );
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            abi.decode(rawMappings, (PolymerCCTPFacet.ChainIdConfig[]));
 
-        return
-            abi.encodeWithSelector(
-                PolymerCCTPFacet.initPolymerCCTP.selector,
-                chainIdConfigs
-            );
+        return abi.encodeWithSelector(
+            PolymerCCTPFacet.initPolymerCCTP.selector, chainIdConfigs
+        );
     }
 }

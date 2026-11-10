@@ -3,18 +3,22 @@ pragma solidity ^0.8.17;
 
 import { LibSwap } from "../utils/TestBase.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
+import {
+    CelerCircleBridgeFacet
+} from "lifi/Facets/CelerCircleBridgeFacet.sol";
 import { ICircleBridgeProxy } from "lifi/Interfaces/ICircleBridgeProxy.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { InvalidCallData, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Extended interface to query fees from CircleBridgeProxy
 interface ICircleBridgeProxyWithFee is ICircleBridgeProxy {
-    function totalFee(
-        uint256 _amount,
-        uint64 _dstChid
-    ) external view returns (uint256 _fee, uint256 _txFee, uint256 _percFee);
+    function totalFee(uint256 _amount, uint64 _dstChid)
+        external
+        view
+        returns (uint256 _fee, uint256 _txFee, uint256 _percFee);
 }
 
 // Mock DEX contract for testing swaps
@@ -39,10 +43,9 @@ contract TestCelerCircleBridgeFacet is
     CelerCircleBridgeFacet,
     TestWhitelistManagerBase
 {
-    constructor(
-        ICircleBridgeProxy _circleBridgeProxy,
-        address _usdc
-    ) CelerCircleBridgeFacet(_circleBridgeProxy, _usdc) {}
+    constructor(ICircleBridgeProxy _circleBridgeProxy, address _usdc)
+        CelerCircleBridgeFacet(_circleBridgeProxy, _usdc)
+    { }
 }
 
 contract CelerCircleBridgeFacetTest is TestBaseFacet {
@@ -68,23 +71,19 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         defaultUSDCAmount = 100001; // base amount to bridge
 
         celerCircleBridgeFacet = new TestCelerCircleBridgeFacet(
-            ICircleBridgeProxy(CELER_CIRCLE_BRIDGE),
-            ADDRESS_USDC
+            ICircleBridgeProxy(CELER_CIRCLE_BRIDGE), ADDRESS_USDC
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = celerCircleBridgeFacet
-            .startBridgeTokensViaCelerCircleBridge
+        functionSelectors[0] =
+        celerCircleBridgeFacet.startBridgeTokensViaCelerCircleBridge.selector;
+        functionSelectors[1] =
+        celerCircleBridgeFacet.swapAndStartBridgeTokensViaCelerCircleBridge
             .selector;
-        functionSelectors[1] = celerCircleBridgeFacet
-            .swapAndStartBridgeTokensViaCelerCircleBridge
-            .selector;
-        functionSelectors[2] = celerCircleBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = celerCircleBridgeFacet
-            .initCelerCircleBridge
-            .selector;
+        functionSelectors[2] =
+        celerCircleBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        celerCircleBridgeFacet.initCelerCircleBridge.selector;
 
         addFacet(diamond, address(celerCircleBridgeFacet), functionSelectors);
 
@@ -96,10 +95,8 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
         // Check if diamond now has max allowance in USDC to CIRCLE_BRIDGE_PROXY
         assertEq(
-            IERC20(ADDRESS_USDC).allowance(
-                address(diamond),
-                CELER_CIRCLE_BRIDGE
-            ),
+            IERC20(ADDRESS_USDC)
+                .allowance(address(diamond), CELER_CIRCLE_BRIDGE),
             type(uint256).max,
             "diamond USDC allowance to CIRCLE_BRIDGE_PROXY should be max"
         );
@@ -109,13 +106,11 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
         // Whitelist mock DEX swap function selector for swaps
         celerCircleBridgeFacet.addAllowedContractSelector(
-            address(mockDEX),
-            MockOpenOcean.swap.selector
+            address(mockDEX), MockOpenOcean.swap.selector
         );
 
         setFacetAddressInTestBase(
-            address(celerCircleBridgeFacet),
-            "CelerCircleBridgeFacet"
+            address(celerCircleBridgeFacet), "CelerCircleBridgeFacet"
         );
 
         bridgeData.bridge = "circle";
@@ -130,24 +125,21 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         // For simplicity in tests, we'll use an estimated amount that should cover fees
         // In production, the facet should query the bridge's totalFee function
         uint256 bridgeAmount = defaultUSDCAmount;
-        ICircleBridgeProxyWithFee bridgeWithFee = ICircleBridgeProxyWithFee(
-            CELER_CIRCLE_BRIDGE
-        );
+        ICircleBridgeProxyWithFee bridgeWithFee =
+            ICircleBridgeProxyWithFee(CELER_CIRCLE_BRIDGE);
 
         // Estimate total amount needed by querying fee with a reasonable estimate
         // Start with bridgeAmount + 10% buffer for fees
         uint256 estimatedTotal = bridgeAmount + ((bridgeAmount * 10) / 100);
-        (uint256 fee, , ) = bridgeWithFee.totalFee(
-            estimatedTotal,
-            uint64(bridgeData.destinationChainId)
+        (uint256 fee,,) = bridgeWithFee.totalFee(
+            estimatedTotal, uint64(bridgeData.destinationChainId)
         );
 
         // Calculate actual total needed: total = bridgeAmount + fee
         // But fee depends on total, so iterate if needed
         uint256 totalAmount = bridgeAmount + fee;
-        (fee, , ) = bridgeWithFee.totalFee(
-            totalAmount,
-            uint64(bridgeData.destinationChainId)
+        (fee,,) = bridgeWithFee.totalFee(
+            totalAmount, uint64(bridgeData.destinationChainId)
         );
         totalAmount = bridgeAmount + fee;
 
@@ -157,32 +149,29 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         bridgeData.minAmount = totalAmount;
 
         celerCircleBridgeData = CelerCircleBridgeFacet.CelerCircleData({
-            maxFee: 500,
-            minFinalityThreshold: 2000
+            maxFee: 500, minFinalityThreshold: 2000
         });
     }
 
     function initiateBridgeTxWithFacet(bool) internal override {
         celerCircleBridgeFacet.startBridgeTokensViaCelerCircleBridge(
-            bridgeData,
-            celerCircleBridgeData
+            bridgeData, celerCircleBridgeData
         );
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
-            celerCircleBridgeFacet
-                .swapAndStartBridgeTokensViaCelerCircleBridge{
+            celerCircleBridgeFacet.swapAndStartBridgeTokensViaCelerCircleBridge{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, celerCircleBridgeData);
+            }(
+                bridgeData, swapData, celerCircleBridgeData
+            );
         } else {
-            celerCircleBridgeFacet
-                .swapAndStartBridgeTokensViaCelerCircleBridge(
-                    bridgeData,
-                    swapData,
-                    celerCircleBridgeData
+            celerCircleBridgeFacet.swapAndStartBridgeTokensViaCelerCircleBridge(
+                    bridgeData, swapData, celerCircleBridgeData
                 );
         }
     }
@@ -225,9 +214,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
         public
         override
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(bridgeData.minAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(bridgeData.minAmount)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -258,22 +245,19 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
 
         // Calculate total amount needed (bridge amount + fees)
         uint256 bridgeAmount = amount;
-        ICircleBridgeProxyWithFee bridgeWithFee = ICircleBridgeProxyWithFee(
-            CELER_CIRCLE_BRIDGE
-        );
+        ICircleBridgeProxyWithFee bridgeWithFee =
+            ICircleBridgeProxyWithFee(CELER_CIRCLE_BRIDGE);
 
         // Estimate total amount needed by querying fee
         uint256 estimatedTotal = bridgeAmount + ((bridgeAmount * 10) / 100);
-        (uint256 fee, , ) = bridgeWithFee.totalFee(
-            estimatedTotal,
-            uint64(bridgeData.destinationChainId)
+        (uint256 fee,,) = bridgeWithFee.totalFee(
+            estimatedTotal, uint64(bridgeData.destinationChainId)
         );
 
         // Calculate actual total needed: total = bridgeAmount + fee
         uint256 totalAmount = bridgeAmount + fee;
-        (fee, , ) = bridgeWithFee.totalFee(
-            totalAmount,
-            uint64(bridgeData.destinationChainId)
+        (fee,,) = bridgeWithFee.totalFee(
+            totalAmount, uint64(bridgeData.destinationChainId)
         );
         totalAmount = bridgeAmount + fee;
 
@@ -343,9 +327,7 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
             "DAI balance should decrease by swap amount"
         );
         assertEq(
-            dai.balanceOf(USER_RECEIVER),
-            0,
-            "DAI receiver balance should be 0"
+            dai.balanceOf(USER_RECEIVER), 0, "DAI receiver balance should be 0"
         );
         assertEq(
             usdc.balanceOf(USER_SENDER),
@@ -390,24 +372,21 @@ contract CelerCircleBridgeFacetTest is TestBaseFacet {
     function testRevert_ConstructorWithZeroCircleBridgeProxy() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestCelerCircleBridgeFacet(
-            ICircleBridgeProxy(address(0)),
-            ADDRESS_USDC
+            ICircleBridgeProxy(address(0)), ADDRESS_USDC
         );
     }
 
     function testRevert_ConstructorWithZeroUSDC() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestCelerCircleBridgeFacet(
-            ICircleBridgeProxy(CELER_CIRCLE_BRIDGE),
-            address(0)
+            ICircleBridgeProxy(CELER_CIRCLE_BRIDGE), address(0)
         );
     }
 
     function testRevert_ConstructorWithBothZeroAddresses() public {
         vm.expectRevert(InvalidConfig.selector);
         new TestCelerCircleBridgeFacet(
-            ICircleBridgeProxy(address(0)),
-            address(0)
+            ICircleBridgeProxy(address(0)), address(0)
         );
     }
 }

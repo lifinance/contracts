@@ -8,7 +8,7 @@ import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ERC20Proxy") {}
+    constructor() DeployScriptBase("ERC20Proxy") { }
 
     function run()
         public
@@ -20,35 +20,26 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
-        string memory executorDeploySalt = vm.envOr(
-            "EXECUTOR_DEPLOYSALT",
-            string("")
-        );
+        string memory executorDeploySalt =
+            vm.envOr("EXECUTOR_DEPLOYSALT", string(""));
         address predictedExecutor = address(0);
         if (bytes(executorDeploySalt).length != 0) {
             predictedExecutor = _getPredictedAddressFromDeploySalt(
-                executorDeploySalt,
-                "Executor"
+                executorDeploySalt, "Executor"
             );
             emit log_named_address(
-                "LI.FI: Predicted Executor Address: ",
-                predictedExecutor
+                "LI.FI: Predicted Executor Address: ", predictedExecutor
             );
         } else {
-            emit log(
-                "LI.FI: EXECUTOR_DEPLOYSALT unset - skipping Executor pre-authorization"
-            );
+            emit log("LI.FI: EXECUTOR_DEPLOYSALT unset - skipping Executor pre-authorization");
         }
 
         return abi.encode(refundWalletAddress, predictedExecutor);

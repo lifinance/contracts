@@ -4,16 +4,21 @@ pragma solidity ^0.8.17;
 import { ChainflipFacet } from "lifi/Facets/ChainflipFacet.sol";
 import { IChainflipVault } from "lifi/Interfaces/IChainflip.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InformationMismatch, CannotBridgeToSameNetwork } from "lifi/Errors/GenericErrors.sol";
+import {
+    InformationMismatch,
+    CannotBridgeToSameNetwork
+} from "lifi/Errors/GenericErrors.sol";
 import { InvalidConfig, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ChainflipFacet Contract
 contract TestChainflipFacet is ChainflipFacet, TestWhitelistManagerBase {
-    constructor(
-        address _chainflipVault
-    ) ChainflipFacet(IChainflipVault(_chainflipVault)) {}
+    constructor(address _chainflipVault)
+        ChainflipFacet(IChainflipVault(_chainflipVault))
+    { }
 }
 
 contract ChainflipFacetTest is TestBaseFacet {
@@ -33,36 +38,29 @@ contract ChainflipFacetTest is TestBaseFacet {
 
         // Read chainflip vault address from config using the new helper
         chainflipVault = getConfigAddressFromPath(
-            "chainflip.json",
-            ".chainflipVault.mainnet"
+            "chainflip.json", ".chainflipVault.mainnet"
         );
         vm.label(chainflipVault, "Chainflip Vault");
 
         chainflipFacet = new TestChainflipFacet(chainflipVault);
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = chainflipFacet
-            .startBridgeTokensViaChainflip
-            .selector;
-        functionSelectors[1] = chainflipFacet
-            .swapAndStartBridgeTokensViaChainflip
-            .selector;
-        functionSelectors[2] = chainflipFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        chainflipFacet.startBridgeTokensViaChainflip.selector;
+        functionSelectors[1] =
+        chainflipFacet.swapAndStartBridgeTokensViaChainflip.selector;
+        functionSelectors[2] =
+        chainflipFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(chainflipFacet), functionSelectors);
         chainflipFacet = TestChainflipFacet(address(diamond));
         chainflipFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         chainflipFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         chainflipFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(chainflipFacet), "ChainflipFacet");
@@ -84,27 +82,29 @@ contract ChainflipFacetTest is TestBaseFacet {
         if (isNative) {
             chainflipFacet.startBridgeTokensViaChainflip{
                 value: bridgeData.minAmount
-            }(bridgeData, validChainflipData);
+            }(
+                bridgeData, validChainflipData
+            );
         } else {
             chainflipFacet.startBridgeTokensViaChainflip(
-                bridgeData,
-                validChainflipData
+                bridgeData, validChainflipData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             chainflipFacet.swapAndStartBridgeTokensViaChainflip{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validChainflipData);
+            }(
+                bridgeData, swapData, validChainflipData
+            );
         } else {
             chainflipFacet.swapAndStartBridgeTokensViaChainflip(
-                bridgeData,
-                swapData,
-                validChainflipData
+                bridgeData, swapData, validChainflipData
             );
         }
     }
@@ -112,17 +112,14 @@ contract ChainflipFacetTest is TestBaseFacet {
     function test_CanBridgeTokensToSolana()
         public
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
     {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes(
-            "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
-        );
+        validChainflipData.nonEVMReceiver =
+            bytes("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb");
 
         vm.startPrank(USER_SENDER);
 
@@ -140,18 +137,15 @@ contract ChainflipFacetTest is TestBaseFacet {
     function test_CanBridgeTokensToBitcoin()
         public
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
     {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes(
-            "bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a"
-        );
+        validChainflipData.nonEVMReceiver =
+            bytes("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a");
 
         vm.startPrank(USER_SENDER);
 
@@ -169,9 +163,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     function test_CanBridgeTokensToEthereum()
         public
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -216,9 +208,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     function test_CanBridgeNativeTokensWithDestinationCall()
         public
         assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256(defaultNativeAmount)
+            address(0), USER_SENDER, -int256(defaultNativeAmount)
         )
     {
         delete dstSwapData;
@@ -257,9 +247,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     function test_CanBridgeNativeTokensWithoutDestinationCall()
         public
         assertBalanceChange(
-            address(0),
-            USER_SENDER,
-            -int256(defaultNativeAmount)
+            address(0), USER_SENDER, -int256(defaultNativeAmount)
         )
     {
         bridgeData.destinationChainId = CHAIN_ID_ARBITRUM;
@@ -400,17 +388,15 @@ contract ChainflipFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = CHAIN_ID_SOLANA;
         bridgeData.receiver = NON_EVM_ADDRESS;
-        validChainflipData.nonEVMReceiver = bytes(
-            "EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb"
-        );
+        validChainflipData.nonEVMReceiver =
+            bytes("EoW7FWTdPdZKpd3WAhH98c2HMGHsdh5yhzzEtk1u68Bb");
         initiateBridgeTxWithFacet(false);
 
         // Test Bitcoin mapping
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = CHAIN_ID_BITCOIN;
-        validChainflipData.nonEVMReceiver = bytes(
-            "bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a"
-        );
+        validChainflipData.nonEVMReceiver =
+            bytes("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a");
         initiateBridgeTxWithFacet(false);
 
         // Test invalid chain ID
@@ -442,9 +428,7 @@ contract ChainflipFacetTest is TestBaseFacet {
     function test_CanBridgeTokensWithDestinationCall()
         public
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -493,9 +477,8 @@ contract ChainflipFacetTest is TestBaseFacet {
         bridgeData.receiver = USER_RECEIVER; // Use EVM address
         bridgeData.destinationChainId = CHAIN_ID_ETHEREUM;
         validChainflipData.dstToken = 6;
-        validChainflipData.nonEVMReceiver = bytes(
-            "bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a"
-        );
+        validChainflipData.nonEVMReceiver =
+            bytes("bc1q6l08rtj6j907r2een0jqs6l7qnruwyxfshmf8a");
 
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);

@@ -19,9 +19,7 @@ interface IHTLC {
     /// @return secretHash Hash of the secret
     /// @return completed Whether the order has been completed
     /// @return refunded Whether the order has been refunded
-    function orders(
-        bytes32 orderID
-    )
+    function orders(bytes32 orderID)
         external
         view
         returns (

@@ -8,7 +8,7 @@ import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("AllBridgeFacet") {}
+    constructor() DeployScriptBase("AllBridgeFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/allbridge.json");
 
         address allBridge = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".allBridge")
+            path, string.concat(".", network, ".allBridge")
         );
 
         return abi.encode(allBridge);

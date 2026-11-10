@@ -8,7 +8,7 @@ import { PolymerCCTPFacet } from "lifi/Facets/PolymerCCTPFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("PolymerCCTPFacet") {}
+    constructor() DeployScriptBase("PolymerCCTPFacet") { }
 
     function run()
         public
@@ -16,22 +16,19 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = PolymerCCTPFacet(
-            deploy(type(PolymerCCTPFacet).creationCode)
-        );
+        deployed =
+            PolymerCCTPFacet(deploy(type(PolymerCCTPFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/polymercctp.json");
 
         address tokenMessenger = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".tokenMessengerV2")
+            path, string.concat(".", network, ".tokenMessengerV2")
         );
 
         address usdc = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".usdc")
+            path, string.concat(".", network, ".usdc")
         );
 
         // polymerFeeReceiver is an EOA

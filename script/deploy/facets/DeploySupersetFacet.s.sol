@@ -8,7 +8,7 @@ import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("SupersetFacet") {}
+    constructor() DeployScriptBase("SupersetFacet") { }
 
     function run()
         public
@@ -20,13 +20,10 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory supersetPath = string.concat(
-            root,
-            "/config/superset.json"
-        );
+        string memory supersetPath =
+            string.concat(root, "/config/superset.json");
         address poolManager = _getConfigContractAddress(
-            supersetPath,
-            string.concat(".poolManager.", network)
+            supersetPath, string.concat(".poolManager.", network)
         );
 
         return abi.encode(poolManager);

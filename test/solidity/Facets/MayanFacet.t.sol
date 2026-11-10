@@ -7,13 +7,21 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { IMayan } from "lifi/Interfaces/IMayan.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidAmount, InvalidSendingToken } from "src/Errors/GenericErrors.sol";
+import {
+    InvalidCallData,
+    InvalidConfig,
+    InvalidNonEVMReceiver,
+    InvalidAmount,
+    InvalidSendingToken
+} from "src/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub MayanFacet Contract
 contract TestMayanFacet is MayanFacet, TestWhitelistManagerBase {
-    constructor(IMayan _bridge) MayanFacet(_bridge) {}
+    constructor(IMayan _bridge) MayanFacet(_bridge) { }
 }
 
 /// @notice Mirrors Mayan Swift v2 encoders for `abi.encodeCall` fixtures (no on-chain deployment).
@@ -64,19 +72,23 @@ interface ISwiftV2Encode {
 /// @notice This contract exposes _parseReceiver, _parseHypercoreReceiver and
 ///         _replaceInputAmount for testing purposes.
 contract TestMayanFacetExposed is MayanFacet {
-    constructor(IMayan _mayan) MayanFacet(_mayan) {}
+    constructor(IMayan _mayan) MayanFacet(_mayan) { }
 
     /// @dev Exposes the internal _parseReceiver function on the non-HyperCore (destAddr) path.
-    function testParseReceiver(
-        bytes memory protocolData
-    ) public pure returns (bytes32) {
+    function testParseReceiver(bytes memory protocolData)
+        public
+        pure
+        returns (bytes32)
+    {
         return _parseReceiver(protocolData, 0);
     }
 
     /// @dev Exposes the internal _parseHypercoreReceiver function.
-    function testParseHypercoreReceiver(
-        bytes memory protocolData
-    ) public pure returns (bytes32) {
+    function testParseHypercoreReceiver(bytes memory protocolData)
+        public
+        pure
+        returns (bytes32)
+    {
         return _parseHypercoreReceiver(protocolData);
     }
 
@@ -211,32 +223,25 @@ contract MayanFacetTest is TestBaseFacet {
     function setupMayan() internal {
         mayanBridgeFacet = new TestMayanFacet(MAYAN_FORWARDER);
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = mayanBridgeFacet
-            .startBridgeTokensViaMayan
-            .selector;
-        functionSelectors[1] = mayanBridgeFacet
-            .swapAndStartBridgeTokensViaMayan
-            .selector;
-        functionSelectors[2] = mayanBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = mayanBridgeFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        mayanBridgeFacet.startBridgeTokensViaMayan.selector;
+        functionSelectors[1] =
+        mayanBridgeFacet.swapAndStartBridgeTokensViaMayan.selector;
+        functionSelectors[2] =
+        mayanBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        mayanBridgeFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(mayanBridgeFacet), functionSelectors);
         mayanBridgeFacet = TestMayanFacet(address(diamond));
         mayanBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         mayanBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         mayanBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(mayanBridgeFacet), "MayanFacet");
@@ -246,18 +251,20 @@ contract MayanFacetTest is TestBaseFacet {
         if (isNative) {
             mayanBridgeFacet.startBridgeTokensViaMayan{
                 value: bridgeData.minAmount
-            }(bridgeData, validMayanDataNative);
+            }(
+                bridgeData, validMayanDataNative
+            );
         } else {
             mayanBridgeFacet.startBridgeTokensViaMayan(
-                bridgeData,
-                validMayanData
+                bridgeData, validMayanData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (LibAsset.isNativeAsset(bridgeData.sendingAssetId)) {
             validMayanData = validMayanDataNative;
         }
@@ -265,12 +272,12 @@ contract MayanFacetTest is TestBaseFacet {
         if (isNative) {
             mayanBridgeFacet.swapAndStartBridgeTokensViaMayan{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validMayanData);
+            }(
+                bridgeData, swapData, validMayanData
+            );
         } else {
             mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
-                bridgeData,
-                swapData,
-                validMayanData
+                bridgeData, swapData, validMayanData
             );
         }
     }
@@ -428,8 +435,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         // check balances after call
         assertEq(
-            USER_SENDER.balance,
-            initialETHBalance - swapData[0].fromAmount
+            USER_SENDER.balance, initialETHBalance - swapData[0].fromAmount
         );
     }
 
@@ -439,10 +445,10 @@ contract MayanFacetTest is TestBaseFacet {
         // Mayan pulls. The base test varies minAmount (amount * usdc.decimals) against a fixed
         // fixture, so rewrite the encoded amount to match before delegating.
         validMayanData.protocolData = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        ).testReplaceInputAmount(
-                validMayanData.protocolData,
-                amount * 10 ** usdc.decimals()
+                IMayan(MAYAN_FORWARDER)
+            )
+            .testReplaceInputAmount(
+                validMayanData.protocolData, amount * 10 ** usdc.decimals()
             );
 
         super.testBase_CanBridgeTokens_fuzzed(amount);
@@ -455,9 +461,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, type(uint256).max);
 
-        vm.expectRevert(
-            abi.encodeWithSelector(InvalidNonEVMReceiver.selector)
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidNonEVMReceiver.selector));
 
         mayanBridgeFacet.startBridgeTokensViaMayan(bridgeData, validMayanData);
 
@@ -485,9 +489,7 @@ contract MayanFacetTest is TestBaseFacet {
         deal(ADDRESS_USDC, DEV_WALLET, 100_000 * 10 ** usdc.decimals());
         deal(ADDRESS_DAI, DEV_WALLET, 100_000 * 10 ** dai.decimals());
         deal(
-            ADDRESS_WRAPPED_NATIVE,
-            DEV_WALLET,
-            100_000 * 10 ** weth.decimals()
+            ADDRESS_WRAPPED_NATIVE, DEV_WALLET, 100_000 * 10 ** weth.decimals()
         );
 
         // fund USER_SENDER with 1000 ether
@@ -621,14 +623,12 @@ contract MayanFacetTest is TestBaseFacet {
         vm.expectEmit(false, false, false, false, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
         mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
-            bridgeData,
-            data
+            bridgeData, data
         );
         vm.stopPrank();
 
-        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
-            address(MAYAN_FORWARDER)
-        );
+        MockMayanSwapForwarder forwarder =
+            MockMayanSwapForwarder(address(MAYAN_FORWARDER));
         assertEq(
             forwarder.lastValue(),
             1 ether,
@@ -700,15 +700,12 @@ contract MayanFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
-            bridgeData,
-            swapData,
-            data
+            bridgeData, swapData, data
         );
         vm.stopPrank();
 
-        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
-            address(MAYAN_FORWARDER)
-        );
+        MockMayanSwapForwarder forwarder =
+            MockMayanSwapForwarder(address(MAYAN_FORWARDER));
         // The exact-out source swap yields 1 ETH == mayanAmountIn, so the raw committed amount is
         // forwarded to swapAndForwardEth (native swap input is bound to swapData, never normalized).
         assertEq(
@@ -810,15 +807,12 @@ contract MayanFacetTest is TestBaseFacet {
         uint256 refundBalanceBefore = refundRecipient.balance;
 
         mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
-            bridgeData,
-            swapData,
-            data
+            bridgeData, swapData, data
         );
         vm.stopPrank();
 
-        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
-            address(MAYAN_FORWARDER)
-        );
+        MockMayanSwapForwarder forwarder =
+            MockMayanSwapForwarder(address(MAYAN_FORWARDER));
 
         assertEq(
             forwarder.lastValue(),
@@ -857,9 +851,7 @@ contract MayanFacetTest is TestBaseFacet {
         uint256 refundBalanceBefore = usdc.balanceOf(refundRecipient);
 
         mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
-            bridgeData,
-            swapData,
-            data
+            bridgeData, swapData, data
         );
         vm.stopPrank();
 
@@ -908,14 +900,11 @@ contract MayanFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(
             abi.encodeWithSelector(
-                InvalidReceiver.selector,
-                DEV_WALLET,
-                USER_RECEIVER
+                InvalidReceiver.selector, DEV_WALLET, USER_RECEIVER
             )
         );
         mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
-            bridgeData,
-            data
+            bridgeData, data
         );
         vm.stopPrank();
     }
@@ -945,8 +934,7 @@ contract MayanFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(InvalidAmount.selector);
         mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether }(
-            bridgeData,
-            data
+            bridgeData, data
         );
         vm.stopPrank();
     }
@@ -975,9 +963,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidCallData.selector);
         mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
-            bridgeData,
-            swapData,
-            data
+            bridgeData, swapData, data
         );
         vm.stopPrank();
     }
@@ -993,9 +979,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidSendingToken.selector);
         mayanBridgeFacet.swapAndStartBridgeTokensViaMayan(
-            bridgeData,
-            swapData,
-            validMayanData
+            bridgeData, swapData, validMayanData
         );
         vm.stopPrank();
     }
@@ -1032,14 +1016,12 @@ contract MayanFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_SENDER);
         mayanBridgeFacet.startBridgeTokensViaMayan{ value: 1 ether + excess }(
-            bridgeData,
-            data
+            bridgeData, data
         );
         vm.stopPrank();
 
-        MockMayanSwapForwarder forwarder = MockMayanSwapForwarder(
-            address(MAYAN_FORWARDER)
-        );
+        MockMayanSwapForwarder forwarder =
+            MockMayanSwapForwarder(address(MAYAN_FORWARDER));
         assertEq(
             forwarder.lastValue(),
             1 ether,
@@ -1061,9 +1043,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         bridgeData.receiver = NON_EVM_ADDRESS; // nonEVMAddress
 
-        vm.expectRevert(
-            abi.encodeWithSelector(InvalidNonEVMReceiver.selector)
-        );
+        vm.expectRevert(abi.encodeWithSelector(InvalidNonEVMReceiver.selector));
 
         initiateBridgeTxWithFacet(false);
 
@@ -1095,9 +1075,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                InvalidReceiver.selector,
-                DEV_WALLET,
-                address(0)
+                InvalidReceiver.selector, DEV_WALLET, address(0)
             )
         );
 
@@ -1107,9 +1085,8 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     function testRevert_WhenProtocolDataTooShort() public {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
         bytes memory shortData = new bytes(50); // shorter than 68 bytes (50 bytes)
         uint256 newAmount = 1000;
 
@@ -1127,22 +1104,17 @@ contract MayanFacetTest is TestBaseFacet {
     function test_ReplaceInputAmountRewritesMayanSwapAmountRegardlessOfPayload()
         public
     {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
         uint256 newAmount = 999;
 
         bytes memory emptyPayload = _buildMayanSwapProtocolData(111, 0);
         bytes memory withPayload = _buildMayanSwapProtocolData(111, 96);
 
-        bytes memory outEmpty = testFacet.testReplaceInputAmount(
-            emptyPayload,
-            newAmount
-        );
-        bytes memory outWithPayload = testFacet.testReplaceInputAmount(
-            withPayload,
-            newAmount
-        );
+        bytes memory outEmpty =
+            testFacet.testReplaceInputAmount(emptyPayload, newAmount);
+        bytes memory outWithPayload =
+            testFacet.testReplaceInputAmount(withPayload, newAmount);
 
         assertEq(outEmpty.length, emptyPayload.length);
         assertEq(outWithPayload.length, withPayload.length);
@@ -1155,10 +1127,11 @@ contract MayanFacetTest is TestBaseFacet {
     /// @dev Builds MayanSwap.swap-shaped calldata: selector + 14 head words + amountIn word, then
     ///      `payloadLen` tail bytes. Word 10 (byte 324) holds a sentinel so tests can prove
     ///      non-amount bytes survive the rewrite.
-    function _buildMayanSwapProtocolData(
-        uint256 amountIn,
-        uint256 payloadLen
-    ) internal pure returns (bytes memory) {
+    function _buildMayanSwapProtocolData(uint256 amountIn, uint256 payloadLen)
+        internal
+        pure
+        returns (bytes memory)
+    {
         bytes memory head = abi.encodePacked(
             bytes4(0x6111ad25),
             new bytes(320), // words 0..9  -> bytes [4,324)
@@ -1171,10 +1144,11 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     /// @dev Reads the 32-byte word at `byteOffset` within a bytes buffer.
-    function _readWordAt(
-        bytes memory data,
-        uint256 byteOffset
-    ) internal pure returns (uint256 word) {
+    function _readWordAt(bytes memory data, uint256 byteOffset)
+        internal
+        pure
+        returns (uint256 word)
+    {
         assembly {
             word := mload(add(add(data, 0x20), byteOffset))
         }
@@ -1187,9 +1161,8 @@ contract MayanFacetTest is TestBaseFacet {
     // order/encoding helpers below keep the 7-argument encoder out of the test frame (EXSC-577).
 
     function test_ParseHypercoreReceiverFromCreateOrderWithToken() public {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         // Real on-chain HyperCore deposit on Base (createOrderWithToken 0xa3a30834,
         // payloadType 2). destAddr is Mayan's HCDepositor handler; the real receiver is
@@ -1224,9 +1197,8 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     function test_ParseHypercoreReceiverFromCreateOrderWithSig() public {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         // createOrderWithSig (0x6147435b) carries the same OrderParams + customPayload layout
         bytes memory protocolData = _encodeHypercoreOrderWithSig(
@@ -1244,13 +1216,11 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     function test_ParseHypercoreReceiverReturnsZeroWhenGatesFail() public {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
-        bytes memory customPayload = _hypercoreCustomPayload(
-            HYPERCORE_RECEIVER
-        );
+        bytes memory customPayload =
+            _hypercoreCustomPayload(HYPERCORE_RECEIVER);
 
         // Unknown / non-Swift selector (bridgeWithFee 0x94454a5d) -> zero receiver, so the
         // caller's bridgeData.receiver == receiver check reverts.
@@ -1267,9 +1237,8 @@ contract MayanFacetTest is TestBaseFacet {
         // A Swift v2 order whose destAddr is NOT Mayan's HCDepositor handler must yield zero, so
         // the caller's receiver check reverts rather than trusting an attacker-controlled
         // customPayload routed to a fake handler.
-        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
-            HYPERCORE_RECEIVER
-        );
+        ISwiftV2Encode.OrderParams memory order =
+            _hypercoreOrderToHandler(HYPERCORE_RECEIVER);
         order.destAddr = bytes32(uint256(uint160(address(0xdEAD))));
 
         assertEq(
@@ -1312,19 +1281,16 @@ contract MayanFacetTest is TestBaseFacet {
     function test_ParseHypercoreReceiverReturnsZeroWhenPayloadTruncated()
         public
     {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         // A genuine handler order whose customPayload declares fewer than 20 bytes cannot hold
         // the receiver. The bounds check must yield zero rather than a padded partial read that
         // could be crafted to match _bridgeData.receiver.
-        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
-            HYPERCORE_RECEIVER
-        );
-        bytes memory shortPayload = abi.encodePacked(
-            bytes10(bytes20(uint160(HYPERCORE_RECEIVER)))
-        );
+        ISwiftV2Encode.OrderParams memory order =
+            _hypercoreOrderToHandler(HYPERCORE_RECEIVER);
+        bytes memory shortPayload =
+            abi.encodePacked(bytes10(bytes20(uint160(HYPERCORE_RECEIVER))));
 
         assertEq(
             testFacet.testParseHypercoreReceiver(
@@ -1338,9 +1304,8 @@ contract MayanFacetTest is TestBaseFacet {
     function test_ParseReceiverFallsThroughToDestAddrForNonDepositOrder()
         public
     {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         // A Swift v2 order under the HyperCore chain id but to a real user destAddr with a
         // non-deposit payloadType is treated as an ordinary order: _parseHypercoreReceiver yields
@@ -1352,16 +1317,14 @@ contract MayanFacetTest is TestBaseFacet {
         address destReceiver = HYPERCORE_RECEIVER;
         address payloadReceiver = address(0xBEEF);
 
-        ISwiftV2Encode.OrderParams memory order = _hypercoreOrderToHandler(
-            destReceiver
-        );
+        ISwiftV2Encode.OrderParams memory order =
+            _hypercoreOrderToHandler(destReceiver);
         order.destAddr = bytes32(uint256(uint160(destReceiver)));
         order.payloadType = 1;
         order.destChainId = 1;
 
         bytes memory protocolData = _encodeHypercoreOrderWithSig(
-            order,
-            _hypercoreCustomPayload(payloadReceiver)
+            order, _hypercoreCustomPayload(payloadReceiver)
         );
 
         assertEq(
@@ -1380,9 +1343,8 @@ contract MayanFacetTest is TestBaseFacet {
     function test_ParseHypercoreReceiverFollowsCustomPayloadOffsetPointer()
         public
     {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         // Non-canonical encoding: customPayload placed one word later than canonical, with the
         // head word 16 offset pointer updated to match. A fixed-offset parser would read the
@@ -1402,9 +1364,8 @@ contract MayanFacetTest is TestBaseFacet {
     function test_ParseReceiverParsesHcDepositInitiatorUnderHypercoreChainId()
         public
     {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         // Regression: an HCDepositInitiator deposit under the HyperCore chain id (1337) must
         // still parse via its fixed-offset switch case, not be shadowed by the Swift v2 path.
@@ -1428,9 +1389,11 @@ contract MayanFacetTest is TestBaseFacet {
     /// @dev A canonical Swift v2 order to Mayan's HCDepositor handler (payloadType 2,
     ///      destChainId 47 = HyperEVM) — the shape that makes _parseHypercoreReceiver trust
     ///      customPayload[0:20]. Gate tests start from this and flip one field.
-    function _hypercoreOrderToHandler(
-        address trader
-    ) private pure returns (ISwiftV2Encode.OrderParams memory order) {
+    function _hypercoreOrderToHandler(address trader)
+        private
+        pure
+        returns (ISwiftV2Encode.OrderParams memory order)
+    {
         order = ISwiftV2Encode.OrderParams({
             payloadType: 2,
             trader: bytes32(uint256(uint160(trader))),
@@ -1452,9 +1415,11 @@ contract MayanFacetTest is TestBaseFacet {
     }
 
     /// @dev customPayload whose first 20 bytes are the HyperCore receiver Mayan decodes.
-    function _hypercoreCustomPayload(
-        address receiver
-    ) private pure returns (bytes memory) {
+    function _hypercoreCustomPayload(address receiver)
+        private
+        pure
+        returns (bytes memory)
+    {
         return abi.encodePacked(receiver, uint32(0), uint64(500000));
     }
 
@@ -1467,27 +1432,28 @@ contract MayanFacetTest is TestBaseFacet {
     ) private pure returns (bytes memory) {
         ISwiftV2Encode.PermitParams memory permit;
 
-        return
-            abi.encodeCall(
-                ISwiftV2Encode.createOrderWithSig,
-                (
-                    0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
-                    1e6,
-                    order,
-                    customPayload,
-                    0,
-                    bytes(""),
-                    permit
-                )
-            );
+        return abi.encodeCall(
+            ISwiftV2Encode.createOrderWithSig,
+            (
+                0xaf88d065e77c8cC2239327C5EDb3A432268e5831,
+                1e6,
+                order,
+                customPayload,
+                0,
+                bytes(""),
+                permit
+            )
+        );
     }
 
     /// @dev Builds a createOrderWithToken order whose customPayload sits one word later than the
     ///      canonical position, with the head word 16 offset pointer updated to match. Extracted
     ///      to its own function to keep the offset-pointer test under the stack limit.
-    function _buildNonCanonicalHypercoreOrder(
-        address expectedReceiver
-    ) private pure returns (bytes memory) {
+    function _buildNonCanonicalHypercoreOrder(address expectedReceiver)
+        private
+        pure
+        returns (bytes memory)
+    {
         // Built in two halves: materializing the head to memory frees its stack slots so the
         // byte-by-byte encodePacked doesn't exceed the solc 0.8.17 stack limit once inlined.
         bytes memory head = abi.encodePacked(
@@ -1501,17 +1467,16 @@ contract MayanFacetTest is TestBaseFacet {
             uint256(47) // word 5: destChainId = HyperEVM
         );
 
-        return
-            abi.encodePacked(
-                head,
-                new bytes(10 * 32), // head words 6..15 filler
-                uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
-                new bytes(32), // extra padding word before customPayload
-                uint256(32), // customPayload length
-                expectedReceiver,
-                uint32(0),
-                uint64(0)
-            );
+        return abi.encodePacked(
+            head,
+            new bytes(10 * 32), // head words 6..15 filler
+            uint256(0x240), // word 16: customPayload offset (canonical would be 0x220)
+            new bytes(32), // extra padding word before customPayload
+            uint256(32), // customPayload length
+            expectedReceiver,
+            uint32(0),
+            uint64(0)
+        );
     }
 
     function test_CanBridgeTokensToHyperCore() public {
@@ -1584,9 +1549,7 @@ contract MayanFacetTest is TestBaseFacet {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                InvalidReceiver.selector,
-                wrongReceiver,
-                HYPERCORE_RECEIVER
+                InvalidReceiver.selector, wrongReceiver, HYPERCORE_RECEIVER
             )
         );
 
@@ -1600,16 +1563,14 @@ contract MayanFacetTest is TestBaseFacet {
     ///      receiver is customPayload[0:20] (HYPERCORE_RECEIVER). Source tx:
     ///      0x7077760ccec417b7057267465e933f163545c82ce5808798c17be068860eeb29
     function _hyperCoreProtocolData() private pure returns (bytes memory) {
-        return
-            vm.parseBytes(
-                "0xa3a30834000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000004c1a6c0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000000000056032241c0adab58a29b13e94fb595a4bc414e33000000000000000000000000000000000000000000000000000000000000002f000000000000000000000000a5aa6e2171b416e1d27ec53ca8c13db3f91a89cd000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f00000000000000000000000000000000000000000000000000000000004479bf0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001250a000000000000000000000000000000000000000000000000000000000000d107000000000000000000000000000000000000000000000000000000006a1ec3f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d72eef3486e6427a1820fced5ec5ea59bdc4f4efd88f471e3660fec52cfd7de00000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000020d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000007a120"
-            );
+        return vm.parseBytes(
+            "0xa3a30834000000000000000000000000833589fcd6edb6e08f4c7c32d4f71b54bda0291300000000000000000000000000000000000000000000000000000000004c1a6c0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000000000056032241c0adab58a29b13e94fb595a4bc414e33000000000000000000000000000000000000000000000000000000000000002f000000000000000000000000a5aa6e2171b416e1d27ec53ca8c13db3f91a89cd000000000000000000000000b88339cb7199b77e23db6e890353e22632ba630f00000000000000000000000000000000000000000000000000000000004479bf0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001250a000000000000000000000000000000000000000000000000000000000000d107000000000000000000000000000000000000000000000000000000006a1ec3f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d72eef3486e6427a1820fced5ec5ea59bdc4f4efd88f471e3660fec52cfd7de00000000000000000000000000000000000000000000000000000000000002200000000000000000000000000000000000000000000000000000000000000020d01e6a41e4de4032830c99aa79c0206753de628a00000000000000000007a120"
+        );
     }
 
     function test_ParseReceiver() public {
-        TestMayanFacetExposed testFacet = new TestMayanFacetExposed(
-            IMayan(MAYAN_FORWARDER)
-        );
+        TestMayanFacetExposed testFacet =
+            new TestMayanFacetExposed(IMayan(MAYAN_FORWARDER));
 
         address expectedReceiver = 0x1eB6638dE8c571c787D7bC24F98bFA735425731C;
         // test for 0x94454a5d bridgeWithFee(address,uint256,uint64,uint64,[*bytes32*],(uint32,bytes32,bytes32))
@@ -1696,8 +1657,8 @@ contract MayanFacetTest is TestBaseFacet {
         );
 
         // Swift v2 shared OrderParams (destAddr at calldata 0x84 for both selectors)
-        ISwiftV2Encode.OrderParams memory swiftV2Order = ISwiftV2Encode
-            .OrderParams({
+        ISwiftV2Encode.OrderParams memory swiftV2Order =
+            ISwiftV2Encode.OrderParams({
                 payloadType: 1,
                 trader: bytes32(
                     uint256(
@@ -1758,14 +1719,9 @@ contract MayanFacetTest is TestBaseFacet {
         );
 
         // test for 0x6147435b Swift v2 createOrderWithSig (abi.encodeCall; on-chain bytes often nested in forwardERC20)
-        ISwiftV2Encode.PermitParams memory permit = ISwiftV2Encode
-            .PermitParams({
-                value: 0,
-                deadline: 0,
-                v: 0,
-                r: bytes32(0),
-                s: bytes32(0)
-            });
+        ISwiftV2Encode.PermitParams memory permit = ISwiftV2Encode.PermitParams({
+            value: 0, deadline: 0, v: 0, r: bytes32(0), s: bytes32(0)
+        });
         protocolData = abi.encodeCall(
             ISwiftV2Encode.createOrderWithSig,
             (

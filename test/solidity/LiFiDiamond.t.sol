@@ -15,14 +15,11 @@ contract LiFiDiamondTest is Test {
     address public diamondOwner;
 
     event DiamondCut(
-        LibDiamond.FacetCut[] _diamondCut,
-        address _init,
-        bytes _calldata
+        LibDiamond.FacetCut[] _diamondCut, address _init, bytes _calldata
     );
 
     event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
+        address indexed previousOwner, address indexed newOwner
     );
 
     error FunctionDoesNotExist();
@@ -64,7 +61,8 @@ contract LiFiDiamondTest is Test {
         bool failed = false;
         try DiamondLoupeFacet(address(diamond)).facetAddresses() returns (
             address[] memory
-        ) {} catch {
+        ) { }
+        catch {
             failed = true;
         }
         if (!failed) revert InvalidDiamondSetup();
@@ -92,12 +90,12 @@ contract LiFiDiamondTest is Test {
         bytes memory callData = hex"a516f0f3"; // getPeripheryContract(string)
 
         vm.expectRevert(FunctionDoesNotExist.selector);
-        (bool success, ) = address(diamond).call(callData);
+        (bool success,) = address(diamond).call(callData);
         if (!success) revert ShouldNotReachThisCode(); // was only added to silence a compiler warning
     }
 
     function test_CanReceiveETH() public {
-        (bool success, ) = address(diamond).call{ value: 1 ether }("");
+        (bool success,) = address(diamond).call{ value: 1 ether }("");
         if (!success) revert ExternalCallFailed();
 
         assertEq(address(diamond).balance, 1 ether);

@@ -8,7 +8,7 @@ import { ReceiverStargateV2 } from "lifi/Periphery/ReceiverStargateV2.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ReceiverStargateV2") {}
+    constructor() DeployScriptBase("ReceiverStargateV2") { }
 
     function run()
         public
@@ -23,49 +23,34 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
         // obtain address of LayerZero's EndPointV2 contract in current network from config file
         string memory path = string.concat(root, "/config/stargateV2.json");
 
         address endpointV2 = _getConfigContractAddress(
-            path,
-            string.concat(".endpointV2.", network)
+            path, string.concat(".endpointV2.", network)
         );
         address tokenMessaging = _getConfigContractAddress(
-            path,
-            string.concat(".tokenMessaging.", network)
+            path, string.concat(".tokenMessaging.", network)
         );
 
         // get Executor address from deploy log
         path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
         address executor = _getConfigContractAddress(path, ".Executor");
 
-        return
-            abi.encode(
-                refundWalletAddress,
-                executor,
-                tokenMessaging,
-                endpointV2,
-                100000
-            );
+        return abi.encode(
+            refundWalletAddress, executor, tokenMessaging, endpointV2, 100000
+        );
     }
 }
