@@ -15,7 +15,7 @@ are embedded in rule files.
 
 | Task | Command |
 |---|---|
-| Format | `bunx oxfmt <file>` (TS/JS), `bunx prettier --write <file>` (audited `src/` Solidity; never `forge fmt`), `forge fmt <file>` (other Solidity) (scoped; `bun format:fix` rewrites the whole tree) |
+| Format | `bunx oxfmt <file>` (TS/JS), `bunx prettier --write <file>` (`src/` and `archive/` Solidity; never `forge fmt`), `forge fmt <file>` (`test/` and `script/` Solidity) (scoped; `bun format:fix` rewrites the whole tree) |
 | Lint | `bunx oxlint --type-aware <file>` (TS/JS) |
 | Test (Solidity) | `bun run test` (bare `bun test` runs Bun's own test runner) |
 | Test (TypeScript) | `bun test:ts` |
