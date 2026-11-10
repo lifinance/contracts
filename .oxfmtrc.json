@@ -21,6 +21,9 @@
     "node_modules/",
     "typechain/",
     "lib/",
-    "templates/"
+    "templates/",
+    // Type-broken on main before the oxfmt migration (fails tsc); left unformatted so the
+    // validateScripts typecheck of changed files does not flag pre-existing errors.
+    "script/demoScripts/demoChainflip.ts"
   ]
 }
