@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Auto-format the edited file (silent): oxfmt for .ts/.js, forge fmt for .sol. Called by
+# Auto-format the edited file (silent): oxfmt for .ts/.js, script/utils/format-sol.sh for .sol
+# (Prettier for src/, forge fmt elsewhere). Called by
 # post-edit-validate.sh before it lints, so formatting never races the linters.
 # Reads tool JSON from stdin; exits 0 always (never blocks Claude)
 
@@ -14,11 +15,8 @@ case "$FILE" in
   *.ts|*.js)
     cd "$ROOT" && bunx oxfmt "$FILE" >/dev/null 2>&1
     ;;
-  "$ROOT"/src/*.sol)
-    # Audited contracts are not forge-formatted (see [fmt] in foundry.toml)
-    ;;
   *.sol)
-    cd "$ROOT" && forge fmt "$FILE" >/dev/null 2>&1
+    cd "$ROOT" && bash script/utils/format-sol.sh "$FILE" >/dev/null 2>&1
     ;;
 esac
 

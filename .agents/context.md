@@ -15,7 +15,7 @@ are embedded in rule files.
 
 | Task | Command |
 |---|---|
-| Format | `bunx oxfmt <file>` (TS/JS), `forge fmt <file>` (Solidity outside `src/`; audited `src/` is not formatted) (scoped; `bun format:fix` rewrites the whole tree) |
+| Format | `bunx oxfmt <file>` (TS/JS), `bash script/utils/format-sol.sh <file>` (Solidity: Prettier for audited `src/`, `forge fmt` elsewhere) (scoped; `bun format:fix` rewrites the whole tree) |
 | Lint | `bunx oxlint --type-aware <file>` (TS/JS) |
 | Test (Solidity) | `bun run test` (bare `bun test` runs Bun's own test runner) |
 | Test (TypeScript) | `bun test:ts` |

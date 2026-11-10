@@ -3,9 +3,8 @@
   "editor.defaultFormatter": "oxc.oxc-vscode",
   "oxc.fmt.configPath": ".oxfmtrc.json",
   "[solidity]": {
-    "editor.defaultFormatter": "JuanBlanco.solidity"
+    "editor.formatOnSave": false
   },
-  "solidity.formatter": "forge",
   "editor.codeActionsOnSave": {
     "source.fixAll": true
   },

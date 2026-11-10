@@ -71,10 +71,11 @@ out = "out/zksync"
 zksolc = "1.5.15"
 foundry_zksync = "v0.0.32"
 
-# Mirrors the former prettier-plugin-solidity options (printWidth 79, tabWidth 4, double quotes).
-# src/ is excluded: forge fmt cannot reproduce prettier-solidity's layout, and reformatting
-# audited contracts would change their audit source hashes and bytecode metadata. Lint-staged
-# and the agent hook pass explicit paths, which bypass `ignore`, so they skip src/ themselves.
+# Mirrors the prettier-plugin-solidity options (printWidth 79, tabWidth 4, double quotes).
+# src/ is formatted by Prettier instead: forge fmt cannot reproduce prettier-solidity's layout,
+# and reformatting audited contracts would change their audit source hashes and bytecode
+# metadata. Explicit paths bypass `ignore`, so lint-staged and the agent hook route src/ through
+# script/utils/format-sol.sh.
 [fmt]
 line_length = 79
 tab_width = 4
