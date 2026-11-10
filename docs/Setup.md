@@ -41,7 +41,11 @@ only the quick-start; this is the full guide.
    drifted compiler produces bytecode that cannot be reproduced from the
    recorded commit. The pre-commit hook runs the same check but only warns, so a
    drifted local `forge` can still commit. To bump the pin, change
-   `.foundry-version` in a PR — every workflow picks it up automatically, but
+   `.foundry-version` in a PR, and in the same PR replace `.foundry-sha256`
+   with the new release's attested linux_amd64 hashes (the subjects that
+   `gh attestation verify` reports for `foundry_v<version>_linux_amd64.tar.gz`);
+   until it matches, CI ignores the cached binaries and reinstalls on every run.
+   Every workflow picks up the new pin automatically, but
    your machine does not: rerun `foundryup --install "$(cat .foundry-version)"`
    after the pin changes, or deploys will refuse.
 
