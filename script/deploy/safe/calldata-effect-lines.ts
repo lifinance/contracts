@@ -28,8 +28,13 @@
  */
 
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
-import type { Address, Hex } from 'viem'
-import { decodeFunctionData, parseAbi } from 'viem'
+import type { Abi, AbiFunction, Address, Hex } from 'viem'
+import {
+  decodeFunctionData,
+  encodeAbiParameters,
+  parseAbi,
+  toFunctionSelector,
+} from 'viem'
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
@@ -330,7 +335,7 @@ async function effectLines(
       `${pre}  ${rawPreview(data)}`,
     ]
 
-  const { functionName, args } = decoded
+  const { functionName, args, trailing } = decoded
   const called = calledFunction(functionName, hex)
   if (args === undefined)
     return [
@@ -339,6 +344,33 @@ async function effectLines(
       `${pre}  ${rawPreview(data)}`,
     ]
 
+  const lines = await decodedCallLines(functionName, args, hex, context, pre)
+  return trailing === undefined
+    ? lines
+    : [...lines, ...trailingLines(pre, trailing)]
+}
+
+/**
+ * The bytes the decode never read, which would otherwise render exactly like
+ * the canonical call they follow.
+ */
+const trailingLines = (pre: string, trailing: Hex): string[] => {
+  const bytes = Math.ceil((trailing.length - 2) / 2)
+  const what =
+    bytes === 1
+      ? '1 BYTE AFTER THE ARGUMENTS IS NOT SHOWN'
+      : `${bytes} BYTES AFTER THE ARGUMENTS ARE NOT SHOWN`
+  return [cannotRead(pre, `  ${what}`), `${pre}  ${rawPreview(trailing)}`]
+}
+
+async function decodedCallLines(
+  functionName: string,
+  args: readonly unknown[],
+  hex: Hex,
+  context: ICalldataEffectContext,
+  pre: string
+): Promise<string[]> {
+  const called = calledFunction(functionName, hex)
   switch (bareName(functionName)) {
     case 'scheduleBatch':
       return scheduleBatchLines(args, called, context, pre)
@@ -387,11 +419,17 @@ const bareName = (functionName: string): string =>
  * Resolves and decodes one call, without printing how it was resolved.
  *
  * `args` is undefined when the selector resolved but nothing could decode the
- * arguments — the one case zone 1 reports on itself.
+ * arguments — the one case zone 1 reports on itself. `trailing` holds the
+ * bytes past the canonical encoding of `args`, which viem's decode ignores.
  */
-async function decodeCall(
-  data: Hex
-): Promise<{ functionName: string; args?: readonly unknown[] } | undefined> {
+async function decodeCall(data: Hex): Promise<
+  | {
+      functionName: string
+      args?: readonly unknown[]
+      trailing?: Hex
+    }
+  | undefined
+> {
   const selector = data.slice(0, 10)
   const local = getLocalSelectorInfo(selector)
   const functionName =
@@ -417,8 +455,14 @@ async function decodeCall(
   for (const abi of candidates)
     try {
       const decoded = decodeFunctionData({ abi, data })
-      if (decoded.args !== undefined)
-        return { functionName: decoded.functionName, args: decoded.args }
+      if (decoded.args !== undefined) {
+        const trailing = trailingBytes(abi, data, decoded.args)
+        return {
+          functionName: decoded.functionName,
+          args: decoded.args,
+          ...(trailing === undefined ? {} : { trailing }),
+        }
+      }
       // viem never reads past the selector of a function with no inputs, so a
       // body behind it would otherwise render as "no arguments" and go unseen.
       if (data.length === 10)
@@ -428,6 +472,29 @@ async function decodeCall(
     }
 
   return functionName === undefined ? undefined : { functionName }
+}
+
+/**
+ * The calldata past the re-encoded arguments, or undefined when there is none.
+ *
+ * Throws when no function in `abi` carries the calldata's selector, so the
+ * caller treats the candidate as not decoding rather than as canonical.
+ */
+function trailingBytes(
+  abi: Abi,
+  data: Hex,
+  args: readonly unknown[]
+): Hex | undefined {
+  const selector = data.slice(0, 10).toLowerCase()
+  const item = abi.find(
+    (entry): entry is AbiFunction =>
+      entry.type === 'function' && toFunctionSelector(entry) === selector
+  )
+  if (!item) throw new Error(`no function in the ABI has selector ${selector}`)
+  const canonicalLength = 10 + encodeAbiParameters(item.inputs, args).length - 2
+  return data.length > canonicalLength
+    ? (`0x${data.slice(canonicalLength)}` as Hex)
+    : undefined
 }
 
 const isZeroWord = (value: unknown): boolean =>
