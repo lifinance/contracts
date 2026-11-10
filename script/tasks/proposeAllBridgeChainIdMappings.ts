@@ -106,6 +106,15 @@ function isNonZeroAddressString(value: unknown): value is string {
   )
 }
 
+/**
+ * Reads every config row and stale key from the diamond in one multicall.
+ * @param params.network - Network the diamond lives on
+ * @param params.diamondAddress - The LiFiDiamond to read
+ * @param params.mappings - The configured mappings
+ * @param params.staleKeys - Output of `getStaleAllBridgeKeys`
+ * @returns The rows to (re)write and the stale keys that still resolve
+ * @throws When the diamond was never initialized or a read fails for another reason
+ */
 async function readMappingRepairs(params: {
   network: string
   diamondAddress: Address
@@ -145,6 +154,13 @@ async function readMappingRepairs(params: {
   }
 }
 
+/**
+ * Wraps the repair calls in a timelock `scheduleBatch` with the timelock's min delay.
+ * @param params.network - Network the timelock lives on
+ * @param params.timelockAddress - The diamond's TimelockController
+ * @param params.calls - Output of `buildMappingRepairCalls`
+ * @returns The `scheduleBatch` calldata for the Safe proposal
+ */
 async function buildTimelockScheduleBatchCalldata(params: {
   network: string
   timelockAddress: Address
