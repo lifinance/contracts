@@ -249,26 +249,31 @@ describe('toDisplayRow', () => {
       ...buildDoc({ status: 'blocked' }),
       createdAt: Date.parse('2026-07-03T12:00:00Z'),
       executedAt: '2026-07-06T01:30:00Z',
-      blockedAt: { not: 'a date' },
+      blockedAt: { toString: 'x' },
     } as unknown as ITimelockQueueDoc
     const row = toDisplayRow(doc)
     expect(row.createdAt).toBe('2026-07-03T12:00:00.000Z')
-    expect(row.executedAt).toBe('2026-07-06T01:30:00.000Z')
+    expect(row.executedAt).toBe('2026-07-06T01:30:00Z')
     expect(row.blockedAt).toBe('[object Object]')
   })
 })
 
 describe('toIsoDate', () => {
-  it('formats a Date, an ISO string and epoch ms alike', () => {
+  it('formats a Date and epoch ms as ISO strings', () => {
     const iso = '2026-07-06T01:30:00.000Z'
     expect(toIsoDate(new Date(iso))).toBe(iso)
-    expect(toIsoDate('2026-07-06T01:30:00Z')).toBe(iso)
     expect(toIsoDate(Date.parse(iso))).toBe(iso)
   })
 
-  it('returns an unparseable value as-is instead of throwing', () => {
+  it('returns a stored string unchanged, so the host timezone never applies', () => {
+    expect(toIsoDate('2026-07-06T01:30:00')).toBe('2026-07-06T01:30:00')
     expect(toIsoDate('not a date')).toBe('not a date')
+  })
+
+  it('never throws on values that are not dates', () => {
     expect(toIsoDate(new Date('nope'))).toBe('Invalid Date')
+    expect(toIsoDate(Number.NaN)).toBe('NaN')
+    expect(toIsoDate({ toString: 'x' })).toBe('[object Object]')
     expect(toIsoDate(null)).toBe('null')
   })
 })

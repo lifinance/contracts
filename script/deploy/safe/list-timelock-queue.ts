@@ -22,6 +22,7 @@ import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { flagIsOn } from './cli-flags'
+import { printableField } from './printable-field'
 import {
   getTimelockQueueCollection,
   queueStatusReason,
@@ -196,22 +197,23 @@ export function classifyMongoError(error: unknown): 'misconfig' | 'error' {
 }
 
 /**
- * Formats a stored queue timestamp as an ISO string. The queue schema types
+ * Formats a stored queue timestamp for display. The queue schema types
  * timestamps as `Date`, but Mongo does not enforce it: a row written outside
  * the executor can hold another type, and one such row must not crash the
- * whole listing.
+ * whole listing. A stored string is returned unchanged rather than re-parsed,
+ * since `new Date()` reads an offset-free string in the host's timezone.
  *
- * @param value - Timestamp as read from Mongo (Date, ISO string, epoch ms, or anything else).
- * @returns ISO string when the value parses as a date, otherwise the value as-is via `String()`.
+ * @param value - Timestamp as read from Mongo (Date, string, epoch ms, or anything else).
+ * @returns ISO string for a valid Date or epoch ms; otherwise a string form that never throws.
  */
 export function toIsoDate(value: unknown): string {
-  const date =
-    value instanceof Date ||
-    typeof value === 'string' ||
-    typeof value === 'number'
-      ? new Date(value)
-      : undefined
-  if (date && !Number.isNaN(date.getTime())) return date.toISOString()
+  if (typeof value === 'string') return value
+  if (value instanceof Date || typeof value === 'number') {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString()
+  }
+  if (typeof value === 'object' && value !== null)
+    return Object.prototype.toString.call(value)
   return String(value)
 }
 
@@ -512,9 +514,13 @@ const cmd = defineCommand({
         if (row.revertCount)
           consola.info(`   on-chain reverts: ${row.revertCount}`)
         consola.info(
-          `   createdAt: ${row.createdAt}` +
-            (row.blockedAt ? ` — blockedAt: ${row.blockedAt}` : '') +
-            (row.executedAt ? ` — executedAt: ${row.executedAt}` : '')
+          `   createdAt: ${printableField(row.createdAt)}` +
+            (row.blockedAt
+              ? ` — blockedAt: ${printableField(row.blockedAt)}`
+              : '') +
+            (row.executedAt
+              ? ` — executedAt: ${printableField(row.executedAt)}`
+              : '')
         )
       }
 
