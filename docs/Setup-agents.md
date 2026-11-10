@@ -23,8 +23,6 @@ this page doesn't repeat them.
 
 ## Running commands in a non-interactive shell
 
-- **Shell aliases don't exist.** Use `aws sso login --sso-session LIFI`, not the
-  `awslogin` alias.
 - **PATH is not the login shell's.** Prepend tool locations explicitly:
   `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$HOME/.local/bin:$PATH"`
   (`~/.local/bin` is where `lifi-connect` installs).
@@ -37,7 +35,7 @@ this page doesn't repeat them.
 ## When a Safe/Mongo script fails
 
 `getSafeMongoCollection()` (in `script/deploy/safe/safe-utils.ts`) throws a
-fail-fast, actionable error naming `lifi-connect prod smart-contracts` when the
-tunnel is down. Surface that to the human rather than trying to fix access
+fail-fast, actionable error naming `bun run safe:tunnel` when the database is
+unreachable — usually a down tunnel, sometimes bad credentials. Surface that to the human rather than trying to fix access
 yourself. Never read `.env` secret values, and never write a resolved
 `SC_MONGODB_URI` back into the repo.

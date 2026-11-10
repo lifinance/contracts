@@ -8,12 +8,9 @@
 #   can remain a required check on `main` branch protection even when the test job is
 #   skipped (same pattern as `forge-unit-tests.yml`, see `.agents/rules/500-github-actions.md`).
 # - Lightweight: no Foundry, submodules, MongoDB, RPC, or generated typechain bindings, so
-#   the job only installs Bun deps and runs the tests. Two network dependencies remain, and
-#   neither is a chain read: `calldata-effect-lines.test.ts` resolves selectors that are not
-#   in the local table through the Sourcify 4byte API, and the CLI probes that spawn
-#   `bunx tsx` into a fixture directory resolve `tsx` from the npm registry. Both were
-#   measured by running the suite with outbound network denied, which is how to re-check
-#   this claim rather than trusting it.
+#   the job only installs Bun deps and runs the tests, with no outbound network access
+#   needed beyond the install. Measured by running the suite with outbound network denied
+#   (localhost allowed); re-check the claim that way rather than trusting it.
 
 name: Run TypeScript Unit Tests
 on:
@@ -49,12 +46,12 @@ jobs:
     outputs:
       ts: ${{ steps.filter.outputs.ts }}
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Detect relevant changes
         id: filter
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
           filters: |
             ts:
@@ -96,14 +93,19 @@ jobs:
     permissions:
       contents: read # required to fetch repository contents
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
 
       - name: Install dependencies
         run: bun install --frozen-lockfile

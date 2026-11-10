@@ -1,6 +1,7 @@
 # Composite action: install pinned foundry + verify (with caching)
 # - Reads .foundry-version from the checked-out repo
-# - Installs foundry at that version via foundry-rs/foundry-toolchain
+# - Reuses a cached foundry whose binaries match the pin and the hashes in .foundry-sha256;
+#   otherwise installs that version via foundry-rs/foundry-toolchain
 # - Restores three disjoint caches between runs to skip redundant work: foundry/solc binaries
 #   (~/.foundry/bin + share + versions, ~/.svm), forge build artifacts (cache/ + out/), and
 #   forked-chain state (~/.foundry/cache/rpc). Disjoint is load-bearing — see the RPC step.
@@ -78,7 +79,7 @@ runs:
       # This step is the SOLE owner of ~/.foundry/cache/rpc — the toolchain cache below does not
       # cover it and foundry-toolchain's own caching is off. When two actions cache overlapping
       # paths the one restoring last wins, so a staler superset silently discards fresher state.
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.foundry/cache/rpc
         # `refresh` is empty unless rpc-cache-refresh is on, in which case it makes this key
@@ -90,11 +91,10 @@ runs:
           foundry-rpc-${{ runner.os }}-${{ inputs.cache-key-suffix }}-
 
     - name: Cache Foundry toolchain state (svm + foundryup)
-      # Restored before the install step so foundry-toolchain can detect an existing
-      # matching install and skip the download on a cache hit. Version is folded into
-      # the cache key so a foundry bump invalidates the cache automatically and we
-      # never mix solc binaries across foundry versions.
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      # Restored before the install step so the next step can reuse a cached binary that
+      # matches the pin. Version is folded into the cache key so a foundry bump invalidates
+      # the cache automatically and we never mix solc binaries across foundry versions.
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         # Enumerated rather than all of ~/.foundry, which also holds cache/rpc: a
         # superset path would make this the last writer over the RPC state above.
@@ -107,8 +107,60 @@ runs:
         restore-keys: |
           foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-
 
+    - name: Reuse cached Foundry if it matches the pin
+      # foundry-toolchain downloads foundryup from GitHub releases on every run, even when the
+      # pinned binaries are already installed, so a releases outage failed jobs that had a
+      # cache hit. Checking the binary rather than cache-hit also covers restore-keys matches.
+      id: cached
+      shell: bash
+      env:
+        PIN_VERSION: ${{ steps.pin.outputs.version }}
+      # The only GITHUB_PATH write is the fixed ~/.foundry/bin, which foundry-toolchain adds too.
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        bin="$HOME/.foundry/bin"
+        sums="$PWD/.foundry-sha256"
+        tools=(forge cast anvil chisel)
+        complete=true
+        # Skipping the install skips every tool, so each must be present, not just forge;
+        # checking inside $bin also keeps a forge elsewhere on PATH from passing.
+        for tool in "${tools[@]}"; do
+          [ -x "$bin/$tool" ] || complete=false
+        done
+        # foundryup checks installed binaries against the release attestation before reusing
+        # them, and signing workflows run these from a shared cache, so the skip path checks
+        # them against attested hashes before running any. The hashes are linux_amd64 only.
+        if [ "$complete" = true ]; then
+          if [ "$(head -n 1 "$sums")" != "# foundry ${PIN_VERSION} linux_amd64" ]; then
+            echo "::warning::.foundry-sha256 is not for foundry ${PIN_VERSION}; installing." \
+              "Put the release-attested hashes in it when bumping .foundry-version."
+            complete=false
+          elif [ "${RUNNER_OS}/${RUNNER_ARCH}" != "Linux/X64" ]; then
+            complete=false
+          elif ! (cd "$bin" && grep -v '^#' "$sums" | sha256sum --check --strict --quiet); then
+            echo "::warning::Cached foundry binaries fail the .foundry-sha256 check; installing"
+            complete=false
+          fi
+        fi
+        if [ "$complete" = true ]; then
+          for tool in "${tools[@]}"; do
+            "$bin/$tool" --version >/dev/null 2>&1 || complete=false
+          done
+        fi
+        # A miss is expected here, so the script's failure output is not an error.
+        if [ "$complete" = true ] \
+          && PATH="$bin:$PATH" bash script/utils/verify-foundry-version.sh --quiet 2>/dev/null; then
+          echo "$bin" >> "$GITHUB_PATH"
+          echo "Using cached foundry; skipping install"
+          echo "match=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "No cached foundry matching .foundry-version; installing"
+          echo "match=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Install Foundry
-      uses: foundry-rs/foundry-toolchain@908c540300062bd5a7e473851cdb4282204cee09 # v1.9.1
+      if: steps.cached.outputs.match != 'true'
+      uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
       with:
         version: ${{ steps.pin.outputs.version }}
         # Its built-in cache covers ~/.foundry/cache with a key of
@@ -117,7 +169,7 @@ runs:
         cache: false
 
     - name: Cache forge build artifacts (cache/, out/)
-      uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
           cache

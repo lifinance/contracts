@@ -75,8 +75,8 @@ describe('buildExplorerContractPageUrl', () => {
   })
 
   it('keeps #code on older Blockscout explorers', () => {
-    expect(buildExplorerContractPageUrl('lisk', ADDR)).toBe(
-      `https://blockscout.lisk.com/address/${ADDR}#code`
+    expect(buildExplorerContractPageUrl('etherlink', ADDR)).toBe(
+      `https://explorer.etherlink.com/address/${ADDR}#code`
     )
   })
 })

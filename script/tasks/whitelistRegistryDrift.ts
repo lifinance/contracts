@@ -18,7 +18,7 @@ import {
   type Hex,
 } from 'viem'
 
-import 'dotenv/config'
+import '../utils/loadEnv'
 
 import globalConfig from '../../config/global.json'
 import { isNetworkInScope } from '../common/whitelistScope'

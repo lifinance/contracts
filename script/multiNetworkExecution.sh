@@ -49,7 +49,7 @@ export ENVIRONMENT
 NETWORKS=($(getIncludedNetworksArray))
 
 # Option 2: Use specific networks (uncomment and modify as needed)
-# NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "gnosis" "lisk" "mainnet" "mantle" "optimism" "polygon" "scroll" "sonic" "worldchain" "berachain" "hyperevm" "ink" "soneium" "unichain" "katana" "plume")
+# NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "gnosis" "mainnet" "mantle" "optimism" "polygon" "scroll" "sonic" "worldchain" "berachain" "hyperevm" "ink" "soneium" "unichain" "katana" "plume")
 
   # NETWORKS=("arbitrum" "optimism" "base" "bsc" "linea" "scroll" "polygon" "mainnet" "worldchain")
 
@@ -63,7 +63,7 @@ NETWORKS=($(getIncludedNetworksArray))
 
 # Option 5: Use whitelist filtering (uncomment and modify as needed)
 # NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "zksync")
-# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "bsc" "ink" "linea" "lisk" "mode" "optimism" "polygon" "scroll" "soneium" "unichain" "worldchain" "zksync")
+# NETWORKS_WHITELIST=("mainnet" "arbitrum" "base" "bsc" "ink" "linea" "mode" "optimism" "polygon" "scroll" "soneium" "unichain" "worldchain" "zksync")
 
 # Option 6: Use blacklist filtering (applied after network selection)
 # Networks in the blacklist will be excluded from the final network list
@@ -2498,16 +2498,16 @@ function iterateAllNetworksOriginal() {
     #####  GET ALL NETWORKS #####
 
     local NETWORKS=($(getIncludedNetworksArray)) # to get all included networks
-    # local NETWORKS=("arbitrum" "aurora" "base" "bsc" "cronos" "gravity" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
+    # local NETWORKS=("arbitrum" "aurora" "base" "bsc" "cronos" "linea" "mainnet" "mantle" "mode" "polygon" "scroll" "taiko")
     # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "mainnet" "optimism" "polygon") # <<<<< AllBridgeFacet
-    # local NETWORKS=("abstract" "fraxtal" "lisk" "sei" "sophon" "swellchain" "unichain")
-    # local NETWORKS=("base" "arbitrum" "bsc" "katana" "etherlink" "plume" "gravity" "superposition" "cronos" "scroll" "apechain" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "lisk" "fraxtal" "swellchain")
+    # local NETWORKS=("abstract" "fraxtal" "sei" "sophon" "swellchain" "unichain")
+    # local NETWORKS=("base" "arbitrum" "bsc" "katana" "etherlink" "plume" "superposition" "cronos" "scroll" "apechain" "abstract" "avalanche" "sei" "sophon" "zksync" "celo" "unichain" "fraxtal" "swellchain")
     # local NETWORKS=("plume" "taiko" "xlayer" "zksync")
     # local NETWORKS=("vana" "fraxtal" "sophon")
 
     # local NETWORKS=("avalanche" "linea" "")
 
-    # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "etherlink" "flare" "gnosis" "linea" "lisk" "mainnet" "mantle" "mode" "optimism" "polygon" "polygonzkevm" "rootstock" "scroll" "sei" "sonic" "viction")
+    # local NETWORKS=("arbitrum" "avalanche" "base" "bsc" "celo" "etherlink" "flare" "gnosis" "linea" "mainnet" "mantle" "mode" "optimism" "polygon" "polygonzkevm" "rootstock" "scroll" "sei" "sonic" "viction")
     # local NETWORKS=("zksync")
 
     ##### USE THIS WHITELIST TO FILTER NETWORKS RETURNED BY THE FUNCTIONS ABOVE #####

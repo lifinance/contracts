@@ -29,7 +29,7 @@ import {
   type Address,
 } from 'viem'
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'

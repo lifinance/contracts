@@ -3,10 +3,9 @@ import { fileURLToPath } from 'url'
 
 import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
-// @ts-expect-error - bs58 types not available
 import bs58 from 'bs58'
 import { consola } from 'consola'
-import { config } from 'dotenv'
+import '../../utils/loadEnv'
 import {
   BigNumber,
   constants,
@@ -44,8 +43,6 @@ import {
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
-
-config()
 
 export const DEV_WALLET_ADDRESS = globalConfig.devWallet
 

@@ -14,7 +14,7 @@ import {
   type Hex,
 } from 'viem'
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import networksConfig from '../../../config/networks.json'
 import {

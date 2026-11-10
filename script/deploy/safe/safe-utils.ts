@@ -16,7 +16,7 @@ import {
   isTronTvmChainId,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import { config } from 'dotenv'
+import '../../utils/loadEnv'
 import {
   MongoClient,
   type Collection,
@@ -83,8 +83,6 @@ import {
   type IPickTimelockSaltAction,
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
-
-config()
 
 const networks: Record<
   string,
@@ -2118,9 +2116,10 @@ export async function getSafeMongoCollection(): Promise<{
     await client.close().catch(() => undefined)
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(
-      'Could not reach the Safe MongoDB via lifi-connect. Start the tunnel with ' +
-        '`lifi-connect prod smart-contracts` and ensure SC_MONGODB_URI points at ' +
-        'the forwarded localhost port. Setup guide: ' +
+      'Could not reach the Safe MongoDB via lifi-connect. If the tunnel is down, a ' +
+        'human must start it from their own terminal with `bun run safe:tunnel` ' +
+        '(it also refreshes an expired SSO session); otherwise check that ' +
+        'SC_MONGODB_URI points at the forwarded localhost port. Setup guide: ' +
         'https://app.notion.com/p/lifi/Accessing-Resources-with-Port-Forwarding-396f0ff14ac78098bf13f06d4a428845 ' +
         `- Underlying error: ${detail}`
     )

@@ -10,7 +10,7 @@
  * through it.
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { extname, join } from 'path'
 
@@ -24,7 +24,7 @@ import {
 import { findViolations, MODULE_EXTENSIONS } from '../../utils/fence-runner'
 
 import { FUNNEL_ALLOWLIST, FUNNEL_FENCE } from './funnel-fence'
-import { withholdCredentials } from './spawn-env'
+import { freshChildEnv, withheldEnv } from './spawn-env'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const FENCE_SCRIPT = 'script/deploy/safe/funnel-fence.ts'
@@ -53,15 +53,6 @@ const STAGED_FENCE = LINT_STAGED_TS.find((command) =>
 
 const lint = (source: string, virtualPath: string): string =>
   findViolations(FUNNEL_FENCE, source, virtualPath).join('\n')
-
-const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
-  // `bun test` sets NODE_ENV=test, under which consola drops the success summary
-  // the CI run prints; the child should log as it does in CI.
-  env['NODE_ENV'] = 'development'
-  return env
-}
 
 const BYPASS_PATH = 'script/tasks/proposeSomethingNew.ts'
 
@@ -226,6 +217,43 @@ describe('the fence runs where it has to run', () => {
     expect(PACKAGE_JSON.scripts['lint:funnel']).toBe(`${STAGED_FENCE} .`)
   })
 
+  it(
+    'runs where no IPC socket can be bound',
+    () => {
+      if (!STAGED_FENCE)
+        throw new Error('package.json lint-staged has no funnel-fence entry')
+
+      // Longer than a Unix socket path may be (108 bytes on Linux; recent Node on
+      // macOS binds up to ~250): a launcher that binds a socket under TMPDIR
+      // fails here, as in a sandbox.
+      const parent = mkdtempSync(join(tmpdir(), 'no-socket-'))
+      const longTmp = join(parent, 'a'.repeat(200))
+      mkdirSync(longTmp)
+      try {
+        const result = Bun.spawnSync(
+          [...STAGED_FENCE.split(' '), 'script/utils/is-entrypoint.ts'],
+          {
+            cwd: REPO_ROOT,
+            // `bun test` sets NODE_ENV=test, under which consola drops the
+            // success summary asserted below.
+            env: freshChildEnv({ TMPDIR: longTmp, NODE_ENV: 'development' }),
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: TIMEOUT_MS,
+          }
+        )
+
+        expect(result.exitCode).toBe(0)
+        expect(
+          `${result.stdout.toString()}${result.stderr.toString()}`
+        ).toMatch(/funnel fence: 1 file\(s\) checked, 0 refused/)
+      } finally {
+        rmSync(parent, { recursive: true, force: true })
+      }
+    },
+    TIMEOUT_MS
+  )
+
   it('runs after the fixers and before the type check in lint-staged', () => {
     // A fixer after the fence would commit code the fence never judged.
     const position = (fragment: string): number =>
@@ -255,7 +283,7 @@ describe('the fence runs where it has to run', () => {
 
         const result = Bun.spawnSync([...STAGED_FENCE.split(' '), file], {
           cwd: REPO_ROOT,
-          env: spawnEnv(),
+          env: freshChildEnv(),
           stdout: 'pipe',
           stderr: 'pipe',
           timeout: TIMEOUT_MS,
@@ -277,7 +305,9 @@ describe('the fence runs where it has to run', () => {
     () => {
       const result = Bun.spawnSync(['bun', 'lint:funnel'], {
         cwd: REPO_ROOT,
-        env: spawnEnv(),
+        // bun re-loads the repo `.env` for every name left unset, so a fresh
+        // environment would hand it the developer's credentials.
+        env: { ...withheldEnv(), NODE_ENV: 'development' },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: TIMEOUT_MS,
