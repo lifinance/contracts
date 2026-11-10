@@ -58,7 +58,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 type Scenario =
   | 'base-to-unichain'

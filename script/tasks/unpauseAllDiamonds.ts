@@ -1,6 +1,6 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import 'dotenv/config'
+import '../utils/loadEnv'
 import {
   createPublicClient,
   createWalletClient,

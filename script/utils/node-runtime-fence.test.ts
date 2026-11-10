@@ -18,7 +18,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withholdCredentials } from '../deploy/safe/spawn-env'
+import { freshChildEnv } from '../deploy/safe/spawn-env'
 
 import { findViolations } from './fence-runner'
 import { NODE_RUNTIME_FENCE } from './node-runtime-fence'
@@ -29,12 +29,6 @@ const SHIPPED_PATH = 'script/tasks/someCli.ts'
 
 /** 90 seconds: a cold Node start under the tsx loader, well short of a hang. */
 const TIMEOUT_MS = 90_000
-
-const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
-  return env
-}
 
 /** Fragment every refusal message of the fence starts with. */
 const REFUSAL = 'Shipped modules run on Node via `bunx tsx`'
@@ -212,7 +206,7 @@ describe('the Node-runtime fence runs where it has to run', () => {
             cwd: REPO_ROOT,
             // `bun test` sets NODE_ENV=test, under which consola drops the
             // success summary asserted below.
-            env: { ...spawnEnv(), TMPDIR: longTmp, NODE_ENV: 'development' },
+            env: freshChildEnv({ TMPDIR: longTmp, NODE_ENV: 'development' }),
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,
@@ -248,7 +242,9 @@ describe('the Node-runtime fence runs where it has to run', () => {
           [...staged.split(' '), relative(REPO_ROOT, file)],
           {
             cwd: REPO_ROOT,
-            env: spawnEnv(),
+            // Outside NODE_ENV=test consola's fancy reporter strips the
+            // backticks REFUSAL carries.
+            env: freshChildEnv({ NODE_ENV: 'test' }),
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,

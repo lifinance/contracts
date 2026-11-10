@@ -13,7 +13,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 import type { Collection } from 'mongodb'
 import {
   createPublicClient,
@@ -46,8 +46,6 @@ const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
 const green = (text: string) => ansi('32', text)
 const yellow = (text: string) => ansi('33', text)
 const red = (text: string) => ansi('31', text)
-dotenv.config()
-
 interface ILedgerOptions {
   derivationPath?: string
   ledgerLive?: boolean

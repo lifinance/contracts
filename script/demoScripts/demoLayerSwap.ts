@@ -69,7 +69,7 @@ import {
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---
 // Bridge 0.1 USDC from Arbitrum to Base:

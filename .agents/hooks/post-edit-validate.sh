@@ -40,7 +40,10 @@ case "$FILE" in
     # A checkout from before the wrapper existed (another repo, an older worktree)
     # gets the plain check rather than a "No such file" on every edit.
     if [[ -f script/utils/typecheck-files.sh ]]; then
-      FINDINGS=$(bash script/utils/typecheck-files.sh "$REL" 2>&1)
+      # A pass can still print a notice (errors ignored for an absent build output)
+      if FINDINGS=$(bash script/utils/typecheck-files.sh "$REL" 2>&1); then
+        FINDINGS=""
+      fi
     else
       FINDINGS=$(bunx tsc-files --noEmit "$REL" 2>&1)
     fi

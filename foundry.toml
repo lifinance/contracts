@@ -120,7 +120,6 @@ ink = "${ETH_NODE_URI_INK}"
 kaia = "${ETH_NODE_URI_KAIA}"
 katana = "${ETH_NODE_URI_KATANA}"
 linea = "${ETH_NODE_URI_LINEA}"
-lisk = "${ETH_NODE_URI_LISK}"
 megaeth = "${ETH_NODE_URI_MEGAETH}"
 monad= "${ETH_NODE_URI_MONAD}"
 nova = "${ETH_NODE_URI_NOVA}"
@@ -193,7 +192,6 @@ immutablezkevm = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://expl
 kaia = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://compiler-api-v2.kaiascan.io/mainnet/forge-verify", chain = "8217", verifier = "custom" }
 katana = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=747474", chain = "747474" }
 linea = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=59144", chain = "59144" }
-lisk = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://blockscout.lisk.com/api", chain = "1135", verifier = "blockscout" }
 mantle = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=5000", chain = "5000" }
 megaeth = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://megaeth.blockscout.com/api", chain = "4326", verifier = "blockscout" }
 metis = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/1088/etherscan", chain = "1088", verifier = "custom" }

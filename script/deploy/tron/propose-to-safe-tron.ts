@@ -16,7 +16,7 @@
  *   bunx tsx script/deploy/tron/propose-to-safe-tron.ts --to <base58> --calldata 0x... [--timelock|--direct] --privateKey 0x...
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import * as fs from 'fs'
 import * as path from 'path'

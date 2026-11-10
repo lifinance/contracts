@@ -16,7 +16,7 @@ import {
   isTronTvmChainId,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import { config } from 'dotenv'
+import '../../utils/loadEnv'
 import {
   MongoClient,
   type Collection,
@@ -77,14 +77,13 @@ import {
   resolveSelectorsViaFourByte,
 } from './selector-registry'
 import { getSignTimeTransportConfig } from './sign-time-transport'
+import { toIsoDate } from './stored-timestamp'
 import {
   TIMELOCK_OPERATION_STATE_ABI,
   pickTimelockSaltWith,
   type IPickTimelockSaltAction,
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
-
-config()
 
 const networks: Record<
   string,
@@ -1400,15 +1399,10 @@ export function getSelector(data: unknown): string {
  */
 export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
   const signers = getSigners(doc)
-  // Real documents always carry a Date; pass through a raw string as-is and
-  // use '' as the missing-sentinel rather than stringifying unexpected types
-  // into a misleading value.
   const timestamp =
-    doc.timestamp instanceof Date
-      ? doc.timestamp.toISOString()
-      : typeof doc.timestamp === 'string'
-        ? doc.timestamp
-        : ''
+    doc.timestamp === undefined || doc.timestamp === null
+      ? ''
+      : toIsoDate(doc.timestamp)
 
   const summary: IProposalSummary = {
     network: doc.network,
@@ -2118,9 +2112,10 @@ export async function getSafeMongoCollection(): Promise<{
     await client.close().catch(() => undefined)
     const detail = error instanceof Error ? error.message : String(error)
     throw new Error(
-      'Could not reach the Safe MongoDB via lifi-connect. Start the tunnel with ' +
-        '`lifi-connect prod smart-contracts` and ensure SC_MONGODB_URI points at ' +
-        'the forwarded localhost port. Setup guide: ' +
+      'Could not reach the Safe MongoDB via lifi-connect. If the tunnel is down, a ' +
+        'human must start it from their own terminal with `bun run safe:tunnel` ' +
+        '(it also refreshes an expired SSO session); otherwise check that ' +
+        'SC_MONGODB_URI points at the forwarded localhost port. Setup guide: ' +
         'https://app.notion.com/p/lifi/Accessing-Resources-with-Port-Forwarding-396f0ff14ac78098bf13f06d4a428845 ' +
         `- Underlying error: ${detail}`
     )

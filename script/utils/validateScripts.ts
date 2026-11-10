@@ -40,7 +40,7 @@
  */
 
 import { spawnSync } from 'child_process'
-import { existsSync, readFileSync, readdirSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 import { builtinModules } from 'module'
 import { join } from 'path'
 
@@ -222,10 +222,6 @@ const runTypeCheck = (repoRoot: string, files: string[]): boolean => {
     ['script/utils/typecheck-files.sh', ...files],
     { cwd: repoRoot, stdio: 'inherit' }
   )
-  if (result.status !== 0 && !existsSync(join(repoRoot, 'typechain')))
-    consola.warn(
-      'typechain/ is missing — if errors above mention typechain imports, run `bun typechain` first'
-    )
   return result.status === 0
 }
 

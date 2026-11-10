@@ -3,7 +3,7 @@
  * shared by deploy scripts and tasks.
  */
 
-import 'dotenv/config'
+import './loadEnv'
 
 import { existsSync, readFileSync } from 'fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'

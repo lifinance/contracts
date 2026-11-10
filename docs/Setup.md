@@ -41,7 +41,11 @@ only the quick-start; this is the full guide.
    drifted compiler produces bytecode that cannot be reproduced from the
    recorded commit. The pre-commit hook runs the same check but only warns, so a
    drifted local `forge` can still commit. To bump the pin, change
-   `.foundry-version` in a PR — every workflow picks it up automatically, but
+   `.foundry-version` in a PR, and in the same PR replace `.foundry-sha256`
+   with the new release's attested linux_amd64 hashes (the subjects that
+   `gh attestation verify` reports for `foundry_v<version>_linux_amd64.tar.gz`);
+   until it matches, CI ignores the cached binaries and reinstalls on every run.
+   Every workflow picks up the new pin automatically, but
    your machine does not: rerun `foundryup --install "$(cat .foundry-version)"`
    after the pin changes, or deploys will refuse.
 
@@ -59,6 +63,19 @@ only the quick-start; this is the full guide.
    cp .env.example .env
    # Edit .env with your configuration
    ```
+
+5. Generate the build outputs the demo scripts import (`typechain/`,
+   `diamond.json`), once per clone or worktree and again after changing a
+   contract's ABI:
+
+   ```bash
+   bun build:typechain-and-abi
+   ```
+
+   Both are gitignored and the git hooks never build contracts, so until they
+   exist the local type check ignores the type errors in files that import
+   them, directly or through a helper; CI checks those files against freshly
+   generated outputs.
 
 ## Cursor IDE setup
 

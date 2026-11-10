@@ -13,7 +13,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 
 import {
   getParkedTasksCollection,
@@ -22,8 +22,6 @@ import {
   type IParkedTask,
   type ParkedTaskStatus,
 } from './parked-tasks'
-
-dotenv.config()
 
 const VALID_STATUSES = [
   'queued',

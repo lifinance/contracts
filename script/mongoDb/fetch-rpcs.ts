@@ -2,7 +2,7 @@ import fs from 'fs'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import { config } from 'dotenv'
+import '../utils/loadEnv'
 import { MongoClient } from 'mongodb'
 
 import networks from '../../config/networks.json'
@@ -12,11 +12,10 @@ import {
   buildEnvLines,
   findUncredentialedPrimaries,
   isPublicPrimaryActionable,
+  readEnvEndpoints,
   selectEndpoints,
   type IRpcEndpoint,
 } from './rpcEndpoints'
-
-config()
 
 async function fetchRpcEndpoints(environment: string): Promise<{
   [network: string]: IRpcEndpoint[]
@@ -89,9 +88,33 @@ function reportUncredentialedPrimaries(endpointsByEnvVar: {
   )
 }
 
+function networksJsonEndpoints(): { [network: string]: IRpcEndpoint[] } {
+  return Object.entries(networks).reduce(
+    (acc, [networkName, config]) => {
+      const envVar = getRPCEnvVarName(networkName)
+      acc[envVar] = [
+        {
+          url: config.rpcUrl,
+          priority: 1,
+          isActive: true,
+          network: networkName,
+        },
+      ]
+      return acc
+    },
+    {} as { [network: string]: IRpcEndpoint[] }
+  )
+}
+
 async function mergeEndpointsIntoEnv(environment: string) {
   try {
-    // Try to fetch from MongoDB first
+    let envContent = ''
+    try {
+      envContent = fs.readFileSync('.env', 'utf8')
+    } catch (err) {
+      consola.warn('.env file not found; a new one will be created.')
+    }
+
     let newEndpoints: { [network: string]: IRpcEndpoint[] } = {}
     try {
       newEndpoints = await fetchRpcEndpoints(environment)
@@ -104,34 +127,17 @@ async function mergeEndpointsIntoEnv(environment: string) {
           `MongoDB is unavailable and the networks.json fallback only covers production, not '${environment}'`
         )
       consola.warn(
-        'Failed to fetch from MongoDB, falling back to networks.json:',
+        'Failed to fetch from MongoDB; keeping the RPC endpoints already in .env and filling only missing networks from networks.json:',
         error
       )
-      newEndpoints = Object.entries(networks).reduce(
-        (acc, [networkName, config]) => {
-          const envVar = getRPCEnvVarName(networkName)
-          acc[envVar] = [
-            {
-              url: config.rpcUrl,
-              priority: 1,
-              isActive: true,
-              network: networkName,
-            },
-          ]
-          return acc
-        },
-        {} as { [network: string]: IRpcEndpoint[] }
-      )
+      // The public URLs are rate-limited, so they must never replace an endpoint already set.
+      newEndpoints = {
+        ...networksJsonEndpoints(),
+        ...readEnvEndpoints(envContent),
+      }
     }
 
     const newLines = buildEnvLines(newEndpoints)
-
-    let envContent = ''
-    try {
-      envContent = fs.readFileSync('.env', 'utf8')
-    } catch (err) {
-      consola.warn('.env file not found; a new one will be created.')
-    }
 
     // Filter out any existing content, including both RPC lines and category headers
     const filteredLines = envContent.split('\n').filter((line) => {
