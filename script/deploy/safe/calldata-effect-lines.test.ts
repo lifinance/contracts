@@ -683,6 +683,33 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
       expect(text).toContain('1 BYTE AFTER THE ARGUMENTS IS NOT SHOWN')
     })
 
+    it('reports a gap before a dynamic argument as a non-standard layout, not as trailing bytes', async () => {
+      const canonical = encodeFunctionData({
+        abi: ABI_REGISTER_PERIPHERY,
+        functionName: 'registerPeripheryContract',
+        args: ['FeeCollector', FACET],
+      })
+      const body = canonical.slice(10)
+      const word = (index: number): string =>
+        body.slice(index * 64, (index + 1) * 64)
+      // The string's offset moves from 0x40 to 0x60, over one word of gap.
+      const gapped = `${canonical.slice(0, 10)}${'60'.padStart(64, '0')}${word(
+        1
+      )}${'ee'.repeat(32)}${body.slice(128)}`
+
+      for (const data of [gapped, `${gapped}${TRAILER}`]) {
+        const lines = plain(await render(data))
+        const text = lines.join('\n')
+        expect(text).toContain('register periphery "FeeCollector"')
+        expect(text).not.toContain('AFTER THE ARGUMENTS')
+        const warning = lines.findIndex((line) =>
+          line.includes('ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT')
+        )
+        expect(warning).toBeGreaterThan(0)
+        expect(lines[warning + 1]).toContain(canonical.slice(0, 10))
+      }
+    })
+
     it('says nothing about canonical calldata', async () => {
       for (const data of [
         setOwner,

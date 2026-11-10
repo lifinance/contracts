@@ -335,7 +335,7 @@ async function effectLines(
       `${pre}  ${rawPreview(data)}`,
     ]
 
-  const { functionName, args, trailing } = decoded
+  const { functionName, args, unread } = decoded
   const called = calledFunction(functionName, hex)
   if (args === undefined)
     return [
@@ -345,24 +345,38 @@ async function effectLines(
     ]
 
   const lines = await decodedCallLines(functionName, args, hex, context, pre)
-  return trailing === undefined
+  return unread === undefined
     ? lines
-    : [...lines, ...trailingLines(pre, trailing)]
+    : [...lines, ...unreadLines(pre, unread, data)]
 }
+
+/** Bytes the decode skipped, by where they sit in the calldata. */
+type Unread =
+  | { readonly kind: 'trailing'; readonly bytes: Hex }
+  | { readonly kind: 'nonStandard' }
 
 /**
  * The bytes the decode never read, which would otherwise render exactly like
- * the canonical call they follow.
+ * the standard call they hide in.
  */
-const trailingLines = (pre: string, trailing: Hex): string[] => {
-  const bytes = Math.ceil((trailing.length - 2) / 2)
+const unreadLines = (pre: string, unread: Unread, data: unknown): string[] => {
+  if (unread.kind === 'nonStandard')
+    return [
+      cannotRead(
+        pre,
+        '  ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT — SOME BYTES ARE NOT SHOWN'
+      ),
+      `${pre}  ${rawPreview(data)}`,
+    ]
+  const bytes = Math.ceil((unread.bytes.length - 2) / 2)
   const what =
     bytes === 1
       ? '1 BYTE AFTER THE ARGUMENTS IS NOT SHOWN'
       : `${bytes} BYTES AFTER THE ARGUMENTS ARE NOT SHOWN`
-  return [cannotRead(pre, `  ${what}`), `${pre}  ${rawPreview(trailing)}`]
+  return [cannotRead(pre, `  ${what}`), `${pre}  ${rawPreview(unread.bytes)}`]
 }
 
+/** The summary of a call whose arguments decoded, by the function it names. */
 async function decodedCallLines(
   functionName: string,
   args: readonly unknown[],
@@ -419,14 +433,15 @@ const bareName = (functionName: string): string =>
  * Resolves and decodes one call, without printing how it was resolved.
  *
  * `args` is undefined when the selector resolved but nothing could decode the
- * arguments — the one case zone 1 reports on itself. `trailing` holds the
- * bytes past the canonical encoding of `args`, which viem's decode ignores.
+ * arguments — the one case zone 1 reports on itself. `unread` says how the
+ * calldata departs from the standard encoding of `args`, which viem's decode
+ * accepts without complaint.
  */
 async function decodeCall(data: Hex): Promise<
   | {
       functionName: string
       args?: readonly unknown[]
-      trailing?: Hex
+      unread?: Unread
     }
   | undefined
 > {
@@ -456,11 +471,11 @@ async function decodeCall(data: Hex): Promise<
     try {
       const decoded = decodeFunctionData({ abi, data })
       if (decoded.args !== undefined) {
-        const trailing = trailingBytes(abi, data, decoded.args)
+        const unread = unreadBytes(abi, data, decoded.args)
         return {
           functionName: decoded.functionName,
           args: decoded.args,
-          ...(trailing === undefined ? {} : { trailing }),
+          ...(unread === undefined ? {} : { unread }),
         }
       }
       // viem never reads past the selector of a function with no inputs, so a
@@ -475,26 +490,34 @@ async function decodeCall(data: Hex): Promise<
 }
 
 /**
- * The calldata past the re-encoded arguments, or undefined when there is none.
+ * How the calldata departs from the standard encoding of its decoded
+ * arguments, or undefined when it is exactly that encoding.
+ *
+ * Only a calldata that starts with the standard encoding has bytes "after" the
+ * arguments; any other difference (a gap an offset jumps over, say) means the
+ * decode skipped bytes somewhere inside, so the tail is not what went unread.
  *
  * Throws when no function in `abi` carries the calldata's selector, so the
  * caller treats the candidate as not decoding rather than as canonical.
  */
-function trailingBytes(
+function unreadBytes(
   abi: Abi,
   data: Hex,
   args: readonly unknown[]
-): Hex | undefined {
+): Unread | undefined {
   const selector = data.slice(0, 10).toLowerCase()
   const item = abi.find(
     (entry): entry is AbiFunction =>
       entry.type === 'function' && toFunctionSelector(entry) === selector
   )
   if (!item) throw new Error(`no function in the ABI has selector ${selector}`)
-  const canonicalLength = 10 + encodeAbiParameters(item.inputs, args).length - 2
-  return data.length > canonicalLength
-    ? (`0x${data.slice(canonicalLength)}` as Hex)
-    : undefined
+  const encoded = `${selector}${encodeAbiParameters(item.inputs, args).slice(
+    2
+  )}`
+  const lowered = data.toLowerCase()
+  if (lowered === encoded) return undefined
+  if (!lowered.startsWith(encoded)) return { kind: 'nonStandard' }
+  return { kind: 'trailing', bytes: `0x${data.slice(encoded.length)}` }
 }
 
 const isZeroWord = (value: unknown): boolean =>
