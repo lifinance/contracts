@@ -17,7 +17,7 @@ import {
 /// ==== SUCCESS TXs ====
 // Bridge 18 XPL from plasma to hyperliquid (deposit flow): 0xbe8f499afd70a419725c23eeb41980727e1a1bbc531a111538d2b12c8818dd60
 
-config()
+config({ quiet: true })
 
 interface IProposal {
   destinationAddress: string

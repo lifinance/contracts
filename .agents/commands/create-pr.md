@@ -89,7 +89,7 @@ Imperative, ≤70 chars, matching `git log` style.
 
 ### 7. Run tests
 
-`.husky/pre-commit` and `.agents/hooks/post-edit-validate.sh` already enforce lint, format, typecheck, build, solhint and secret scanning at commit time. The gap is **tests** (pre-commit uses `forge build --skip test` and skips `bun test:ts`):
+`.husky/pre-commit` and `.agents/hooks/post-edit-validate.sh` already enforce lint, format, typecheck, solhint and secret scanning at commit time. The gap is **build and tests** (pre-commit runs neither `forge build` nor `bun test:ts`):
 
 - **Solidity**: `bun test:scoped -- <path-or-match>` while iterating; full `bun run test` (or `forge test --match-path` if scope is clear) before opening the PR.
 - **TypeScript/JS**: `bun test <path>` while iterating; full `bun test:ts` before opening the PR.

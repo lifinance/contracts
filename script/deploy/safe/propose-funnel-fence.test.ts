@@ -24,7 +24,7 @@ import {
 import { findViolations, MODULE_EXTENSIONS } from '../../utils/fence-runner'
 
 import { FUNNEL_ALLOWLIST, FUNNEL_FENCE } from './funnel-fence'
-import { withholdCredentials } from './spawn-env'
+import { freshChildEnv, withheldEnv } from './spawn-env'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const FENCE_SCRIPT = 'script/deploy/safe/funnel-fence.ts'
@@ -53,15 +53,6 @@ const STAGED_FENCE = LINT_STAGED_TS.find((command) =>
 
 const lint = (source: string, virtualPath: string): string =>
   findViolations(FUNNEL_FENCE, source, virtualPath).join('\n')
-
-const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
-  // `bun test` sets NODE_ENV=test, under which consola drops the success summary
-  // the CI run prints; the child should log as it does in CI.
-  env['NODE_ENV'] = 'development'
-  return env
-}
 
 const BYPASS_PATH = 'script/tasks/proposeSomethingNew.ts'
 
@@ -243,7 +234,9 @@ describe('the fence runs where it has to run', () => {
           [...STAGED_FENCE.split(' '), 'script/utils/is-entrypoint.ts'],
           {
             cwd: REPO_ROOT,
-            env: { ...spawnEnv(), TMPDIR: longTmp },
+            // `bun test` sets NODE_ENV=test, under which consola drops the
+            // success summary asserted below.
+            env: freshChildEnv({ TMPDIR: longTmp, NODE_ENV: 'development' }),
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,
@@ -290,7 +283,7 @@ describe('the fence runs where it has to run', () => {
 
         const result = Bun.spawnSync([...STAGED_FENCE.split(' '), file], {
           cwd: REPO_ROOT,
-          env: spawnEnv(),
+          env: freshChildEnv(),
           stdout: 'pipe',
           stderr: 'pipe',
           timeout: TIMEOUT_MS,
@@ -312,7 +305,9 @@ describe('the fence runs where it has to run', () => {
     () => {
       const result = Bun.spawnSync(['bun', 'lint:funnel'], {
         cwd: REPO_ROOT,
-        env: spawnEnv(),
+        // bun re-loads the repo `.env` for every name left unset, so a fresh
+        // environment would hand it the developer's credentials.
+        env: { ...withheldEnv(), NODE_ENV: 'development' },
         stdout: 'pipe',
         stderr: 'pipe',
         timeout: TIMEOUT_MS,

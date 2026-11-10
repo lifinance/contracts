@@ -31,6 +31,7 @@ import {
   ALWAYS_WITHHELD,
   CREDENTIAL_CORES,
   NON_CREDENTIAL_NAMES,
+  withheldEnv,
   withheldValueFor,
   withholdCredentials,
 } from './deploy/safe/spawn-env'
@@ -657,5 +658,26 @@ describe('withholdCredentials withholds each class from a real child', () => {
 
     expect(env[pinned]).toBeDefined()
     expect(env[pinned]).toContain('malformed-in-tests')
+  })
+})
+
+describe('withheldEnv', () => {
+  const CREDENTIAL = 'ZZPROBE_API_KEY'
+  const PLAIN = 'ZZPROBE_PLAIN'
+
+  afterAll(() => {
+    delete process.env[CREDENTIAL] // spawn-env: in-process fixture cleanup, no child spawned
+    delete process.env[PLAIN]
+  })
+
+  it("withholds the parent's credentials in a copy, leaving the parent intact", () => {
+    process.env[CREDENTIAL] = 'real-value'
+    process.env[PLAIN] = 'kept'
+
+    const env = withheldEnv()
+
+    expect(env[CREDENTIAL]).toContain('malformed-in-tests')
+    expect(env[PLAIN]).toBe('kept')
+    expect(process.env[CREDENTIAL]).toBe('real-value')
   })
 })

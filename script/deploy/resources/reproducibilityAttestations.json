@@ -6,7 +6,7 @@
   "caveat": "A commit here reproduces the deployed bytecode; it is not proof it is the commit that was deployed, since commits frequently share a source closure. Treat as an attestation about the code, not as recovered deployment provenance.",
   "scope": "EVM only. zkEVM slots are excluded because the sweep does not record which zksolc version produced the match, and zksolc pins zk codegen.",
   "zkEvmSlotsExcluded": 6,
-  "count": 727,
+  "count": 711,
   "attestations": [
     {
       "network": "berachain",
@@ -151,16 +151,6 @@
     {
       "network": "linea",
       "address": "0x640feD8831d2d9035dccbB4502022B0a74C16f45",
-      "contractName": "AcrossFacetV4",
-      "version": "1.0.0",
-      "commit": "b32d8fd0758b8a8d588b1a34411321acb7652bbd",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd",
       "contractName": "AcrossFacetV4",
       "version": "1.0.0",
       "commit": "b32d8fd0758b8a8d588b1a34411321acb7652bbd",
@@ -494,16 +484,6 @@
       "contractName": "CalldataVerificationFacet",
       "version": "1.1.1",
       "commit": "78da588e7237e1618d6968bd95e3866a66c61c66",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0x1feB868BF64AdC552E051fB7387681F78b988a81",
-      "contractName": "CalldataVerificationFacet",
-      "version": "1.1.2",
-      "commit": "a407e069044124df5a83a4050695d069bf51aeff",
       "solcVersion": "0.8.17",
       "evmVersion": "london",
       "optimizerRuns": "1000000"
@@ -1169,16 +1149,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0x98750e70Cf1313D9702f0f57D399DD0bA05d16E0",
-      "contractName": "ERC20Proxy",
-      "version": "1.0.0",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mantle",
       "address": "0xA950Ac46b0b844c0564d18A54A9685e614B9086C",
       "contractName": "ERC20Proxy",
@@ -1509,16 +1479,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0xd9318fFE1EbbfA71049A443e623Be566067C9D6B",
-      "contractName": "Executor",
-      "version": "2.0.0",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mantle",
       "address": "0x7078d1DE45C7D3e87f71D5DA663db2a8Ee1dfEbe",
       "contractName": "Executor",
@@ -1791,16 +1751,6 @@
     {
       "network": "linea",
       "address": "0xA4A24BdD4608D7dFC496950850f9763B674F0DB2",
-      "contractName": "FeeCollector",
-      "version": "1.0.0",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
       "contractName": "FeeCollector",
       "version": "1.0.0",
       "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
@@ -2221,16 +2171,6 @@
     {
       "network": "linea",
       "address": "0xdbA6f59fDe50a2E64F8A27a23E905aD4925fceA9",
-      "contractName": "GasZipFacet",
-      "version": "2.0.4",
-      "commit": "e793288b2500348318092a28f5ae5b53cd8bf2c6",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0xB391B85Fcdecf94eA5f0EE96F64fFf7D9303B5bb",
       "contractName": "GasZipFacet",
       "version": "2.0.4",
       "commit": "e793288b2500348318092a28f5ae5b53cd8bf2c6",
@@ -2769,16 +2709,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0xBa713B18c806EcdEEE49FAec623dE2D872192872",
-      "contractName": "GenericSwapFacetV3",
-      "version": "1.0.1",
-      "commit": "6b55663982a0bb2070b7bc5454e97c3db01e5bb6",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mainnet",
       "address": "0x8C9dBA771220Ed09580b77F0765e7153fbDE7790",
       "contractName": "GenericSwapFacetV3",
@@ -3249,16 +3179,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0x6956df7664ACbd742cBCae485a57C4BFe3e075b3",
-      "contractName": "GlacisFacet",
-      "version": "1.2.0",
-      "commit": "b32d8fd0758b8a8d588b1a34411321acb7652bbd",
-      "solcVersion": "0.8.29",
-      "evmVersion": "cancun",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mainnet",
       "address": "0xd69e5eA7458aBFF098e9240f81F733898535c7A0",
       "contractName": "GlacisFacet",
@@ -3649,16 +3569,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0x7347996d9c81035E3EA667Bf4240bB134a969B56",
-      "contractName": "LiFiDEXAggregator",
-      "version": "1.8.0",
-      "commit": "febe3b2974e0c8f2824b303f0baef11842ff1149",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mainnet",
       "address": "0x8189AFcC5B73Dc90600FeE92e5267Aff1D192884",
       "contractName": "LiFiDEXAggregator",
@@ -4011,16 +3921,6 @@
     {
       "network": "linea",
       "address": "0x68B21d21509446Bf5449B6F5F8aBD4b3cfcbc3f8",
-      "contractName": "LiFuelFeeCollector",
-      "version": "1.0.1",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0x8f023b4193a6b18C227B4a755f8e28B3D30Ef9a1",
       "contractName": "LiFuelFeeCollector",
       "version": "1.0.1",
       "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
@@ -4519,16 +4419,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0xD9e3837E42198aaFc13cb51536d7c31f590aD6Fd",
-      "contractName": "Receiver",
-      "version": "2.0.2",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mainnet",
       "address": "0x050e198E36A73a1e32F15C3afC58C4506d82f657",
       "contractName": "Receiver",
@@ -4704,16 +4594,6 @@
       "contractName": "ReceiverAcrossV3",
       "version": "1.0.1",
       "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0xD263a23453CB9A77860ed6393A2B9a55AF70EFAb",
-      "contractName": "ReceiverAcrossV3",
-      "version": "1.0.0",
-      "commit": "a407e069044124df5a83a4050695d069bf51aeff",
       "solcVersion": "0.8.17",
       "evmVersion": "london",
       "optimizerRuns": "1000000"
@@ -5051,16 +4931,6 @@
     {
       "network": "linea",
       "address": "0xb7777277Ec16688Fe8C599813a69e8D1478369C6",
-      "contractName": "RelayDepositoryFacet",
-      "version": "1.0.0",
-      "commit": "b32d8fd0758b8a8d588b1a34411321acb7652bbd",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0x88E0Dd83E6da24bF317323E5Ca06842406D57eD0",
       "contractName": "RelayDepositoryFacet",
       "version": "1.0.0",
       "commit": "b32d8fd0758b8a8d588b1a34411321acb7652bbd",
@@ -6069,16 +5939,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a",
-      "contractName": "TokenWrapper",
-      "version": "1.0.0",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mainnet",
       "address": "0x5c57Cf61E473aE865E733A3A23fbB7618b4621F6",
       "contractName": "TokenWrapper",
@@ -6609,16 +6469,6 @@
       "optimizerRuns": "1000000"
     },
     {
-      "network": "lisk",
-      "address": "0xb28Dd740D27853A91639795223AB409088A73E23",
-      "contractName": "WhitelistManagerFacet",
-      "version": "1.0.0",
-      "commit": "b32d8fd0758b8a8d588b1a34411321acb7652bbd",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
       "network": "mainnet",
       "address": "0xb28Dd740D27853A91639795223AB409088A73E23",
       "contractName": "WhitelistManagerFacet",
@@ -7091,16 +6941,6 @@
     {
       "network": "linea",
       "address": "0xbA2E7e3541FBf5921616E5007CdB8799C34e08E4",
-      "contractName": "WithdrawFacet",
-      "version": "1.0.0",
-      "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
-      "solcVersion": "0.8.17",
-      "evmVersion": "london",
-      "optimizerRuns": "1000000"
-    },
-    {
-      "network": "lisk",
-      "address": "0xfA009cd56d35AE3BbdF975135b0BAE9b403c7da1",
       "contractName": "WithdrawFacet",
       "version": "1.0.0",
       "commit": "6e9b25928ca49a4d909b4d93eb2a480a96d14d7f",
