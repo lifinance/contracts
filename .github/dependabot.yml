@@ -25,17 +25,13 @@ updates:
           - 'minor'
           - 'patch'
     # Held back until migrated: @typechain/ethers-v5 11 breaks the published
-    # lifi-contract-types API, Prettier 3 (with prettier-plugin-solidity 2 and
-    # solhint-plugin-prettier 0.1) reformats .sol and TS/JS files repo-wide, and
+    # lifi-contract-types API, prettier-plugin-solidity 2 reformats audited
+    # src/**/*.sol (Prettier is pinned with plugin 1.4.3 for src/ only), and
     # TypeScript 7 drops the compiler API the node-runtime and placement fences use.
     ignore:
       - dependency-name: '@typechain/ethers-v5'
         update-types: ['version-update:semver-major']
       - dependency-name: 'prettier'
-        update-types: ['version-update:semver-major']
       - dependency-name: 'prettier-plugin-solidity'
-        update-types: ['version-update:semver-major']
-      - dependency-name: 'solhint-plugin-prettier'
-        versions: ['>=0.1.0']
       - dependency-name: 'typescript'
         update-types: ['version-update:semver-major']

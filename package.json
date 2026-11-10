@@ -35,6 +35,8 @@
     "oxlint": "1.91.0",
     "oxlint-tsgolint": "7.0.2006",
     "plop": "4.0.5",
+    "prettier": "3.9.10",
+    "prettier-plugin-solidity": "1.4.3",
     "solhint": "6.2.5",
     "tsc-files": "^1.1.4",
     "tsx": "4.23.13",
@@ -76,8 +78,8 @@
     "false-refusal-budget": "bunx tsx ./script/deploy/codehash/false-refusal-budget.cli.ts",
     "fetch-rpcs": "bunx tsx ./script/mongoDb/fetch-rpcs.ts",
     "flatten": "forge flatten --output",
-    "format": "oxfmt --check && forge fmt --check",
-    "format:fix": "oxfmt && forge fmt",
+    "format": "oxfmt --check && forge fmt --check && prettier --check \"src/**/*.sol\"",
+    "format:fix": "oxfmt && forge fmt && prettier --write \"src/**/*.sol\"",
     "gas": "forge snapshot --match-path 'test/solidity/Gas/**/*' -vvv",
     "healthcheck": "bunx tsx ./script/deploy/healthCheck.ts",
     "lint:js": "oxlint --type-aware .",
@@ -148,6 +150,7 @@
     ],
     "*.sol": [
       "bash -c 'files=(); for f in \"$@\"; do case \"${f#$PWD/}\" in src/*) ;; *) files+=(\"$f\") ;; esac; done; [ ${#files[@]} -eq 0 ] || forge fmt \"${files[@]}\" # src/ is not forge-formatted (audited sources)' _",
+      "bash -c 'files=(); for f in \"$@\"; do case \"${f#$PWD/}\" in src/*) files+=(\"$f\") ;; esac; done; [ ${#files[@]} -eq 0 ] || prettier --write \"${files[@]}\" # src/ uses Prettier + prettier-plugin-solidity 1.4.3' _",
       "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ],
     "*.md": [
