@@ -421,7 +421,7 @@ export function decodeScheduleBatch(data: Hex): IScheduleBatchParams {
       readonly Hex[],
       Hex,
       Hex,
-      bigint
+      bigint,
     ]
   return { targets, values, payloads, predecessor, salt, delay }
 }

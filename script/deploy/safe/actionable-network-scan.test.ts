@@ -71,14 +71,14 @@ const doc = (
     safeAddress,
     status: 'pending',
     safeTx: { data: { nonce }, signatures: {} },
-  } as unknown as ISafeTxDocument)
+  }) as unknown as ISafeTxDocument
 
 /** Minimal stand-in for the pending-transactions collection the scan reads. */
 const collectionOf = (docs: ISafeTxDocument[]) =>
   ({
     distinct: async () => [...new Set(docs.map((d) => d.network))],
     find: () => ({ toArray: async () => docs }),
-  } as unknown as Collection<ISafeTxDocument>)
+  }) as unknown as Collection<ISafeTxDocument>
 
 const configuredSafe = (network: string): Address => {
   const address = (networks as Record<string, { safeAddress?: string }>)[

@@ -324,7 +324,7 @@ describe('findMissingMain', () => {
   }
 
   const anchoredAt = (revision: string) => async () =>
-    ({ ok: true, revision } as const)
+    ({ ok: true, revision }) as const
 
   beforeEach(() => {
     savedGitVars = {}

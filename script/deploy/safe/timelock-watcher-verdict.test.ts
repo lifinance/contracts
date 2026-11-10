@@ -119,8 +119,8 @@ describe('classifyOperation', () => {
       c.check === 'codehash'
         ? { ...c, status: 'unknown' as const }
         : c.check === 'delay'
-        ? { ...c, status: 'fail' as const }
-        : c
+          ? { ...c, status: 'fail' as const }
+          : c
     )
     expect(classifyOperation(checks).verdict).toBe('mismatch')
   })
@@ -1215,8 +1215,8 @@ describe('gradeRollback', () => {
         c.check === 'rollback'
           ? rollback
           : c.check === 'codehash'
-          ? codehash
-          : c
+            ? codehash
+            : c
       )
       const result = classifyOperation(checks)
       expect(result.verdict).toBe('mismatch')

@@ -1518,8 +1518,8 @@ const processTxs = async (
       txNonce === expectedNonce
         ? 'current'
         : txNonce < expectedNonce
-        ? 'stale'
-        : 'future'
+          ? 'stale'
+          : 'future'
 
     codehashGate = blockingUnevaluatedGate()
     integrityRun = undefined
@@ -1564,8 +1564,8 @@ const processTxs = async (
       nonceStatus === 'stale'
         ? ` [31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used[0m`
         : nonceStatus === 'future' && tx.canExecute
-        ? ` [33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet[0m`
-        : ''
+          ? ` [33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet[0m`
+          : ''
     )
 
     // The struct the signature covers, never the stored row: createTransaction
@@ -1606,10 +1606,10 @@ const processTxs = async (
         tx.safeTransaction.data.operation === 0
           ? 'Call'
           : tx.safeTransaction.data.operation === 1
-          ? 'DelegateCall'
-          : `not Call (${describeOperationValue(
-              tx.safeTransaction.data.operation
-            )})`
+            ? 'DelegateCall'
+            : `not Call (${describeOperationValue(
+                tx.safeTransaction.data.operation
+              )})`
       ),
       operationIsCall: tx.safeTransaction.data.operation === 0,
       data: tx.safeTx.data.data,
@@ -2181,8 +2181,8 @@ const processTxs = async (
                   storedHash: !storedIsHash
                     ? ('unreadable' as const)
                     : storedHash.toLowerCase() !== deviceHash.toLowerCase()
-                    ? ('disagrees' as const)
-                    : ('agrees' as const),
+                      ? ('disagrees' as const)
+                      : ('agrees' as const),
                 }
               : {}),
             devicePanel,
@@ -2350,9 +2350,8 @@ const main = defineCommand({
       // needs it for the single message screen hash signing shows has not been
       // checked on a device, so the gate stays for both rather than being
       // narrowed on an assumption.
-      const { checkBlindSigningEnabled, closeLedgerConnection } = await import(
-        './ledger'
-      )
+      const { checkBlindSigningEnabled, closeLedgerConnection } =
+        await import('./ledger')
       if (
         ledgerResult &&
         !(await checkBlindSigningEnabled(ledgerResult.transport))
@@ -2432,9 +2431,8 @@ const main = defineCommand({
         candidateNetworks = [args.network]
       } else {
         // First, get all networks with pending transactions (for informational purposes)
-        candidateNetworks = await getNetworksWithPendingTransactions(
-          pendingTransactions
-        )
+        candidateNetworks =
+          await getNetworksWithPendingTransactions(pendingTransactions)
 
         if (candidateNetworks.length === 0) {
           consola.info('No networks have pending transactions')

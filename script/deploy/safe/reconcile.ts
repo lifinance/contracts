@@ -362,8 +362,10 @@ export interface IRunSubmission {
 const isSettled = (status: SafeTxStatus | undefined): boolean =>
   status === 'executed' || status === 'reverted'
 
-export interface IRunSubmissionReconcileOptions
-  extends Omit<IReconcileAllOptions, 'network'> {
+export interface IRunSubmissionReconcileOptions extends Omit<
+  IReconcileAllOptions,
+  'network'
+> {
   waitMs?: number
   pollMs?: number
   /** Injectable for tests. */
