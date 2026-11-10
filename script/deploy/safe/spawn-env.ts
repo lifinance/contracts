@@ -213,3 +213,14 @@ export const withholdCredentials = (env: Record<string, string>): void => {
     if (value !== undefined) env[name] = value
   }
 }
+
+/**
+ * A copy of this process's environment with every credential withheld.
+ *
+ * @returns an environment to hand to a spawned child
+ */
+export const withheldEnv = (): Record<string, string> => {
+  const env = { ...process.env } as Record<string, string>
+  withholdCredentials(env)
+  return env
+}
