@@ -115,7 +115,7 @@ gets its own PR. Use the Step 0 `<slug>`, never the raw facet name:
 git worktree add ../<slug>-remediation <audited_oid_or_pr_head> -b audit/<slug>-remediation
 cd ../<slug>-remediation
 git submodule update --init --recursive
-bun install && bun typechain:incremental   # avoid the fresh-worktree lint-staged trap
+bun install
 ln -s <main-checkout>/.env .env            # framework/deploy scripts read the shared .env
 ```
 
