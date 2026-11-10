@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Auto-format the edited file (silent): oxfmt for .ts/.js, script/utils/format-sol.sh for .sol
-# (Prettier for src/, forge fmt elsewhere). Called by
-# post-edit-validate.sh before it lints, so formatting never races the linters.
+# (Prettier for src/, forge fmt elsewhere). Called by post-edit-validate.sh before it lints,
+# so formatting never races the linters.
 # Reads tool JSON from stdin; exits 0 always (never blocks Claude)
 
 INPUT=$(cat)
