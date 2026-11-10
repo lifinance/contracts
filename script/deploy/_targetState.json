@@ -796,39 +796,6 @@
       }
     }
   },
-  "lisk": {
-    "production": {
-      "LiFiDiamond": {
-        "AccessManagerFacet": "latest",
-        "CalldataVerificationFacet": "latest",
-        "DiamondCutFacet": "latest",
-        "DiamondLoupeFacet": "latest",
-        "EmergencyPauseFacet": "latest",
-        "GasZipFacet": "2.0.4",
-        "GenericSwapFacetV3": "latest",
-        "LiFiTimelockController": "latest",
-        "OwnershipFacet": "latest",
-        "PeripheryRegistryFacet": "latest",
-        "WhitelistManagerFacet": "latest",
-        "WithdrawFacet": "latest",
-        "LiFiDiamond": "latest",
-        "ERC20Proxy": "latest",
-        "Executor": "latest",
-        "FeeForwarder": "latest",
-        "GasZipPeriphery": "latest",
-        "OutputValidator": "latest",
-        "Permit2Proxy": "latest",
-        "TokenWrapper": "latest",
-        "AcrossFacetV4": "latest",
-        "AcrossFacetPackedV4": "latest",
-        "ReceiverAcrossV4": "latest",
-        "AcrossV4SwapFacet": "latest",
-        "GlacisFacet": "latest",
-        "LayerSwapFacet": "latest",
-        "RelayDepositoryFacet": "latest"
-      }
-    }
-  },
   "mantle": {
     "production": {
       "LiFiDiamond": {

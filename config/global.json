@@ -149,7 +149,6 @@
   },
   "whitelistPeripheryNetworks": {
     "LiFiDEXAggregator": [
-      "lisk",
       "vana",
       "viction",
       "worldchain"
