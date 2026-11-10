@@ -18,7 +18,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withheldEnv } from '../deploy/safe/spawn-env'
+import { freshChildEnv } from '../deploy/safe/spawn-env'
 
 import { findViolations } from './fence-runner'
 import { NODE_RUNTIME_FENCE } from './node-runtime-fence'
@@ -206,7 +206,7 @@ describe('the Node-runtime fence runs where it has to run', () => {
             cwd: REPO_ROOT,
             // `bun test` sets NODE_ENV=test, under which consola drops the
             // success summary asserted below.
-            env: { ...spawnEnv(), TMPDIR: longTmp, NODE_ENV: 'development' },
+            env: freshChildEnv({ TMPDIR: longTmp, NODE_ENV: 'development' }),
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,
@@ -242,7 +242,9 @@ describe('the Node-runtime fence runs where it has to run', () => {
           [...staged.split(' '), relative(REPO_ROOT, file)],
           {
             cwd: REPO_ROOT,
-            env: withheldEnv(),
+            // Outside NODE_ENV=test consola's fancy reporter strips the
+            // backticks REFUSAL carries.
+            env: freshChildEnv({ NODE_ENV: 'test' }),
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,
