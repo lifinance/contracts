@@ -196,6 +196,26 @@ export function classifyMongoError(error: unknown): 'misconfig' | 'error' {
 }
 
 /**
+ * Formats a stored queue timestamp as an ISO string. The queue schema types
+ * timestamps as `Date`, but Mongo does not enforce it: a row written outside
+ * the executor can hold another type, and one such row must not crash the
+ * whole listing.
+ *
+ * @param value - Timestamp as read from Mongo (Date, ISO string, epoch ms, or anything else).
+ * @returns ISO string when the value parses as a date, otherwise the value as-is via `String()`.
+ */
+export function toIsoDate(value: unknown): string {
+  const date =
+    value instanceof Date ||
+    typeof value === 'string' ||
+    typeof value === 'number'
+      ? new Date(value)
+      : undefined
+  if (date && !Number.isNaN(date.getTime())) return date.toISOString()
+  return String(value)
+}
+
+/**
  * Maps a queue doc to the printable row shape.
  *
  * @param doc - Queue row from Mongo.
@@ -213,15 +233,15 @@ export function toDisplayRow(
     operationId: doc.operationId,
     status: doc.status,
     safeTxHash: doc.safeTxHash,
-    createdAt: doc.createdAt.toISOString(),
+    createdAt: toIsoDate(doc.createdAt),
   }
   if (doc.executionTxHash) row.executionTxHash = doc.executionTxHash
-  if (doc.executedAt) row.executedAt = doc.executedAt.toISOString()
+  if (doc.executedAt) row.executedAt = toIsoDate(doc.executedAt)
   if (onChainDone !== undefined) row.onChainDone = onChainDone
   if (onChainReady !== undefined) row.onChainReady = onChainReady
   const reason = queueStatusReason(doc)
   if (reason) row.statusReason = reason
-  if (doc.blockedAt) row.blockedAt = doc.blockedAt.toISOString()
+  if (doc.blockedAt) row.blockedAt = toIsoDate(doc.blockedAt)
   if (doc.revertCount) row.revertCount = doc.revertCount
   return row
 }

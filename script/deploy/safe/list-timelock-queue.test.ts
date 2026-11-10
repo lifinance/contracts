@@ -16,6 +16,7 @@ import {
   statusKey,
   needsAttention,
   toDisplayRow,
+  toIsoDate,
 } from './list-timelock-queue'
 import type { ITimelockQueueDoc } from './timelock-queue'
 
@@ -241,6 +242,34 @@ describe('toDisplayRow', () => {
     expect(row.executionTxHash).toBeUndefined()
     expect(row.executedAt).toBeUndefined()
     expect(row.onChainDone).toBeUndefined()
+  })
+
+  it('formats non-Date timestamps without throwing', () => {
+    const doc = {
+      ...buildDoc({ status: 'blocked' }),
+      createdAt: Date.parse('2026-07-03T12:00:00Z'),
+      executedAt: '2026-07-06T01:30:00Z',
+      blockedAt: { not: 'a date' },
+    } as unknown as ITimelockQueueDoc
+    const row = toDisplayRow(doc)
+    expect(row.createdAt).toBe('2026-07-03T12:00:00.000Z')
+    expect(row.executedAt).toBe('2026-07-06T01:30:00.000Z')
+    expect(row.blockedAt).toBe('[object Object]')
+  })
+})
+
+describe('toIsoDate', () => {
+  it('formats a Date, an ISO string and epoch ms alike', () => {
+    const iso = '2026-07-06T01:30:00.000Z'
+    expect(toIsoDate(new Date(iso))).toBe(iso)
+    expect(toIsoDate('2026-07-06T01:30:00Z')).toBe(iso)
+    expect(toIsoDate(Date.parse(iso))).toBe(iso)
+  })
+
+  it('returns an unparseable value as-is instead of throwing', () => {
+    expect(toIsoDate('not a date')).toBe('not a date')
+    expect(toIsoDate(new Date('nope'))).toBe('Invalid Date')
+    expect(toIsoDate(null)).toBe('null')
   })
 })
 
