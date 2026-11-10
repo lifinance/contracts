@@ -48,6 +48,7 @@ import {
   getViemChainForNetworkName,
   isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
+import { redactUrls } from '../utils/redactUrls'
 
 import {
   assertMappingsInitialized,
@@ -393,7 +394,7 @@ const main = defineCommand({
 
         results.push({ network, ok: true })
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : String(e)
+        const msg = redactUrls(e instanceof Error ? e.message : String(e))
         consola.error(`[${network}] ❌ Failed: ${msg}`)
         results.push({ network, ok: false, error: msg })
       }

@@ -19,6 +19,7 @@ import {
   parseAllBridgeMappings,
   type IAllBridgeChainIdConfig,
 } from '../deploy/tron/helpers/allBridgeInit'
+import { redactUrls } from '../utils/redactUrls'
 
 /** One `allowFailure: true` multicall result, as viem returns it. */
 export type MappingReadResult =
@@ -124,13 +125,13 @@ export function isUnsupportedAllBridgeChainIdRevert(error: unknown): boolean {
  * Wraps a failed read in an error that names the key it was for.
  * @param key - The chainId key the read was for
  * @param error - The read failure
- * @returns An error whose cause is the original failure
+ * @returns An error naming the key, with RPC URLs redacted
  */
 function describeReadFailure(key: bigint, error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error)
-  return new Error(`Failed to read chainId ${key.toString()}: ${message}`, {
-    cause: error,
-  })
+  const message = redactUrls(
+    error instanceof Error ? error.message : String(error)
+  )
+  return new Error(`Failed to read chainId ${key.toString()}: ${message}`)
 }
 
 /**
