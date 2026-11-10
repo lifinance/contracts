@@ -89,6 +89,7 @@ berachain = "${ETH_NODE_URI_BERACHAIN}"
 bsc = "${ETH_NODE_URI_BSC}"
 celo = "${ETH_NODE_URI_CELO}"
 cronos = "${ETH_NODE_URI_CRONOS}"
+elysium = "${ETH_NODE_URI_ELYSIUM}"
 evmos = "${ETH_NODE_URI_EVMOS}"
 flare = "${ETH_NODE_URI_FLARE}"
 flow = "${ETH_NODE_URI_FLOW}"
@@ -98,7 +99,6 @@ harmony = "${ETH_NODE_URI_HARMONY}"
 hemi = "${ETH_NODE_URI_HEMI}"
 hyperevm = "${ETH_NODE_URI_HYPEREVM}"
 gnosis = "${ETH_NODE_URI_GNOSIS}"
-gravity = "${ETH_NODE_URI_GRAVITY}"
 etherlink = "${ETH_NODE_URI_ETHERLINK}"
 immutablezkevm = "${ETH_NODE_URI_IMMUTABLEZKEVM}"
 injective = "${ETH_NODE_URI_INJECTIVE}"
@@ -163,12 +163,12 @@ berachain = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan
 bsc = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=56", chain = "56" }
 celo = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=42220", chain = "42220" }
 cronos = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://cronos.org/explorer/api", verifier = "blockscout", chain = "25" }
+elysium = { key = "${ELYSIUM_ETHERSCAN_API_KEY}", url = "https://elysium.kinetiq.xyz/explorer/api", chain = "99901", verifier = "blockscout" }
 flare = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://api.routescan.io/v2/network/mainnet/evm/14/etherscan", chain = "14", verifier = "custom" }
 flow = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://evm.flowscan.io/api", chain = "747" , verifier = "blockscout"}
 fraxtal = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=252", chain = "252" }
 fuse = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.fuse.io/api?", chain = "122" , verifier = "blockscout"}
 gnosis = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=100", chain = "100" }
-gravity = { key = "${GRAVITY_ETHERSCAN_API_KEY}", url = "https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/GRAVITY", chain = "1625", verifier = "oklink" }
 hemi = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.hemi.xyz/api", chain = "43111", verifier = "blockscout" }
 hyperevm = { key = "${MAINNET_ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=999", chain = "999" }
 etherlink = { key = "${NO_ETHERSCAN_API_KEY_REQUIRED}", url = "https://explorer.etherlink.com/api", chain = "42793", verifier = "blockscout" }
