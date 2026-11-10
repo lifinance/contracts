@@ -11,7 +11,7 @@
  * unreachable). The cluster is the non-sensitive one — no VPN required.
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
