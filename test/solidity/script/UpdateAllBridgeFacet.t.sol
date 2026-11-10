@@ -2,7 +2,6 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 import { DeployScript as UpdateAllBridgeFacetScript } from "../../../script/deploy/facets/UpdateAllBridgeFacet.s.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 
@@ -40,14 +39,11 @@ contract UpdateAllBridgeFacetHarness is UpdateAllBridgeFacetScript {
 }
 
 contract UpdateAllBridgeFacetTest is Test {
-    using stdJson for string;
-
     error ChainIdNotInInitCallData(uint256 chainId);
 
     uint256 internal constant MAINNET_CHAIN_ID = 1;
 
     UpdateAllBridgeFacetHarness internal script;
-    string internal config;
 
     function setUp() public {
         vm.chainId(MAINNET_CHAIN_ID);
@@ -58,29 +54,38 @@ contract UpdateAllBridgeFacetTest is Test {
         vm.setEnv("USE_DEF_DIAMOND", "true");
 
         script = new UpdateAllBridgeFacetHarness();
-        config = vm.readFile(
-            string.concat(vm.projectRoot(), "/config/allbridge.json")
-        );
     }
 
+    /// @dev Expected rows are literals, not read from the file, so a fault in the
+    ///      script's own read technique cannot show up on both sides of the assert.
+    ///      Adding a chain to config/allbridge.json means adding its row here.
     function test_DecodesEveryConfigRowByFieldName() public {
+        uint256[2][15] memory expected = [
+            [uint256(1), 1],
+            [uint256(56), 2],
+            [uint256(1885080386571452), 3],
+            [uint256(1151111081099710), 4],
+            [uint256(137), 5],
+            [uint256(42161), 6],
+            [uint256(1201081091099710), 7],
+            [uint256(43114), 8],
+            [uint256(8453), 9],
+            [uint256(10), 10],
+            [uint256(42220), 11],
+            [uint256(146), 12],
+            [uint256(9270000000000000), 13],
+            [uint256(130), 14],
+            [uint256(59144), 17]
+        ];
+
         AllBridgeFacet.ChainIdConfig[] memory configs = _decodeInitCallData(
             script.exposedGetCallData()
         );
-        uint256 rowCount;
-        while (config.keyExists(_rowKey(rowCount, ""))) rowCount++;
 
-        assertGt(rowCount, 0);
-        assertEq(configs.length, rowCount);
-        for (uint256 i = 0; i < rowCount; i++) {
-            assertEq(
-                configs[i].chainId,
-                config.readUint(_rowKey(i, ".chainId"))
-            );
-            assertEq(
-                configs[i].allBridgeChainId,
-                config.readUint(_rowKey(i, ".allBridgeChainId"))
-            );
+        assertEq(configs.length, expected.length);
+        for (uint256 i = 0; i < expected.length; i++) {
+            assertEq(configs[i].chainId, expected[i][0]);
+            assertEq(configs[i].allBridgeChainId, expected[i][1]);
         }
     }
 
@@ -188,13 +193,6 @@ contract UpdateAllBridgeFacetTest is Test {
     function _quoted(string memory _s) internal pure returns (string memory) {
         string memory quote = string(abi.encodePacked(bytes1(0x22)));
         return string.concat(quote, _s, quote);
-    }
-
-    function _rowKey(
-        uint256 _index,
-        string memory _field
-    ) internal pure returns (string memory) {
-        return string.concat(".mappings[", vm.toString(_index), "]", _field);
     }
 
     function _allBridgeChainIdOf(

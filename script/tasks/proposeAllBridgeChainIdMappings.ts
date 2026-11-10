@@ -42,6 +42,7 @@ import {
   pickTimelockSalt,
 } from '../deploy/safe/safe-utils'
 import { encodeTimelockScheduleBatch } from '../deploy/safe/timelock-abi'
+import type { IAllBridgeChainIdConfig } from '../deploy/tron/helpers/allBridgeInit'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -49,13 +50,13 @@ import {
 } from '../utils/viemScriptHelpers'
 
 import {
+  assertMappingsInitialized,
   buildMappingRepairCalls,
   GET_CHAIN_ID_TO_ALL_BRIDGE_CHAIN_ID_ABI,
   getStaleAllBridgeKeys,
   loadAllBridgeMappings,
   selectMappingsNeedingUpdate,
   selectResolvingStaleKeys,
-  type IAllBridgeChainIdMapping,
   type IMappingRepairCalls,
   type MappingReadResult,
 } from './allBridgeChainIdMappings'
@@ -108,10 +109,10 @@ function isNonZeroAddressString(value: unknown): value is string {
 async function readMappingRepairs(params: {
   network: string
   diamondAddress: Address
-  mappings: IAllBridgeChainIdMapping[]
+  mappings: IAllBridgeChainIdConfig[]
   staleKeys: bigint[]
 }): Promise<{
-  mappingsToSet: IAllBridgeChainIdMapping[]
+  mappingsToSet: IAllBridgeChainIdConfig[]
   staleKeysToUnset: bigint[]
 }> {
   const { network, diamondAddress, mappings, staleKeys } = params
@@ -130,20 +131,17 @@ async function readMappingRepairs(params: {
     allowFailure: true,
   })) as MappingReadResult[]
 
-  try {
-    return {
-      mappingsToSet: selectMappingsNeedingUpdate(
-        mappings,
-        results.slice(0, mappings.length)
-      ),
-      staleKeysToUnset: selectResolvingStaleKeys(
-        staleKeys,
-        results.slice(mappings.length)
-      ),
-    }
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
-    throw new Error(`${msg} (on ${network})`)
+  assertMappingsInitialized(results)
+
+  return {
+    mappingsToSet: selectMappingsNeedingUpdate(
+      mappings,
+      results.slice(0, mappings.length)
+    ),
+    staleKeysToUnset: selectResolvingStaleKeys(
+      staleKeys,
+      results.slice(mappings.length)
+    ),
   }
 }
 

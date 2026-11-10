@@ -15,10 +15,10 @@ import {
   type Hex,
 } from 'viem'
 
-export interface IAllBridgeChainIdMapping {
-  chainId: bigint
-  allBridgeChainId: number
-}
+import {
+  parseAllBridgeMappings,
+  type IAllBridgeChainIdConfig,
+} from '../deploy/tron/helpers/allBridgeInit'
 
 /** One `allowFailure: true` multicall result, as viem returns it. */
 export type MappingReadResult =
@@ -48,53 +48,21 @@ export const ALL_BRIDGE_ERRORS_ABI = parseAbi([
 ])
 
 /**
- * Validates and normalizes the `mappings` array of `config/allbridge.json`.
- * @param parsed - Parsed contents of an allbridge config file
- * @returns One `{ chainId, allBridgeChainId }` entry per config row
- * @throws When `mappings` is missing/empty or a row has a non-positive chainId or allBridgeChainId
+ * Reads and validates an AllBridge config file with the parser the Tron deploy path uses
+ * (exact ids above 2^53, no duplicate chainId, no zero id).
+ * @param filePath - Config file to read; defaults to `config/allbridge.json` under the cwd
+ * @returns The configured chainId -> allBridgeChainId mappings, in file order
+ * @throws When the file cannot be read or fails `parseAllBridgeMappings`; the message names the file
  */
-export function parseAllBridgeMappings(parsed: {
-  mappings?: Array<{ chainId: unknown; allBridgeChainId: unknown }>
-}): IAllBridgeChainIdMapping[] {
-  if (!parsed.mappings || !Array.isArray(parsed.mappings))
-    throw new Error('Invalid config file format: missing mappings')
-
-  const mappings: IAllBridgeChainIdMapping[] = parsed.mappings.map((m, idx) => {
-    const chainId = BigInt(String(m.chainId))
-    const allBridgeChainId = Number(m.allBridgeChainId)
-
-    if (chainId <= 0n)
-      throw new Error(
-        `Invalid mapping at index ${idx}: chainId=${String(m.chainId)}`
-      )
-    // AllBridge chain IDs start at 1; 0 is reserved for "unmapped"
-    if (!Number.isInteger(allBridgeChainId) || allBridgeChainId <= 0)
-      throw new Error(
-        `Invalid mapping at index ${idx}: allBridgeChainId=${String(
-          m.allBridgeChainId
-        )}`
-      )
-
-    return { chainId, allBridgeChainId }
-  })
-
-  if (mappings.length === 0) throw new Error('No mappings found')
-
-  return mappings
-}
-
-/**
- * Reads and validates `config/allbridge.json` from the current working directory.
- * @returns The configured chainId -> allBridgeChainId mappings
- * @throws When the file is missing, is not valid JSON, or fails `parseAllBridgeMappings`
- */
-export function loadAllBridgeMappings(): IAllBridgeChainIdMapping[] {
-  const filePath = path.join(process.cwd(), 'config', 'allbridge.json')
-  return parseAllBridgeMappings(
-    JSON.parse(fs.readFileSync(filePath, 'utf8')) as {
-      mappings?: Array<{ chainId: unknown; allBridgeChainId: unknown }>
-    }
-  )
+export function loadAllBridgeMappings(
+  filePath: string = path.join(process.cwd(), 'config', 'allbridge.json')
+): IAllBridgeChainIdConfig[] {
+  try {
+    return parseAllBridgeMappings(fs.readFileSync(filePath, 'utf8'))
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    throw new Error(`${filePath}: ${msg}`, { cause: e })
+  }
 }
 
 /**
@@ -104,14 +72,12 @@ export function loadAllBridgeMappings(): IAllBridgeChainIdMapping[] {
  * @returns Every allBridgeChainId that is not also a configured chainId, in config order
  */
 export function getStaleAllBridgeKeys(
-  mappings: IAllBridgeChainIdMapping[]
+  mappings: IAllBridgeChainIdConfig[]
 ): bigint[] {
   const chainIds = new Set(mappings.map((m) => m.chainId))
   const stale: bigint[] = []
-  for (const m of mappings) {
-    const key = BigInt(m.allBridgeChainId)
+  for (const { allBridgeChainId: key } of mappings)
     if (!chainIds.has(key) && !stale.includes(key)) stale.push(key)
-  }
   return stale
 }
 
@@ -154,9 +120,36 @@ export function isUnsupportedAllBridgeChainIdRevert(error: unknown): boolean {
   }
 }
 
+/**
+ * Wraps a failed read in an error that names the key it was for.
+ * @param key - The chainId key the read was for
+ * @param error - The read failure
+ * @returns An error whose cause is the original failure
+ */
 function describeReadFailure(key: bigint, error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
-  return new Error(`Failed to read chainId ${key.toString()}: ${message}`)
+  return new Error(`Failed to read chainId ${key.toString()}: ${message}`, {
+    cause: error,
+  })
+}
+
+/**
+ * Refuses a diamond on which no key resolves, the state left when `initAllBridge` never ran.
+ * @param results - Every `getChainIdToAllBridgeChainId` read of one diamond (config rows and stale keys)
+ * @throws When every read reverted `UnsupportedAllBridgeChainId`
+ * @remarks `setChainIdToAllBridgeChainId` and `unsetChainIdToAllBridgeChainId` revert
+ *          `NotInitialized` on such a diamond, so a proposal would only fail after the
+ *          Safe signing round and the timelock delay.
+ */
+export function assertMappingsInitialized(results: MappingReadResult[]): void {
+  const noneResolves = results.every(
+    (r) =>
+      r.status === 'failure' && isUnsupportedAllBridgeChainIdRevert(r.error)
+  )
+  if (results.length > 0 && noneResolves)
+    throw new Error(
+      'No AllBridge mapping resolves on this diamond, so initAllBridge has likely never run and setChainIdToAllBridgeChainId would revert NotInitialized. Seed it with initAllBridge (the AllBridgeFacet diamond cut) instead of this task'
+    )
 }
 
 /**
@@ -167,9 +160,9 @@ function describeReadFailure(key: bigint, error: unknown): Error {
  * @throws When a read failed for any reason other than `UnsupportedAllBridgeChainId`
  */
 export function selectMappingsNeedingUpdate(
-  mappings: IAllBridgeChainIdMapping[],
+  mappings: IAllBridgeChainIdConfig[],
   results: MappingReadResult[]
-): IAllBridgeChainIdMapping[] {
+): IAllBridgeChainIdConfig[] {
   if (results.length !== mappings.length)
     throw new Error(
       `Expected ${mappings.length} read results, got ${results.length}`
@@ -178,7 +171,7 @@ export function selectMappingsNeedingUpdate(
   return mappings.filter((mapping, i) => {
     const result = results[i] as MappingReadResult
     if (result.status === 'success')
-      return Number(result.result) !== mapping.allBridgeChainId
+      return result.result !== mapping.allBridgeChainId
     if (isUnsupportedAllBridgeChainIdRevert(result.error)) return true
     throw describeReadFailure(mapping.chainId, result.error)
   })
@@ -214,15 +207,15 @@ export function selectResolvingStaleKeys(
  * @returns Calldata targeting the LiFiDiamond
  */
 export function encodeSetChainIdToAllBridgeChainId(
-  mappings: IAllBridgeChainIdMapping[]
+  mappings: IAllBridgeChainIdConfig[]
 ): Hex {
   return encodeFunctionData({
     abi: SET_CHAIN_ID_TO_ALL_BRIDGE_CHAIN_ID_ABI,
     functionName: 'setChainIdToAllBridgeChainId',
     args: [
-      mappings.map((m) => ({
-        chainId: m.chainId,
-        allBridgeChainId: BigInt(m.allBridgeChainId),
+      mappings.map(({ chainId, allBridgeChainId }) => ({
+        chainId,
+        allBridgeChainId,
       })),
     ],
   })
@@ -251,7 +244,7 @@ export function encodeUnsetChainIdToAllBridgeChainId(key: bigint): Hex {
  */
 export function buildMappingRepairCalls(params: {
   diamondAddress: Address
-  mappingsToSet: IAllBridgeChainIdMapping[]
+  mappingsToSet: IAllBridgeChainIdConfig[]
   staleKeysToUnset: bigint[]
 }): IMappingRepairCalls {
   const { diamondAddress, mappingsToSet, staleKeysToUnset } = params

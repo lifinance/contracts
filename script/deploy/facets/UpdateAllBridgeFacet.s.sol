@@ -35,6 +35,11 @@ contract DeployScript is UpdateScriptBase {
             );
     }
 
+    /// @notice Reads every `.mappings[i]` row of an AllBridge config by field name
+    /// @dev Not `parseRaw` + `abi.decode`: forge may encode object keys alphabetically,
+    ///      which swaps `chainId` and `allBridgeChainId` in the struct
+    /// @param _json Contents of config/allbridge.json
+    /// @return configs One entry per row, in file order
     function _parseChainIdConfigs(
         string memory _json
     ) internal view returns (AllBridgeFacet.ChainIdConfig[] memory configs) {
@@ -58,6 +63,10 @@ contract DeployScript is UpdateScriptBase {
         }
     }
 
+    /// @notice Builds the JSON path of a mappings row or one of its fields
+    /// @param _index Row index
+    /// @param _field Field suffix such as ".chainId", or "" for the row itself
+    /// @return The path, e.g. ".mappings[3].chainId"
     function _mappingKey(
         uint256 _index,
         string memory _field

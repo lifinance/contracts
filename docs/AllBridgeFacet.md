@@ -60,6 +60,10 @@ mapping updates on every network where the facet is deployed. The same timelock
 `config/allbridge.json` that is not also a `chainId` there and still resolves on-chain
 gets an `unsetChainIdToAllBridgeChainId` call, placed after the set call when there is
 one. A network with no rows to set but stale keys to unset gets a batch of unsets only.
+The stale keys are derived from the current config, so finish the repair on every network
+before removing a row or changing an `allBridgeChainId`: a key that drops out of the
+config is no longer checked and stays on-chain. The task refuses a diamond on which no
+key resolves, since that means `initAllBridge` never ran there.
 
 Bridging to a non-EVM destination (e.g. Stellar) follows the standard non-EVM flow:
 `BridgeData.receiver` is the `NON_EVM_ADDRESS` sentinel and the real recipient travels as

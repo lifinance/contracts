@@ -1,8 +1,9 @@
-import { readFileSync } from 'fs'
-import { dirname, resolve } from 'path'
+import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { dirname, join, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 import {
   decodeFunctionData,
   encodeErrorResult,
@@ -16,15 +17,16 @@ import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
   encodeTimelockScheduleBatch,
 } from '../deploy/safe/timelock-abi'
+import type { IAllBridgeChainIdConfig } from '../deploy/tron/helpers/allBridgeInit'
 
 import {
   ALL_BRIDGE_ERRORS_ABI,
+  assertMappingsInitialized,
   buildMappingRepairCalls,
   getRevertData,
   getStaleAllBridgeKeys,
   isUnsupportedAllBridgeChainIdRevert,
   loadAllBridgeMappings,
-  parseAllBridgeMappings,
   selectMappingsNeedingUpdate,
   selectResolvingStaleKeys,
   type MappingReadResult,
@@ -32,11 +34,20 @@ import {
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
-const allBridgeConfig = JSON.parse(
-  readFileSync(`${REPO_ROOT}/config/allbridge.json`, 'utf8')
-) as { mappings: Array<{ chainId: number; allBridgeChainId: number }> }
+const configMappings = loadAllBridgeMappings(
+  `${REPO_ROOT}/config/allbridge.json`
+)
 
-const configMappings = parseAllBridgeMappings(allBridgeConfig)
+// Independent of config/allbridge.json so adding a chain there leaves these tests valid.
+// Stale keys: 5, 14, 17, 13 (1 and 10 are also chainIds)
+const FIXTURE_MAPPINGS: IAllBridgeChainIdConfig[] = [
+  { chainId: 1n, allBridgeChainId: 1n },
+  { chainId: 137n, allBridgeChainId: 5n },
+  { chainId: 10n, allBridgeChainId: 10n },
+  { chainId: 130n, allBridgeChainId: 14n },
+  { chainId: 59144n, allBridgeChainId: 17n },
+  { chainId: 9270000000000001n, allBridgeChainId: 13n },
+]
 
 const DIAMOND: Address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
 const SALT: Hex = `0x${'11'.repeat(32)}`
@@ -66,7 +77,16 @@ const resolves = (value: bigint): MappingReadResult => ({
 })
 
 describe('loadAllBridgeMappings', () => {
-  it('loads the committed config from the repository root', () => {
+  const tmpDir = mkdtempSync(join(tmpdir(), 'allbridge-mappings-'))
+  afterAll(() => rmSync(tmpDir, { recursive: true, force: true }))
+
+  const writeConfig = (name: string, content: string): string => {
+    const filePath = join(tmpDir, name)
+    writeFileSync(filePath, content)
+    return filePath
+  }
+
+  it('loads config/allbridge.json from the working directory by default', () => {
     const cwd = process.cwd()
     process.chdir(REPO_ROOT)
     try {
@@ -75,41 +95,51 @@ describe('loadAllBridgeMappings', () => {
       process.chdir(cwd)
     }
   })
-})
 
-describe('parseAllBridgeMappings', () => {
-  it('parses every row of the committed config by field name', () => {
-    expect(configMappings.length).toBe(allBridgeConfig.mappings.length)
+  it('reads every row of the committed config by field name', () => {
     expect(
       configMappings.find((m) => m.chainId === 1201081091099710n)
         ?.allBridgeChainId
-    ).toBe(7)
+    ).toBe(7n)
     expect(
       configMappings.find((m) => m.chainId === 137n)?.allBridgeChainId
-    ).toBe(5)
+    ).toBe(5n)
   })
 
-  it('rejects a zero allBridgeChainId', () => {
-    expect(() =>
-      parseAllBridgeMappings({
-        mappings: [{ chainId: 1, allBridgeChainId: 0 }],
-      })
-    ).toThrow(/allBridgeChainId=0/)
-  })
-
-  it('rejects a zero chainId', () => {
-    expect(() =>
-      parseAllBridgeMappings({
-        mappings: [{ chainId: 0, allBridgeChainId: 1 }],
-      })
-    ).toThrow(/chainId=0/)
-  })
-
-  it('rejects a config without mappings', () => {
-    expect(() => parseAllBridgeMappings({})).toThrow(/missing mappings/)
-    expect(() => parseAllBridgeMappings({ mappings: [] })).toThrow(
-      /No mappings found/
+  it('keeps chainIds above 2^53 exact', () => {
+    const filePath = writeConfig(
+      'precision.json',
+      '{"mappings":[{"chainId":9270000000000001,"allBridgeChainId":13}]}'
     )
+
+    expect(loadAllBridgeMappings(filePath)).toEqual([
+      { chainId: 9270000000000001n, allBridgeChainId: 13n },
+    ])
+  })
+
+  it('rejects a duplicated chainId and names the file', () => {
+    const filePath = writeConfig(
+      'duplicate.json',
+      '{"mappings":[{"chainId":137,"allBridgeChainId":5},{"chainId":137,"allBridgeChainId":6}]}'
+    )
+
+    expect(() => loadAllBridgeMappings(filePath)).toThrow(
+      `${filePath}: mappings[1].chainId 137 is duplicated`
+    )
+  })
+
+  it('names the file when the config has no mappings', () => {
+    const filePath = writeConfig('empty.json', '{"mappings":[]}')
+
+    expect(() => loadAllBridgeMappings(filePath)).toThrow(
+      `${filePath}: config/allbridge.json has no non-empty "mappings" array`
+    )
+  })
+
+  it('names the file when it cannot be read', () => {
+    const filePath = join(tmpDir, 'missing.json')
+
+    expect(() => loadAllBridgeMappings(filePath)).toThrow(`${filePath}: `)
   })
 })
 
@@ -137,38 +167,34 @@ describe('getStaleAllBridgeKeys', () => {
   it('lists a repeated allBridgeChainId once', () => {
     expect(
       getStaleAllBridgeKeys([
-        { chainId: 100n, allBridgeChainId: 3 },
-        { chainId: 200n, allBridgeChainId: 3 },
+        { chainId: 100n, allBridgeChainId: 3n },
+        { chainId: 200n, allBridgeChainId: 3n },
       ])
     ).toEqual([3n])
   })
 })
 
 describe('selectMappingsNeedingUpdate', () => {
-  const mappings = [
-    { chainId: 137n, allBridgeChainId: 5 },
-    { chainId: 130n, allBridgeChainId: 14 },
-    { chainId: 1n, allBridgeChainId: 1 },
-  ]
+  const mappings = FIXTURE_MAPPINGS.slice(0, 3)
 
   it('keeps rows that are unset or differ, drops rows that match', () => {
     expect(
       selectMappingsNeedingUpdate(mappings, [
-        UNSUPPORTED_REVERT,
-        resolves(130n),
         resolves(1n),
+        UNSUPPORTED_REVERT,
+        resolves(137n),
       ])
-    ).toEqual(mappings.slice(0, 2))
+    ).toEqual(mappings.slice(1))
   })
 
   it('throws on any other read failure', () => {
     expect(() =>
       selectMappingsNeedingUpdate(mappings, [
         { status: 'failure', error: new Error('over rate limit') },
-        resolves(14n),
-        resolves(1n),
+        resolves(5n),
+        resolves(10n),
       ])
-    ).toThrow(/Failed to read chainId 137: over rate limit/)
+    ).toThrow(/Failed to read chainId 1: over rate limit/)
   })
 
   it('throws when the result count does not match', () => {
@@ -204,6 +230,30 @@ describe('selectResolvingStaleKeys', () => {
   })
 })
 
+describe('assertMappingsInitialized', () => {
+  it('rejects a diamond on which no key resolves', () => {
+    expect(() =>
+      assertMappingsInitialized([UNSUPPORTED_REVERT, UNSUPPORTED_REVERT])
+    ).toThrow(/initAllBridge has likely never run/)
+  })
+
+  it('accepts a diamond on which any key resolves', () => {
+    expect(() =>
+      assertMappingsInitialized([UNSUPPORTED_REVERT, resolves(137n)])
+    ).not.toThrow()
+  })
+
+  it('leaves other read failures to the select helpers', () => {
+    expect(() =>
+      assertMappingsInitialized([
+        UNSUPPORTED_REVERT,
+        { status: 'failure', error: new Error('timeout') },
+      ])
+    ).not.toThrow()
+    expect(() => assertMappingsInitialized([])).not.toThrow()
+  })
+})
+
 describe('repair batch', () => {
   const decodeBatch = (calldata: Hex) => {
     const { functionName, args } = decodeFunctionData({
@@ -224,11 +274,11 @@ describe('repair batch', () => {
   it('sets the correct rows first, then unsets each stale key that resolves', () => {
     // An inverted seed: every config row is wrong or unset, and every stale key except
     // 13 resolves (13 stands in for a key a previous repair already removed)
-    const staleKeys = getStaleAllBridgeKeys(configMappings)
+    const staleKeys = getStaleAllBridgeKeys(FIXTURE_MAPPINGS)
     const mappingsToSet = selectMappingsNeedingUpdate(
-      configMappings,
-      configMappings.map((m) =>
-        m.chainId === BigInt(m.allBridgeChainId)
+      FIXTURE_MAPPINGS,
+      FIXTURE_MAPPINGS.map((m) =>
+        m.chainId === m.allBridgeChainId
           ? resolves(m.chainId)
           : UNSUPPORTED_REVERT
       )
@@ -255,34 +305,21 @@ describe('repair batch', () => {
 
     expect(batch.targets).toEqual(calls.payloads.map(() => DIAMOND))
     expect(batch.values).toEqual(calls.payloads.map(() => 0n))
-
-    const [setCall, ...unsetCalls] = batch.calls
-    expect(setCall?.functionName).toBe('setChainIdToAllBridgeChainId')
-    expect(setCall?.args[0]).toEqual(
-      configMappings
-        .filter((m) => m.chainId !== BigInt(m.allBridgeChainId))
-        .map((m) => ({
-          chainId: m.chainId,
-          allBridgeChainId: BigInt(m.allBridgeChainId),
-        }))
-    )
-
-    expect(unsetCalls.map((c) => c.functionName)).toEqual(
-      staleKeysToUnset.map(() => 'unsetChainIdToAllBridgeChainId')
-    )
-    expect(unsetCalls.map((c) => c.args[0])).toEqual([
-      2n,
-      3n,
-      4n,
-      5n,
-      6n,
-      7n,
-      8n,
-      9n,
-      11n,
-      12n,
-      14n,
-      17n,
+    expect(batch.calls).toEqual([
+      {
+        functionName: 'setChainIdToAllBridgeChainId',
+        args: [
+          [
+            { chainId: 137n, allBridgeChainId: 5n },
+            { chainId: 130n, allBridgeChainId: 14n },
+            { chainId: 59144n, allBridgeChainId: 17n },
+            { chainId: 9270000000000001n, allBridgeChainId: 13n },
+          ],
+        ],
+      },
+      { functionName: 'unsetChainIdToAllBridgeChainId', args: [5n] },
+      { functionName: 'unsetChainIdToAllBridgeChainId', args: [14n] },
+      { functionName: 'unsetChainIdToAllBridgeChainId', args: [17n] },
     ])
   })
 
@@ -302,12 +339,12 @@ describe('repair batch', () => {
   })
 
   it('produces no calls when every row is correct and no stale key resolves', () => {
-    const staleKeys = getStaleAllBridgeKeys(configMappings)
+    const staleKeys = getStaleAllBridgeKeys(FIXTURE_MAPPINGS)
     const calls = buildMappingRepairCalls({
       diamondAddress: DIAMOND,
       mappingsToSet: selectMappingsNeedingUpdate(
-        configMappings,
-        configMappings.map((m) => resolves(BigInt(m.allBridgeChainId)))
+        FIXTURE_MAPPINGS,
+        FIXTURE_MAPPINGS.map((m) => resolves(m.allBridgeChainId))
       ),
       staleKeysToUnset: selectResolvingStaleKeys(
         staleKeys,
@@ -323,7 +360,7 @@ describe('diamond selectors and reverts', () => {
   it('matches the selectors AllBridgeFacet exposes', () => {
     const { payloads } = buildMappingRepairCalls({
       diamondAddress: DIAMOND,
-      mappingsToSet: [{ chainId: 137n, allBridgeChainId: 5 }],
+      mappingsToSet: [{ chainId: 137n, allBridgeChainId: 5n }],
       staleKeysToUnset: [5n],
     })
 
