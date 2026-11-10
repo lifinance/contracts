@@ -718,6 +718,7 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
       ]) {
         const text = plain(await render(data)).join('\n')
         expect(text).not.toContain('AFTER THE ARGUMENTS')
+        expect(text).not.toContain('ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT')
       }
     })
   })
