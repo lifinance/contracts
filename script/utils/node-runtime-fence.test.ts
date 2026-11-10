@@ -206,7 +206,11 @@ describe('the Node-runtime fence runs where it has to run', () => {
             cwd: REPO_ROOT,
             // `bun test` sets NODE_ENV=test, under which consola drops the
             // success summary asserted below.
-            env: { ...spawnEnv(), TMPDIR: longTmp, NODE_ENV: 'development' },
+            env: {
+              ...withheldEnv(),
+              TMPDIR: longTmp,
+              NODE_ENV: 'development',
+            },
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,
