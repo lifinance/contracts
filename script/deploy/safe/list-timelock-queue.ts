@@ -23,6 +23,7 @@ import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { flagIsOn } from './cli-flags'
 import { printableField } from './printable-field'
+import { nonDateTimestampType, toIsoDate } from './stored-timestamp'
 import {
   getTimelockQueueCollection,
   queueStatusReason,
@@ -58,6 +59,8 @@ export interface IQueueDisplayRow {
   blockedAt?: string
   /** Reverted execution attempts since the last requeue; omitted when none. */
   revertCount?: number
+  /** Timestamps the row stores as something other than a Date, as `field (type)`. */
+  nonDateTimestamps?: string[]
 }
 
 /**
@@ -197,27 +200,6 @@ export function classifyMongoError(error: unknown): 'misconfig' | 'error' {
 }
 
 /**
- * Formats a stored queue timestamp for display. The queue schema types
- * timestamps as `Date`, but Mongo does not enforce it: a row written outside
- * the executor can hold another type, and one such row must not crash the
- * whole listing. A stored string is returned unchanged rather than re-parsed,
- * since `new Date()` reads an offset-free string in the host's timezone.
- *
- * @param value - Timestamp as read from Mongo (Date, string, epoch ms, or anything else).
- * @returns ISO string for a valid Date or epoch ms; otherwise a string form that never throws.
- */
-export function toIsoDate(value: unknown): string {
-  if (typeof value === 'string') return value
-  if (value instanceof Date || typeof value === 'number') {
-    const date = new Date(value)
-    return Number.isNaN(date.getTime()) ? String(value) : date.toISOString()
-  }
-  if (typeof value === 'object' && value !== null)
-    return Object.prototype.toString.call(value)
-  return String(value)
-}
-
-/**
  * Maps a queue doc to the printable row shape.
  *
  * @param doc - Queue row from Mongo.
@@ -238,14 +220,52 @@ export function toDisplayRow(
     createdAt: toIsoDate(doc.createdAt),
   }
   if (doc.executionTxHash) row.executionTxHash = doc.executionTxHash
-  if (doc.executedAt) row.executedAt = toIsoDate(doc.executedAt)
+  if (doc.executedAt !== undefined) row.executedAt = toIsoDate(doc.executedAt)
   if (onChainDone !== undefined) row.onChainDone = onChainDone
   if (onChainReady !== undefined) row.onChainReady = onChainReady
   const reason = queueStatusReason(doc)
   if (reason) row.statusReason = reason
-  if (doc.blockedAt) row.blockedAt = toIsoDate(doc.blockedAt)
+  if (doc.blockedAt !== undefined) row.blockedAt = toIsoDate(doc.blockedAt)
   if (doc.revertCount) row.revertCount = doc.revertCount
+  const nonDate = nonDateTimestamps(doc)
+  if (nonDate.length > 0) row.nonDateTimestamps = nonDate
   return row
+}
+
+/**
+ * Lists the row's timestamps that are not stored as a `Date`, so a listing
+ * shows that a row was written outside the executor instead of rendering it
+ * like a normal row. `createdAt` is checked even when absent, since it is
+ * always printed.
+ *
+ * @param doc - Queue row from Mongo.
+ * @returns One `field (type)` entry per timestamp stored with another type.
+ */
+export function nonDateTimestamps(doc: ITimelockQueueDoc): string[] {
+  const stored: [string, unknown, boolean][] = [
+    ['createdAt', doc.createdAt, true],
+    ['executedAt', doc.executedAt, doc.executedAt !== undefined],
+    ['blockedAt', doc.blockedAt, doc.blockedAt !== undefined],
+  ]
+  const entries: string[] = []
+  for (const [field, value, present] of stored) {
+    const type = present ? nonDateTimestampType(value) : undefined
+    if (type) entries.push(`${field} (${type})`)
+  }
+  return entries
+}
+
+/**
+ * Formats the `[network] operationId — status` lead of a printed row, with each
+ * stored value through the printable primitive ([CONV:SAFE-DECODE]).
+ *
+ * @param row - Display row.
+ * @returns The heading text.
+ */
+export function rowHeading(row: IQueueDisplayRow): string {
+  return `[${printableField(row.network)}] ${printableField(
+    row.operationId
+  )} — ${printableField(row.status)}`
 }
 
 /**
@@ -478,8 +498,8 @@ const cmd = defineCommand({
       )
       for (const row of attentionRows)
         consola.error(
-          `   [${row.network}] ${row.operationId} — ${row.status}${
-            row.statusReason ? `: ${row.statusReason}` : ''
+          `   ${rowHeading(row)}${
+            row.statusReason ? `: ${printableField(row.statusReason)}` : ''
           }`
         )
       consola.error(
@@ -492,7 +512,7 @@ const cmd = defineCommand({
     else
       for (const row of displayRows) {
         consola.info(
-          `[${row.network}] ${row.operationId} — ${row.status}` +
+          rowHeading(row) +
             (row.onChainDone === undefined
               ? ''
               : ` (on-chain done: ${
@@ -507,21 +527,30 @@ const cmd = defineCommand({
                       }`
                 })`)
         )
-        consola.info(`   safeTxHash: ${row.safeTxHash}`)
+        consola.info(`   safeTxHash: ${printableField(row.safeTxHash)}`)
         if (row.executionTxHash)
-          consola.info(`   executionTxHash: ${row.executionTxHash}`)
-        if (row.statusReason) consola.info(`   reason: ${row.statusReason}`)
+          consola.info(
+            `   executionTxHash: ${printableField(row.executionTxHash)}`
+          )
+        if (row.statusReason)
+          consola.info(`   reason: ${printableField(row.statusReason)}`)
         if (row.revertCount)
-          consola.info(`   on-chain reverts: ${row.revertCount}`)
+          consola.info(
+            `   on-chain reverts: ${printableField(row.revertCount)}`
+          )
         consola.info(
           `   createdAt: ${printableField(row.createdAt)}` +
-            (row.blockedAt
-              ? ` — blockedAt: ${printableField(row.blockedAt)}`
-              : '') +
-            (row.executedAt
-              ? ` — executedAt: ${printableField(row.executedAt)}`
-              : '')
+            (row.blockedAt === undefined
+              ? ''
+              : ` — blockedAt: ${printableField(row.blockedAt)}`) +
+            (row.executedAt === undefined
+              ? ''
+              : ` — executedAt: ${printableField(row.executedAt)}`)
         )
+        if (row.nonDateTimestamps)
+          consola.warn(
+            `   not stored as a Date: ${row.nonDateTimestamps.join(', ')}`
+          )
       }
 
     if (onChainErrors > 0) {

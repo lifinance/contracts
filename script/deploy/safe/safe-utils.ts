@@ -77,6 +77,7 @@ import {
   resolveSelectorsViaFourByte,
 } from './selector-registry'
 import { getSignTimeTransportConfig } from './sign-time-transport'
+import { toIsoDate } from './stored-timestamp'
 import {
   TIMELOCK_OPERATION_STATE_ABI,
   pickTimelockSaltWith,
@@ -1400,15 +1401,10 @@ export function getSelector(data: unknown): string {
  */
 export function summarizeProposalDoc(doc: ISafeTxDocument): IProposalSummary {
   const signers = getSigners(doc)
-  // Real documents always carry a Date; pass through a raw string as-is and
-  // use '' as the missing-sentinel rather than stringifying unexpected types
-  // into a misleading value.
   const timestamp =
-    doc.timestamp instanceof Date
-      ? doc.timestamp.toISOString()
-      : typeof doc.timestamp === 'string'
-      ? doc.timestamp
-      : ''
+    doc.timestamp === undefined || doc.timestamp === null
+      ? ''
+      : toIsoDate(doc.timestamp)
 
   const summary: IProposalSummary = {
     network: doc.network,

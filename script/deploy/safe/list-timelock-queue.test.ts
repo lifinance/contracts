@@ -16,7 +16,8 @@ import {
   statusKey,
   needsAttention,
   toDisplayRow,
-  toIsoDate,
+  nonDateTimestamps,
+  rowHeading,
 } from './list-timelock-queue'
 import type { ITimelockQueueDoc } from './timelock-queue'
 
@@ -254,27 +255,73 @@ describe('toDisplayRow', () => {
     const row = toDisplayRow(doc)
     expect(row.createdAt).toBe('2026-07-03T12:00:00.000Z')
     expect(row.executedAt).toBe('2026-07-06T01:30:00Z')
-    expect(row.blockedAt).toBe('[object Object]')
+    expect(row.blockedAt).toBe('{"toString":"x"}')
+    expect(row.nonDateTimestamps).toEqual([
+      'createdAt (number)',
+      'executedAt (string)',
+      'blockedAt (object)',
+    ])
+  })
+
+  it('omits nonDateTimestamps when every timestamp is a Date', () => {
+    const row = toDisplayRow(
+      buildDoc({ executedAt: new Date('2026-07-06T01:30:00Z') })
+    )
+    expect(row.nonDateTimestamps).toBeUndefined()
+  })
+
+  it('keeps a falsy stored timestamp instead of dropping it', () => {
+    const doc = {
+      ...buildDoc(),
+      executedAt: 0,
+      blockedAt: '',
+    } as unknown as ITimelockQueueDoc
+    const row = toDisplayRow(doc)
+    expect(row.executedAt).toBe('1970-01-01T00:00:00.000Z')
+    expect(row.blockedAt).toBe('')
+    expect(row.nonDateTimestamps).toEqual([
+      'executedAt (number)',
+      'blockedAt (string)',
+    ])
   })
 })
 
-describe('toIsoDate', () => {
-  it('formats a Date and epoch ms as ISO strings', () => {
-    const iso = '2026-07-06T01:30:00.000Z'
-    expect(toIsoDate(new Date(iso))).toBe(iso)
-    expect(toIsoDate(Date.parse(iso))).toBe(iso)
+describe('nonDateTimestamps', () => {
+  it('flags a missing createdAt but not a missing optional timestamp', () => {
+    const doc = {
+      ...buildDoc(),
+      createdAt: undefined,
+    } as unknown as ITimelockQueueDoc
+    expect(nonDateTimestamps(doc)).toEqual(['createdAt (undefined)'])
   })
 
-  it('returns a stored string unchanged, so the host timezone never applies', () => {
-    expect(toIsoDate('2026-07-06T01:30:00')).toBe('2026-07-06T01:30:00')
-    expect(toIsoDate('not a date')).toBe('not a date')
+  it('names null and array stored types', () => {
+    const doc = {
+      ...buildDoc(),
+      executedAt: null,
+      blockedAt: [],
+    } as unknown as ITimelockQueueDoc
+    expect(nonDateTimestamps(doc)).toEqual([
+      'executedAt (null)',
+      'blockedAt (array)',
+    ])
+  })
+})
+
+describe('rowHeading', () => {
+  it('renders network, operationId and status', () => {
+    const row = toDisplayRow(buildDoc({ status: 'queued' }))
+    expect(rowHeading(row)).toBe(`[0g] 0x${'ab'.repeat(32)} — queued`)
   })
 
-  it('never throws on values that are not dates', () => {
-    expect(toIsoDate(new Date('nope'))).toBe('Invalid Date')
-    expect(toIsoDate(Number.NaN)).toBe('NaN')
-    expect(toIsoDate({ toString: 'x' })).toBe('[object Object]')
-    expect(toIsoDate(null)).toBe('null')
+  it('strips terminal escapes from stored values', () => {
+    const row = {
+      ...toDisplayRow(buildDoc()),
+      status: '\u001b[2Jqueued',
+    }
+    const heading = rowHeading(row)
+    expect(heading).not.toContain('\u001b[2J')
+    expect(heading).toContain('sanitised for display')
   })
 })
 
