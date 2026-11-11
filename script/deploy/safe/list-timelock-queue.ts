@@ -22,6 +22,8 @@ import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { flagIsOn } from './cli-flags'
+import { printableField } from './printable-field'
+import { nonDateTimestampType, toIsoDate } from './stored-timestamp'
 import {
   getTimelockQueueCollection,
   queueStatusReason,
@@ -57,6 +59,8 @@ export interface IQueueDisplayRow {
   blockedAt?: string
   /** Reverted execution attempts since the last requeue; omitted when none. */
   revertCount?: number
+  /** Timestamps the row stores as something other than a Date, as `field (type)`. */
+  nonDateTimestamps?: string[]
 }
 
 /**
@@ -213,17 +217,55 @@ export function toDisplayRow(
     operationId: doc.operationId,
     status: doc.status,
     safeTxHash: doc.safeTxHash,
-    createdAt: doc.createdAt.toISOString(),
+    createdAt: toIsoDate(doc.createdAt),
   }
   if (doc.executionTxHash) row.executionTxHash = doc.executionTxHash
-  if (doc.executedAt) row.executedAt = doc.executedAt.toISOString()
+  if (doc.executedAt !== undefined) row.executedAt = toIsoDate(doc.executedAt)
   if (onChainDone !== undefined) row.onChainDone = onChainDone
   if (onChainReady !== undefined) row.onChainReady = onChainReady
   const reason = queueStatusReason(doc)
   if (reason) row.statusReason = reason
-  if (doc.blockedAt) row.blockedAt = doc.blockedAt.toISOString()
+  if (doc.blockedAt !== undefined) row.blockedAt = toIsoDate(doc.blockedAt)
   if (doc.revertCount) row.revertCount = doc.revertCount
+  const nonDate = nonDateTimestamps(doc)
+  if (nonDate.length > 0) row.nonDateTimestamps = nonDate
   return row
+}
+
+/**
+ * Lists the row's timestamps that are not stored as a `Date`, so a listing
+ * shows that a row was written outside the executor instead of rendering it
+ * like a normal row. `createdAt` is checked even when absent, since it is
+ * always printed.
+ *
+ * @param doc - Queue row from Mongo.
+ * @returns One `field (type)` entry per timestamp stored with another type.
+ */
+export function nonDateTimestamps(doc: ITimelockQueueDoc): string[] {
+  const stored: [string, unknown, boolean][] = [
+    ['createdAt', doc.createdAt, true],
+    ['executedAt', doc.executedAt, doc.executedAt !== undefined],
+    ['blockedAt', doc.blockedAt, doc.blockedAt !== undefined],
+  ]
+  const entries: string[] = []
+  for (const [field, value, present] of stored) {
+    const type = present ? nonDateTimestampType(value) : undefined
+    if (type) entries.push(`${field} (${type})`)
+  }
+  return entries
+}
+
+/**
+ * Formats the `[network] operationId — status` lead of a printed row, with each
+ * stored value through the printable primitive ([CONV:SAFE-DECODE]).
+ *
+ * @param row - Display row.
+ * @returns The heading text.
+ */
+export function rowHeading(row: IQueueDisplayRow): string {
+  return `[${printableField(row.network)}] ${printableField(
+    row.operationId
+  )} — ${printableField(row.status)}`
 }
 
 /**
@@ -456,8 +498,8 @@ const cmd = defineCommand({
       )
       for (const row of attentionRows)
         consola.error(
-          `   [${row.network}] ${row.operationId} — ${row.status}${
-            row.statusReason ? `: ${row.statusReason}` : ''
+          `   ${rowHeading(row)}${
+            row.statusReason ? `: ${printableField(row.statusReason)}` : ''
           }`
         )
       consola.error(
@@ -470,7 +512,7 @@ const cmd = defineCommand({
     else
       for (const row of displayRows) {
         consola.info(
-          `[${row.network}] ${row.operationId} — ${row.status}` +
+          rowHeading(row) +
             (row.onChainDone === undefined
               ? ''
               : ` (on-chain done: ${
@@ -485,17 +527,30 @@ const cmd = defineCommand({
                       }`
                 })`)
         )
-        consola.info(`   safeTxHash: ${row.safeTxHash}`)
+        consola.info(`   safeTxHash: ${printableField(row.safeTxHash)}`)
         if (row.executionTxHash)
-          consola.info(`   executionTxHash: ${row.executionTxHash}`)
-        if (row.statusReason) consola.info(`   reason: ${row.statusReason}`)
+          consola.info(
+            `   executionTxHash: ${printableField(row.executionTxHash)}`
+          )
+        if (row.statusReason)
+          consola.info(`   reason: ${printableField(row.statusReason)}`)
         if (row.revertCount)
-          consola.info(`   on-chain reverts: ${row.revertCount}`)
+          consola.info(
+            `   on-chain reverts: ${printableField(row.revertCount)}`
+          )
         consola.info(
-          `   createdAt: ${row.createdAt}` +
-            (row.blockedAt ? ` — blockedAt: ${row.blockedAt}` : '') +
-            (row.executedAt ? ` — executedAt: ${row.executedAt}` : '')
+          `   createdAt: ${printableField(row.createdAt)}` +
+            (row.blockedAt === undefined
+              ? ''
+              : ` — blockedAt: ${printableField(row.blockedAt)}`) +
+            (row.executedAt === undefined
+              ? ''
+              : ` — executedAt: ${printableField(row.executedAt)}`)
         )
+        if (row.nonDateTimestamps)
+          consola.warn(
+            `   not stored as a Date: ${row.nonDateTimestamps.join(', ')}`
+          )
       }
 
     if (onChainErrors > 0) {
