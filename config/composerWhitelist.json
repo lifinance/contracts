@@ -318,6 +318,17 @@
       ]
     }
   ],
+  "elysium": [
+    {
+      "address": "0x7932803CCaeA498aa5ea0985B3Da528cf21e8Ce5",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "fraxtal": [
     {
       "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
