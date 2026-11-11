@@ -122,6 +122,22 @@ const vetZksyncTable = (
   }
 }
 
+/** Holds `[fmt]` to the keys in `ALLOWED_FMT_KEYS` plus `ignore`, each with its type. */
+const vetFmtTable = (value: unknown, refuse: (where: string) => void): void => {
+  if (!isTable(value)) {
+    refuse('fmt')
+    return
+  }
+  for (const [key, inner] of Object.entries(value)) {
+    const ok =
+      key === 'ignore'
+        ? Array.isArray(inner) &&
+          inner.every((glob) => typeof glob === 'string')
+        : typeof inner === ALLOWED_FMT_KEYS[key]
+    if (!ok) refuse(`fmt.${key}`)
+  }
+}
+
 /**
  * Holds each non-profile section to what it has carried on `main`, because
  * forge would read any of them as a profile's keys.
@@ -143,18 +159,7 @@ const vetSections = (
           refuse(`lint.${key}`)
   }
 
-  if (fmt !== undefined) {
-    if (!isTable(fmt)) refuse('fmt')
-    else
-      for (const [key, value] of Object.entries(fmt)) {
-        const ok =
-          key === 'ignore'
-            ? Array.isArray(value) &&
-              value.every((glob) => typeof glob === 'string')
-            : typeof value === ALLOWED_FMT_KEYS[key]
-        if (!ok) refuse(`fmt.${key}`)
-      }
-  }
+  if (fmt !== undefined) vetFmtTable(fmt, refuse)
 
   if (external !== undefined) {
     if (!isTable(external)) refuse('external')
