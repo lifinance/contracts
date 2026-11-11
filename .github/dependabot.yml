@@ -20,6 +20,11 @@ updates:
     cooldown:
       default-days: 7
     groups:
+      # oxfmt is pre-1.0, so a minor bump can change its output; it gets its own PR
+      # so a reformat is not mixed in with unrelated bumps.
+      oxfmt:
+        patterns:
+          - 'oxfmt'
       bun-minor-and-patch:
         update-types:
           - 'minor'
