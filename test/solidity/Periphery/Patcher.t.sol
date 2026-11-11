@@ -1622,10 +1622,9 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData.
-        // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
-        minAmount =
-            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        // Fixed test fixture marker used to locate the patched word
+        bridgeData.minAmount =
+        0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF; // pre-commit-checker: not a secret
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,
@@ -1707,10 +1706,9 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData.
-        // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
-        minAmount =
-            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        // Fixed test fixture marker used to locate the patched word
+        bridgeData.minAmount =
+        0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF; // pre-commit-checker: not a secret
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,
@@ -1786,10 +1784,9 @@ contract PatcherTest is TestBase {
             depositoryData
         );
 
-        bridgeData.
-        // pre-commit-checker: not a secret — fixed test fixture marker used to locate the patched word
-        minAmount =
-            0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF;
+        // Fixed test fixture marker used to locate the patched word
+        bridgeData.minAmount =
+        0x1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF1234567890ABCDEF; // pre-commit-checker: not a secret
         bytes memory calldataWithMarker = abi.encodeWithSelector(
             relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector,
             bridgeData,

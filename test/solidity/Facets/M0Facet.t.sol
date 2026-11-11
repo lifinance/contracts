@@ -9,7 +9,6 @@ import {
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { M0Facet } from "lifi/Facets/M0Facet.sol";
 import { IM0OrderBook } from "lifi/Interfaces/IM0OrderBook.sol";
-// solhint-disable-next-line max-line-length
 import {
     CumulativeSlippageTooHigh,
     InformationMismatch,
