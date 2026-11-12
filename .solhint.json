@@ -1,6 +1,5 @@
 {
   "extends": "solhint:recommended",
-  "plugins": ["prettier"],
   "rules": {
     "avoid-call-value": "off",
     "avoid-low-level-calls": "off",
@@ -40,12 +39,6 @@
     "not-rely-on-time": "off",
     "one-contract-per-file": "off",
     "payable-fallback": "error",
-    "prettier/prettier": [
-      "error",
-      {
-        "endOfLine": "auto"
-      }
-    ],
     "quotes": ["error", "double"],
     "reason-string": ["error", { "maxLength": 64 }],
     "reentrancy": "error",

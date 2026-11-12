@@ -254,13 +254,15 @@ jobs:
             --existing "${LOCAL_TESTS_PATH}" \
             --out /tmp/lifi-tests.json
 
-          # The registry stores these prettier-formatted at printWidth 120.
-          # Prettier keeps an object expanded if its input was, so the generator's
-          # indented output has to be minified first for prettier to re-compact
-          # it — without this the fixture carries a whole-file reformat diff.
+          # The registry stores these prettier-formatted at printWidth 120;
+          # oxfmt is Prettier-compatible and produces the same output.
+          # It keeps an object expanded if its input was, so the generator's
+          # indented output has to be minified first to re-compact it —
+          # without this the fixture carries a whole-file reformat diff.
           jq -c . /tmp/lifi-tests.json > /tmp/lifi-tests.min.json
-          bunx prettier --parser json --print-width 120 /tmp/lifi-tests.min.json \
-            > "ledger-registry/${LEDGER_TESTS_PATH}"
+          echo '{"printWidth":120}' > /tmp/oxfmt-registry.json
+          bunx oxfmt -c /tmp/oxfmt-registry.json --stdin-filepath lifi-tests.json \
+            < /tmp/lifi-tests.min.json > "ledger-registry/${LEDGER_TESTS_PATH}"
 
           cd ledger-registry
           if [ -z "$(git status --porcelain)" ]; then

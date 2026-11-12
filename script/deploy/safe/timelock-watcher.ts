@@ -885,10 +885,10 @@ const networkVerdict = (
   flags.mismatch
     ? 'mismatch'
     : flags.unverified ||
-      report.status === 'unreadable' ||
-      report.status === 'uncovered'
-    ? 'unverified'
-    : 'ok'
+        report.status === 'unreadable' ||
+        report.status === 'uncovered'
+      ? 'unverified'
+      : 'ok'
 
 /**
  * The report of a network that could not be read to the end.

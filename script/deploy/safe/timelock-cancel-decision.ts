@@ -223,8 +223,8 @@ export function evaluateCancelDecision(
     input.integrity === 'mismatch'
       ? 'integrity'
       : input.opIdentity === 'mismatch'
-      ? 'identity'
-      : undefined
+        ? 'identity'
+        : undefined
 
   if (divergentLeg) {
     if (!isProven(input))
@@ -414,8 +414,8 @@ export function evaluateCancelPass(
   const detail = !tripped
     ? `${cancels} cancel(s) in this pass, within the limit of ${maxCancelsPerPass}`
     : withhold
-    ? `${requested} cancels exceeded the limit of ${maxCancelsPerPass}: all withheld, operations blocked, human paged`
-    : `${requested} cancels exceeded the limit of ${maxCancelsPerPass} but the executor role is ${executorPosture}, so declining to execute is not a control: cancels proceed and a human is paged`
+      ? `${requested} cancels exceeded the limit of ${maxCancelsPerPass}: all withheld, operations blocked, human paged`
+      : `${requested} cancels exceeded the limit of ${maxCancelsPerPass} but the executor role is ${executorPosture}, so declining to execute is not a control: cancels proceed and a human is paged`
 
   return {
     decisions: applied,

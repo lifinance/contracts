@@ -52,7 +52,7 @@ const asClosure = (
   value: Hex | 'unfetchable' | 'contract-absent' | undefined
 ): ClosureAtResult =>
   value === undefined || value === 'unfetchable' || value === 'contract-absent'
-    ? value ?? 'unfetchable'
+    ? (value ?? 'unfetchable')
     : { combined: value, files: {}, dependencies: {} }
 
 /** Injected git: a map of `${treeish}:${path}` to whatever git would yield. */

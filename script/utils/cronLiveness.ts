@@ -59,7 +59,7 @@ export function classifyCron(expression: string): TCronClassification {
     string,
     string,
     string,
-    string
+    string,
   ]
 
   // Steps are only modelled on the minute field; anywhere else the real period is

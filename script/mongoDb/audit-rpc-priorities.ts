@@ -122,8 +122,8 @@ function printChain(audit: IChainAudit, reachable: ReachableEndpoints) {
     const health = !reachable
       ? ''
       : reachable.has(reachabilityKey(chainName, endpoint.url))
-      ? ' up  '
-      : ' DOWN'
+        ? ' up  '
+        : ' DOWN'
     consola.log(
       `    ${role} p=${String(endpoint.priority).padStart(
         4

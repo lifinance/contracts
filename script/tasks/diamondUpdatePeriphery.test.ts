@@ -141,8 +141,8 @@ const run = (options: {
     diamondUpdatePeriphery fuse "${
       options.environment ?? 'production'
     }" LiFiDiamond false false "${Object.keys(options.contracts).join(
-    ' '
-  )}" 2>&1
+      ' '
+    )}" 2>&1
     echo "rc=$?"
     ${options.after ?? ''}
   `

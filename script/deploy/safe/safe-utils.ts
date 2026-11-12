@@ -1645,8 +1645,8 @@ function sanitizeOverride(
     ...(overrideReason
       ? { reason: overrideReason }
       : fallbackReason
-      ? { reason: fallbackReason }
-      : {}),
+        ? { reason: fallbackReason }
+        : {}),
   }
 }
 
@@ -2275,8 +2275,8 @@ export const parseAccountIndex = (raw: number | string | undefined): number => {
     typeof value === 'number'
       ? value
       : typeof value === 'string' && value.trim() !== ''
-      ? Number(value)
-      : NaN
+        ? Number(value)
+        : NaN
 
   if (!Number.isInteger(parsed) || parsed < 0)
     throw new Error(
@@ -2650,9 +2650,8 @@ export async function getNetworksWithActionableTransactions(
   rpcUrl?: string
 ): Promise<string[]> {
   // First, get all networks with pending transactions
-  const networksWithPendingTxs = await getNetworksWithPendingTransactions(
-    pendingTransactions
-  )
+  const networksWithPendingTxs =
+    await getNetworksWithPendingTransactions(pendingTransactions)
 
   if (networksWithPendingTxs.length === 0) return []
 

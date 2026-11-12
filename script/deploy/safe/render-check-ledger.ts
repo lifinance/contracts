@@ -285,8 +285,8 @@ function renderRow(row: IRow): string[] {
   const action = row.relaxed
     ? RELAXED_ACTION
     : row.kind === 'fail' && row.checkClass === 'semantic'
-    ? SEMANTIC_FAIL_ACTION
-    : ROW_ACTION[row.kind]
+      ? SEMANTIC_FAIL_ACTION
+      : ROW_ACTION[row.kind]
   const remedy = row.detail ? `${action} · ${clean(row.detail)}` : action
 
   return [
@@ -454,10 +454,10 @@ function renderSection(
   const code = nothingGraded
     ? CYAN
     : allGreen
-    ? GREEN
-    : mismatched > 0
-    ? RED
-    : YELLOW
+      ? GREEN
+      : mismatched > 0
+        ? RED
+        : YELLOW
   // Neither tick nor cross: a section with nothing to grade is not a
   // success, and marking it as a failure would send a signer hunting for a
   // problem that is not there.

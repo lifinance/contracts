@@ -164,8 +164,8 @@ const weakest = (...parts: Certainty[]): Certainty =>
   parts.includes('carries')
     ? 'carries'
     : parts.includes('unknown')
-    ? 'unknown'
-    : 'measured'
+      ? 'unknown'
+      : 'measured'
 
 function unrenderableLines(error: unknown): string[] {
   return claimLine(
@@ -209,8 +209,8 @@ export function formatClaimLines(provenance?: IProposalProvenance): string[] {
     const workingTreeUnverified: WorkingTreeUnverified = !dirtyTreeIsList
       ? 'unreadable'
       : captureErrors.length > 0
-      ? 'capture-incomplete'
-      : undefined
+        ? 'capture-incomplete'
+        : undefined
     const shortCommit =
       commit === PROVENANCE_UNKNOWN ? commit : commit.slice(0, 12)
 

@@ -987,8 +987,8 @@ describe('createForgeRebuildRunner', () => {
         path.endsWith('AccessManagerFacet.json')
           ? true
           : path.endsWith('OwnershipFacet.json')
-          ? compiled
-          : !path.endsWith('.env')
+            ? compiled
+            : !path.endsWith('.env')
       ),
       run: () => {
         compiled = true
@@ -2744,7 +2744,7 @@ describe('createDeployedCodeReader', () => {
       name: 'test',
       nativeCurrency: { name: 'E', symbol: 'E', decimals: 18 },
       rpcUrls: { default: { http } },
-    } as Chain)
+    }) as Chain
 
   const originalFetch = globalThis.fetch
 
@@ -2778,8 +2778,8 @@ describe('createDeployedCodeReader', () => {
         body.method === 'eth_chainId'
           ? '0x1'
           : body.method === 'eth_getBlockByNumber'
-          ? { number: '0x64', hash: `0x${'ab'.repeat(32)}` }
-          : code
+            ? { number: '0x64', hash: `0x${'ab'.repeat(32)}` }
+            : code
 
       return new Response(
         JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
@@ -2933,7 +2933,7 @@ describe('createImmutablePricer', () => {
           profiles: [
             { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
           ],
-        } as unknown as IToolchainScope),
+        }) as unknown as IToolchainScope,
       build: async () => ({
         runtimeHex: RUNTIME,
         immutableReferences: { '7': [{ start: 32, length: 32 }] },
@@ -2982,7 +2982,7 @@ describe('createImmutablePricer', () => {
           profiles: [
             { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
           ],
-        } as unknown as IToolchainScope),
+        }) as unknown as IToolchainScope,
       build: async () => ({
         runtimeHex: RUNTIME,
         immutableReferences: { '7': [{ start: 32, length: 32 }] },
