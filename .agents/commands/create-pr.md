@@ -50,7 +50,7 @@ Resolve in order:
 **Validation** (routes 1–3) — `get_issue` and check:
 
 - **Team**: must be SmartContract (EXSC). A ticket from another team doesn't satisfy the requirement — keep it as an extra `Ref <ID>` line if relevant and fall through to route 4.
-- **Required fields**: assignee, estimate, cycle and the `InCursu` label, as `/create-linear-ticket` defines them (its steps 4–5). Plan a repair for each missing one; size a missing estimate to the diff (default **1** for small changes). Never reassign an assigned ticket.
+- **Required fields**: assignee, estimate, cycle and the `InCursu` label, as `/create-linear-ticket` defines them (its steps 5–6). Plan a repair for each missing one; size a missing estimate to the diff (default **1** for small changes). Never reassign an assigned ticket.
 
 Do not write to Linear yet — planned repairs go in the step 8 pre-flight and run in step 9. Unattended runs apply the proposed values in step 9.
 
@@ -69,7 +69,7 @@ Do not write to Linear yet — planned repairs go in the step 8 pre-flight and r
    - `s` — explicit opt-out: no ticket, branch unchanged, body line `<!-- No Linear task -->`; never fabricate a link. If the change is genuinely trivial (typo / doc-only / dep-bump / single-line fix), suggest the `trivial` label so the ticket-linkage metric counts it.
    - Unattended: plan the ticket with the derived title — never proceed without one.
 
-   On `y` / `e`, record the planned ticket. Step 9 creates it through `/create-linear-ticket` with the confirmed title and estimate, and a short body summarizing the change plus a PR-URL placeholder. This prompt is its preview, so skip that skill's step 6 wait.
+   On `y` / `e`, record the planned ticket. Step 9 creates it through `/create-linear-ticket` with the confirmed title and estimate, and a short body summarizing the change plus a PR-URL placeholder. This prompt is its preview, so skip that skill's step 7 wait.
 
 ### 5. Build the PR body
 
