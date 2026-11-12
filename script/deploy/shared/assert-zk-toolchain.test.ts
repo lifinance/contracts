@@ -881,43 +881,140 @@ describe('the checkout itself', () => {
 })
 
 describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
-  it('lists a filter that matches the file the seam lives in', () => {
-    const workflow = readFileSync(
-      join(REPO_ROOT, '.github/workflows/deploy-smoke-test.yml'),
-      'utf8'
-    )
-    const filters = (workflow.match(/^\s+- '([^']+)'$/gm) ?? []).map((line) =>
-      line.trim().replace(/^- '/, '').replace(/'$/, '')
-    )
+  const workflow = readFileSync(
+    join(REPO_ROOT, '.github/workflows/deploy-smoke-test.yml'),
+    'utf8'
+  )
+  const filters = (workflow.match(/^\s+- '([^']+)'$/gm) ?? []).map((line) =>
+    line.trim().replace(/^- '/, '').replace(/'$/, '')
+  )
 
-    /**
-     * Whether any filter glob matches a path, with `**` spanning separators and `*` not.
-     *
-     * @param path - Repository-relative path.
-     * @returns True when the smoke job would run for a change to it.
-     */
-    const covered = (path: string): boolean =>
-      filters.some((glob) =>
-        new RegExp(
-          `^${glob
-            .split('**')
-            .map((part) =>
-              part
-                .split('*')
-                .map((atom) => atom.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
-                .join('[^/]*')
-            )
-            .join('.*')}$`
-        ).test(path)
-      )
+  /**
+   * Translates a filter glob to a RegExp the way dorny/paths-filter's picomatch does:
+   * `**` spans separators, a leading `**\/` also matches zero directories, and `*` stays
+   * within one segment.
+   *
+   * @param glob - Filter glob without its `!` prefix.
+   * @returns An anchored RegExp for repository-relative paths.
+   */
+  const toRegExp = (glob: string): RegExp => {
+    const segment = (part: string): string =>
+      part
+        .split('*')
+        .map((atom) => atom.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+        .join('[^/]*')
+    const body = glob
+      .split('**/')
+      .map((chunk) => chunk.split('**').map(segment).join('.*'))
+      .join('(?:.*/)?')
+    return new RegExp(`^${body}$`)
+  }
 
-    expect(covered('script/helperFunctions.sh')).toBe(true)
-    expect(covered('script/scriptMaster.sh')).toBe(true)
-    expect(covered('script/deploy/shared/assertZkToolchain.sh')).toBe(true)
-    expect(covered(CHECKER)).toBe(true)
-    expect(covered(PIN_READER)).toBe(true)
-    // A matcher that answered true for everything would make the assertions above empty.
-    expect(covered('README.md')).toBe(false)
-    expect(covered('docs/Setup.md')).toBe(false)
+  const includes = filters.filter((glob) => !glob.startsWith('!')).map(toRegExp)
+  const excludes = filters
+    .filter((glob) => glob.startsWith('!'))
+    .map((glob) => toRegExp(glob.slice(1)))
+
+  /**
+   * Whether a change to a path runs the smoke job under `some-with-excludes`: it matches
+   * at least one positive pattern and no `!` pattern.
+   *
+   * @param path - Repository-relative path.
+   * @returns True when the smoke job would run for a change to it.
+   */
+  const covered = (path: string): boolean =>
+    includes.some((re) => re.test(path)) &&
+    !excludes.some((re) => re.test(path))
+
+  /**
+   * Repo files a deploy shell script sources, read from its `source` lines.
+   *
+   * @param script - Repository-relative path of the sourcing script.
+   * @returns The sourced paths, minus the generated `.env`.
+   */
+  const sourcedBy = (script: string): string[] =>
+    [
+      ...readFileSync(join(REPO_ROOT, script), 'utf8').matchAll(
+        /^\s*source\s+(\S+)/gm
+      ),
+    ]
+      .map((match) => match[1] ?? '')
+      .filter((path) => path !== '.env')
+
+  it('uses the quantifier that makes the ! patterns exclude', () => {
+    expect(workflow).toMatch(/^\s+predicate-quantifier: 'some-with-excludes'$/m)
+    expect(excludes.length).toBeGreaterThan(0)
+  })
+
+  it('runs for the deploy chokepoint and every file the deploy run sources', () => {
+    const sourced = [
+      ...sourcedBy('script/deploy/deployAllContracts.sh'),
+      ...sourcedBy('script/deploy/deploySingleContract.sh'),
+    ]
+    // Paired: a parse that found nothing would pass while checking nothing.
+    expect(sourced.length).toBeGreaterThan(5)
+    expect(sourced.filter((path) => !covered(path))).toEqual([])
+
+    for (const path of [
+      'foundry.toml',
+      'bun.lock',
+      'script/helperFunctions.sh',
+      'script/deploy/resources/deployGroupingHelpers.sh',
+      'script/deploy/shared/assertZkToolchain.sh',
+      'src/Facets/DiamondCutFacet.sol',
+      'src/Libraries/LibAsset.sol',
+      CHECKER,
+      PIN_READER,
+    ]) {
+      expect({ path, covered: covered(path) }).toEqual({ path, covered: true })
+    }
+  })
+
+  it('runs for PR #2413, whose London build profile broke the deploy', () => {
+    const pr2413 = [
+      '.agents/commands/deploy-contract.md',
+      '.github/workflows/solc-floor-build.yml',
+      'docs/DiamondCutRecomputation.md',
+      'foundry.toml',
+      'script/README_multiNetworkExecution.md',
+      'script/deploy/deployContractToNetworks.sh',
+      'script/deploy/deploySingleContract.sh',
+      'script/deploy/london-profile-selection.test.ts',
+      'script/deploy/resources/deployGroupingHelpers.sh',
+      'script/deploy/safe/codehash-sign-gate-deps.test.ts',
+      'script/deploy/safe/codehash-sign-gate-deps.ts',
+      'script/deploy/safe/diamondRemovalDiff.ts',
+      'script/deploy/shared/assert-zk-toolchain.test.ts',
+      'script/helperFunctions.sh',
+      'script/mongoDb/rpcEndpoints.test.ts',
+      'script/multiNetworkExecution.sh',
+      'script/playgroundHelpers.sh',
+      'script/scriptMaster.sh',
+      'script/tasks/proposeContractToNetworks.sh',
+    ]
+    expect(pr2413.some(covered)).toBe(true)
+  })
+
+  it('skips files the deploy run never loads', () => {
+    const pr2655 = [
+      'config/timelockController.json',
+      'docs/MultisigSigningProcess.md',
+      'script/deploy/safe/timelock-watcher-scan.test.ts',
+      'script/deploy/safe/timelock-watcher-scan.ts',
+      'script/deploy/safe/timelock-watcher.test.ts',
+      'script/deploy/safe/timelock-watcher.ts',
+    ]
+    for (const path of [
+      ...pr2655,
+      'README.md',
+      'docs/Setup.md',
+      'script/scriptMaster.sh',
+      'script/deploy/safe/safe-utils.test.ts',
+      'script/deploy/shared/assert-zk-toolchain.test.ts',
+      'tasks/generateDiamondABI.test.ts',
+      'some.test.ts',
+    ]) {
+      expect({ path, covered: covered(path) }).toEqual({ path, covered: false })
+    }
   })
 })
