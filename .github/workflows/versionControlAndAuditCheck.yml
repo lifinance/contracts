@@ -83,7 +83,7 @@ jobs:
             echo -e "\033[32mThis is valid (e.g., just moving files around without changes).\033[0m"
             echo -e "\033[32mNo version control or audit checks are required.\033[0m"
             # set action output to false
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 0
           fi
 
@@ -102,11 +102,11 @@ jobs:
             echo -e "\033[32mNo version-controlled contracts found in files modified/added by this PR.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
             # set action output to false
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 0
           else
             # set action output to true
-            echo "CONTINUE=true" >> $GITHUB_ENV
+            echo "CONTINUE=true" >> "$GITHUB_ENV"
           fi
 
           ##### Write filenames to temporary files (using variables here was causing issues due to the file names)
@@ -296,7 +296,7 @@ jobs:
             # Join array elements with comma and space
             CONTRACTS_FOR_TITLE_STR=""
             for i in "${!CONTRACTS_FOR_TITLE[@]}"; do
-              if [ $i -eq 0 ]; then
+              if [ "$i" -eq 0 ]; then
                 CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE[$i]}"
               else
                 CONTRACTS_FOR_TITLE_STR="${CONTRACTS_FOR_TITLE_STR}, ${CONTRACTS_FOR_TITLE[$i]}"
@@ -306,7 +306,7 @@ jobs:
           else
             echo -e "\033[32mDid not find any contracts that require an audit.\033[0m"
             echo -e "\033[32mNo further checks are required.\033[0m"
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 0
           fi
 
@@ -330,7 +330,7 @@ jobs:
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
           ##### Step 1: Remove all bracketed content from the current title
-          BASE_TITLE=$(echo "$PR_TITLE" | sed 's/\s*\[[^]]*\]//g')
+          BASE_TITLE=$(sed 's/\s*\[[^]]*\]//g' <<< "$PR_TITLE")
           echo "BASE_TITLE: $BASE_TITLE"
 
           ##### Step 2: Trim leading and trailing whitespace from the base title
@@ -354,11 +354,11 @@ jobs:
 
           if [[ "$PR_TITLE" != "$PR_TITLE_UPDATED" ]]; then
             echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
-            echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> $GITHUB_ENV
-            echo "CONTINUE=true" >> $GITHUB_ENV
+            echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> "$GITHUB_ENV"
+            echo "CONTINUE=true" >> "$GITHUB_ENV"
           else
             echo -e "\033[32mNo PR title updates are required. This Github action will end here.\033[0m"
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> "$GITHUB_ENV"
             exit 0
           fi
 

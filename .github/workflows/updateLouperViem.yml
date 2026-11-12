@@ -115,7 +115,7 @@ jobs:
           echo "Current viem version: $CURRENT_VIEM"
           
           # Strip version prefix (^, ~, =) for comparison
-          CURRENT_VIEM_CLEAN=$(echo "$CURRENT_VIEM" | sed 's/^[\^~=]//')
+          CURRENT_VIEM_CLEAN=$(sed 's/^[\^~=]//' <<< "$CURRENT_VIEM")
           echo "Current viem version (cleaned): $CURRENT_VIEM_CLEAN"
           
           # Get latest viem version from npm
@@ -128,9 +128,11 @@ jobs:
             echo "UPDATE_NEEDED=false" >> "$GITHUB_ENV"
           else
             echo "Update needed: $CURRENT_VIEM -> $LATEST_VIEM"
-            echo "UPDATE_NEEDED=true" >> "$GITHUB_ENV"
-            echo "CURRENT_VIEM=$CURRENT_VIEM" >> "$GITHUB_ENV"
-            echo "LATEST_VIEM=$LATEST_VIEM" >> "$GITHUB_ENV"
+            {
+              echo "UPDATE_NEEDED=true"
+              echo "CURRENT_VIEM=$CURRENT_VIEM"
+              echo "LATEST_VIEM=$LATEST_VIEM"
+            } >> "$GITHUB_ENV"
             
             # Configure git for target repo
             git config user.name "github-actions[bot]"
@@ -211,7 +213,7 @@ jobs:
             # Verify update
             UPDATED_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // empty' package.json)
             echo "Updated viem version: $UPDATED_VIEM"
-            UPDATED_VIEM_CLEAN=$(echo "$UPDATED_VIEM" | sed 's/^[\^~=]//')
+            UPDATED_VIEM_CLEAN=$(sed 's/^[\^~=]//' <<< "$UPDATED_VIEM")
             
             if [ -z "$UPDATED_VIEM" ] || [ "$UPDATED_VIEM" == "null" ]; then
               echo "❌ Error: Failed to update viem in package.json"

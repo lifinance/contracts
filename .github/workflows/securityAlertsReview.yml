@@ -74,7 +74,7 @@ jobs:
           fi
           echo "Found PR number: ${{ steps.findPr.outputs.number }}"
           PR_NUMBER=${{ steps.findPr.outputs.number }}
-          echo "PR_NUMBER=$PR_NUMBER" >> $GITHUB_ENV
+          echo "PR_NUMBER=$PR_NUMBER" >> "$GITHUB_ENV"
           echo "Pull Request Number is: $PR_NUMBER"
 
       - name: Fetch Security Alerts for PR
@@ -120,13 +120,15 @@ jobs:
           echo "INVALID_REASON_COUNT: $INVALID_REASON_COUNT"
 
           # Save values in the environment as single-line JSON
-          echo "UNRESOLVED_ALERTS=$UNRESOLVED_ALERTS" >> $GITHUB_ENV
-          echo "DISMISSED_ALERTS=$DISMISSED_ALERTS" >> $GITHUB_ENV
-          echo "RESOLVED_ALERTS=$RESOLVED_ALERTS" >> $GITHUB_ENV
-          echo "UNRESOLVED_COUNT=$UNRESOLVED_COUNT" >> $GITHUB_ENV
-          echo "DISMISSED_COUNT=$DISMISSED_COUNT" >> $GITHUB_ENV
-          echo "COMMENTED_COUNT=$COMMENTED_COUNT" >> $GITHUB_ENV
-          echo "INVALID_REASON_COUNT=$INVALID_REASON_COUNT" >> $GITHUB_ENV
+          {
+            echo "UNRESOLVED_ALERTS=$UNRESOLVED_ALERTS"
+            echo "DISMISSED_ALERTS=$DISMISSED_ALERTS"
+            echo "RESOLVED_ALERTS=$RESOLVED_ALERTS"
+            echo "UNRESOLVED_COUNT=$UNRESOLVED_COUNT"
+            echo "DISMISSED_COUNT=$DISMISSED_COUNT"
+            echo "COMMENTED_COUNT=$COMMENTED_COUNT"
+            echo "INVALID_REASON_COUNT=$INVALID_REASON_COUNT"
+          } >> "$GITHUB_ENV"
 
       - name: Find Existing PR Comment
         id: find_comment
@@ -140,7 +142,7 @@ jobs:
             '.[] | select(.body | startswith("### 🤖 GitHub Action: Security Alerts Review")) | .id')
 
           if [[ -n "$COMMENT_ID" && "$COMMENT_ID" != "null" ]]; then
-            echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> $GITHUB_ENV
+            echo "EXISTING_COMMENT_ID=$COMMENT_ID" >> "$GITHUB_ENV"
           fi
 
           echo "Found comment ID: $COMMENT_ID"
@@ -201,7 +203,7 @@ jobs:
               ALERT_FILE=$(echo "$row" | jq -r '.most_recent_instance.location.path')
               ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
-              CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
+              CAPITALIZED_REASON="${DISMISS_REASON^}"
 
               printf -v temp "❌ [View Alert](%s) - **File:** \`%s\`\n" "$ALERT_URL" "$ALERT_FILE"
               COMMENT_BODY+="$temp"
@@ -235,7 +237,7 @@ jobs:
               ALERT_DESCRIPTION=$(echo "$row" | jq -r '.most_recent_instance.message.text')
               DISMISS_REASON=$(echo "$row" | jq -r '.dismissed_reason')
               DISMISS_COMMENT=$(echo "$row" | jq -r '.dismissed_comment')
-              CAPITALIZED_REASON=$(echo "$DISMISS_REASON" | sed 's/^\(.\)/\U\1/')
+              CAPITALIZED_REASON="${DISMISS_REASON^}"
 
               # we convert the dismissal comment to a single line because:
               # 1. newlines in this context dont render properly (or get escaped) in the final github PR comment
