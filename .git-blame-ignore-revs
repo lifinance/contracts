@@ -1,7 +1,11 @@
-# Formatting-only commits that git blame skips.
+# Reformat commits that git blame skips.
 # GitHub reads this file automatically. Locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+# On a checkout older than this file, that setting can make git blame fail to open it;
+# pass --ignore-revs-file .git-blame-ignore-revs per command instead.
 
-# oxfmt reformat of TS/JS, with the formatter tooling (#2646)
+# oxfmt reformat of TS/JS (#2646). Squashed together with real changes to foundry.toml,
+# package.json, dependabot.yml, the agent hooks and checkout-foundry-config.ts, whose
+# blame this hides too.
 73a0462028a36f2ae60b57d16596ea472bb4434c
-# forge fmt reformat of test/ and script/ Solidity (#2647)
+# forge fmt reformat of test/ and script/ Solidity (#2647), formatting only
 09f46fdd58119131fb50d16c0cdd46758ef28978
