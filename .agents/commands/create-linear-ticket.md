@@ -9,8 +9,10 @@ description: 'Creates an EXSC Linear ticket, or repairs an existing one, so it a
 
 - **What the ticket is for**: conversation context, a pasted draft, a Slack thread, or a diff (when called from `/create-pr`).
 - **Existing ticket ID** (optional): repair mode. Skip steps 1–4; apply steps 5–8 to that ticket and never rewrite its title or body. Run step 4 only when the user asks for it.
-- **Factory job**: if the ticket is meant for the AI Factory, hand off to `/factory-ticket` instead — it owns that template and the intake gate. Then run repair mode on the result.
+- **Factory job**: if the ticket is meant for the AI Factory and `/factory-ticket` is installed (a user-level skill, not in this repo), hand off to it — it owns that template and the intake gate. Then run repair mode on the result; it fills only missing fields and keeps the assignee, delegate and cycle intake set. Without that skill, write a normal ticket and say so.
 - **Scope shape**: when the request says migrate, replace, move, consolidate or refactor, ask once whether it is a swap (old data abandoned), a migration (data preserved), a new feature, or an internal refactor. Hold the draft and step 4 to that shape; it keeps a swap from growing phases, flags or dual paths.
+- **Unattended** (nobody to answer): take your recommendation for each question and name it in the report; scope shape goes in Agent notes. Two questions stop the run instead, reported without saving: an open duplicate in step 1, and a missing next cycle in step 6.
+- **Called from `/create-pr`**: the work is already built and `/create-pr` owns the questions. Its route 3 replaces step 1. Run steps 2–6 before its pre-flight: draft the step 3 body from the diff, and in step 4 skip the subagent and check only the facts against the diff. The pre-flight is the step 7 preview. After approval run only the save and step 8, with no new questions; if something would need one (a crossed cycle boundary, a missing next cycle), stop and show the change in a new pre-flight. Repairs from `/create-pr` run steps 5–8 the same way.
 
 ## Required fields
 
@@ -30,7 +32,7 @@ Sprint reporting counts only tickets that are assigned, estimated and in a cycle
 
 ## 2. Pick the template
 
-`list_templates` with `team: "SmartContract"`, `type: "issue"`. Use an EXSC-specific template when one matches (new bridge, new DEX, new EVM chain, chain deploys); otherwise **Bug Ticket** for defects, **Task Ticket** for everything else. Pass it as `template` and keep its section headings when writing the body.
+`list_templates` with `team: "SmartContract"`, `type: "issue"`. Use an EXSC-specific template when one matches (new bridge, new DEX, new EVM chain, chain deploys); otherwise **Bug Ticket** for defects, **Task Ticket** for everything else. `get_template` returns its body; pass it as `template` and write the body under its section headings, because a non-empty `description` replaces the template body rather than merging with it.
 
 ## 3. Draft the title and body
 
@@ -67,8 +69,6 @@ Give one fresh `general-purpose` subagent the draft and the repo, not this conve
 - Back each finding with evidence (file and line, or a command result) and give the line that would close it in the ticket.
 
 Then close the gaps. Check a finding before changing the ticket on it. Write each answer the code gives into Done when, Out of scope or Agent notes; ask the user about each one that is a decision (a value, a trade-off, the scope) in the preview, with your recommendation. Record the alternatives weighed under "Considered and rejected" in Agent notes, so the implementer doesn't reopen them. A contract, governance or `money-path` concern also gets "needs core review" in the body.
-
-Called from `/create-pr`, the work is already built: skip the subagent and check only the facts, against the diff.
 
 ## 5. Propose the estimate
 
