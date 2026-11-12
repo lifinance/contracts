@@ -360,8 +360,8 @@ const sendingAssetIdSrc =
 const receivingAssetId = isSolana
   ? ADDRESS_USDC_SOL_BYTES32
   : isNativeTX(TRANSACTION_TYPE)
-  ? ADDRESS_WETH_ARB
-  : ADDRESS_USDC_ARB
+    ? ADDRESS_WETH_ARB
+    : ADDRESS_USDC_ARB
 const fromAmount = isNativeTX(TRANSACTION_TYPE)
   ? '2000000000000000' // 0.002 (ETH)
   : '5100000' // 5.1 USDC (min send limit is just over 5 USD for this token)
@@ -388,8 +388,8 @@ async function main() {
   const receiverAddressDst = isSolana
     ? solanaAddressToBytes32(solanaReceiverBase58)
     : WITH_DEST_CALL
-    ? deploymentsARB.ReceiverAcrossV3
-    : DEV_WALLET_ADDRESS
+      ? deploymentsARB.ReceiverAcrossV3
+      : DEV_WALLET_ADDRESS
 
   // Helper function to format amount with decimals
   const formatAmount = (amount: string, isNative: boolean): string => {
@@ -458,8 +458,8 @@ async function main() {
   const bridgeDataReceiver = isSolana
     ? NON_EVM_ADDRESS // Use NON_EVM_ADDRESS for Solana
     : WITH_DEST_CALL
-    ? receiverAddressDst
-    : walletAddress
+      ? receiverAddressDst
+      : walletAddress
 
   const bridgeData: ILiFi.BridgeDataStruct = {
     transactionId: utils.randomBytes(32),

@@ -208,7 +208,7 @@ const main = async () => {
   // for deriving the non-EVM receiver bytes32.
   const privateKey = getPrivateKeyForEnvironment(EnvironmentEnum.staging)
   const solanaReceiverBase58 = isSolana
-    ? args.receiver ?? deriveSolanaAddress(privateKey)
+    ? (args.receiver ?? deriveSolanaAddress(privateKey))
     : ''
   const evmReceiver: Address = isSolana
     ? NON_EVM_ADDRESS

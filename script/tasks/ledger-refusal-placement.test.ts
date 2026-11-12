@@ -131,7 +131,7 @@ describe('the interactive periphery multiselect refuses before it proposes', () 
   })
 
   it('counts the selection, so a single removal still goes through', () => {
-    // Whitespace-tolerant: prettier reflows this call whenever the surrounding
+    // Whitespace-tolerant: oxfmt reflows this call whenever the surrounding
     // indentation changes, and that is not a regression.
     expect(branch).toMatch(/assertLedgerProposesOnce\(\s*selected\.length/)
   })

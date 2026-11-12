@@ -285,7 +285,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       const valueStr =
         typeof minDelayRes === 'string'
           ? minDelayRes
-          : minDelayRes?.toString?.() ?? '0'
+          : (minDelayRes?.toString?.() ?? '0')
       minDelayBigInt = BigInt(valueStr)
     } catch (e) {
       throw new Error(
@@ -326,7 +326,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       (attempt, delayMs) => warnRateLimited('the Safe nonce', attempt, delayMs)
     )
     const valueStr =
-      typeof nonceRes === 'string' ? nonceRes : nonceRes?.toString?.() ?? '0'
+      typeof nonceRes === 'string' ? nonceRes : (nonceRes?.toString?.() ?? '0')
     chainNonceBigInt = BigInt(valueStr)
   } catch (e) {
     throw new Error(

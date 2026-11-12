@@ -624,8 +624,8 @@ export const priceImmutables = (
         typeof entry.rule === 'string' && entry.rule.trim() !== ''
           ? entry.rule
           : typeof entry.reason === 'string' && entry.reason.trim() !== ''
-          ? entry.reason
-          : undefined
+            ? entry.reason
+            : undefined
       // Without a rule or a reason the entry states nothing, so there is
       // nothing for a signer to take on and it is not acknowledgeable.
       slots.push({

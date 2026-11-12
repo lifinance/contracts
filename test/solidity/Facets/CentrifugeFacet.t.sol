@@ -4,11 +4,23 @@ pragma solidity ^0.8.17;
 import { Vm } from "forge-std/Vm.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { CentrifugeFacet } from "lifi/Facets/CentrifugeFacet.sol";
-import { ICentrifugeTokenBridge } from "lifi/Interfaces/ICentrifugeTokenBridge.sol";
-import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, NativeAssetNotSupported, ReentrancyError, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import {
+    ICentrifugeTokenBridge
+} from "lifi/Interfaces/ICentrifugeTokenBridge.sol";
+import {
+    InformationMismatch,
+    InvalidCallData,
+    InvalidConfig,
+    InvalidReceiver,
+    NativeAssetNotSupported,
+    ReentrancyError,
+    TransferFromFailed
+} from "lifi/Errors/GenericErrors.sol";
 
 /// View/error surface of the real Centrifuge TokenBridge that the fork tests need in order to
 /// pin its configuration and assert against its own reverts.
@@ -21,9 +33,10 @@ interface ICentrifugeTokenBridgeExtended {
 
     function localCentrifugeId() external view returns (uint16);
 
-    function chainIdToCentrifugeId(
-        uint256 evmChainId
-    ) external view returns (uint16);
+    function chainIdToCentrifugeId(uint256 evmChainId)
+        external
+        view
+        returns (uint16);
 
     function spoke() external view returns (address);
 }
@@ -31,9 +44,10 @@ interface ICentrifugeTokenBridgeExtended {
 /// Registry the TokenBridge resolves the asset through; used to pin the share token's
 /// registration at the forked block.
 interface ICentrifugeSpoke {
-    function shareTokenDetails(
-        address shareToken
-    ) external view returns (uint64 poolId, bytes16 scId);
+    function shareTokenDetails(address shareToken)
+        external
+        view
+        returns (uint64 poolId, bytes16 scId);
 }
 
 /// Centrifuge Gateway error raised when the forwarded native value does not cover the
@@ -56,9 +70,10 @@ interface ISlipstreamSwapRouter {
         uint160 sqrtPriceLimitX96;
     }
 
-    function exactOutputSingle(
-        ExactOutputSingleParams calldata params
-    ) external payable returns (uint256 amountIn);
+    function exactOutputSingle(ExactOutputSingleParams calldata params)
+        external
+        payable
+        returns (uint256 amountIn);
 }
 
 /// @notice Re-enters the facet from `receive()` to prove the `nonReentrant` guard holds.
@@ -95,9 +110,8 @@ contract CentrifugeReentrancyAttacker {
         if (_reentryAttempted) return;
         _reentryAttempted = true;
 
-        (bool success, bytes memory data) = FACET.call{ value: 1 ether }(
-            _callData
-        );
+        (bool success, bytes memory data) =
+            FACET.call{ value: 1 ether }(_callData);
 
         innerCallSucceeded = success;
         innerRevertData = data;
@@ -110,9 +124,8 @@ contract CentrifugeReentrancyAttacker {
     function callFacet(bytes calldata _data) external {
         _callData = _data;
 
-        (bool success, bytes memory data) = FACET.call{ value: 10 ether }(
-            _data
-        );
+        (bool success, bytes memory data) =
+            FACET.call{ value: 10 ether }(_data);
         if (!success) {
             revert InitialCallFailed(data);
         }
@@ -121,9 +134,9 @@ contract CentrifugeReentrancyAttacker {
 
 // Stub CentrifugeFacet Contract
 contract TestCentrifugeFacet is CentrifugeFacet, TestWhitelistManagerBase {
-    constructor(
-        ICentrifugeTokenBridge _tokenBridge
-    ) CentrifugeFacet(_tokenBridge) {}
+    constructor(ICentrifugeTokenBridge _tokenBridge)
+        CentrifugeFacet(_tokenBridge)
+    { }
 }
 
 abstract contract CentrifugeFacetTestBase is TestBaseFacet {
@@ -195,33 +208,29 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         // the bridge resolves the asset through the Spoke, so a re-pin onto a block predating
         // this token's registration must fail here rather than as a bare ShareTokenDoesNotExist
         // deep inside a funds-flow assert
-        (uint64 poolId, ) = ICentrifugeSpoke(
-            ICentrifugeTokenBridgeExtended(address(TOKEN_BRIDGE)).spoke()
-        ).shareTokenDetails(ADDRESS_SHARE_TOKEN);
+        (uint64 poolId,) = ICentrifugeSpoke(
+                ICentrifugeTokenBridgeExtended(address(TOKEN_BRIDGE)).spoke()
+            )
+            .shareTokenDetails(ADDRESS_SHARE_TOKEN);
         assertGt(uint256(poolId), 0);
 
         centrifugeFacet = new TestCentrifugeFacet(TOKEN_BRIDGE);
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = centrifugeFacet
-            .startBridgeTokensViaCentrifuge
-            .selector;
-        functionSelectors[1] = centrifugeFacet
-            .swapAndStartBridgeTokensViaCentrifuge
-            .selector;
-        functionSelectors[2] = centrifugeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = centrifugeFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        centrifugeFacet.startBridgeTokensViaCentrifuge.selector;
+        functionSelectors[1] =
+        centrifugeFacet.swapAndStartBridgeTokensViaCentrifuge.selector;
+        functionSelectors[2] =
+        centrifugeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        centrifugeFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(centrifugeFacet), functionSelectors);
         centrifugeFacet = TestCentrifugeFacet(address(diamond));
 
         // the swap step the shared battery uses (see setDefaultSwapDataSingleDAItoUSDC below)
         centrifugeFacet.addAllowedContractSelector(
-            address(feeCollector),
-            feeCollector.collectTokenFees.selector
+            address(feeCollector), feeCollector.collectTokenFees.selector
         );
 
         setFacetAddressInTestBase(address(centrifugeFacet), "CentrifugeFacet");
@@ -240,8 +249,7 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         bridgeData.destinationChainId = destinationChainId;
 
         validCentrifugeData = CentrifugeFacet.CentrifugeData({
-            nativeFee: DEFAULT_NATIVE_FEE,
-            refundRecipient: USER_REFUND
+            nativeFee: DEFAULT_NATIVE_FEE, refundRecipient: USER_REFUND
         });
     }
 
@@ -279,25 +287,34 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         if (isNative) {
             centrifugeFacet.startBridgeTokensViaCentrifuge{
                 value: bridgeData.minAmount
-            }(bridgeData, validCentrifugeData);
+            }(
+                bridgeData, validCentrifugeData
+            );
         } else {
             centrifugeFacet.startBridgeTokensViaCentrifuge{
                 value: validCentrifugeData.nativeFee
-            }(bridgeData, validCentrifugeData);
+            }(
+                bridgeData, validCentrifugeData
+            );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             centrifugeFacet.swapAndStartBridgeTokensViaCentrifuge{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validCentrifugeData);
+            }(
+                bridgeData, swapData, validCentrifugeData
+            );
         } else {
             centrifugeFacet.swapAndStartBridgeTokensViaCentrifuge{
                 value: validCentrifugeData.nativeFee
-            }(bridgeData, swapData, validCentrifugeData);
+            }(
+                bridgeData, swapData, validCentrifugeData
+            );
         }
     }
 
@@ -411,8 +428,7 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         centrifugeFacet = new TestCentrifugeFacet(TOKEN_BRIDGE);
 
         assertEq(
-            address(centrifugeFacet.TOKEN_BRIDGE()),
-            address(TOKEN_BRIDGE)
+            address(centrifugeFacet.TOKEN_BRIDGE()), address(TOKEN_BRIDGE)
         );
     }
 
@@ -557,7 +573,9 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
 
         centrifugeFacet.startBridgeTokensViaCentrifuge{
             value: validCentrifugeData.nativeFee - 1
-        }(bridgeData, validCentrifugeData);
+        }(
+            bridgeData, validCentrifugeData
+        );
         vm.stopPrank();
     }
 
@@ -640,20 +658,15 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         bool found;
         for (uint256 i; i < logs.length; ++i) {
             if (
-                logs[i].emitter != address(TOKEN_BRIDGE) ||
-                logs[i].topics[0] != sendTopic
+                logs[i].emitter != address(TOKEN_BRIDGE)
+                    || logs[i].topics[0] != sendTopic
             ) continue;
 
-            (, bytes32 receiver, , ) = abi.decode(
-                logs[i].data,
-                (uint256, bytes32, uint256, address)
+            (, bytes32 receiver,,) = abi.decode(
+                logs[i].data, (uint256, bytes32, uint256, address)
             );
 
-            assertEq(
-                uint96(uint256(receiver)),
-                0,
-                "low 12 bytes must be zero"
-            );
+            assertEq(uint96(uint256(receiver)), 0, "low 12 bytes must be zero");
             assertEq(address(bytes20(receiver)), USER_RECEIVER);
             found = true;
         }
@@ -688,7 +701,9 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
 
         centrifugeFacet.startBridgeTokensViaCentrifuge{
             value: validCentrifugeData.nativeFee + excess
-        }(bridgeData, validCentrifugeData);
+        }(
+            bridgeData, validCentrifugeData
+        );
         vm.stopPrank();
 
         // the excess plus the Gateway's own surplus refund both land at refundRecipient
@@ -704,9 +719,7 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         shareToken.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(
-            ICentrifugeTokenBridgeExtended.InvalidChainId.selector
-        );
+        vm.expectRevert(ICentrifugeTokenBridgeExtended.InvalidChainId.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
@@ -754,14 +767,12 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         // fees are credited inside the FeeCollector, the net amount was bridged
         assertEq(
             feeCollector.getTokenBalance(
-                integratorAddress,
-                ADDRESS_SHARE_TOKEN
+                integratorAddress, ADDRESS_SHARE_TOKEN
             ),
             integratorFee
         );
         assertEq(
-            feeCollector.getLifiTokenBalance(ADDRESS_SHARE_TOKEN),
-            lifiFee
+            feeCollector.getLifiTokenBalance(ADDRESS_SHARE_TOKEN), lifiFee
         );
         assertEq(shareToken.balanceOf(address(diamond)), 0);
         assertEq(address(diamond).balance, 0);
@@ -779,7 +790,9 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
 
         centrifugeFacet.startBridgeTokensViaCentrifuge{
             value: DEFAULT_NATIVE_FEE
-        }(bridgeData, validCentrifugeData);
+        }(
+            bridgeData, validCentrifugeData
+        );
         vm.stopPrank();
 
         consumed = DEFAULT_NATIVE_FEE - (USER_REFUND.balance - refundBefore);
@@ -810,12 +823,12 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
 
     /// @dev Asserts the re-entrant call was rejected by the guard specifically, rather than by
     ///      any of the other reasons an inner call can fail.
-    function _assertReentrancyWasBlocked(
-        CentrifugeReentrancyAttacker _attacker
-    ) internal view {
+    function _assertReentrancyWasBlocked(CentrifugeReentrancyAttacker _attacker)
+        internal
+        view
+    {
         assertFalse(
-            _attacker.innerCallSucceeded(),
-            "the re-entrant call went through"
+            _attacker.innerCallSucceeded(), "the re-entrant call went through"
         );
         assertEq(
             _attacker.innerRevertData(),
@@ -958,28 +971,27 @@ contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
         view
         returns (LibSwap.SwapData memory)
     {
-        return
-            LibSwap.SwapData({
-                callTo: address(SLIPSTREAM_ROUTER),
-                approveTo: address(SLIPSTREAM_ROUTER),
-                sendingAssetId: ADDRESS_USDC,
-                receivingAssetId: ADDRESS_SHARE_TOKEN,
-                fromAmount: MAX_USDC_IN,
-                callData: abi.encodeWithSelector(
-                    ISlipstreamSwapRouter.exactOutputSingle.selector,
-                    ISlipstreamSwapRouter.ExactOutputSingleParams({
-                        tokenIn: ADDRESS_USDC,
-                        tokenOut: ADDRESS_SHARE_TOKEN,
-                        tickSpacing: POOL_TICK_SPACING,
-                        recipient: _facetTestContractAddress,
-                        deadline: block.timestamp,
-                        amountOut: defaultShareAmount,
-                        amountInMaximum: MAX_USDC_IN,
-                        sqrtPriceLimitX96: 0
-                    })
-                ),
-                requiresDeposit: true
-            });
+        return LibSwap.SwapData({
+            callTo: address(SLIPSTREAM_ROUTER),
+            approveTo: address(SLIPSTREAM_ROUTER),
+            sendingAssetId: ADDRESS_USDC,
+            receivingAssetId: ADDRESS_SHARE_TOKEN,
+            fromAmount: MAX_USDC_IN,
+            callData: abi.encodeWithSelector(
+                ISlipstreamSwapRouter.exactOutputSingle.selector,
+                ISlipstreamSwapRouter.ExactOutputSingleParams({
+                    tokenIn: ADDRESS_USDC,
+                    tokenOut: ADDRESS_SHARE_TOKEN,
+                    tickSpacing: POOL_TICK_SPACING,
+                    recipient: _facetTestContractAddress,
+                    deadline: block.timestamp,
+                    amountOut: defaultShareAmount,
+                    amountInMaximum: MAX_USDC_IN,
+                    sqrtPriceLimitX96: 0
+                })
+            ),
+            requiresDeposit: true
+        });
     }
 
     function test_CanBuySharesWithUsdcAndBridgeThem() public {
@@ -1024,8 +1036,7 @@ contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
         uint256 nativeFee = validCentrifugeData.nativeFee;
 
         centrifugeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
 
         address[] memory path = new address[](2);
@@ -1077,9 +1088,7 @@ contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
 
         // no native sent at all - the messaging fee is paid out of the first swap's output
         centrifugeFacet.swapAndStartBridgeTokensViaCentrifuge{ value: 0 }(
-            bridgeData,
-            swapData,
-            validCentrifugeData
+            bridgeData, swapData, validCentrifugeData
         );
 
         vm.stopPrank();

@@ -37,15 +37,16 @@ contract ERC20ProxyTest is Test {
     }
 
     function test_DeployPeripheryHelperMatchesProductionPattern() public {
-        (ERC20Proxy proxy, Executor executor) = DeployPeripheryHelpers
-            .deployERC20ProxyAndExecutor(address(this), proxyOwner);
+        (ERC20Proxy proxy, Executor executor) = DeployPeripheryHelpers.deployERC20ProxyAndExecutor(
+            address(this), proxyOwner
+        );
 
         assertTrue(proxy.authorizedCallers(address(executor)));
         assertEq(proxy.owner(), proxyOwner);
     }
 
     function test_CannotReceiveETH() public {
-        (bool success, ) = address(erc20Proxy).call{ value: 1 ether }("");
+        (bool success,) = address(erc20Proxy).call{ value: 1 ether }("");
 
         assertTrue(
             success == false,

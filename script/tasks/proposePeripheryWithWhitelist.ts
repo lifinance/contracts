@@ -124,7 +124,7 @@ const errorText = (error: unknown): string =>
  */
 const returnedNoData = (error: unknown): boolean => {
   const seen = new Set<unknown>()
-  for (let current = error; current && !seen.has(current); ) {
+  for (let current = error; current && !seen.has(current);) {
     seen.add(current)
     if (
       (current as { name?: unknown }).name === 'ContractFunctionZeroDataError'
@@ -175,7 +175,7 @@ export function requiredSelectorsFor(
   config: IPeripheryRouteConfig
 ): Hex[] {
   const functions = config.whitelistPeripheryFunctions ?? {}
-  const entries = hasOwn(functions, name) ? functions[name] ?? [] : []
+  const entries = hasOwn(functions, name) ? (functions[name] ?? []) : []
   if (!entries.length)
     throw new Error(
       `whitelistPeripheryFunctions.${name} lists no selector, so its registration cannot be paired`

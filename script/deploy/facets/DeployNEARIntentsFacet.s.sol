@@ -12,7 +12,7 @@ import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("NEARIntentsFacet") {}
+    constructor() DeployScriptBase("NEARIntentsFacet") { }
 
     function run()
         public
@@ -20,9 +20,8 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = NEARIntentsFacet(
-            deploy(type(NEARIntentsFacet).creationCode)
-        );
+        deployed =
+            NEARIntentsFacet(deploy(type(NEARIntentsFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
@@ -32,8 +31,8 @@ contract DeployScript is DeployScriptBase {
         // check if production or staging
         address backendSigner;
         if (
-            keccak256(abi.encodePacked(fileSuffix)) ==
-            keccak256(abi.encodePacked("staging."))
+            keccak256(abi.encodePacked(fileSuffix))
+                == keccak256(abi.encodePacked("staging."))
         ) {
             backendSigner = json.readAddress(".backendSigner.staging");
         } else {

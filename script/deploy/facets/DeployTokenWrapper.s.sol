@@ -11,7 +11,7 @@ import { LibAsset } from "lifi/Libraries/LibAsset.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("TokenWrapper") {}
+    constructor() DeployScriptBase("TokenWrapper") { }
 
     function run()
         public
@@ -28,22 +28,19 @@ contract DeployScript is DeployScriptBase {
 
         // extract wrapped token address for the given network
         address wrappedNativeAddress = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".wrappedNativeAddress")
+            path, string.concat(".", network, ".wrappedNativeAddress")
         );
 
         // Try to get converter address from tokenconverters.json, default to address(0) if not found
         address converterAddress;
-        string memory convertersConfigPath = string.concat(
-            root,
-            "/config/tokenconverters.json"
-        );
-        try
-            vm.parseJsonAddress(
-                vm.readFile(convertersConfigPath),
-                string.concat(".", network, ".converterAddress")
-            )
-        returns (address addr) {
+        string memory convertersConfigPath =
+            string.concat(root, "/config/tokenconverters.json");
+        try vm.parseJsonAddress(
+            vm.readFile(convertersConfigPath),
+            string.concat(".", network, ".converterAddress")
+        ) returns (
+            address addr
+        ) {
             converterAddress = addr;
         } catch {
             converterAddress = address(0);
@@ -51,29 +48,24 @@ contract DeployScript is DeployScriptBase {
 
         // Verify converter is a contract if address is non-zero
         if (converterAddress != address(0)) {
-            if (!LibAsset.isContract(converterAddress))
+            if (!LibAsset.isContract(converterAddress)) {
                 revert InvalidContract();
+            }
         }
 
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
-        return
-            abi.encode(
-                wrappedNativeAddress,
-                converterAddress,
-                refundWalletAddress
-            );
+        return abi.encode(
+            wrappedNativeAddress, converterAddress, refundWalletAddress
+        );
     }
 }

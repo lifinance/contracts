@@ -20,23 +20,25 @@ contract TestWrappedConverter {
     /// @notice Accepts ETH and sends wrapped tokens to the caller
     function deposit() public payable {
         // Transfer wrapped tokens to caller equal to msg.value
-        if (!WRAPPED_TOKEN.transfer(msg.sender, msg.value))
+        if (!WRAPPED_TOKEN.transfer(msg.sender, msg.value)) {
             revert TransferFailed();
+        }
     }
 
     /// @notice Pulls wrapped tokens from caller and sends ETH back
     function withdraw(uint256 wad) public {
         // Pull wrapped tokens from caller
-        if (!WRAPPED_TOKEN.transferFrom(msg.sender, address(this), wad))
+        if (!WRAPPED_TOKEN.transferFrom(msg.sender, address(this), wad)) {
             revert TransferFromFailed();
+        }
 
         // Send ETH to caller
-        (bool success, ) = payable(msg.sender).call{ value: wad }("");
+        (bool success,) = payable(msg.sender).call{ value: wad }("");
         if (!success) {
             revert WithdrawError();
         }
     }
 
     // Needs to receive ETH for testing
-    receive() external payable {}
+    receive() external payable { }
 }

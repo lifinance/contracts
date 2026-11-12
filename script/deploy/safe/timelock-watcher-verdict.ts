@@ -214,10 +214,10 @@ export const stageOf = (timestamp: bigint, now: bigint): TOperationStage =>
   timestamp === 0n
     ? 'unset'
     : timestamp === 1n
-    ? 'done'
-    : timestamp <= now
-    ? 'ready'
-    : 'pending'
+      ? 'done'
+      : timestamp <= now
+        ? 'ready'
+        : 'pending'
 
 /**
  * The `getTimestamp` value gate G may grade: only a read the state check
@@ -914,12 +914,12 @@ export const gradeAuthority = (
           targetName === 'LiFiDiamond'
             ? (name: string) => name === 'LiFiTimelockController'
             : /FeeCollector|FeeForwarder/.test(targetName)
-            ? (name: string) =>
-                name === 'withdrawWallet' || name === 'feeCollectorOwner'
-            : (name: string) =>
-                name === 'LiFiTimelockController' ||
-                name === 'Safe' ||
-                name === 'refundWallet'
+              ? (name: string) =>
+                  name === 'withdrawWallet' || name === 'feeCollectorOwner'
+              : (name: string) =>
+                  name === 'LiFiTimelockController' ||
+                  name === 'Safe' ||
+                  name === 'refundWallet'
         judge(
           call.label,
           `transfers ${targetName} ownership to`,
@@ -1132,8 +1132,8 @@ export const gradeAuthorities = (
     result.disposition === 'PROCEED'
       ? 'pass'
       : result.disposition === 'BLOCK'
-      ? 'fail'
-      : 'unknown'
+        ? 'fail'
+        : 'unknown'
   return {
     check: 'authorities',
     status,
@@ -1236,10 +1236,10 @@ const legOf = (status: TCheckStatus): TProvingLegOutcome =>
   status === 'pass'
     ? 'match'
     : status === 'fail'
-    ? 'mismatch'
-    : status === 'skip'
-    ? 'unsupported'
-    : 'error'
+      ? 'mismatch'
+      : status === 'skip'
+        ? 'unsupported'
+        : 'error'
 
 /**
  * Builds the cancel matrix input the watcher can honestly state. Shown for
@@ -1262,8 +1262,8 @@ export const buildWatcherCancelInput = (input: {
   const integrity: TProvingLegOutcome = legs.includes('mismatch')
     ? 'mismatch'
     : legs.includes('error')
-    ? 'error'
-    : 'match'
+      ? 'error'
+      : 'match'
   return {
     integrity,
     opIdentity: input.identity,

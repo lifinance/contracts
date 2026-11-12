@@ -28,11 +28,9 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/allbridge.json");
         json = vm.readFile(path);
 
-        return
-            abi.encodeWithSelector(
-                AllBridgeFacet.initAllBridge.selector,
-                _parseChainIdConfigs(json)
-            );
+        return abi.encodeWithSelector(
+            AllBridgeFacet.initAllBridge.selector, _parseChainIdConfigs(json)
+        );
     }
 
     /// @notice Reads every `.mappings[i]` row of an AllBridge config by field name
@@ -40,9 +38,11 @@ contract DeployScript is UpdateScriptBase {
     ///      which swaps `chainId` and `allBridgeChainId` in the struct
     /// @param _json Contents of config/allbridge.json
     /// @return configs One entry per row, in file order
-    function _parseChainIdConfigs(
-        string memory _json
-    ) internal view returns (AllBridgeFacet.ChainIdConfig[] memory configs) {
+    function _parseChainIdConfigs(string memory _json)
+        internal
+        view
+        returns (AllBridgeFacet.ChainIdConfig[] memory configs)
+    {
         uint256 rowCount;
         while (_json.keyExists(_mappingKey(rowCount, ""))) rowCount++;
         if (rowCount == 0) revert NoAllBridgeMappings();
@@ -50,15 +50,14 @@ contract DeployScript is UpdateScriptBase {
         configs = new AllBridgeFacet.ChainIdConfig[](rowCount);
         for (uint256 i = 0; i < rowCount; i++) {
             uint256 chainId = _json.readUint(_mappingKey(i, ".chainId"));
-            uint256 allBridgeChainId = _json.readUint(
-                _mappingKey(i, ".allBridgeChainId")
-            );
-            if (chainId == 0 || allBridgeChainId == 0)
+            uint256 allBridgeChainId =
+                _json.readUint(_mappingKey(i, ".allBridgeChainId"));
+            if (chainId == 0 || allBridgeChainId == 0) {
                 revert InvalidAllBridgeMapping(i);
+            }
 
             configs[i] = AllBridgeFacet.ChainIdConfig({
-                chainId: chainId,
-                allBridgeChainId: allBridgeChainId
+                chainId: chainId, allBridgeChainId: allBridgeChainId
             });
         }
     }
@@ -67,10 +66,11 @@ contract DeployScript is UpdateScriptBase {
     /// @param _index Row index
     /// @param _field Field suffix such as ".chainId", or "" for the row itself
     /// @return The path, e.g. ".mappings[3].chainId"
-    function _mappingKey(
-        uint256 _index,
-        string memory _field
-    ) internal pure returns (string memory) {
+    function _mappingKey(uint256 _index, string memory _field)
+        internal
+        pure
+        returns (string memory)
+    {
         return string.concat(".mappings[", vm.toString(_index), "]", _field);
     }
 }

@@ -47,7 +47,7 @@ const row = (
     actual: 'the assertion held',
     anchor: 'A-LOCAL',
     ...overrides,
-  } as ICheckResult)
+  }) as ICheckResult
 
 /**
  * Every gate the run answers for, each passing.

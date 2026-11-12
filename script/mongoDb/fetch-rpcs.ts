@@ -89,18 +89,21 @@ function reportUncredentialedPrimaries(endpointsByEnvVar: {
 }
 
 function networksJsonEndpoints(): { [network: string]: IRpcEndpoint[] } {
-  return Object.entries(networks).reduce((acc, [networkName, config]) => {
-    const envVar = getRPCEnvVarName(networkName)
-    acc[envVar] = [
-      {
-        url: config.rpcUrl,
-        priority: 1,
-        isActive: true,
-        network: networkName,
-      },
-    ]
-    return acc
-  }, {} as { [network: string]: IRpcEndpoint[] })
+  return Object.entries(networks).reduce(
+    (acc, [networkName, config]) => {
+      const envVar = getRPCEnvVarName(networkName)
+      acc[envVar] = [
+        {
+          url: config.rpcUrl,
+          priority: 1,
+          isActive: true,
+          network: networkName,
+        },
+      ]
+      return acc
+    },
+    {} as { [network: string]: IRpcEndpoint[] }
+  )
 }
 
 async function mergeEndpointsIntoEnv(environment: string) {

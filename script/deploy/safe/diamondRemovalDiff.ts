@@ -1302,7 +1302,7 @@ export function extractRemoveFacetCuts(
     const facetCuts = decoded.args[0] as readonly (readonly [
       unknown,
       number | bigint,
-      readonly `0x${string}`[]
+      readonly `0x${string}`[],
     ])[]
     const fromRemovalOnlyCall = facetCuts.every(
       (cut) => Number(cut[1]) === FACET_CUT_REMOVE

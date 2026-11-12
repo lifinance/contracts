@@ -29,8 +29,8 @@ contract DiamondLoupeFacetTest is TestBaseLocal {
         for (uint256 i = 0; i < facets.length; i++) {
             for (uint256 j = 0; j < facets[i].functionSelectors.length; j++) {
                 if (
-                    facets[i].functionSelectors[j] ==
-                    DiamondLoupeFacet.facetAddresses.selector
+                    facets[i].functionSelectors[j]
+                        == DiamondLoupeFacet.facetAddresses.selector
                 ) {
                     found = true;
                 }

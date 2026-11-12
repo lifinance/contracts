@@ -8,7 +8,7 @@ import { UnitFacet } from "lifi/Facets/UnitFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("UnitFacet") {}
+    constructor() DeployScriptBase("UnitFacet") { }
 
     function run()
         public
@@ -26,8 +26,8 @@ contract DeployScript is DeployScriptBase {
         // check if production or staging
         address backendSigner;
         if (
-            keccak256(abi.encodePacked(fileSuffix)) ==
-            keccak256(abi.encodePacked("staging."))
+            keccak256(abi.encodePacked(fileSuffix))
+                == keccak256(abi.encodePacked("staging."))
         ) {
             backendSigner = json.readAddress(".staging.backendSigner");
         } else {

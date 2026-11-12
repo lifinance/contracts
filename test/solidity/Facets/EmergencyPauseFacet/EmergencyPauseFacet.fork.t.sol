@@ -2,28 +2,35 @@
 pragma solidity ^0.8.17;
 
 import { TestBase } from "../../utils/TestBase.sol";
-import { OnlyContractOwner, UnAuthorized, DiamondIsPaused } from "src/Errors/GenericErrors.sol";
+import {
+    OnlyContractOwner,
+    UnAuthorized,
+    DiamondIsPaused
+} from "src/Errors/GenericErrors.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
-import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import {
+    PeripheryRegistryFacet
+} from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { IDiamondLoupe } from "lifi/Interfaces/IDiamondLoupe.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
-import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../utils/TestWhitelistManagerBase.sol";
 
 // Stub EmergencyPauseFacet Contract
 contract TestEmergencyPauseFacet is
     EmergencyPauseFacet,
     TestWhitelistManagerBase
 {
-    constructor(address _pauserWallet) EmergencyPauseFacet(_pauserWallet) {}
+    constructor(address _pauserWallet) EmergencyPauseFacet(_pauserWallet) { }
 }
 
 contract EmergencyPauseFacetPRODTest is TestBase {
     // EVENTS
     event EmergencyFacetRemoved(
-        address indexed facetAddress,
-        address indexed msgSender
+        address indexed facetAddress, address indexed msgSender
     );
     event EmergencyPaused(address indexed msgSender);
     event EmergencyUnpaused(address indexed msgSender);
@@ -61,11 +68,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
 
         // add EmergencyPauseFacet to PROD diamond
         vm.startPrank(USER_DIAMOND_OWNER_MAINNET);
-        DiamondCutFacet(address(ADDRESS_DIAMOND_MAINNET)).diamondCut(
-            cut,
-            address(0),
-            ""
-        );
+        DiamondCutFacet(address(ADDRESS_DIAMOND_MAINNET))
+            .diamondCut(cut, address(0), "");
 
         // store diamond in local TestEmergencyPauseFacet variable
         emergencyPauseFacet = TestEmergencyPauseFacet(
@@ -74,8 +78,7 @@ contract EmergencyPauseFacetPRODTest is TestBase {
 
         // set facet address in TestBase
         setFacetAddressInTestBase(
-            address(emergencyPauseFacet),
-            "EmergencyPauseFacet"
+            address(emergencyPauseFacet), "EmergencyPauseFacet"
         );
 
         vm.stopPrank();
@@ -119,9 +122,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
     }
 
     function test_DiamondOwnerCanUnpauseDiamond() public {
-        IDiamondLoupe.Facet[] memory initialFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory initialFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // pause diamond first
         test_PauserWalletCanPauseDiamond();
@@ -135,9 +137,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         emergencyPauseFacet.unpauseDiamond(blacklist);
 
         // make sure diamond works normal again and has all facets reinstated
-        IDiamondLoupe.Facet[] memory finalFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory finalFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         assertTrue(initialFacets.length == finalFacets.length);
     }
@@ -162,9 +163,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
 
     function test_DiamondOwnerCanRemoveFacet() public {
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory initialFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory initialFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // get PeripheryRegistryFacet address
         address facetAddress = DiamondLoupeFacet(address(emergencyPauseFacet))
@@ -183,19 +183,19 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         emergencyPauseFacet.removeFacet(facetAddress);
 
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory finalFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory finalFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // ensure that one facet less is registered now
         assertTrue(initialFacets.length == finalFacets.length + 1);
         // ensure that PeripheryRegistryFacet function selector is not associated to any facetAddress
         assertTrue(
-            DiamondLoupeFacet(address(emergencyPauseFacet)).facetAddress(
-                PeripheryRegistryFacet(address(emergencyPauseFacet))
-                    .registerPeripheryContract
-                    .selector
-            ) == address(0)
+            DiamondLoupeFacet(address(emergencyPauseFacet))
+                .facetAddress(
+                    PeripheryRegistryFacet(address(emergencyPauseFacet))
+                        .registerPeripheryContract
+                        .selector
+                ) == address(0)
         );
 
         vm.stopPrank();
@@ -203,9 +203,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
 
     function test_PauserWalletCanRemoveFacet() public {
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory initialFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory initialFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // get PeripheryRegistryFacet address
         address facetAddress = DiamondLoupeFacet(address(emergencyPauseFacet))
@@ -224,19 +223,19 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         emergencyPauseFacet.removeFacet(facetAddress);
 
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory finalFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory finalFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // ensure that one facet less is registered now
         assertTrue(initialFacets.length == finalFacets.length + 1);
         // ensure that PeripheryRegistryFacet function selector is not associated to any facetAddress
         assertTrue(
-            DiamondLoupeFacet(address(emergencyPauseFacet)).facetAddress(
-                PeripheryRegistryFacet(address(emergencyPauseFacet))
-                    .registerPeripheryContract
-                    .selector
-            ) == address(0)
+            DiamondLoupeFacet(address(emergencyPauseFacet))
+                .facetAddress(
+                    PeripheryRegistryFacet(address(emergencyPauseFacet))
+                        .registerPeripheryContract
+                        .selector
+                ) == address(0)
         );
 
         vm.stopPrank();
@@ -244,9 +243,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
 
     function test_UnauthorizedWalletCannotRemoveFacet() public {
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory initialFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory initialFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // get PeripheryRegistryFacet address
         address facetAddress = DiamondLoupeFacet(address(emergencyPauseFacet))
@@ -266,9 +264,8 @@ contract EmergencyPauseFacetPRODTest is TestBase {
         emergencyPauseFacet.removeFacet(facetAddress);
 
         // get a list of all registered facet addresses
-        IDiamondLoupe.Facet[] memory finalFacets = DiamondLoupeFacet(
-            address(emergencyPauseFacet)
-        ).facets();
+        IDiamondLoupe.Facet[] memory finalFacets =
+            DiamondLoupeFacet(address(emergencyPauseFacet)).facets();
 
         // ensure that number of facets remains unchanged
         assertTrue(initialFacets.length == finalFacets.length);

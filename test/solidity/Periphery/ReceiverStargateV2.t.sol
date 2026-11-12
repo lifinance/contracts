@@ -11,11 +11,12 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 import { OFTComposeMsgCodec } from "lifi/Libraries/OFTComposeMsgCodec.sol";
 import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
 
-address constant ENDPOINT_V2_MAINNET = 0x1a44076050125825900e736c501f859c50fE728c;
-address constant STARGATE_NATIVE_POOL_MAINNET = 0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
-bytes4 constant LZ_COMPOSE_NOT_FOUND_SELECTOR = bytes4(
-    keccak256("LZ_ComposeNotFound(bytes32,bytes32)")
-);
+address constant ENDPOINT_V2_MAINNET =
+    0x1a44076050125825900e736c501f859c50fE728c;
+address constant STARGATE_NATIVE_POOL_MAINNET =
+    0x77b2043768d28E9C9aB44E1aBfC95944bcE57931;
+bytes4 constant LZ_COMPOSE_NOT_FOUND_SELECTOR =
+    bytes4(keccak256("LZ_ComposeNotFound(bytes32,bytes32)"));
 bytes32 constant RECEIVED_MESSAGE_HASH = bytes32(uint256(1));
 
 contract ReceiverStargateV2Test is TestBase {
@@ -43,8 +44,10 @@ contract ReceiverStargateV2Test is TestBase {
         customBlockNumberForForking = 20024274;
         initTestBase();
 
-        (erc20Proxy, executor) = DeployPeripheryHelpers
-            .deployERC20ProxyAndExecutor(address(this), USER_DIAMOND_OWNER);
+        (erc20Proxy, executor) =
+            DeployPeripheryHelpers.deployERC20ProxyAndExecutor(
+                address(this), USER_DIAMOND_OWNER
+            );
         receiver = new ReceiverStargateV2(
             USER_DIAMOND_OWNER,
             address(executor),
@@ -98,9 +101,7 @@ contract ReceiverStargateV2Test is TestBase {
         vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
 
         receiver.withdrawToken(
-            address(0),
-            payable(address(nonETHReceiver)),
-            1 ether
+            address(0), payable(address(nonETHReceiver)), 1 ether
         );
     }
 
@@ -180,68 +181,47 @@ contract ReceiverStargateV2Test is TestBase {
 
         // get valid payload for calling lzCompose
         // https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/integrate-with-stargate/composability#receive
-        (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
-            ADDRESS_USDC,
-            ADDRESS_WRAPPED_NATIVE
-        );
+        (bytes memory composeMsg,) =
+            _getValidLzComposeCalldata(ADDRESS_USDC, ADDRESS_WRAPPED_NATIVE);
 
         // call from deployer of ReceiverStargateV2
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
         receiver.lzCompose{ gas: 400000 }(
-            address(0),
-            "",
-            composeMsg,
-            address(0),
-            ""
+            address(0), "", composeMsg, address(0), ""
         );
         // call from owner of ReceiverStargateV2
         vm.startPrank(address(this));
         vm.expectRevert(UnAuthorized.selector);
 
         receiver.lzCompose{ gas: 400000 }(
-            address(0),
-            "",
-            composeMsg,
-            address(0),
-            ""
+            address(0), "", composeMsg, address(0), ""
         );
         // call from owner of user
         vm.startPrank(USER_SENDER);
         vm.expectRevert(UnAuthorized.selector);
 
         receiver.lzCompose{ gas: 400000 }(
-            address(0),
-            "",
-            composeMsg,
-            address(0),
-            ""
+            address(0), "", composeMsg, address(0), ""
         );
     }
 
     function test_lzCompose_reentrancy() public {
-        ReentrantReceiver reentrantReceiver = new ReentrantReceiver(
-            address(receiver)
-        );
+        ReentrantReceiver reentrantReceiver =
+            new ReentrantReceiver(address(receiver));
         receiverAddress = address(reentrantReceiver);
         vm.deal(receiverAddress, 100 ether);
         // mock-send bridged funds to receiver contract
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
         vm.deal(address(receiver), 1 ether);
 
-        (bytes memory composeMsg, ) = _getValidLzComposeCalldata(
-            ADDRESS_USDC,
-            ADDRESS_WRAPPED_NATIVE
-        );
+        (bytes memory composeMsg,) =
+            _getValidLzComposeCalldata(ADDRESS_USDC, ADDRESS_WRAPPED_NATIVE);
 
         vm.startPrank(STARGATE_NATIVE_POOL_MAINNET);
-        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
-            address(receiver),
-            guid,
-            0,
-            composeMsg
-        );
+        IMessagingComposer(ENDPOINT_V2_MAINNET)
+            .sendCompose(address(receiver), guid, 0, composeMsg);
 
         address nonPermissionedUser = makeAddr("nonPermissionedUser");
         vm.startPrank(nonPermissionedUser);
@@ -262,19 +242,13 @@ contract ReceiverStargateV2Test is TestBase {
 
         // encode payload with mock data like Stargate would according to:
         // https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/integrate-with-stargate/composability#receive
-        (
-            bytes memory composeMsg,
-            uint256 amountOutMin
-        ) = _getValidLzComposeCalldata(ADDRESS_USDC, ADDRESS_DAI);
+        (bytes memory composeMsg, uint256 amountOutMin) =
+            _getValidLzComposeCalldata(ADDRESS_USDC, ADDRESS_DAI);
 
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(STARGATE_USDC_POOL_MAINNET);
-        IMessagingComposer(ENDPOINT_V2_MAINNET).sendCompose(
-            address(receiver),
-            guid,
-            0,
-            composeMsg
-        );
+        IMessagingComposer(ENDPOINT_V2_MAINNET)
+            .sendCompose(address(receiver), guid, 0, composeMsg);
 
         // demonstrates that lzCompose(...) call is not permissioned, and that the authenticity criteria is determined in sendCompose(...) by msg.sender
         address nonPermissionedUser = makeAddr("nonPermissionedUser");
@@ -301,10 +275,11 @@ contract ReceiverStargateV2Test is TestBase {
     }
 
     // HELPER FUNCTIONS
-    function mergeBytes(
-        bytes memory a,
-        bytes memory b
-    ) public pure returns (bytes memory c) {
+    function mergeBytes(bytes memory a, bytes memory b)
+        public
+        pure
+        returns (bytes memory c)
+    {
         // Store the length of the first array
         uint256 alen = a.length;
         // Store the length of BOTH arrays
@@ -394,16 +369,15 @@ contract ReentrantReceiver {
 
     receive() external payable {
         // contrived to match test_lzCompose_reentrancy
-        try
-            IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
-                address(STARGATE_NATIVE_POOL_MAINNET),
-                receiver,
-                "",
-                0,
-                composeMsg,
-                ""
-            )
-        {} catch (bytes memory reason) {
+        try IMessagingComposer(ENDPOINT_V2_MAINNET).lzCompose{ gas: 400000 }(
+            address(STARGATE_NATIVE_POOL_MAINNET),
+            receiver,
+            "",
+            0,
+            composeMsg,
+            ""
+        ) { }
+        catch (bytes memory reason) {
             assertEqual(
                 abi.encodeWithSelector(
                     LZ_COMPOSE_NOT_FOUND_SELECTOR,

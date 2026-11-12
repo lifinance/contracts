@@ -6,17 +6,18 @@ import { TestHelpers, MockUniswapDEX } from "../../../utils/TestHelpers.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../../utils/TestWhitelistManagerBase.sol";
 
 /// @title TestAcrossFacetV4
 /// @author LI.FI (https://li.fi)
 /// @notice Stub contract for testing AcrossFacetV4 with mock DEX
 /// @custom:version 1.0.0
 contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
-    constructor(
-        IAcrossSpokePoolV4 _spokePool,
-        bytes32 _wrappedNativeAddress
-    ) AcrossFacetV4(_spokePool, _wrappedNativeAddress) {}
+    constructor(IAcrossSpokePoolV4 _spokePool, bytes32 _wrappedNativeAddress)
+        AcrossFacetV4(_spokePool, _wrappedNativeAddress)
+    { }
 }
 
 /// @title AcrossFacetV4OutputAmountIntegrationTest
@@ -49,15 +50,12 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             _convertAddressToBytes32(ADDRESS_WRAPPED_NATIVE)
         );
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = acrossFacetV4
-            .startBridgeTokensViaAcrossV4
-            .selector;
-        functionSelectors[1] = acrossFacetV4
-            .swapAndStartBridgeTokensViaAcrossV4
-            .selector;
-        functionSelectors[2] = acrossFacetV4
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        acrossFacetV4.startBridgeTokensViaAcrossV4.selector;
+        functionSelectors[1] =
+        acrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector;
+        functionSelectors[2] =
+        acrossFacetV4.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(acrossFacetV4), functionSelectors);
         acrossFacetV4 = TestAcrossFacetV4(address(diamond));
@@ -66,16 +64,13 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Add Uniswap router to allowlist for base tests
         acrossFacetV4.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         acrossFacetV4.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         acrossFacetV4.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         // Setup bridge data
@@ -109,27 +104,29 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         if (isNative) {
             acrossFacetV4.startBridgeTokensViaAcrossV4{
                 value: bridgeData.minAmount
-            }(bridgeData, validAcrossData);
+            }(
+                bridgeData, validAcrossData
+            );
         } else {
             acrossFacetV4.startBridgeTokensViaAcrossV4(
-                bridgeData,
-                validAcrossData
+                bridgeData, validAcrossData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             acrossFacetV4.swapAndStartBridgeTokensViaAcrossV4{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validAcrossData);
+            }(
+                bridgeData, swapData, validAcrossData
+            );
         } else {
             acrossFacetV4.swapAndStartBridgeTokensViaAcrossV4(
-                bridgeData,
-                swapData,
-                validAcrossData
+                bridgeData, swapData, validAcrossData
             );
         }
     }
@@ -140,13 +137,11 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Setup: Direct bridge USDC (6 decimals) to USDC (6 decimals)
         bridgeData.sendingAssetId = address(usdc);
-        validAcrossData.sendingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
+        validAcrossData.sendingAssetId =
+            _convertAddressToBytes32(address(usdc));
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
+        validAcrossData.receivingAssetId =
+            _convertAddressToBytes32(address(usdc));
 
         // For direct bridges, the contract expects validAcrossData.outputAmount to be set
         validAcrossData.outputAmount = bridgeData.minAmount;
@@ -190,13 +185,10 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Setup: Direct bridge DAI (18 decimals) to DAI (18 decimals)
         bridgeData.sendingAssetId = address(dai);
-        validAcrossData.sendingAssetId = _convertAddressToBytes32(
-            address(dai)
-        );
+        validAcrossData.sendingAssetId = _convertAddressToBytes32(address(dai));
         bridgeData.minAmount = 100 * 10 ** 18; // 100 DAI
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            address(dai)
-        );
+        validAcrossData.receivingAssetId =
+            _convertAddressToBytes32(address(dai));
 
         // For direct bridges, the contract expects validAcrossData.outputAmount to be set
         validAcrossData.outputAmount = bridgeData.minAmount;
@@ -241,9 +233,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = address(usdc); // USDC is the asset that will be bridged
-        validAcrossData.sendingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
+        validAcrossData.sendingAssetId =
+            _convertAddressToBytes32(address(usdc));
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC (expected output amount)
 
         // Setup mock DEX to return exactly 100 USDC (6 decimals)
@@ -255,8 +246,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             0 // Use default amountIn
         );
         acrossFacetV4.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactTokensForTokens.selector
+            address(mockDEX), mockDEX.swapExactTokensForTokens.selector
         );
 
         // Setup swap data
@@ -286,9 +276,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Set output amount multiplier to 50% (1e18 base)
         validAcrossData.outputAmountMultiplier = 500_000_000_000_000_000; // 0.5e18
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
+        validAcrossData.receivingAssetId =
+            _convertAddressToBytes32(address(usdc));
 
         // Approve DAI spending
         dai.approve(address(diamond), 100 * 10 ** 18);
@@ -309,8 +298,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         emit LiFiTransferStarted(bridgeData);
 
         // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
-        uint256 expectedOutput = (bridgeData.minAmount *
-            uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
+        uint256 expectedOutput =
+            (bridgeData.minAmount
+                    * uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
         vm.expectCall(
             SPOKE_POOL,
             abi.encodeWithSelector(
@@ -342,9 +332,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         // Setup: DAI (18 decimals) -> USDC (6 decimals) -> Bridge to USDC (6 decimals)
         bridgeData.hasSourceSwaps = true;
         bridgeData.sendingAssetId = address(usdc);
-        validAcrossData.sendingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
+        validAcrossData.sendingAssetId =
+            _convertAddressToBytes32(address(usdc));
         bridgeData.minAmount = 100 * 10 ** 6; // 100 USDC (expected output amount)
 
         // Setup mock DEX to return exactly 100 USDC (6 decimals)
@@ -356,8 +345,7 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
             0 // Use default amountIn
         );
         acrossFacetV4.addAllowedContractSelector(
-            address(mockDEX),
-            mockDEX.swapExactTokensForTokens.selector
+            address(mockDEX), mockDEX.swapExactTokensForTokens.selector
         );
 
         // Setup swap data
@@ -387,9 +375,8 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Set output amount multiplier to 102% (1e18 base)
         validAcrossData.outputAmountMultiplier = 1020000000000000000; // 1.02e18
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            address(usdc)
-        );
+        validAcrossData.receivingAssetId =
+            _convertAddressToBytes32(address(usdc));
 
         // Approve DAI spending
         dai.approve(address(diamond), 100 * 10 ** 18);
@@ -410,8 +397,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
         emit LiFiTransferStarted(bridgeData);
 
         // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
-        uint256 expectedOutput = (bridgeData.minAmount *
-            uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
+        uint256 expectedOutput =
+            (bridgeData.minAmount
+                    * uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
         vm.expectCall(
             SPOKE_POOL,
             abi.encodeWithSelector(
@@ -511,8 +499,9 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
 
         // Verify SpokePool.deposit is called with expected args (focus on outputAmount)
         // For swap and bridge, outputAmount is calculated using the outputAmountMultiplier
-        uint256 expectedOutput = (bridgeData.minAmount *
-            uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
+        uint256 expectedOutput =
+            (bridgeData.minAmount
+                    * uint256(validAcrossData.outputAmountMultiplier)) / 1e18;
         vm.expectCall(
             SPOKE_POOL,
             abi.encodeWithSelector(
@@ -590,9 +579,11 @@ contract AcrossFacetV4OutputAmountIntegrationTest is
     }
 
     /// @notice Helper function to convert address to bytes32
-    function _convertAddressToBytes32(
-        address _address
-    ) internal pure returns (bytes32) {
+    function _convertAddressToBytes32(address _address)
+        internal
+        pure
+        returns (bytes32)
+    {
         return bytes32(uint256(uint160(_address)));
     }
 }

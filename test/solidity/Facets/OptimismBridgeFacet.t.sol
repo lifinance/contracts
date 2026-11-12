@@ -4,14 +4,25 @@ pragma solidity ^0.8.17;
 import { OptimismBridgeFacet } from "lifi/Facets/OptimismBridgeFacet.sol";
 import { IL1StandardBridge } from "lifi/Interfaces/IL1StandardBridge.sol";
 import { LibSwap, TestBase, ILiFi, ERC20 } from "../utils/TestBase.sol";
-import { InvalidAmount, InvalidReceiver, InformationMismatch, TransferFromFailed, AlreadyInitialized, InvalidConfig, OnlyContractOwner, NotInitialized } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    InvalidAmount,
+    InvalidReceiver,
+    InformationMismatch,
+    TransferFromFailed,
+    AlreadyInitialized,
+    InvalidConfig,
+    OnlyContractOwner,
+    NotInitialized
+} from "lifi/Errors/GenericErrors.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub OptimismBridgeFacet Contract
 contract TestOptimismBridgeFacet is
     OptimismBridgeFacet,
     TestWhitelistManagerBase
-{}
+{ }
 
 contract OptimismBridgeFacetTest is TestBase {
     // These values are for Mainnet
@@ -49,27 +60,22 @@ contract OptimismBridgeFacetTest is TestBase {
         optimismBridgeFacet = new TestOptimismBridgeFacet();
 
         bytes4[] memory functionSelectors = new bytes4[](6);
-        functionSelectors[0] = optimismBridgeFacet
-            .startBridgeTokensViaOptimismBridge
-            .selector;
-        functionSelectors[1] = optimismBridgeFacet
-            .swapAndStartBridgeTokensViaOptimismBridge
-            .selector;
+        functionSelectors[0] =
+        optimismBridgeFacet.startBridgeTokensViaOptimismBridge.selector;
+        functionSelectors[1] =
+        optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge.selector;
         functionSelectors[2] = optimismBridgeFacet.initOptimism.selector;
-        functionSelectors[3] = optimismBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[4] = optimismBridgeFacet
-            .removeAllowedContractSelector
-            .selector;
-        functionSelectors[5] = optimismBridgeFacet
-            .registerOptimismBridge
-            .selector;
+        functionSelectors[3] =
+        optimismBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[4] =
+        optimismBridgeFacet.removeAllowedContractSelector.selector;
+        functionSelectors[5] =
+        optimismBridgeFacet.registerOptimismBridge.selector;
 
         addFacet(diamond, address(optimismBridgeFacet), functionSelectors);
 
-        OptimismBridgeFacet.Config[]
-            memory configs = new OptimismBridgeFacet.Config[](1);
+        OptimismBridgeFacet.Config[] memory configs =
+            new OptimismBridgeFacet.Config[](1);
         configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
 
         optimismBridgeFacet = TestOptimismBridgeFacet(address(diamond));
@@ -77,21 +83,17 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         optimismBridgeFacet.initOptimism(
-            configs,
-            IL1StandardBridge(STANDARD_BRIDGE)
+            configs, IL1StandardBridge(STANDARD_BRIDGE)
         );
 
         optimismBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         optimismBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapETHForExactTokens.selector
+            address(uniswap), uniswap.swapETHForExactTokens.selector
         );
         optimismBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
 
         vm.stopPrank();
@@ -108,16 +110,12 @@ contract OptimismBridgeFacetTest is TestBase {
             hasSourceSwaps: false,
             hasDestinationCall: false
         });
-        validOptimismData = OptimismBridgeFacet.OptimismData(
-            DAI_L2_ADDRESS,
-            L2_GAS,
-            false
-        );
+        validOptimismData =
+            OptimismBridgeFacet.OptimismData(DAI_L2_ADDRESS, L2_GAS, false);
 
         // set facet address in TestBase
         setFacetAddressInTestBase(
-            address(optimismBridgeFacet),
-            "OptimismBridgeFacet"
+            address(optimismBridgeFacet), "OptimismBridgeFacet"
         );
     }
 
@@ -125,8 +123,7 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** dai.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** dai.decimals()
         );
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
@@ -134,8 +131,7 @@ contract OptimismBridgeFacetTest is TestBase {
 
         vm.expectRevert(InvalidAmount.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
-            bridgeData,
-            validOptimismData
+            bridgeData, validOptimismData
         );
 
         vm.stopPrank();
@@ -145,8 +141,7 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** dai.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** dai.decimals()
         );
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
@@ -154,8 +149,7 @@ contract OptimismBridgeFacetTest is TestBase {
 
         vm.expectRevert(InvalidReceiver.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
-            bridgeData,
-            validOptimismData
+            bridgeData, validOptimismData
         );
 
         vm.stopPrank();
@@ -165,16 +159,14 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** dai.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** dai.decimals()
         );
 
         dai.transfer(USDC_HOLDER, dai.balanceOf(DAI_L1_HOLDER));
 
         vm.expectRevert(TransferFromFailed.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
-            validBridgeData,
-            validOptimismData
+            validBridgeData, validOptimismData
         );
 
         vm.stopPrank();
@@ -189,8 +181,7 @@ contract OptimismBridgeFacetTest is TestBase {
 
         vm.expectRevert(InvalidAmount.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge{ value: 2e18 }(
-            bridgeData,
-            validOptimismData
+            bridgeData, validOptimismData
         );
 
         vm.stopPrank();
@@ -200,8 +191,7 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(DAI_L1_HOLDER);
 
         dai.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** dai.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** dai.decimals()
         );
 
         ILiFi.BridgeData memory bridgeData = validBridgeData;
@@ -209,16 +199,15 @@ contract OptimismBridgeFacetTest is TestBase {
 
         vm.expectRevert(InformationMismatch.selector);
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
-            bridgeData,
-            validOptimismData
+            bridgeData, validOptimismData
         );
 
         vm.stopPrank();
     }
 
     function testRevertToInitWhenAlreadyInitialized() public {
-        OptimismBridgeFacet.Config[]
-            memory configs = new OptimismBridgeFacet.Config[](1);
+        OptimismBridgeFacet.Config[] memory configs =
+            new OptimismBridgeFacet.Config[](1);
         configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, DAI_BRIDGE);
 
         vm.startPrank(USER_DIAMOND_OWNER);
@@ -226,8 +215,7 @@ contract OptimismBridgeFacetTest is TestBase {
         // Re-initialization should fail
         vm.expectRevert(AlreadyInitialized.selector);
         optimismBridgeFacet.initOptimism(
-            configs,
-            IL1StandardBridge(STANDARD_BRIDGE)
+            configs, IL1StandardBridge(STANDARD_BRIDGE)
         );
 
         vm.stopPrank();
@@ -236,8 +224,8 @@ contract OptimismBridgeFacetTest is TestBase {
     function testRevertToInitWhenInvalidConfig() public {
         _mockUninitialized();
 
-        OptimismBridgeFacet.Config[]
-            memory configs = new OptimismBridgeFacet.Config[](1);
+        OptimismBridgeFacet.Config[] memory configs =
+            new OptimismBridgeFacet.Config[](1);
         configs[0] = OptimismBridgeFacet.Config(DAI_L1_ADDRESS, address(0));
 
         vm.startPrank(USER_DIAMOND_OWNER);
@@ -245,8 +233,7 @@ contract OptimismBridgeFacetTest is TestBase {
         // Initialization should fail
         vm.expectRevert(InvalidConfig.selector);
         optimismBridgeFacet.initOptimism(
-            configs,
-            IL1StandardBridge(STANDARD_BRIDGE)
+            configs, IL1StandardBridge(STANDARD_BRIDGE)
         );
 
         vm.stopPrank();
@@ -294,7 +281,9 @@ contract OptimismBridgeFacetTest is TestBase {
 
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge{
             value: bridgeData.minAmount
-        }(bridgeData, validOptimismData);
+        }(
+            bridgeData, validOptimismData
+        );
 
         vm.stopPrank();
     }
@@ -302,13 +291,11 @@ contract OptimismBridgeFacetTest is TestBase {
     function testCanBridgeERC20Tokens() public {
         vm.startPrank(DAI_L1_HOLDER);
         dai.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** dai.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** dai.decimals()
         );
 
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
-            validBridgeData,
-            validOptimismData
+            validBridgeData, validOptimismData
         );
         vm.stopPrank();
     }
@@ -325,18 +312,15 @@ contract OptimismBridgeFacetTest is TestBase {
         // approve SNX
         address snxHolder = 0xF977814e90dA44bFA03b6295A0616a897441aceC;
         vm.startPrank(snxHolder);
-        ERC20(snxToken).approve(
-            address(optimismBridgeFacet),
-            validBridgeData.minAmount
-        );
+        ERC20(snxToken)
+            .approve(address(optimismBridgeFacet), validBridgeData.minAmount);
 
         // bridge SNX
         ILiFi.BridgeData memory bridgeData = validBridgeData;
         bridgeData.sendingAssetId = snxToken;
         validOptimismData.isSynthetix = true;
         optimismBridgeFacet.startBridgeTokensViaOptimismBridge(
-            bridgeData,
-            validOptimismData
+            bridgeData, validOptimismData
         );
 
         vm.stopPrank();
@@ -346,8 +330,7 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** usdc.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** usdc.decimals()
         );
 
         // Swap USDC to DAI
@@ -382,9 +365,7 @@ contract OptimismBridgeFacetTest is TestBase {
         bridgeData.hasSourceSwaps = true;
 
         optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge(
-            bridgeData,
-            swapData,
-            validOptimismData
+            bridgeData, swapData, validOptimismData
         );
 
         vm.stopPrank();
@@ -394,8 +375,7 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** usdc.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** usdc.decimals()
         );
 
         // Swap USDC to native ETH
@@ -431,9 +411,7 @@ contract OptimismBridgeFacetTest is TestBase {
         bridgeData.hasSourceSwaps = true;
 
         optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge(
-            bridgeData,
-            swapData,
-            validOptimismData
+            bridgeData, swapData, validOptimismData
         );
 
         vm.stopPrank();
@@ -450,8 +428,7 @@ contract OptimismBridgeFacetTest is TestBase {
         vm.startPrank(USDC_HOLDER);
 
         usdc.approve(
-            address(optimismBridgeFacet),
-            10_000 * 10 ** usdc.decimals()
+            address(optimismBridgeFacet), 10_000 * 10 ** usdc.decimals()
         );
 
         // Swap USDC to SNX
@@ -486,17 +463,11 @@ contract OptimismBridgeFacetTest is TestBase {
         bridgeData.minAmount = amountOut;
         bridgeData.hasSourceSwaps = true;
 
-        OptimismBridgeFacet.OptimismData
-            memory snxOptimismData = OptimismBridgeFacet.OptimismData(
-                address(0),
-                L2_GAS,
-                true
-            );
+        OptimismBridgeFacet.OptimismData memory snxOptimismData =
+            OptimismBridgeFacet.OptimismData(address(0), L2_GAS, true);
 
         optimismBridgeFacet.swapAndStartBridgeTokensViaOptimismBridge(
-            bridgeData,
-            swapData,
-            snxOptimismData
+            bridgeData, swapData, snxOptimismData
         );
 
         vm.stopPrank();

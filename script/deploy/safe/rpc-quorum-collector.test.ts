@@ -152,8 +152,8 @@ describe('createCodeReader', () => {
         body.method === 'eth_chainId'
           ? '0x1'
           : body.method === 'eth_getBlockByNumber'
-          ? { number: '0x64', hash: BLOCK_HASH }
-          : '0xcode'
+            ? { number: '0x64', hash: BLOCK_HASH }
+            : '0xcode'
 
       return new Response(
         JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
@@ -239,8 +239,8 @@ describe('createCodeReader', () => {
         body.method === 'eth_chainId'
           ? '0x1'
           : body.method === 'eth_getBlockByNumber'
-          ? { number: '0x64', hash: BLOCK_HASH }
-          : '0xcode'
+            ? { number: '0x64', hash: BLOCK_HASH }
+            : '0xcode'
 
       return new Response(
         JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
@@ -550,13 +550,11 @@ describe('readQuorumPastTipReorgs', () => {
   })
 
   it('leaves the fork seen at the tip advisory when every endpoint fails the re-read', async () => {
-    const failed = [A, B].map(
-      (endpointUrl): IProviderObservation => ({
-        endpointUrl,
-        outcome: 'error',
-        error: 'no endpoint reported a block height to pin the read to',
-      })
-    )
+    const failed = [A, B].map((endpointUrl): IProviderObservation => ({
+      endpointUrl,
+      outcome: 'error',
+      error: 'no endpoint reported a block height to pin the read to',
+    }))
     const { asked, collectAt } = reading(forked, failed)
     const verdict = await readQuorumPastTipReorgs(collectAt)
 

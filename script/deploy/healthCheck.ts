@@ -135,9 +135,8 @@ export async function runHealthCheckForNetwork(
     )
 
     const { default: globalConfig } = await import('../../config/global.json')
-    const { default: networksConfig } = await import(
-      '../../config/networks.json'
-    )
+    const { default: networksConfig } =
+      await import('../../config/networks.json')
 
     // Skip GasZip checks for networks where the integration is intentionally unsupported.
     const networkGasZipConfig = (

@@ -8,7 +8,7 @@ import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("DeBridgeDlnFacet") {}
+    constructor() DeployScriptBase("DeBridgeDlnFacet") { }
 
     function run()
         public
@@ -16,17 +16,15 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = DeBridgeDlnFacet(
-            deploy(type(DeBridgeDlnFacet).creationCode)
-        );
+        deployed =
+            DeBridgeDlnFacet(deploy(type(DeBridgeDlnFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/debridgedln.json");
 
         address dlnSource = _getConfigContractAddress(
-            path,
-            string.concat(".networks.", network, ".dlnSource")
+            path, string.concat(".networks.", network, ".dlnSource")
         );
 
         return abi.encode(dlnSource);

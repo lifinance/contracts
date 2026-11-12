@@ -144,14 +144,14 @@ const blankBlockComments = (source: string): string =>
  * comment with it, which keeps the exemption attached to its own delete.
  *
  * The whole member expression is collapsed, not just the gap after the
- * keyword, because prettier breaks a `delete` whose code alone passes 80
+ * keyword, because oxfmt breaks a `delete` whose code alone passes 80
  * columns — across the dot, and across the brackets for a computed key.
  * Either leaves the holder alone as the statement (`delete process.env`),
  * carrying no name for the pattern to match.
  *
  * One limit the collapse introduces: a marker on a continuation line now
  * exempts the delete it was joined to. That is what carries the marker back
- * onto a statement prettier split, and there is no way to tell that case from
+ * onto a statement oxfmt split, and there is no way to tell that case from
  * a marker parked on a continuation line to silence a neighbour. Reaching it
  * needs code no formatter would leave, and no shipped test is affected.
  */
@@ -162,7 +162,7 @@ const joinDeleteOperands = (source: string): string =>
       (expression) =>
         `delete ${expression.replace(/^delete\s+/u, '').replace(/\s+/gu, '')}`
     )
-    // The same break on the other spelling: prettier puts `undefined` on its
+    // The same break on the other spelling: oxfmt puts `undefined` on its
     // own line when the assignment passes 80 columns, leaving a statement that
     // ends at the `=` and carries no value to judge.
     .replace(/=\s*\n\s*undefined\b/gu, '= undefined')
@@ -223,7 +223,7 @@ describe('no shipped test deletes a credential from a child environment', () => 
     expect(all.length - shippedTests().length).toBe(1)
   })
 
-  it('sees a delete prettier broke across the brackets', () => {
+  it('sees a delete oxfmt broke across the brackets', () => {
     // The computed-key half of the same formatter break. The collapse has to
     // reach across a newline inside the brackets, or this form reads as
     // `delete holder` — a clean result for the very shape it claims to cover.
@@ -263,7 +263,7 @@ describe('no shipped test deletes a credential from a child environment', () => 
   it('sees a credential set to undefined, which unsets it as a delete does', () => {
     // The convention says to set rather than delete, and `undefined` is the
     // one value that keeps the letter of that while leaving the name unset for
-    // the child's re-load. Both the flat and the prettier-broken spelling.
+    // the child's re-load. Both the flat and the oxfmt-broken spelling.
     expect(unexemptedDeletions('  env.PRIVATE_KEY = undefined\n')).toEqual([
       '  env.PRIVATE_KEY = undefined',
     ])
@@ -274,7 +274,7 @@ describe('no shipped test deletes a credential from a child environment', () => 
     ).toEqual(["  childEnv['PRIVATE_KEY_PRODUCTION'] = undefined"])
   })
 
-  it('sees a delete prettier broke across the dot', () => {
+  it('sees a delete oxfmt broke across the dot', () => {
     // What the formatter produces from `delete process.env.X // marker` once
     // the comment pushes the line past 80 columns. Uncollapsed, the statement
     // reads `delete process.env`, which carries no name for the scan to match.

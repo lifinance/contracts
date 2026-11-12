@@ -4,7 +4,7 @@
 # Reads tool JSON from stdin. Exits 0 when clean; on findings prints them to stderr and
 # exits 2, the only PostToolUse channel Claude Code feeds back to the model (stdout on
 # exit 0 goes to the debug log). Formatting runs here rather than as a sibling hook because
-# matching hooks run in parallel, and prettier rewriting the file mid-check races the linters.
+# matching hooks run in parallel, and the formatter rewriting the file mid-check races the linters.
 
 HOOK_DIR=$(cd "$(dirname "$0")" && pwd)
 INPUT=$(cat)

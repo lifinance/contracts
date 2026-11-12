@@ -424,7 +424,7 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
           style?.colour ?? '',
           entry.notApplicable
             ? 'n/a'
-            : MANIFEST_WORD.get(entry.result.status) ?? MANIFEST_UNCHECKED,
+            : (MANIFEST_WORD.get(entry.result.status) ?? MANIFEST_UNCHECKED),
         ]
       }
       // A gate with no result: blocking when it owed one, and merely absent
@@ -452,8 +452,8 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
     const disposition = blocks
       ? `${RED}BLOCKS${RESET}`
       : yours
-      ? `${YELLOW}REVIEW${RESET}`
-      : ''
+        ? `${YELLOW}REVIEW${RESET}`
+        : ''
     // Trimmed over the whole row, not the last fragment: a gate with no
     // disposition otherwise keeps the separating space, and half the table
     // ships trailing whitespace into whatever the run is piped into.

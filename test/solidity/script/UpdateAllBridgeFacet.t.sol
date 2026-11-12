@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { DeployScript as UpdateAllBridgeFacetScript } from "../../../script/deploy/facets/UpdateAllBridgeFacet.s.sol";
+import {
+    DeployScript as UpdateAllBridgeFacetScript
+} from "../../../script/deploy/facets/UpdateAllBridgeFacet.s.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 
 /// @dev Forge shares process env across suites running in parallel, and UpdateScriptBase.t.sol sets
@@ -12,9 +14,11 @@ contract UpdateAllBridgeFacetHarness is UpdateAllBridgeFacetScript {
         return getCallData();
     }
 
-    function exposedParseChainIdConfigs(
-        string memory _json
-    ) public view returns (AllBridgeFacet.ChainIdConfig[] memory) {
+    function exposedParseChainIdConfigs(string memory _json)
+        public
+        view
+        returns (AllBridgeFacet.ChainIdConfig[] memory)
+    {
         return _parseChainIdConfigs(_json);
     }
 
@@ -29,12 +33,11 @@ contract UpdateAllBridgeFacetHarness is UpdateAllBridgeFacetScript {
     }
 
     function _readDeploymentsJson() internal override returns (string memory) {
-        return
-            vm.serializeAddress(
-                "deployments",
-                "LiFiDiamond",
-                0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE
-            );
+        return vm.serializeAddress(
+            "deployments",
+            "LiFiDiamond",
+            0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE
+        );
     }
 }
 
@@ -78,9 +81,8 @@ contract UpdateAllBridgeFacetTest is Test {
             [uint256(59144), 17]
         ];
 
-        AllBridgeFacet.ChainIdConfig[] memory configs = _decodeInitCallData(
-            script.exposedGetCallData()
-        );
+        AllBridgeFacet.ChainIdConfig[] memory configs =
+            _decodeInitCallData(script.exposedGetCallData());
 
         assertEq(configs.length, expected.length);
         for (uint256 i = 0; i < expected.length; i++) {
@@ -90,9 +92,8 @@ contract UpdateAllBridgeFacetTest is Test {
     }
 
     function test_MapsStellarAndPolygonToTheirAllBridgeChainIds() public {
-        AllBridgeFacet.ChainIdConfig[] memory configs = _decodeInitCallData(
-            script.exposedGetCallData()
-        );
+        AllBridgeFacet.ChainIdConfig[] memory configs =
+            _decodeInitCallData(script.exposedGetCallData());
 
         assertEq(_allBridgeChainIdOf(configs, 1201081091099710), 7);
         assertEq(_allBridgeChainIdOf(configs, 137), 5);
@@ -114,8 +115,8 @@ contract UpdateAllBridgeFacetTest is Test {
             ":7}]}"
         );
 
-        AllBridgeFacet.ChainIdConfig[] memory configs = script
-            .exposedParseChainIdConfigs(reordered);
+        AllBridgeFacet.ChainIdConfig[] memory configs =
+            script.exposedParseChainIdConfigs(reordered);
 
         assertEq(configs.length, 2);
         assertEq(configs[0].chainId, 137);
@@ -135,8 +136,7 @@ contract UpdateAllBridgeFacetTest is Test {
     function testRevert_ZeroChainId() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                UpdateAllBridgeFacetScript.InvalidAllBridgeMapping.selector,
-                1
+                UpdateAllBridgeFacetScript.InvalidAllBridgeMapping.selector, 1
             )
         );
 
@@ -146,8 +146,7 @@ contract UpdateAllBridgeFacetTest is Test {
     function testRevert_ZeroAllBridgeChainId() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                UpdateAllBridgeFacetScript.InvalidAllBridgeMapping.selector,
-                1
+                UpdateAllBridgeFacetScript.InvalidAllBridgeMapping.selector, 1
             )
         );
 
@@ -155,37 +154,41 @@ contract UpdateAllBridgeFacetTest is Test {
     }
 
     /// @dev Row 0 is valid; row 1 carries the given values
-    function _twoRowConfig(
-        uint256 _chainId,
-        uint256 _allBridgeChainId
-    ) internal pure returns (string memory) {
-        return
-            string.concat(
-                "{",
-                _quoted("mappings"),
-                ":[{",
-                _quoted("chainId"),
-                ":1,",
-                _quoted("allBridgeChainId"),
-                ":1},{",
-                _quoted("chainId"),
-                ":",
-                vm.toString(_chainId),
-                ",",
-                _quoted("allBridgeChainId"),
-                ":",
-                vm.toString(_allBridgeChainId),
-                "}]}"
-            );
+    function _twoRowConfig(uint256 _chainId, uint256 _allBridgeChainId)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            "{",
+            _quoted("mappings"),
+            ":[{",
+            _quoted("chainId"),
+            ":1,",
+            _quoted("allBridgeChainId"),
+            ":1},{",
+            _quoted("chainId"),
+            ":",
+            vm.toString(_chainId),
+            ",",
+            _quoted("allBridgeChainId"),
+            ":",
+            vm.toString(_allBridgeChainId),
+            "}]}"
+        );
     }
 
-    function _decodeInitCallData(
-        bytes memory _callData
-    ) internal pure returns (AllBridgeFacet.ChainIdConfig[] memory) {
+    function _decodeInitCallData(bytes memory _callData)
+        internal
+        pure
+        returns (AllBridgeFacet.ChainIdConfig[] memory)
+    {
         assertEq(bytes4(_callData), AllBridgeFacet.initAllBridge.selector);
 
         bytes memory args = new bytes(_callData.length - 4);
-        for (uint256 i = 0; i < args.length; i++) args[i] = _callData[i + 4];
+        for (uint256 i = 0; i < args.length; i++) {
+            args[i] = _callData[i + 4];
+        }
 
         return abi.decode(args, (AllBridgeFacet.ChainIdConfig[]));
     }
@@ -200,8 +203,9 @@ contract UpdateAllBridgeFacetTest is Test {
         uint256 _chainId
     ) internal pure returns (uint256) {
         for (uint256 i = 0; i < _configs.length; i++) {
-            if (_configs[i].chainId == _chainId)
+            if (_configs[i].chainId == _chainId) {
                 return _configs[i].allBridgeChainId;
+            }
         }
         revert ChainIdNotInInitCallData(_chainId);
     }

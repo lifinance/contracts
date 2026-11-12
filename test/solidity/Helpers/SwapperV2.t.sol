@@ -6,7 +6,9 @@ import { TestToken as ERC20 } from "../utils/TestToken.sol";
 import { LibSwap } from "../utils/TestBase.sol";
 import { TestBaseLocal } from "../utils/TestBaseLocal.sol";
 import { SwapperV2 } from "lifi/Helpers/SwapperV2.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { ContractCallNotAllowed } from "src/Errors/GenericErrors.sol";
 
 // Stub SwapperV2 Contract
@@ -20,18 +22,14 @@ contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
         );
 
         // Fake send to bridge
-        ERC20 finalAsset = ERC20(
-            _swapData[_swapData.length - 1].receivingAssetId
-        );
-        finalAsset.transfer(
-            address(1337),
-            finalAsset.balanceOf(address(this))
-        );
+        ERC20 finalAsset =
+            ERC20(_swapData[_swapData.length - 1].receivingAssetId);
+        finalAsset.transfer(address(1337), finalAsset.balanceOf(address(this)));
     }
 
-    function doSwapsWithLowSlippage(
-        LibSwap.SwapData[] calldata _swapData
-    ) public {
+    function doSwapsWithLowSlippage(LibSwap.SwapData[] calldata _swapData)
+        public
+    {
         _depositAndSwap(
             "",
             (_swapData[_swapData.length - 1].fromAmount * 70) / 100, // Lower slippage tolerance
@@ -40,13 +38,9 @@ contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
         );
 
         // Fake send to bridge
-        ERC20 finalAsset = ERC20(
-            _swapData[_swapData.length - 1].receivingAssetId
-        );
-        finalAsset.transfer(
-            address(1337),
-            finalAsset.balanceOf(address(this))
-        );
+        ERC20 finalAsset =
+            ERC20(_swapData[_swapData.length - 1].receivingAssetId);
+        finalAsset.transfer(address(1337), finalAsset.balanceOf(address(this)));
     }
 
     function doSwapsWithReserve(
@@ -62,9 +56,8 @@ contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
         );
 
         // Fake send to bridge
-        ERC20 finalAsset = ERC20(
-            _swapData[_swapData.length - 1].receivingAssetId
-        );
+        ERC20 finalAsset =
+            ERC20(_swapData[_swapData.length - 1].receivingAssetId);
         uint256 finalBalance = finalAsset.balanceOf(address(this));
         if (finalBalance > 0) {
             finalAsset.transfer(address(1337), finalBalance);
@@ -75,6 +68,7 @@ contract TestSwapperV2 is SwapperV2, TestWhitelistManagerBase {
 contract SwapperV2Test is TestBaseLocal {
     TestAMM internal amm;
     TestSwapperV2 internal swapper;
+
     function setUp() public {
         initTestBaseLocal();
 
@@ -85,20 +79,17 @@ contract SwapperV2Test is TestBaseLocal {
         functionSelectors[0] = TestSwapperV2.doSwaps.selector;
         functionSelectors[1] = TestSwapperV2.doSwapsWithLowSlippage.selector;
         functionSelectors[2] = TestSwapperV2.doSwapsWithReserve.selector;
-        functionSelectors[3] = TestWhitelistManagerBase
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[4] = TestWhitelistManagerBase
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[3] =
+        TestWhitelistManagerBase.addAllowedContractSelector.selector;
+        functionSelectors[4] =
+        TestWhitelistManagerBase.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(swapper), functionSelectors);
 
         swapper = TestSwapperV2(address(diamond));
         swapper.addAllowedContractSelector(address(amm), amm.swap.selector);
         swapper.addAllowedContractSelector(
-            address(amm),
-            amm.partialSwap.selector
+            address(amm), amm.partialSwap.selector
         );
     }
 
@@ -116,11 +107,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token1,
-                10_000 ether,
-                token2,
-                10_100 ether
+                amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether
             ),
             true
         );
@@ -132,11 +119,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token3),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token2,
-                10_000 ether,
-                token3,
-                10_200 ether
+                amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether
             ),
             false
         );
@@ -168,11 +151,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token3),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token1,
-                10_000 ether,
-                token3,
-                10_100 ether
+                amm.swap.selector, token1, 10_000 ether, token3, 10_100 ether
             ),
             true
         );
@@ -184,11 +163,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token3),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token2,
-                10_000 ether,
-                token3,
-                10_200 ether
+                amm.swap.selector, token2, 10_000 ether, token3, 10_200 ether
             ),
             true
         );
@@ -220,11 +195,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token1,
-                10_000 ether,
-                token2,
-                10_100 ether
+                amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether
             ),
             true
         );
@@ -375,11 +346,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token3),
             8_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token2,
-                8_000 ether,
-                token3,
-                8_200 ether
+                amm.swap.selector, token2, 8_000 ether, token3, 8_200 ether
             ),
             false
         );
@@ -412,11 +379,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token1,
-                10_000 ether,
-                token2,
-                10_100 ether
+                amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether
             ),
             true
         );
@@ -476,11 +439,7 @@ contract SwapperV2Test is TestBaseLocal {
             address(token2),
             10_000 ether,
             abi.encodeWithSelector(
-                amm.swap.selector,
-                token1,
-                10_000 ether,
-                token2,
-                10_100 ether
+                amm.swap.selector, token1, 10_000 ether, token2, 10_100 ether
             ),
             true
         );
