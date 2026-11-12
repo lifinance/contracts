@@ -1,0 +1,7 @@
+# Formatting-only commits that git blame skips.
+# GitHub reads this file automatically. Locally: git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# oxfmt reformat of TS/JS, with the formatter tooling (#2646)
+73a0462028a36f2ae60b57d16596ea472bb4434c
+# forge fmt reformat of test/ and script/ Solidity (#2647)
+09f46fdd58119131fb50d16c0cdd46758ef28978
