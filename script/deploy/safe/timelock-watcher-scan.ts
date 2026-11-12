@@ -175,6 +175,8 @@ export interface IScanOutcome {
   scheduledLogs: number
   /** Why the history leg stopped early, when it failed rather than ran out of budget. */
   historyError?: string
+  /** The block the history leg stops at: the creation block, or a vouched floor above it. */
+  historyFloor: bigint
 }
 
 /**
@@ -423,6 +425,8 @@ const readRangeDownward = async (
  *   many ranges it may read at once, and a vouched floor: a block below which
  *   history was checked by other means, so the leg stops there even when the
  *   creation block lies further down. The saved floor stays the creation block.
+ *   A vouched floor above the head is ignored, since it would vouch for blocks
+ *   that were never scanned.
  * @returns The advanced state and whether history is complete.
  * @throws When the head, the floor or a range of the forward leg cannot be read.
  */
@@ -443,7 +447,9 @@ export const advanceScan = async (
     previous.floor !== undefined ? BigInt(previous.floor) : await deps.floor()
   const creationFloor = resolvedFloor ?? 0n
   const floor =
-    history.vouchedFloor !== undefined && history.vouchedFloor > creationFloor
+    history.vouchedFloor !== undefined &&
+    history.vouchedFloor > creationFloor &&
+    history.vouchedFloor <= head
       ? history.vouchedFloor
       : creationFloor
   // One step wider than last time: a span that shrank on a transient refusal
@@ -513,6 +519,7 @@ export const advanceScan = async (
     logCalls,
     scheduledLogs,
     historyComplete: low <= floor,
+    historyFloor: floor,
     forwardLag: head - reached,
     ...(historyError !== undefined ? { historyError } : {}),
     state: {

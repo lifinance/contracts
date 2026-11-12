@@ -319,6 +319,17 @@ describe('advanceScan', () => {
       expect(outcome.historyComplete).toBe(true)
       expect(deps.served.every(([from]) => from >= 50_000n)).toBe(true)
       expect(outcome.state.floor).toBe('0')
+      expect(outcome.historyFloor).toBe(50_000n)
+    })
+
+    it('ignores a vouched floor above the head rather than vouching for unscanned blocks', async () => {
+      const deps = chain({ head: 100_000n, floor: 0n, logs: [] })
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10, {
+        vouchedFloor: 1_000_000n,
+      })
+      expect(outcome.historyFloor).toBe(0n)
+      const history = deps.served.filter(([from]) => from < 50_000n)
+      expect(history.length).toBeGreaterThan(0)
     })
 
     it('reads history down to a vouched floor that is below what was scanned', async () => {

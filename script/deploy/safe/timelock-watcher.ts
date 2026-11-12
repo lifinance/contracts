@@ -307,7 +307,7 @@ const timeboxed = (client: PublicClient): PublicClient =>
 const describe = (error: unknown): string => {
   const text =
     error instanceof BaseError && error.details
-      ? `${error.shortMessage.split('\n')[0]} (${error.details})`
+      ? `${error.shortMessage.split('\n')[0]} (${error.details.split('\n')[0]})`
       : error instanceof Error
         ? error.message
         : String(error)
@@ -1117,7 +1117,7 @@ export const watchNetwork = async (
   const previous = initialScanState(ctx.state.networks[name], timelock)
   const readLogRange = createLogRangeReader(logEndpoints, timelock)
   let scan: Awaited<ReturnType<typeof advanceScan>>
-  let floorNote: string | undefined
+  let floorError: string | undefined
   try {
     scan = await advanceScan(
       previous,
@@ -1134,9 +1134,7 @@ export const watchNetwork = async (
               return code !== undefined && code !== '0x'
             })
           } catch (error) {
-            floorNote = `creation block unknown (${describe(
-              error
-            )}); history is scanned from genesis this run, and the next run tries again`
+            floorError = describe(error)
             return undefined
           }
         },
@@ -1173,14 +1171,22 @@ export const watchNetwork = async (
   } catch (error) {
     return unreadableAfterOwner(logScanFailureReason(error))
   }
-  if (floorNote) notes.push(floorNote)
-  if (
-    vouched &&
-    (scan.state.floor === undefined || BigInt(scan.state.floor) < vouched.block)
-  )
+  if (floorError !== undefined)
+    notes.push(
+      `creation block unknown (${floorError}); history is scanned from ${
+        scan.historyFloor > 0n ? `block ${scan.historyFloor}` : 'genesis'
+      } this run, and the next run tries again`
+    )
+  if (vouched && scan.historyFloor === vouched.block)
     notes.push(
       `history below block ${vouched.block} is vouched for, not scanned: ${vouched.reason}`
     )
+  if (vouched && vouched.block > scan.head) {
+    flagUnverified = true
+    notes.push(
+      `config/timelockController.json historyFloors.${name}.block ${vouched.block} is above the head (${scan.head}), so it is ignored`
+    )
+  }
   if (scan.historyError !== undefined)
     notes.push(
       `no endpoint would serve the next history range: ${redactUrls(
