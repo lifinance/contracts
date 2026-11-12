@@ -53,26 +53,20 @@ One ticket = one PR. If the Done-when list spans unrelated areas, propose splitt
 
 ## 4. Challenge the draft
 
-A ticket can be well formed and still wrong: the problem may not reproduce, a named helper may not exist, or one shared change may replace the N copies the ticket asks for. Catch that before the ticket is saved.
+A well-formed ticket can still be wrong: the problem may not reproduce, a named helper may not exist, or one shared change may replace the N copies it asks for. The implementer treats the ticket as settled, so this is the cheapest point to catch it. Match the effort to the ticket: a few searches for a one-file change, more for a contract or governance change.
 
-**a. Scout** (facts only, always):
+- **Facts**: the paths, functions and flags the draft names exist; its claims about the problem hold against code, chain state or logs (mark the ones you couldn't check as unverified); no existing skill, script or open EXSC ticket already covers the work.
+- **Simpler**: an existing tool, or one shared change instead of N copies. Stay within the ticket's outcome; a redesign beyond it is a separate ticket.
+- **Safe**: no bypass of Safe or timelock, no change to selector or storage layout, no new privileged path or external-call pattern (`002-architecture`).
+- **Size**: one PR; a removal also covers every caller, import, config key and doc that references it.
 
-- Every path, function, script and flag the draft names exists. Never cite one you didn't find.
-- Every claim about the problem holds against code, chain state or logs. Mark a claim you couldn't verify as unverified in the body.
-- Look for an existing skill (`.agents/commands/`), script or helper that already does part of the work, and for open EXSC tickets that overlap.
+Back each finding with evidence and its cost (files, copies, steps), and propose the alternative. No findings is a valid result.
 
-Called from `/create-pr`, the work is already done: run only the scout, against the diff, and skip **b**.
+When the ticket touches a contract, governance or `money-path`, or is likely estimate 3 or more, have a fresh subagent do the judgment part from the draft and your facts alone: having written the draft, you are the reader least likely to see its gaps.
 
-**b. Challenger** (judgment, built on the scout's facts):
+Called from `/create-pr`, the design is already built: check only the facts, against the diff.
 
-- **Simpler**: one shared change instead of N copies, an existing tool instead of a new one, less scope.
-- **Safe**: Safe and timelock are never bypassed; selector and storage layout, privileged paths and external-call patterns stay as `002-architecture` requires.
-- **Right size**: one PR. A removal also covers every caller, import, config key and doc that references it.
-- Each finding cites evidence (file and line, or a search result), states its cost in files, copies or steps, and proposes the alternative. Return specific findings, or say why the draft has none; "looks good" alone is not a review.
-
-Run **b** yourself for estimate 1–2. When the draft is likely 3 or more, or touches a contract, governance or a `money-path` ticket, spawn one `general-purpose` subagent that gets only the draft, the scout's facts and these rules, so your own reasoning doesn't steer it.
-
-**c. Resolve**: fix the draft or rebut each finding, once. Record the alternatives weighed under "Considered and rejected" in Agent notes, so the implementer doesn't reopen them. Anything still disputed goes to the preview with your recommendation. If a contract, governance or `money-path` concern fired, say in the body that the ticket needs core review.
+Then fix the draft or rebut each finding. Record the alternatives weighed under "Considered and rejected" in Agent notes, so the implementer doesn't reopen them. Unresolved findings go to the preview with your recommendation; a contract, governance or `money-path` concern also gets "needs core review" in the body.
 
 ## 5. Propose the estimate
 
