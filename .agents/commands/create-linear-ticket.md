@@ -1,6 +1,6 @@
 ---
 name: create-linear-ticket
-description: 'Creates an EXSC Linear ticket, or repairs an existing one, so it always has an assignee, an estimate and a cycle, plus the InCursu label when it joins a running cycle. Writes a scannable title and a self-contained body with binary Done-when criteria and collapsible Agent notes, then challenges the draft against the code (claims hold, references exist, simpler or safer option) before saving. Use for "create a ticket", "open a Linear issue for X", "fix the ticket metadata on EXSC-123", or when another skill needs a ticket (create-pr).'
+description: 'Creates an EXSC Linear ticket, or repairs an existing one, so it always has an assignee, an estimate and a cycle, plus the InCursu label when it joins a running cycle. Writes a scannable title and a self-contained body with binary Done-when criteria and collapsible Agent notes, then has a fresh subagent cold-read it against the code (guesses, wrong facts, edge cases, existing helpers, simpler or safer options) so it is implementation-ready before saving. Use for "create a ticket", "open a Linear issue for X", "fix the ticket metadata on EXSC-123", or when another skill needs a ticket (create-pr).'
 ---
 
 # Create Linear Ticket
@@ -38,7 +38,7 @@ The reader has no access to this conversation; often it is a coding agent that c
 
 - Title names the outcome, readable from the board without opening the ticket.
 - Context with links to the source (Slack thread, PR, tx hash + network, related ticket).
-- **Done when**: pass/fail outcomes describing the target state, not implementation steps. Add **Out of scope** when a reader could reasonably assume more.
+- **Done when**: pass/fail outcomes describing the target state, not implementation steps. Each is provable by a command, test or observable result; state the rule and give today's values as examples, so a test built from it doesn't break when config or data changes. Add **Out of scope** when a reader could reasonably assume more.
 - **Agent notes** last and collapsed: file paths, functions, patterns to copy, overlapping tickets, and what step 4 considered and rejected. Linear's collapsible syntax:
 
   ```text
@@ -51,22 +51,24 @@ The reader has no access to this conversation; often it is a coding agent that c
 
 One ticket = one PR. If the Done-when list spans unrelated areas, propose splitting into sub-issues (`parentId`) before writing.
 
-## 4. Challenge the draft
+## 4. Make it implementation-ready
 
-A well-formed ticket can still be wrong: the problem may not reproduce, a named helper may not exist, or one shared change may replace the N copies it asks for. The implementer treats the ticket as settled, so this is the cheapest point to catch it. Match the effort to the ticket: a few searches for a one-file change, more for a contract or governance change.
+The ticket is ready when someone with only the ticket and the repo can implement it without guessing, and its Done-when items prove the result. The implementer treats the ticket as settled, so gaps left here become follow-up commits and review rounds. Backtested on finished EXSC tickets, a cold read against the code found the costliest ones before any code was written: a parser that already existed, a CI manifest step nobody mentioned, a fee margin that also set the fee limit.
 
-- **Facts**: the paths, functions and flags the draft names exist; its claims about the problem hold against code, chain state or logs (mark the ones you couldn't check as unverified); no existing skill, script or open EXSC ticket already covers the work.
-- **Simpler**: an existing tool, or one shared change instead of N copies. Stay within the ticket's outcome; a redesign beyond it is a separate ticket.
-- **Safe**: no bypass of Safe or timelock, no change to selector or storage layout, no new privileged path or external-call pattern (`002-architecture`).
-- **Size**: one PR; a removal also covers every caller, import, config key and doc that references it.
+Give one fresh `general-purpose` subagent the draft and the repo, not this conversation: having written the draft, you are the reader least likely to see its gaps. It works read-only and is briefed to:
 
-Back each finding with evidence and its cost (files, copies, steps), and propose the alternative. No findings is a valid result.
+- **Plan it cold**: the files it would change and how, and how it would prove each Done-when item. Report every point where it had to guess, every instruction that would give wrong or failing code if followed literally, and every Done-when item it can't prove as written.
+- **Check the facts**: paths, functions, flags and numbers exist and behave as stated; the problem's claims hold against code, chain state or logs; no skill, script or helper already does part of the work. (Overlapping tickets are step 1's job; subagents may not reach Linear.)
+- **Probe the edges** of each behaviour the ticket changes: list the cases whose outcome flips (fail to pass, alert to silent, revert to success) and check each one is intended, including nothing to do, every input failing, missing or uninitialized state, and state the code already keeps from earlier runs.
+- **Apply the repo's requirements**: the `.agents/rules/` whose paths match the files to change, and what CI checks there (manifests, redaction, invariants).
+- **Look for simpler**: an existing tool, or one shared change instead of N copies, within the ticket's outcome.
+- **Check safety**: no bypass of Safe or timelock, selector and storage changes stay upgrade-compatible, and no new privileged path or external-call pattern (`002-architecture`).
+- **Check size**: one PR in one repo; a removal covers every caller, import, config key and doc.
+- Back each finding with evidence (file and line, or a command result) and give the line that would close it in the ticket.
 
-When the ticket touches a contract, governance or `money-path`, or is likely estimate 3 or more, have a fresh subagent do the judgment part from the draft and your facts alone: having written the draft, you are the reader least likely to see its gaps.
+Then close the gaps. Check a finding before changing the ticket on it. Write each answer the code gives into Done when, Out of scope or Agent notes; ask the user about each one that is a decision (a value, a trade-off, the scope) in the preview, with your recommendation. Record the alternatives weighed under "Considered and rejected" in Agent notes, so the implementer doesn't reopen them. A contract, governance or `money-path` concern also gets "needs core review" in the body.
 
-Called from `/create-pr`, the design is already built: check only the facts, against the diff.
-
-Then fix the draft or rebut each finding. Record the alternatives weighed under "Considered and rejected" in Agent notes, so the implementer doesn't reopen them. Unresolved findings go to the preview with your recommendation; a contract, governance or `money-path` concern also gets "needs core review" in the body.
+Called from `/create-pr`, the work is already built: skip the subagent and check only the facts, against the diff.
 
 ## 5. Propose the estimate
 
@@ -96,7 +98,7 @@ If approval comes after the time crossed a boundary in the table, resolve again 
 
 Show the title, body, step 4 findings (fixed, rebutted or open, each with your recommendation), estimate, cycle, `InCursu` with its reason, labels and the duplicates reviewed, then wait for approval (unattended runs skip the wait).
 
-Create with one `save_issue` call: `team`, `template`, `title`, `description`, `assignee: "me"`, `estimate`, `cycle`, and `labels` (include `InCursu` when step 6 says so). In repair mode use `id` plus the missing fields and any cycle step 6 replaced, with `addLabels` / `removeLabels` for `InCursu` — never `labels`, which replaces the full set.
+Create with one `save_issue` call: `team`, `template`, `title`, `description`, `assignee: "me"`, `estimate`, `cycle`, and `labels` (include `InCursu` when step 6 says so). In repair mode use `id` plus the missing fields, the assignee when the user approved a reassignment, and any cycle step 6 replaced, with `addLabels` / `removeLabels` for `InCursu` — never `labels`, which replaces the full set.
 
 A `save_issue` error (Linear returns 502s) can still have saved. Before retrying a create, `list_issues` with the exact title, `createdAt: "-PT10M"` and `assignee: "me"`, leaving out the duplicates shown in step 1. If exactly one remains, continue with step 8 on that ID; if several remain, ask the user which one is theirs instead of creating another.
 
