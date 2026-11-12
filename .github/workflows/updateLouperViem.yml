@@ -115,7 +115,7 @@ jobs:
           echo "Current viem version: $CURRENT_VIEM"
           
           # Strip version prefix (^, ~, =) for comparison
-          CURRENT_VIEM_CLEAN=$(sed 's/^[\^~=]//' <<< "$CURRENT_VIEM")
+          CURRENT_VIEM_CLEAN="${CURRENT_VIEM#[\\^~=]}"
           echo "Current viem version (cleaned): $CURRENT_VIEM_CLEAN"
           
           # Get latest viem version from npm
@@ -213,7 +213,7 @@ jobs:
             # Verify update
             UPDATED_VIEM=$(jq -r '.dependencies.viem // .devDependencies.viem // empty' package.json)
             echo "Updated viem version: $UPDATED_VIEM"
-            UPDATED_VIEM_CLEAN=$(sed 's/^[\^~=]//' <<< "$UPDATED_VIEM")
+            UPDATED_VIEM_CLEAN="${UPDATED_VIEM#[\\^~=]}"
             
             if [ -z "$UPDATED_VIEM" ] || [ "$UPDATED_VIEM" == "null" ]; then
               echo "❌ Error: Failed to update viem in package.json"

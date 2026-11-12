@@ -330,7 +330,7 @@ jobs:
           echo "UPDATED CONTRACTS: $UPDATED_CONTRACTS"
 
           ##### Step 1: Remove all bracketed content from the current title
-          BASE_TITLE=$(sed 's/\s*\[[^]]*\]//g' <<< "$PR_TITLE")
+          BASE_TITLE=$(printf '%s\n' "$PR_TITLE" | sed 's/\s*\[[^]]*\]//g')
           echo "BASE_TITLE: $BASE_TITLE"
 
           ##### Step 2: Trim leading and trailing whitespace from the base title
@@ -681,7 +681,7 @@ jobs:
 
               ##### Check if the auditor git handle exists on github
               echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
-              if ! gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
+              if ! gh api "users/$AUDITOR_GIT_HANDLE" > /dev/null 2>&1; then
                 echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
                 echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
                 exit 1
