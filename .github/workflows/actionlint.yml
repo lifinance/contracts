@@ -1,0 +1,58 @@
+# actionlint
+# - lints every workflow file under .github/workflows/ with actionlint: YAML syntax, workflow
+#   schema, `${{ }}` expressions, and the shellcheck findings in each `run:` script
+# - runs on pull requests that change a workflow file; GitHub records an unparseable workflow
+#   only as a 0-second failed push run, never as a PR check, so this job is what surfaces it
+# - installs actionlint from a pinned release tarball and checks its sha256 before running it;
+#   to bump, change ACTIONLINT_VERSION and ACTIONLINT_SHA256 together (the digest of
+#   actionlint_<version>_linux_amd64.tar.gz in that release's checksums.txt)
+# - the embedded shellcheck pass uses the shellcheck preinstalled on the ubuntu runner image
+# - known limitations: the check is not in the `main protection` ruleset's required status
+#   checks until a repo admin registers it, so a red run does not block a merge yet
+
+name: actionlint
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/**'
+
+# Default-deny at the workflow level; grant only what each job needs at the job level.
+permissions: {}
+
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  actionlint:
+    name: lint github workflow files
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # required to fetch repository contents
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint
+        run: |
+          ARCHIVE="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL --retry 3 -o "$ARCHIVE" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  ${ARCHIVE}" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/actionlint"
+          tar -xzf "$ARCHIVE" -C "$RUNNER_TEMP/actionlint" actionlint
+          echo "$RUNNER_TEMP/actionlint" >> "$GITHUB_PATH"
+
+      - name: Run actionlint
+        run: |
+          actionlint -version
+          actionlint -color

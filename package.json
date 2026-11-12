@@ -154,6 +154,9 @@
     ],
     "*.md": [
       "bunx --no-install --bun markdownlint-cli2 --fix"
+    ],
+    ".github/workflows/*.{yml,yaml}": [
+      "bash script/utils/actionlint-files.sh"
     ]
   }
 }
