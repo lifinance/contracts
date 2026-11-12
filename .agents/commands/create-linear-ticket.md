@@ -83,15 +83,22 @@ Base both on **now** (when the ticket joins a cycle), not on the ticket's `creat
 | Within the last 24h before `endsAt`                  | next (`type: "next"`) | no        |
 | No current cycle                                     | next                  | no        |
 
-If the next cycle is needed and doesn't exist yet, ask the user; never leave the field empty silently. In repair mode, a ticket already in the current or next cycle keeps its cycle; only the label rule is applied to it.
+If the next cycle is needed and doesn't exist yet, ask the user; never leave the field empty silently.
+
+In repair mode the rule applies only when this run puts the ticket into a cycle, because `InCursu` describes when it joined:
+
+- Already in the current or next cycle: keep the cycle and leave `InCursu` as it is; the join time isn't known, so the label can't be judged now.
+- No cycle, or a past one: move it to the cycle from the table, add `InCursu` if the table says so, and remove a stale `InCursu` if it doesn't.
+
+If approval comes after the time crossed a boundary in the table, resolve again and show the change.
 
 ## 7. Preview, then save
 
 Show the title, body, step 4 findings (fixed, rebutted or open, each with your recommendation), estimate, cycle, `InCursu` with its reason, labels and the duplicates reviewed, then wait for approval (unattended runs skip the wait).
 
-Create with one `save_issue` call: `team`, `template`, `title`, `description`, `assignee: "me"`, `estimate`, `cycle`, and `labels` (include `InCursu` when step 6 says so). In repair mode use `id` plus only the missing fields, and `addLabels: ["InCursu"]` — never `labels`, which replaces the full set.
+Create with one `save_issue` call: `team`, `template`, `title`, `description`, `assignee: "me"`, `estimate`, `cycle`, and `labels` (include `InCursu` when step 6 says so). In repair mode use `id` plus the missing fields and any cycle step 6 replaced, with `addLabels` / `removeLabels` for `InCursu` — never `labels`, which replaces the full set.
 
-A `save_issue` error (Linear returns 502s) can still have saved. Before retrying a create, `list_issues` with the exact title and `createdAt: "-PT10M"`; if it exists, continue with step 8 on that ID instead of creating a duplicate.
+A `save_issue` error (Linear returns 502s) can still have saved. Before retrying a create, `list_issues` with the exact title, `createdAt: "-PT10M"` and `assignee: "me"`, leaving out the duplicates shown in step 1. If exactly one remains, continue with step 8 on that ID; if several remain, ask the user which one is theirs instead of creating another.
 
 ## 8. Verify
 

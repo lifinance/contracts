@@ -69,7 +69,7 @@ Do not write to Linear yet — planned repairs go in the step 8 pre-flight and r
    - `s` — explicit opt-out: no ticket, branch unchanged, body line `<!-- No Linear task -->`; never fabricate a link. If the change is genuinely trivial (typo / doc-only / dep-bump / single-line fix), suggest the `trivial` label so the ticket-linkage metric counts it.
    - Unattended: plan the ticket with the derived title — never proceed without one.
 
-   On `y` / `e`, record the planned ticket. Step 9 creates it through `/create-linear-ticket` with the confirmed title and estimate, and a short body summarizing the change plus a PR-URL placeholder. This prompt is its preview, so skip that skill's step 7 wait.
+   On `y` / `e`, record the planned ticket. Step 9 creates it through `/create-linear-ticket` with the confirmed title and estimate, and a short body summarizing the change plus a PR-URL placeholder. Draft the body and run that skill's step 4 before the step 8 pre-flight, which shows the body and serves as the skill's preview, so skip its step 7 wait.
 
 ### 5. Build the PR body
 
@@ -117,6 +117,7 @@ Self-review:
 
 Linear: <EXSC-ID> — assignee <name>, estimate <n>   (planned repairs: <none / assign / estimate / cycle / InCursu>)
   ↑ or: new ticket "<title>", estimate <n>, branch → <new-branch>   (created in step 9)
+        body: <ticket body>   findings: <step 4 findings / none>
   ↑ or: no ticket (explicit user opt-out)
 
 Checks run:
