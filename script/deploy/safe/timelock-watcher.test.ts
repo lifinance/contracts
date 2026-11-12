@@ -20,6 +20,7 @@ import {
   createDeployLogHistoryReader,
   createLogRangeReader,
   findingsOf,
+  isSettled,
   jobFails,
   loadWatcherState,
   logScanFailureReason,
@@ -733,7 +734,7 @@ describe('parseDeployLogHistory', () => {
       '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
       ' "Executor": "0x0000000000000000000000000000000000005555",',
     ].join('\n')
-    expect(parseDeployLogHistory(patch)).toEqual(
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
       new Map([
         [
           'FeeForwarder',
@@ -750,7 +751,7 @@ describe('parseDeployLogHistory', () => {
     const patch =
       '+{"Executor":"0x0000000000000000000000000000000000005555",' +
       '"ERC20Proxy":"0x0000000000000000000000000000000000006666"}'
-    expect(parseDeployLogHistory(patch)).toEqual(
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
       new Map([
         [
           'Executor',
@@ -762,6 +763,62 @@ describe('parseDeployLogHistory', () => {
         ],
       ])
     )
+  })
+
+  it('keys a Tron base58 entry by its hex, and ignores base58 off Tron', () => {
+    const patch = [
+      '+  "LiFiTimelockController": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu",',
+      '+  "Executor": "0x0000000000000000000000000000000000005555",',
+    ].join('\n')
+    expect(parseDeployLogHistory(patch, 'tron')).toEqual(
+      new Map([
+        [
+          'LiFiTimelockController',
+          new Map([['0x161f35951702e93ffee662ed16fb538c283462a5', 0]]),
+        ],
+        [
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 1]]),
+        ],
+      ])
+    )
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
+      new Map([
+        [
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 0]]),
+        ],
+      ])
+    )
+  })
+
+  it('throws on a Tron entry whose checksum fails', () => {
+    const patch = '+  "Executor": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhv",'
+    expect(() => parseDeployLogHistory(patch, 'tron')).toThrow()
+  })
+})
+
+describe('isSettled', () => {
+  it('drops an executed operation on any network', () => {
+    expect(isSettled('xlayer', 'done', 0, false)).toBe(true)
+    expect(isSettled('tron', 'done', 0, false)).toBe(true)
+  })
+
+  it('keeps a pending or unread operation', () => {
+    expect(isSettled('xlayer', 'pending', 0, false)).toBe(false)
+    expect(isSettled('tron', undefined, 5, true)).toBe(false)
+  })
+
+  it('drops an unset operation proven cancelled on any network', () => {
+    expect(isSettled('xlayer', 'unset', 1, true)).toBe(true)
+    expect(isSettled('tron', 'unset', 1, true)).toBe(true)
+  })
+
+  it('drops an unproven unset operation after three runs off Tron only', () => {
+    expect(isSettled('xlayer', 'unset', 2, false)).toBe(false)
+    expect(isSettled('xlayer', 'unset', 3, false)).toBe(true)
+    expect(isSettled('tron', 'unset', 3, false)).toBe(false)
+    expect(isSettled('tron', 'unset', 50, false)).toBe(false)
   })
 })
 

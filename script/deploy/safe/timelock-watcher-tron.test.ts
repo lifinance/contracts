@@ -13,23 +13,24 @@ describe('tronDeploymentsAsHex', () => {
       LiFiTimelockController: TIMELOCK_BASE58,
       Already: REFUND_HEX,
       Version: 3,
+      Label: 'Timelock',
     })
     expect(String(hex['LiFiTimelockController']).toLowerCase()).toBe(
       TIMELOCK_HEX
     )
     expect(hex['Already']).toBe(REFUND_HEX)
     expect(hex['Version']).toBe(3)
+    expect(hex['Label']).toBe('Timelock')
   })
 
-  it('throws on a value that is not a Tron address', () => {
-    expect(() =>
-      tronDeploymentsAsHex('tron', { Broken: 'Tnot-an-address' })
-    ).toThrow()
+  it('throws on a base58-shaped value whose checksum fails', () => {
+    const broken = `${TIMELOCK_BASE58.slice(0, -1)}v`
+    expect(() => tronDeploymentsAsHex('tron', { Broken: broken })).toThrow()
   })
 })
 
 describe('withTronWallets', () => {
-  it('lays the Tron wallets over the EVM ones, in hex', () => {
+  it('replaces every EVM wallet with its Tron counterpart, in hex', () => {
     const config = withTronWallets('tron', {
       refundWallet: '0x0000000000000000000000000000000000000001',
       safeOwners: ['0x0000000000000000000000000000000000000002'],
@@ -45,9 +46,22 @@ describe('withTronWallets', () => {
     expect(() => withTronWallets('tron', {})).toThrow('no tronWallets')
   })
 
+  it('throws when tronWallets lacks a wallet the EVM config names', () => {
+    expect(() =>
+      withTronWallets('tron', {
+        refundWallet: '0x0000000000000000000000000000000000000001',
+        withdrawWallet: '0x0000000000000000000000000000000000000003',
+        tronWallets: { refundWallet: REFUND_BASE58 },
+      })
+    ).toThrow('tronWallets.withdrawWallet')
+  })
+
   it('throws on a Tron wallet that is not a valid address', () => {
     expect(() =>
-      withTronWallets('tron', { tronWallets: { refundWallet: 'Tbroken' } })
-    ).toThrow()
+      withTronWallets('tron', {
+        refundWallet: '0x0000000000000000000000000000000000000001',
+        tronWallets: { refundWallet: 'Tbroken' },
+      })
+    ).toThrow('tronWallets.refundWallet')
   })
 })

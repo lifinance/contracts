@@ -6,8 +6,11 @@
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
+const TRON_BASE58 = /^T[1-9A-HJ-NP-Za-km-z]{33}$/
+const EVM_HEX = /^0x[0-9a-fA-F]{40}$/
+
 const isBase58 = (value: unknown): value is string =>
-  typeof value === 'string' && value.startsWith('T')
+  typeof value === 'string' && TRON_BASE58.test(value)
 
 /**
  * A deployments file with every base58 address spelled as hex.
@@ -15,7 +18,7 @@ const isBase58 = (value: unknown): value is string =>
  * @param network - Tron network name.
  * @param deployments - Main's parsed `deployments/<network>.json`.
  * @returns A copy whose base58 addresses are checksummed hex; other values unchanged.
- * @throws When a base58 value is not a valid Tron address.
+ * @throws When a base58-shaped value fails its checksum.
  */
 export const tronDeploymentsAsHex = (
   network: string,
@@ -29,13 +32,15 @@ export const tronDeploymentsAsHex = (
   )
 
 /**
- * The global config with its `tronWallets` laid over the EVM wallets of the
- * same name, in hex, since Tron's refund, pauser and withdraw wallets differ.
+ * The global config with every EVM wallet replaced by its `tronWallets`
+ * counterpart, in hex, since Tron's refund, pauser and withdraw wallets differ.
+ * No EVM wallet survives, so none is accepted as a Tron recipient.
  *
  * @param network - Tron network name.
  * @param globalConfig - Parsed `config/global.json`.
  * @returns A copy whose wallet keys hold the Tron wallets in hex.
- * @throws When the config has no `tronWallets`, or one is not a valid Tron address.
+ * @throws When `tronWallets` is missing, lacks a wallet the EVM config names,
+ *   or holds a value that is not a valid Tron address.
  */
 export const withTronWallets = (
   network: string,
@@ -44,9 +49,16 @@ export const withTronWallets = (
   const wallets = globalConfig['tronWallets']
   if (typeof wallets !== 'object' || wallets === null)
     throw new Error('config/global.json has no tronWallets')
+  const tronWallets = wallets as Record<string, unknown>
   const overlay: Record<string, string> = {}
-  for (const [name, value] of Object.entries(wallets))
-    if (isBase58(value))
-      overlay[name] = normalizeAddressForNetwork(network, value)
+  for (const [name, value] of Object.entries(globalConfig)) {
+    if (typeof value !== 'string' || !EVM_HEX.test(value)) continue
+    const tron = tronWallets[name]
+    if (!isBase58(tron))
+      throw new Error(
+        `config/global.json tronWallets.${name} is missing or not a Tron address`
+      )
+    overlay[name] = normalizeAddressForNetwork(network, tron)
+  }
   return { ...globalConfig, ...overlay }
 }
