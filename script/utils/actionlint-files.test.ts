@@ -52,6 +52,9 @@ const REPO_ROOT = join(import.meta.dir, '..', '..')
 const SCRIPT = join(REPO_ROOT, 'script/utils/actionlint-files.sh')
 const LINT_STAGED_GLOB = '.github/workflows/*.{yml,yaml}'
 const REAL_ACTIONLINT = Bun.which('actionlint')
+// Resolved from the full PATH: the filtered child PATH can drop bash's own
+// directory when actionlint is installed beside it (e.g. /usr/bin)
+const BASH = Bun.which('bash') ?? '/bin/bash'
 
 const VALID_WORKFLOW = `name: ok
 on: push
@@ -132,7 +135,7 @@ const runScript = (
 ): { status: number | null; stderr: string } => {
   const env = freshChildEnv({ PATH: path })
   withholdCredentials(env)
-  const result = spawnSync('bash', [SCRIPT, ...files], {
+  const result = spawnSync(BASH, [SCRIPT, ...files], {
     cwd: REPO_ROOT,
     env,
     encoding: 'utf8',
