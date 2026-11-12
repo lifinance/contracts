@@ -2,10 +2,21 @@
 pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { TestNearIntentsBackendSig } from "../utils/TestNearIntentsBackendSig.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestNearIntentsBackendSig
+} from "../utils/TestNearIntentsBackendSig.sol";
 import { NEARIntentsFacet } from "lifi/Facets/NEARIntentsFacet.sol";
-import { InvalidCallData, InvalidReceiver, InvalidAmount, InformationMismatch, InvalidConfig, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
+import {
+    InvalidCallData,
+    InvalidReceiver,
+    InvalidAmount,
+    InformationMismatch,
+    InvalidConfig,
+    InvalidNonEVMReceiver
+} from "lifi/Errors/GenericErrors.sol";
 
 error QuoteAlreadyConsumed();
 error QuoteExpired();
@@ -17,7 +28,7 @@ error InvalidDestinationAsset();
 /// @notice Test contract wrapper for NEARIntentsFacet
 /// @custom:version 3.0.0
 contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
-    constructor(address _backendSigner) NEARIntentsFacet(_backendSigner) {}
+    constructor(address _backendSigner) NEARIntentsFacet(_backendSigner) { }
 
     function setQuoteConsumed(bytes32 _quoteId) external {
         Storage storage s = _getStorage();
@@ -67,7 +78,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         customBlockNumberForForking = 19767662;
         initTestBase();
 
-        backendSignerPrivateKey = 0x1234567890123456789012345678901234567890123456789012345678901234;
+        backendSignerPrivateKey =
+        0x1234567890123456789012345678901234567890123456789012345678901234;
         backendSignerAddress = vm.addr(backendSignerPrivateKey);
 
         // Deploy facet with backend signer
@@ -75,16 +87,13 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // Register selectors with diamond
         bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = nearIntentsFacet
-            .startBridgeTokensViaNEARIntents
-            .selector;
-        functionSelectors[1] = nearIntentsFacet
-            .swapAndStartBridgeTokensViaNEARIntents
-            .selector;
+        functionSelectors[0] =
+        nearIntentsFacet.startBridgeTokensViaNEARIntents.selector;
+        functionSelectors[1] =
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents.selector;
         functionSelectors[2] = nearIntentsFacet.isQuoteConsumed.selector;
-        functionSelectors[3] = nearIntentsFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[3] =
+        nearIntentsFacet.addAllowedContractSelector.selector;
         functionSelectors[4] = nearIntentsFacet.setQuoteConsumed.selector;
 
         addFacet(diamond, address(nearIntentsFacet), functionSelectors);
@@ -95,18 +104,15 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // Setup whitelist for swaps
         nearIntentsFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         nearIntentsFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
 
         // Set facet address in test base
         setFacetAddressInTestBase(
-            address(nearIntentsFacet),
-            "NEARIntentsFacet"
+            address(nearIntentsFacet), "NEARIntentsFacet"
         );
 
         // adjust bridgeData
@@ -131,27 +137,29 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         if (isNative) {
             nearIntentsFacet.startBridgeTokensViaNEARIntents{
                 value: bridgeData.minAmount
-            }(bridgeData, validNearData);
+            }(
+                bridgeData, validNearData
+            );
         } else {
             nearIntentsFacet.startBridgeTokensViaNEARIntents(
-                bridgeData,
-                validNearData
+                bridgeData, validNearData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validNearData);
+            }(
+                bridgeData, swapData, validNearData
+            );
         } else {
             nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-                bridgeData,
-                swapData,
-                validNearData
+                bridgeData, swapData, validNearData
             );
         }
     }
@@ -302,8 +310,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // Execute
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
 
@@ -358,14 +365,13 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         // Execute
         nearIntentsFacet.startBridgeTokensViaNEARIntents{
             value: bridgeData.minAmount
-        }(bridgeData, validNearData);
+        }(
+            bridgeData, validNearData
+        );
         vm.stopPrank();
 
         // Assert balances
-        assertEq(
-            USER_SENDER.balance,
-            userBalanceBefore - bridgeData.minAmount
-        );
+        assertEq(USER_SENDER.balance, userBalanceBefore - bridgeData.minAmount);
         assertEq(
             TEST_DEPOSIT_ADDRESS.balance,
             depositBalanceBefore + bridgeData.minAmount
@@ -384,8 +390,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(QuoteAlreadyConsumed.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -397,9 +402,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(QuoteAlreadyConsumed.selector);
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
@@ -424,8 +427,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         // The modifier onlyValidQuote checks deadline first, throwing QuoteExpired
         vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -439,20 +441,14 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
 
     function testRevert_InvalidDepositAddress() public {
         validNearData = _generateValidNearData(
-            address(0),
-            bridgeData,
-            block.chainid,
-            TEST_QUOTE_ID,
-            990 * 10 ** 6
+            address(0), bridgeData, block.chainid, TEST_QUOTE_ID, 990 * 10 ** 6
         );
 
         vm.startPrank(USER_SENDER);
@@ -460,8 +456,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(InvalidReceiver.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -474,8 +469,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(InvalidReceiver.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -487,8 +481,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(InvalidAmount.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -504,9 +497,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(InformationMismatch.selector);
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapDataEmpty,
-            validNearData
+            bridgeData, swapDataEmpty, validNearData
         );
         vm.stopPrank();
     }
@@ -552,13 +543,14 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents{
             value: 1 ether + excessAmount
-        }(bridgeData, validNearData);
+        }(
+            bridgeData, validNearData
+        );
 
         vm.stopPrank();
 
         assertEq(
-            USER_SENDER.balance,
-            senderBalanceBefore - 1 ether - excessAmount
+            USER_SENDER.balance, senderBalanceBefore - 1 ether - excessAmount
         );
         assertEq(
             refundRecipient.balance,
@@ -570,11 +562,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         bridgeData.minAmount = 1; // 1 wei equivalent
 
         validNearData = _generateValidNearData(
-            TEST_DEPOSIT_ADDRESS,
-            bridgeData,
-            block.chainid,
-            TEST_QUOTE_ID,
-            1
+            TEST_DEPOSIT_ADDRESS, bridgeData, block.chainid, TEST_QUOTE_ID, 1
         );
 
         vm.startPrank(USER_SENDER);
@@ -597,8 +585,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
 
@@ -640,8 +627,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
 
@@ -670,14 +656,13 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // First bridge
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
 
         // Second bridge with different quoteId
         bytes32 newQuoteId = keccak256("test-quote-2");
-        NEARIntentsFacet.NEARIntentsData
-            memory newNearData = _generateValidNearData(
+        NEARIntentsFacet.NEARIntentsData memory newNearData =
+            _generateValidNearData(
                 TEST_DEPOSIT_ADDRESS,
                 bridgeData,
                 block.chainid,
@@ -702,8 +687,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            newNearData
+            bridgeData, newNearData
         );
         vm.stopPrank();
 
@@ -722,7 +706,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
     function testRevert_InvalidSignature() public {
         // Generate invalid signature with wrong private key
-        uint256 wrongPrivateKey = 0x9999999999999999999999999999999999999999999999999999999999999999;
+        uint256 wrongPrivateKey =
+            0x9999999999999999999999999999999999999999999999999999999999999999;
 
         validNearData = _generateValidNearDataWithPrivateKey(
             TEST_DEPOSIT_ADDRESS,
@@ -738,8 +723,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(InvalidSignature.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -763,8 +747,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         // The modifier onlyValidQuote checks deadline with > comparison, throwing QuoteExpired
         vm.expectRevert(QuoteExpired.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -815,8 +798,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
 
@@ -872,15 +854,11 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         );
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
 
-        assertTrue(
-            usdc.balanceOf(TEST_DEPOSIT_ADDRESS) > depositBalanceBefore
-        );
+        assertTrue(usdc.balanceOf(TEST_DEPOSIT_ADDRESS) > depositBalanceBefore);
         assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
     }
 
@@ -901,8 +879,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         vm.expectRevert(InvalidNonEVMReceiver.selector);
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -922,9 +899,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.startPrank(USER_SENDER);
         vm.expectRevert(InvalidNonEVMReceiver.selector);
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
@@ -939,10 +914,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_USDC;
 
-        uint256[] memory amounts = uniswap.getAmountsIn(
-            defaultUSDCAmount,
-            path
-        );
+        uint256[] memory amounts =
+            uniswap.getAmountsIn(defaultUSDCAmount, path);
         uint256 amountIn = amounts[0];
         // Feed 10% more DAI so Uniswap returns > defaultUSDCAmount
         uint256 amountInWithSlippage = (amountIn * 110) / 100;
@@ -970,8 +943,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         dai.approve(address(diamond), swapData[0].fromAmount);
 
         nearIntentsRefundRecipient = refundRecipient;
-        NEARIntentsFacet.NEARIntentsData
-            memory customNearData = _generateValidNearData(
+        NEARIntentsFacet.NEARIntentsData memory customNearData =
+            _generateValidNearData(
                 TEST_DEPOSIT_ADDRESS,
                 bridgeData,
                 block.chainid,
@@ -980,12 +953,9 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             );
 
         // Compute exact expected positive slippage (deterministic on pinned fork)
-        uint256[] memory amountsOut = uniswap.getAmountsOut(
-            amountInWithSlippage,
-            path
-        );
-        uint256 expectedPositiveSlippage = amountsOut[1] -
-            bridgeData.minAmount;
+        uint256[] memory amountsOut =
+            uniswap.getAmountsOut(amountInWithSlippage, path);
+        uint256 expectedPositiveSlippage = amountsOut[1] - bridgeData.minAmount;
 
         uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
         uint256 refundRecipientBalanceBefore = usdc.balanceOf(refundRecipient);
@@ -1004,9 +974,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         );
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            customNearData
+            bridgeData, swapData, customNearData
         );
         vm.stopPrank();
 
@@ -1069,8 +1037,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         emit LiFiTransferStarted(bridgeData);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents{ value: 1 ether }(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
 
@@ -1110,9 +1077,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         );
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
 
@@ -1168,8 +1133,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         usdc.approve(address(diamond), bridgeData.minAmount);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
 
@@ -1221,8 +1185,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidSignature.selector);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -1243,8 +1206,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidDestinationAsset.selector);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -1268,18 +1230,15 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidDestinationAsset.selector);
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
 
     function testRevert_InvalidSignatureOnTamperedDestinationAsset() public {
         // solver swaps the destination asset for a worthless token it controls
-        validNearData.destinationAsset = bytes32(
-            uint256(uint160(address(0xBADA55)))
-        );
+        validNearData.destinationAsset =
+            bytes32(uint256(uint160(address(0xBADA55))));
 
         vm.startPrank(USER_SENDER);
         usdc.approve(address(diamond), bridgeData.minAmount);
@@ -1287,8 +1246,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidSignature.selector);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -1306,9 +1264,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             TEST_QUOTE_ID,
             990 * 10 ** 6
         );
-        validNearData.destinationAsset = bytes32(
-            uint256(uint160(address(0xBADA55)))
-        );
+        validNearData.destinationAsset =
+            bytes32(uint256(uint160(address(0xBADA55))));
 
         vm.startPrank(USER_SENDER);
         dai.approve(address(diamond), swapData[0].fromAmount);
@@ -1316,9 +1273,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidSignature.selector);
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
@@ -1371,8 +1326,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidSignature.selector);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -1387,8 +1341,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidSignature.selector);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -1414,9 +1367,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidSignature.selector);
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
@@ -1437,8 +1388,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidCallData.selector);
 
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
-            bridgeData,
-            validNearData
+            bridgeData, validNearData
         );
         vm.stopPrank();
     }
@@ -1462,9 +1412,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.expectRevert(InvalidCallData.selector);
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
     }
@@ -1519,16 +1467,11 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         usdc.approve(address(diamond), fromAmount);
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
-            bridgeData,
-            swapData,
-            validNearData
+            bridgeData, swapData, validNearData
         );
         vm.stopPrank();
 
-        assertEq(
-            usdc.balanceOf(USER_SENDER),
-            senderBalanceBefore - fromAmount
-        );
+        assertEq(usdc.balanceOf(USER_SENDER), senderBalanceBefore - fromAmount);
         assertEq(
             usdc.balanceOf(refundRecipient),
             refundRecipientBalanceBefore + leftover
@@ -1561,7 +1504,9 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents{
             value: excessAmount
-        }(bridgeData, swapData, validNearData);
+        }(
+            bridgeData, swapData, validNearData
+        );
         vm.stopPrank();
 
         assertEq(USER_SENDER.balance, senderBalanceBefore - excessAmount);
@@ -1576,8 +1521,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         bridgeData.hasSourceSwaps = true;
 
         nearIntentsFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         address[] memory path = new address[](2);
@@ -1623,13 +1567,14 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents{
             value: fromAmount
-        }(bridgeData, swapData, validNearData);
+        }(
+            bridgeData, swapData, validNearData
+        );
         vm.stopPrank();
 
         assertEq(USER_SENDER.balance, senderBalanceBefore - fromAmount);
         assertEq(
-            refundRecipient.balance,
-            refundRecipientBalanceBefore + leftover
+            refundRecipient.balance, refundRecipientBalanceBefore + leftover
         );
         assertEq(address(diamond).balance, 0);
     }

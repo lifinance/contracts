@@ -6,13 +6,23 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondTest } from "../../../utils/DiamondTest.sol";
-import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../../utils/TestWhitelistManagerBase.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { ISpokePoolPeriphery } from "lifi/Interfaces/ISpokePoolPeriphery.sol";
-import { ISponsoredOFTSrcPeriphery } from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
-import { ISponsoredCCTPSrcPeriphery } from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
-import { InformationMismatch, InvalidCallData, InvalidReceiver } from "lifi/Errors/GenericErrors.sol";
+import {
+    ISponsoredOFTSrcPeriphery
+} from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
+import {
+    ISponsoredCCTPSrcPeriphery
+} from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
+import {
+    InformationMismatch,
+    InvalidCallData,
+    InvalidReceiver
+} from "lifi/Errors/GenericErrors.sol";
 
 using stdJson for string;
 
@@ -37,7 +47,7 @@ contract TestAcrossV4SwapFacetSponsored is
             _sponsoredCctpSrcPeriphery,
             _backendSigner
         )
-    {}
+    { }
 }
 
 /// @notice Sponsored-flow focused tests for AcrossV4SwapFacet
@@ -86,22 +96,17 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         // Ensure the test user can send value when needed.
         vm.deal(USER_SENDER, 10 ether);
 
-        spokePoolPeriphery = _configAddress(
-            "across.json",
-            ".arbitrum.spokePoolPeriphery"
-        );
+        spokePoolPeriphery =
+            _configAddress("across.json", ".arbitrum.spokePoolPeriphery");
         spokePool = _configAddress("across.json", ".arbitrum.acrossSpokePool");
         address wrappedNative = _configAddress(
-            "networks.json",
-            ".arbitrum.wrappedNativeAddress"
+            "networks.json", ".arbitrum.wrappedNativeAddress"
         );
         sponsoredOftSrcPeriphery = _configAddress(
-            "across.json",
-            ".arbitrum.sponsoredOftSrcPeriphery"
+            "across.json", ".arbitrum.sponsoredOftSrcPeriphery"
         );
         sponsoredCctpSrcPeriphery = _configAddress(
-            "across.json",
-            ".arbitrum.sponsoredCctpSrcPeriphery"
+            "across.json", ".arbitrum.sponsoredCctpSrcPeriphery"
         );
 
         backendSigner = vm.addr(0xA11CE);
@@ -109,21 +114,19 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         diamond = createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
         TestAcrossV4SwapFacetSponsored facetImpl = new TestAcrossV4SwapFacetSponsored(
-                ISpokePoolPeriphery(spokePoolPeriphery),
-                spokePool,
-                wrappedNative,
-                sponsoredOftSrcPeriphery,
-                sponsoredCctpSrcPeriphery,
-                backendSigner
-            );
+            ISpokePoolPeriphery(spokePoolPeriphery),
+            spokePool,
+            wrappedNative,
+            sponsoredOftSrcPeriphery,
+            sponsoredCctpSrcPeriphery,
+            backendSigner
+        );
 
         bytes4[] memory functionSelectors = new bytes4[](2);
-        functionSelectors[0] = facetImpl
-            .startBridgeTokensViaAcrossV4Swap
-            .selector;
-        functionSelectors[1] = facetImpl
-            .swapAndStartBridgeTokensViaAcrossV4Swap
-            .selector;
+        functionSelectors[0] =
+        facetImpl.startBridgeTokensViaAcrossV4Swap.selector;
+        functionSelectors[1] =
+        facetImpl.swapAndStartBridgeTokensViaAcrossV4Swap.selector;
         addFacet(diamond, address(facetImpl), functionSelectors);
 
         acrossV4SwapFacet = AcrossV4SwapFacet(address(diamond));
@@ -143,9 +146,7 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         string memory jsonPath
     ) internal returns (address) {
         string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/",
-            configFileName
+            vm.projectRoot(), "/config/", configFileName
         );
         string memory json = vm.readFile(path);
         return json.readAddress(jsonPath);
@@ -158,9 +159,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         // Domain 19 maps to chainId 999 (HyperEVM) in `_chainIdToCctpDomainId`.
         assertEq(uint256(quote.destinationDomain), 19);
@@ -197,9 +198,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })
@@ -216,9 +216,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         // Domain 19 maps to chainId 1337 (HyperCore via HyperEVM) in `_chainIdToCctpDomainId`.
         assertEq(uint256(quote.destinationDomain), 19);
@@ -254,9 +254,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })
@@ -273,9 +272,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredOFTSrcPeriphery.Quote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_OFT_CALLDATA,
-                (ISponsoredOFTSrcPeriphery.Quote, bytes)
-            );
+            SPONSORED_OFT_CALLDATA, (ISponsoredOFTSrcPeriphery.Quote, bytes)
+        );
 
         // The stored callData may contain an unset refund recipient (unsigned param).
         // Set it here so the facet's safety validation passes.
@@ -315,9 +313,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         }(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredOFTSrcPeriphery,
                 callData: abi.encode(quote, signature),
                 signature: ""
             })
@@ -332,9 +329,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredOFTSrcPeriphery.Quote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_OFT_CALLDATA,
-                (ISponsoredOFTSrcPeriphery.Quote, bytes)
-            );
+            SPONSORED_OFT_CALLDATA, (ISponsoredOFTSrcPeriphery.Quote, bytes)
+        );
 
         quote.unsignedParams.refundRecipient = address(0);
 
@@ -362,9 +358,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredOFTSrcPeriphery,
                 callData: abi.encode(quote, signature),
                 signature: ""
             })
@@ -394,9 +389,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         }(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredOFTSrcPeriphery,
                 callData: SPONSORED_OFT_CALLDATA,
                 signature: ""
             })
@@ -409,9 +403,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
             transactionId: "someId",
@@ -435,9 +429,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap{ value: 1 }(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })
@@ -450,9 +443,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
             transactionId: "someId",
@@ -476,9 +469,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, address(0)),
                 signature: ""
             })
@@ -491,9 +483,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
             transactionId: "someId",
@@ -517,9 +509,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })
@@ -532,9 +523,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         // Force a mismatch against chainId=999 (domain 19) while keeping signature bytes (will revert before signature is used).
         quote.destinationDomain = 6;
@@ -561,9 +552,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })
@@ -576,9 +566,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
             transactionId: "someId",
@@ -602,9 +592,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })
@@ -617,9 +606,9 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
             ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote,
             bytes memory signature
         ) = abi.decode(
-                SPONSORED_CCTP_CALLDATA,
-                (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
-            );
+            SPONSORED_CCTP_CALLDATA,
+            (ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote, bytes)
+        );
 
         ILiFi.BridgeData memory localBridgeData = ILiFi.BridgeData({
             transactionId: "someId",
@@ -643,9 +632,8 @@ contract AcrossV4SwapFacetSponsoredTest is Test, DiamondTest, ILiFi {
         acrossV4SwapFacet.startBridgeTokensViaAcrossV4Swap(
             localBridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, signature, USER_SENDER),
                 signature: ""
             })

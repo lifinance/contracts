@@ -8,16 +8,14 @@ import { NonETHReceiver } from "../utils/TestHelpers.sol";
 
 /// @custom:version 1.0.0
 contract TestContract is WithdrawablePeriphery {
-    constructor(address _owner) WithdrawablePeriphery(_owner) {}
+    constructor(address _owner) WithdrawablePeriphery(_owner) { }
 }
 
 contract WithdrawablePeripheryTest is TestBaseLocal {
     WithdrawablePeriphery internal withdrawable;
 
     event TokensWithdrawn(
-        address assetId,
-        address payable receiver,
-        uint256 amount
+        address assetId, address payable receiver, uint256 amount
     );
 
     error UnAuthorized();
@@ -44,15 +42,11 @@ contract WithdrawablePeripheryTest is TestBaseLocal {
 
         vm.expectEmit(true, true, true, true, address(withdrawable));
         emit TokensWithdrawn(
-            address(0),
-            payable(USER_RECEIVER),
-            withdrawAmount
+            address(0), payable(USER_RECEIVER), withdrawAmount
         );
 
         withdrawable.withdrawToken(
-            address(0),
-            payable(USER_RECEIVER),
-            withdrawAmount
+            address(0), payable(USER_RECEIVER), withdrawAmount
         );
     }
 
@@ -62,15 +56,11 @@ contract WithdrawablePeripheryTest is TestBaseLocal {
 
         vm.expectEmit(true, true, true, true, address(withdrawable));
         emit TokensWithdrawn(
-            ADDRESS_USDC,
-            payable(USER_RECEIVER),
-            withdrawAmount
+            ADDRESS_USDC, payable(USER_RECEIVER), withdrawAmount
         );
 
         withdrawable.withdrawToken(
-            ADDRESS_USDC,
-            payable(USER_RECEIVER),
-            withdrawAmount
+            ADDRESS_USDC, payable(USER_RECEIVER), withdrawAmount
         );
     }
 
@@ -82,9 +72,7 @@ contract WithdrawablePeripheryTest is TestBaseLocal {
         vm.expectRevert(UnAuthorized.selector);
 
         withdrawable.withdrawToken(
-            address(0),
-            payable(USER_RECEIVER),
-            withdrawAmount
+            address(0), payable(USER_RECEIVER), withdrawAmount
         );
     }
 
@@ -95,9 +83,7 @@ contract WithdrawablePeripheryTest is TestBaseLocal {
         vm.expectRevert(UnAuthorized.selector);
 
         withdrawable.withdrawToken(
-            ADDRESS_USDC,
-            payable(USER_RECEIVER),
-            withdrawAmount
+            ADDRESS_USDC, payable(USER_RECEIVER), withdrawAmount
         );
     }
 
@@ -111,9 +97,7 @@ contract WithdrawablePeripheryTest is TestBaseLocal {
         vm.expectRevert();
 
         withdrawable.withdrawToken(
-            address(0),
-            payable(nonETHReceiver),
-            withdrawAmount
+            address(0), payable(nonETHReceiver), withdrawAmount
         );
     }
 }

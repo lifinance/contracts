@@ -8,7 +8,7 @@ import { GnosisBridgeFacet } from "lifi/Facets/GnosisBridgeFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GnosisBridgeFacet") {}
+    constructor() DeployScriptBase("GnosisBridgeFacet") { }
 
     function run()
         public
@@ -16,17 +16,15 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = GnosisBridgeFacet(
-            deploy(type(GnosisBridgeFacet).creationCode)
-        );
+        deployed =
+            GnosisBridgeFacet(deploy(type(GnosisBridgeFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/gnosis.json");
 
         address xDaiBridge = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".bridgeRouter")
+            path, string.concat(".", network, ".bridgeRouter")
         );
 
         return abi.encode(xDaiBridge);

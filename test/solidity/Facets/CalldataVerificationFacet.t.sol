@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
+import {
+    CalldataVerificationFacet
+} from "lifi/Facets/CalldataVerificationFacet.sol";
 import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
@@ -51,8 +53,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         );
 
         vm.label(
-            address(calldataVerificationFacet),
-            "CalldataVerificationFacet"
+            address(calldataVerificationFacet), "CalldataVerificationFacet"
         );
     }
 
@@ -76,12 +77,11 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractBridgeData() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
-            bridgeData
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector, bridgeData
         );
 
-        ILiFi.BridgeData memory returnedData = calldataVerificationFacet
-            .extractBridgeData(callData);
+        ILiFi.BridgeData memory returnedData =
+            calldataVerificationFacet.extractBridgeData(callData);
 
         checkBridgeData(returnedData);
     }
@@ -93,8 +93,8 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
             swapData
         );
 
-        LibSwap.SwapData[] memory returnedData = calldataVerificationFacet
-            .extractSwapData(callData);
+        LibSwap.SwapData[] memory returnedData =
+            calldataVerificationFacet.extractSwapData(callData);
 
         checkSwapData(returnedData);
     }
@@ -118,8 +118,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractBridgeAndSwapDataNoSwaps() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
-            bridgeData
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector, bridgeData
         );
 
         (
@@ -151,8 +150,8 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
             mayanData
         );
 
-        bytes32 returnedNonEVMAddress = calldataVerificationFacet
-            .extractNonEVMAddress(callData);
+        bytes32 returnedNonEVMAddress =
+            calldataVerificationFacet.extractNonEVMAddress(callData);
 
         assertEq(returnedNonEVMAddress, bytes32("Just some address"));
     }
@@ -180,8 +179,8 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
             mayanData
         );
 
-        bytes32 returnedNonEVMAddress = calldataVerificationFacet
-            .extractNonEVMAddress(callData);
+        bytes32 returnedNonEVMAddress =
+            calldataVerificationFacet.extractNonEVMAddress(callData);
 
         assertEq(returnedNonEVMAddress, bytes32("Just some address"));
     }
@@ -279,8 +278,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanExtractMainParameters() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
-            bridgeData
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector, bridgeData
         );
 
         (
@@ -304,11 +302,11 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     // @dev Returns a slice of `data` starting at `start` with length `len`.
     // Uses memory-safe inline assembly to avoid the stack-too-deep issues.
-    function _safeSlice(
-        bytes memory data,
-        uint256 start,
-        uint256 len
-    ) private pure returns (bytes memory result) {
+    function _safeSlice(bytes memory data, uint256 start, uint256 len)
+        private
+        pure
+        returns (bytes memory result)
+    {
         if (data.length < start + len) {
             revert SliceOutOfBounds();
         }
@@ -396,8 +394,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         assertEq(amount, swapData[0].fromAmount);
         assertEq(receiver, address(1234));
         assertEq(
-            receivingAssetId,
-            swapData[swapData.length - 1].receivingAssetId
+            receivingAssetId, swapData[swapData.length - 1].receivingAssetId
         );
         assertEq(receivingAmount, 1);
     }
@@ -425,8 +422,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         assertEq(amount, swapData[0].fromAmount);
         assertEq(receiver, address(1234));
         assertEq(
-            receivingAssetId,
-            swapData[swapData.length - 1].receivingAssetId
+            receivingAssetId, swapData[swapData.length - 1].receivingAssetId
         );
         assertEq(receivingAmount, 1 ether);
     }
@@ -454,8 +450,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         assertEq(amount, swapData[0].fromAmount);
         assertEq(receiver, address(1234));
         assertEq(
-            receivingAssetId,
-            swapData[swapData.length - 1].receivingAssetId
+            receivingAssetId, swapData[swapData.length - 1].receivingAssetId
         );
         assertEq(receivingAmount, 1 ether);
     }
@@ -489,8 +484,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
 
     function test_CanValidateCalldata() public {
         bytes memory callData = abi.encodeWithSelector(
-            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector,
-            bridgeData
+            AcrossFacetV4.startBridgeTokensViaAcrossV4.selector, bridgeData
         );
 
         bool validCall = calldataVerificationFacet.validateCalldata(
@@ -520,8 +514,8 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
     function test_CanValidateStargateV2DestinationCalldata() public {
         uint16 assetIdUSDC = 1;
 
-        StargateFacetV2.StargateData memory stargateData = StargateFacetV2
-            .StargateData({
+        StargateFacetV2.StargateData memory stargateData =
+            StargateFacetV2.StargateData({
                 assetId: assetIdUSDC,
                 sendParams: IStargate.SendParam({
                     dstEid: 30150,
@@ -550,21 +544,17 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         );
 
         bool validCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("foobarbytes")
+            callData, abi.encode(USER_RECEIVER), bytes("foobarbytes")
         );
-        bool validCallWithSwap = calldataVerificationFacet
-            .validateDestinationCalldata(
+        bool validCallWithSwap =
+            calldataVerificationFacet.validateDestinationCalldata(
                 callDataWithSwap,
                 abi.encode(USER_RECEIVER),
                 bytes("foobarbytes")
             );
 
         bool badCall = calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            abi.encode(USER_RECEIVER),
-            bytes("badbytes")
+            callData, abi.encode(USER_RECEIVER), bytes("badbytes")
         );
 
         assertTrue(validCall);
@@ -575,8 +565,8 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
     function testRevert_WhenCallToAddressIsTooShort() public {
         uint16 assetIdUSDC = 1;
 
-        StargateFacetV2.StargateData memory stargateData = StargateFacetV2
-            .StargateData({
+        StargateFacetV2.StargateData memory stargateData =
+            StargateFacetV2.StargateData({
                 assetId: assetIdUSDC,
                 sendParams: IStargate.SendParam({
                     dstEid: 30150,
@@ -601,9 +591,7 @@ contract CalldataVerificationFacetTest is TestBaseLocal {
         vm.expectRevert("Invalid callTo length; expected at least 20 bytes");
 
         calldataVerificationFacet.validateDestinationCalldata(
-            callData,
-            invalidCallTo,
-            bytes("foobarbytes")
+            callData, invalidCallTo, bytes("foobarbytes")
         );
     }
 

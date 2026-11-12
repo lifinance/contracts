@@ -24,24 +24,17 @@ contract DeployScript is UpdateScriptBase {
         // Handle DiamondLoupeFacet separately as it needs special treatment
         if (!loupeExists) {
             emit log("Loupe does not exist on diamond yet");
-            address diamondLoupeAddress = _getConfigContractAddress(
-                path,
-                ".DiamondLoupeFacet"
-            );
+            address diamondLoupeAddress =
+                _getConfigContractAddress(path, ".DiamondLoupeFacet");
             bytes4[] memory exclude;
-            bytes4[] memory loupeSelectors = getSelectors(
-                "DiamondLoupeFacet",
-                exclude
-            );
+            bytes4[] memory loupeSelectors =
+                getSelectors("DiamondLoupeFacet", exclude);
 
             buildInitialCut(loupeSelectors, diamondLoupeAddress);
             // Encode cutData before delete cut so production flow can propose to Safe
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
+                    DiamondCutFacet.diamondCut.selector, cut, address(0), ""
                 );
                 emit log("DiamondCutCalldata: ");
                 emit log_bytes(cutData);

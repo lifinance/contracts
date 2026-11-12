@@ -8,7 +8,7 @@ import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ERC20Proxy") {}
+    constructor() DeployScriptBase("ERC20Proxy") { }
 
     function run()
         public
@@ -20,16 +20,13 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
         // zkSync CREATE2 addresses depend on the constructor args, which makes the ERC20Proxy and
         // Executor addresses mutually dependent (each constructor takes the other's address). Unlike

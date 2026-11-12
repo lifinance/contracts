@@ -18,21 +18,16 @@ contract DeployScript is UpdateScriptBase {
         _rejectVerificationMode();
 
         // Read core facets dynamically from global.json config
-        string memory globalConfigPath = string.concat(
-            vm.projectRoot(),
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(vm.projectRoot(), "/config/global.json");
         string memory globalConfig = vm.readFile(globalConfigPath);
-        string[] memory coreFacets = globalConfig.readStringArray(
-            ".coreFacets"
-        );
+        string[] memory coreFacets =
+            globalConfig.readStringArray(".coreFacets");
 
         // Read gasZipChainId so we can skip GasZipFacet on networks where GasZip is unsupported,
         // matching the same skip logic in deployCoreFacets.sh and healthCheck.ts.
-        string memory networksConfigPath = string.concat(
-            vm.projectRoot(),
-            "/config/networks.json"
-        );
+        string memory networksConfigPath =
+            string.concat(vm.projectRoot(), "/config/networks.json");
         string memory networksConfig = vm.readFile(networksConfigPath);
         uint256 gasZipChainId = networksConfig.readUint(
             string.concat(".", network, ".gasZipChainId")
@@ -46,9 +41,7 @@ contract DeployScript is UpdateScriptBase {
         // DiamondLoupeFacet should already be deployed by UpdateDiamondLoupeFacet.s.sol
         // Verify it exists, if not, this script will fail
         try loupe.facetAddresses() returns (address[] memory) {
-            emit log(
-                "DiamondLoupeFacet exists - proceeding with core facets deployment"
-            );
+            emit log("DiamondLoupeFacet exists - proceeding with core facets deployment");
         } catch {
             revert DiamondLoupeFacetNotFound();
         }
@@ -59,25 +52,22 @@ contract DeployScript is UpdateScriptBase {
 
             // Skip DiamondCutFacet and DiamondLoupeFacet as they are handled separately
             if (
-                keccak256(bytes(facetName)) ==
-                keccak256(bytes("DiamondLoupeFacet"))
+                keccak256(bytes(facetName))
+                    == keccak256(bytes("DiamondLoupeFacet"))
             ) {
                 continue;
             }
             if (
-                keccak256(bytes(facetName)) ==
-                keccak256(bytes("DiamondCutFacet"))
+                keccak256(bytes(facetName))
+                    == keccak256(bytes("DiamondCutFacet"))
             ) {
                 continue;
             }
             if (
-                keccak256(bytes(facetName)) ==
-                keccak256(bytes("GasZipFacet")) &&
-                gasZipChainId == 0
+                keccak256(bytes(facetName)) == keccak256(bytes("GasZipFacet"))
+                    && gasZipChainId == 0
             ) {
-                emit log(
-                    "Skipping GasZipFacet (gasZipChainId is 0 for this network)"
-                );
+                emit log("Skipping GasZipFacet (gasZipChainId is 0 for this network)");
                 continue;
             }
 
@@ -85,8 +75,7 @@ contract DeployScript is UpdateScriptBase {
             emit log(facetName);
             // Use _getConfigContractAddress which validates the contract exists
             address facetAddress = _getConfigContractAddress(
-                path,
-                string.concat(".", facetName)
+                path, string.concat(".", facetName)
             );
             bytes4[] memory selectors = getSelectors(facetName, exclude);
 
@@ -103,10 +92,7 @@ contract DeployScript is UpdateScriptBase {
         if (noBroadcast) {
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
+                    DiamondCutFacet.diamondCut.selector, cut, address(0), ""
                 );
             }
             emit log("=== DIAMOND CUT CALLDATA FOR MANUAL EXECUTION ===");

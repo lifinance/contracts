@@ -3,12 +3,14 @@ pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
-import { LiFiTimelockController } from "lifi/Security/LiFiTimelockController.sol";
+import {
+    LiFiTimelockController
+} from "lifi/Security/LiFiTimelockController.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LiFiTimelockController") {}
+    constructor() DeployScriptBase("LiFiTimelockController") { }
 
     function run()
         public
@@ -23,35 +25,23 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
 
-        address diamondAddress = _getConfigContractAddress(
-            path,
-            ".LiFiDiamond"
-        );
+        address diamondAddress =
+            _getConfigContractAddress(path, ".LiFiDiamond");
 
         // get minDelay from config file
-        string memory timelockConfigPath = string.concat(
-            root,
-            "/config/timelockController.json"
-        );
+        string memory timelockConfigPath =
+            string.concat(root, "/config/timelockController.json");
         string memory timelockJson = vm.readFile(timelockConfigPath);
         uint256 minDelay = timelockJson.readUint(".minDelay");
 
         // get safeAddress from networks.json
-        string memory networksConfigPath = string.concat(
-            root,
-            "/config/networks.json"
-        );
+        string memory networksConfigPath =
+            string.concat(root, "/config/networks.json");
         address safeAddress = _getConfigContractAddress(
-            networksConfigPath,
-            string.concat(".", network, ".safeAddress")
+            networksConfigPath, string.concat(".", network, ".safeAddress")
         );
 
         // get proposers (can also cancel) -> we only want out multisig (i.e. the admin) to be able to propose and cancel
@@ -65,18 +55,16 @@ contract DeployScript is DeployScriptBase {
         // get deployer wallet from global.json
         path = string.concat(root, "/config/global.json");
         string memory globalConfigJson = vm.readFile(path);
-        address deployerWallet = globalConfigJson.readAddress(
-            ".deployerWallet"
-        );
+        address deployerWallet =
+            globalConfigJson.readAddress(".deployerWallet");
 
-        return
-            abi.encode(
-                minDelay,
-                proposers,
-                executors,
-                deployerWallet,
-                safeAddress,
-                diamondAddress
-            );
+        return abi.encode(
+            minDelay,
+            proposers,
+            executors,
+            deployerWallet,
+            safeAddress,
+            diamondAddress
+        );
     }
 }

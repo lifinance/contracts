@@ -5,7 +5,7 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("WhitelistManagerFacet") {}
+    constructor() DeployScriptBase("WhitelistManagerFacet") { }
 
     function run() public returns (WhitelistManagerFacet deployed) {
         // Deploy WhitelistManagerFacet

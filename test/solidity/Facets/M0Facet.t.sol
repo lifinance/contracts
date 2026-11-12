@@ -3,12 +3,22 @@ pragma solidity ^0.8.17;
 
 import { Vm } from "forge-std/Vm.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { M0Facet } from "lifi/Facets/M0Facet.sol";
 import { IM0OrderBook } from "lifi/Interfaces/IM0OrderBook.sol";
-// solhint-disable-next-line max-line-length
-import { CumulativeSlippageTooHigh, InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import {
+    CumulativeSlippageTooHigh,
+    InformationMismatch,
+    InvalidAmount,
+    InvalidCallData,
+    InvalidConfig,
+    InvalidNonEVMReceiver,
+    InvalidReceiver,
+    NativeAssetNotSupported
+} from "lifi/Errors/GenericErrors.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 
 /// @dev Read-only slice of the live OrderBook used to assert post-conditions and to
@@ -42,18 +52,17 @@ interface IM0OrderBookState {
 }
 
 contract TestM0Facet is M0Facet, TestWhitelistManagerBase {
-    constructor(IM0OrderBook _orderBook) M0Facet(_orderBook) {}
+    constructor(IM0OrderBook _orderBook) M0Facet(_orderBook) { }
 }
 
 contract M0FacetTest is TestBaseFacet {
     /// @dev keccak256 of the OrderBook's OrderOpened signature. Non-indexed:
     ///      orderId, funder, tokenIn, amountIn, tokenOut, amountOut, fillDeadline.
     ///      Indexed: sender, destChainId, solver.
-    bytes32 internal constant ORDER_OPENED_TOPIC =
-        keccak256(
-            // solhint-disable-next-line max-line-length
-            "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
-        );
+    bytes32 internal constant ORDER_OPENED_TOPIC = keccak256(
+        // solhint-disable-next-line max-line-length
+        "OrderOpened(bytes32,address,address,address,uint128,uint32,bytes32,uint128,bytes32,uint32)"
+    );
 
     /// @dev `OrderStatus.Opened` as stored by the live OrderBook.
     uint8 internal constant ORDER_STATUS_OPENED = 1;
@@ -141,20 +150,16 @@ contract M0FacetTest is TestBaseFacet {
         m0Facet = TestM0Facet(address(diamond));
 
         m0Facet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         m0Facet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         m0Facet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
         m0Facet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(m0Facet), "M0Facet");
@@ -186,15 +191,14 @@ contract M0FacetTest is TestBaseFacet {
         m0Facet.startBridgeTokensViaM0(bridgeData, validM0Data);
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         uint256 value = isNative ? swapData[0].fromAmount : 0;
 
         m0Facet.swapAndStartBridgeTokensViaM0{ value: value }(
-            bridgeData,
-            swapData,
-            validM0Data
+            bridgeData, swapData, validM0Data
         );
     }
 
@@ -263,9 +267,8 @@ contract M0FacetTest is TestBaseFacet {
         assertEq(opened.solver, bytes32(0));
         assertEq(uint256(opened.fillDeadline), validM0Data.fillDeadline);
 
-        IM0OrderBookState.Order memory order = IM0OrderBookState(
-            address(ORDER_BOOK)
-        ).getOrder(opened.orderId);
+        IM0OrderBookState.Order memory order =
+            IM0OrderBookState(address(ORDER_BOOK)).getOrder(opened.orderId);
         assertEq(uint256(order.status), uint256(ORDER_STATUS_OPENED));
         assertEq(order.sender, validM0Data.orderOwner);
         assertEq(uint256(order.destChainId), DEST_CHAIN_ID);
@@ -298,9 +301,8 @@ contract M0FacetTest is TestBaseFacet {
         assertEq(opened.sender, ORDER_OWNER);
         assertNotEq(opened.sender, RELAYER);
 
-        IM0OrderBookState.Order memory order = IM0OrderBookState(
-            address(ORDER_BOOK)
-        ).getOrder(opened.orderId);
+        IM0OrderBookState.Order memory order =
+            IM0OrderBookState(address(ORDER_BOOK)).getOrder(opened.orderId);
         assertEq(order.sender, ORDER_OWNER);
         assertNotEq(order.sender, RELAYER);
     }
@@ -320,9 +322,8 @@ contract M0FacetTest is TestBaseFacet {
         OpenedOrder memory opened = _lastOpenedOrder();
         assertEq(opened.solver, SOLVER);
 
-        IM0OrderBookState.Order memory order = IM0OrderBookState(
-            address(ORDER_BOOK)
-        ).getOrder(opened.orderId);
+        IM0OrderBookState.Order memory order =
+            IM0OrderBookState(address(ORDER_BOOK)).getOrder(opened.orderId);
         assertEq(order.solver, SOLVER);
     }
 
@@ -363,8 +364,8 @@ contract M0FacetTest is TestBaseFacet {
 
         assertGt(realizedAmount, defaultUSDCAmount);
 
-        uint256 expectedAmountOut = (uint256(DEFAULT_AMOUNT_OUT) *
-            realizedAmount) / defaultUSDCAmount;
+        uint256 expectedAmountOut =
+            (uint256(DEFAULT_AMOUNT_OUT) * realizedAmount) / defaultUSDCAmount;
 
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
@@ -483,9 +484,7 @@ contract M0FacetTest is TestBaseFacet {
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit BridgeToNonEVMChainBytes32(
-            bridgeData.transactionId,
-            LIFI_CHAIN_ID_SOLANA,
-            SOLANA_RECEIVER
+            bridgeData.transactionId, LIFI_CHAIN_ID_SOLANA, SOLANA_RECEIVER
         );
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
@@ -500,9 +499,8 @@ contract M0FacetTest is TestBaseFacet {
         OpenedOrder memory opened = _lastOpenedOrder();
         assertEq(uint256(opened.destChainId), uint256(M0_CHAIN_ID_SOLANA));
 
-        IM0OrderBookState.Order memory order = IM0OrderBookState(
-            address(ORDER_BOOK)
-        ).getOrder(opened.orderId);
+        IM0OrderBookState.Order memory order =
+            IM0OrderBookState(address(ORDER_BOOK)).getOrder(opened.orderId);
         assertEq(order.recipient, SOLANA_RECEIVER);
         assertEq(uint256(order.destChainId), uint256(M0_CHAIN_ID_SOLANA));
     }
@@ -520,9 +518,7 @@ contract M0FacetTest is TestBaseFacet {
 
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit BridgeToNonEVMChainBytes32(
-            bridgeData.transactionId,
-            LIFI_CHAIN_ID_SOLANA,
-            SOLANA_RECEIVER
+            bridgeData.transactionId, LIFI_CHAIN_ID_SOLANA, SOLANA_RECEIVER
         );
 
         vm.recordLogs();
@@ -560,9 +556,8 @@ contract M0FacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         bridgeData.receiver = NON_EVM_ADDRESS;
-        validM0Data.receiverAddress = bytes32(
-            uint256(uint160(address(0xdead)))
-        );
+        validM0Data.receiverAddress =
+            bytes32(uint256(uint160(address(0xdead))));
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
@@ -914,9 +909,8 @@ contract M0FacetTest is TestBaseFacet {
         OpenedOrder memory opened = _lastOpenedOrder();
         assertEq(opened.solver, SOLANA_SOLVER);
 
-        IM0OrderBookState.Order memory order = IM0OrderBookState(
-            address(ORDER_BOOK)
-        ).getOrder(opened.orderId);
+        IM0OrderBookState.Order memory order =
+            IM0OrderBookState(address(ORDER_BOOK)).getOrder(opened.orderId);
         assertEq(order.solver, SOLANA_SOLVER);
     }
 
@@ -941,9 +935,8 @@ contract M0FacetTest is TestBaseFacet {
         OpenedOrder memory opened = _lastOpenedOrder();
         assertEq(opened.tokenOut, SOLANA_TOKEN_OUT);
 
-        IM0OrderBookState.Order memory order = IM0OrderBookState(
-            address(ORDER_BOOK)
-        ).getOrder(opened.orderId);
+        IM0OrderBookState.Order memory order =
+            IM0OrderBookState(address(ORDER_BOOK)).getOrder(opened.orderId);
         assertEq(order.tokenOut, SOLANA_TOKEN_OUT);
     }
 
@@ -1007,9 +1000,7 @@ contract M0FacetTest is TestBaseFacet {
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         m0Facet.swapAndStartBridgeTokensViaM0{ value: excess }(
-            bridgeData,
-            swapData,
-            validM0Data
+            bridgeData, swapData, validM0Data
         );
 
         vm.stopPrank();
@@ -1028,10 +1019,8 @@ contract M0FacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         bridgeData.hasSourceSwaps = true;
-        (
-            uint256 amountInMax,
-            uint256 amountInRequired
-        ) = _setSwapDataExactUSDCOut(defaultUSDCAmount);
+        (uint256 amountInMax, uint256 amountInRequired) =
+            _setSwapDataExactUSDCOut(defaultUSDCAmount);
         bridgeData.minAmount = defaultUSDCAmount;
 
         uint256 expectedLeftover = amountInMax - amountInRequired;
@@ -1046,13 +1035,9 @@ contract M0FacetTest is TestBaseFacet {
         vm.stopPrank();
 
         assertEq(
-            dai.balanceOf(USER_REFUND),
-            refundBalanceBefore + expectedLeftover
+            dai.balanceOf(USER_REFUND), refundBalanceBefore + expectedLeftover
         );
-        assertEq(
-            dai.balanceOf(USER_SENDER),
-            senderBalanceBefore - amountInMax
-        );
+        assertEq(dai.balanceOf(USER_SENDER), senderBalanceBefore - amountInMax);
         assertEq(dai.balanceOf(address(diamond)), 0);
 
         OpenedOrder memory opened = _lastOpenedOrder();
@@ -1145,9 +1130,10 @@ contract M0FacetTest is TestBaseFacet {
 
     /// @dev Builds a single DAI -> USDC swap for an exact DAI input and returns the
     ///      USDC the pool will actually hand back at the pinned block.
-    function _setSwapDataExactDAIIn(
-        uint256 _amountIn
-    ) internal returns (uint256 amountOutQuoted) {
+    function _setSwapDataExactDAIIn(uint256 _amountIn)
+        internal
+        returns (uint256 amountOutQuoted)
+    {
         delete swapData;
 
         address[] memory path = new address[](2);
@@ -1181,9 +1167,10 @@ contract M0FacetTest is TestBaseFacet {
     /// @param _amountOut The exact USDC the swap must return
     /// @return amountInMax The DAI the swap is funded with
     /// @return amountInRequired The DAI the pool actually takes at the pinned block
-    function _setSwapDataExactUSDCOut(
-        uint256 _amountOut
-    ) internal returns (uint256 amountInMax, uint256 amountInRequired) {
+    function _setSwapDataExactUSDCOut(uint256 _amountOut)
+        internal
+        returns (uint256 amountInMax, uint256 amountInRequired)
+    {
         delete swapData;
 
         address[] memory path = new address[](2);
@@ -1224,17 +1211,15 @@ contract M0FacetTest is TestBaseFacet {
             Vm.Log memory entry = logs[i - 1];
 
             if (
-                entry.emitter != address(ORDER_BOOK) ||
-                entry.topics.length != 4 ||
-                entry.topics[0] != ORDER_OPENED_TOPIC
+                entry.emitter != address(ORDER_BOOK)
+                    || entry.topics.length != 4
+                    || entry.topics[0] != ORDER_OPENED_TOPIC
             ) {
                 continue;
             }
 
-            OrderOpenedData memory data = abi.decode(
-                entry.data,
-                (OrderOpenedData)
-            );
+            OrderOpenedData memory data =
+                abi.decode(entry.data, (OrderOpenedData));
 
             opened.orderId = data.orderId;
             opened.funder = data.funder;

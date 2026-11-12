@@ -5,17 +5,24 @@ import { TestBaseFacet } from "../../../utils/TestBaseFacet.sol";
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
 import { IAcrossSpokePoolV4 } from "lifi/Interfaces/IAcrossSpokePoolV4.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { InvalidConfig, InvalidReceiver, InvalidNonEVMReceiver, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../../../utils/TestWhitelistManagerBase.sol";
+import {
+    InvalidConfig,
+    InvalidReceiver,
+    InvalidNonEVMReceiver,
+    InvalidCallData
+} from "lifi/Errors/GenericErrors.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../../utils/TestWhitelistManagerBase.sol";
 
 // Stub AcrossFacetV4 Contract
 contract TestAcrossFacetV4 is AcrossFacetV4, TestWhitelistManagerBase {
     address internal constant ADDRESS_WETH =
         0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
 
-    constructor(
-        IAcrossSpokePoolV4 _spokePool
-    ) AcrossFacetV4(_spokePool, _convertAddressToBytes32(ADDRESS_WETH)) {}
+    constructor(IAcrossSpokePoolV4 _spokePool)
+        AcrossFacetV4(_spokePool, _convertAddressToBytes32(ADDRESS_WETH))
+    { }
 }
 
 contract AcrossFacetV4Test is TestBaseFacet {
@@ -38,29 +45,23 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         acrossFacetV4 = new TestAcrossFacetV4(IAcrossSpokePoolV4(SPOKE_POOL));
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = acrossFacetV4
-            .startBridgeTokensViaAcrossV4
-            .selector;
-        functionSelectors[1] = acrossFacetV4
-            .swapAndStartBridgeTokensViaAcrossV4
-            .selector;
-        functionSelectors[2] = acrossFacetV4
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        acrossFacetV4.startBridgeTokensViaAcrossV4.selector;
+        functionSelectors[1] =
+        acrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector;
+        functionSelectors[2] =
+        acrossFacetV4.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(acrossFacetV4), functionSelectors);
         acrossFacetV4 = TestAcrossFacetV4(address(diamond));
         acrossFacetV4.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         acrossFacetV4.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         acrossFacetV4.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(acrossFacetV4), "AcrossFacetV4");
@@ -94,27 +95,29 @@ contract AcrossFacetV4Test is TestBaseFacet {
         if (isNative) {
             acrossFacetV4.startBridgeTokensViaAcrossV4{
                 value: bridgeData.minAmount
-            }(bridgeData, validAcrossData);
+            }(
+                bridgeData, validAcrossData
+            );
         } else {
             acrossFacetV4.startBridgeTokensViaAcrossV4(
-                bridgeData,
-                validAcrossData
+                bridgeData, validAcrossData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             acrossFacetV4.swapAndStartBridgeTokensViaAcrossV4{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validAcrossData);
+            }(
+                bridgeData, swapData, validAcrossData
+            );
         } else {
             acrossFacetV4.swapAndStartBridgeTokensViaAcrossV4(
-                bridgeData,
-                swapData,
-                validAcrossData
+                bridgeData, swapData, validAcrossData
             );
         }
     }
@@ -148,9 +151,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
         public
         override
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -180,9 +181,8 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         // Set parameters
         bridgeData.receiver = NON_EVM_ADDRESS;
-        validAcrossData.receiverAddress = _convertAddressToBytes32(
-            NON_EVM_ADDRESS
-        );
+        validAcrossData.receiverAddress =
+            _convertAddressToBytes32(NON_EVM_ADDRESS);
         validAcrossData.receivingAssetId = USDC_ADDRESS_SOLANA;
         bridgeData.minAmount = 1 * 10 ** usdc.decimals();
         validAcrossData.outputAmount = (bridgeData.minAmount * 99) / 100;
@@ -199,9 +199,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
         public
         override
         assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(swapData[0].fromAmount)
+            ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount)
         )
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -242,9 +240,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
     function test_canSwapAndBridgeTokensWithOutputAmountMultiplier()
         public
         assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(swapData[0].fromAmount)
+            ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount)
         )
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -375,10 +371,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidQuoteTimestamp.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -387,8 +380,8 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         assertEq(address(acrossFacetV4.SPOKEPOOL()) == SPOKE_POOL, true);
         assertEq(
-            acrossFacetV4.WRAPPED_NATIVE() ==
-                _convertAddressToBytes32(ADDRESS_WRAPPED_NATIVE),
+            acrossFacetV4.WRAPPED_NATIVE()
+                == _convertAddressToBytes32(ADDRESS_WRAPPED_NATIVE),
             true
         );
     }
@@ -406,10 +399,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -420,16 +410,12 @@ contract AcrossFacetV4Test is TestBaseFacet {
         usdc.approve(address(acrossFacetV4), bridgeData.minAmount);
 
         // Set AcrossData receiver to a different address than bridgeData.receiver
-        validAcrossData.receiverAddress = _convertAddressToBytes32(
-            address(0x456)
-        );
+        validAcrossData.receiverAddress =
+            _convertAddressToBytes32(address(0x456));
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -439,16 +425,12 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         // Set both to different addresses
         bridgeData.receiver = address(0x123);
-        validAcrossData.receiverAddress = _convertAddressToBytes32(
-            address(0x456)
-        );
+        validAcrossData.receiverAddress =
+            _convertAddressToBytes32(address(0x456));
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -461,10 +443,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -477,19 +456,14 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
     function test_SuccessfulValidationWhenReceiverAddressesMatch()
         public
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
     {
@@ -497,9 +471,8 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         // Ensure both receiver addresses match
         bridgeData.receiver = USER_RECEIVER;
-        validAcrossData.receiverAddress = _convertAddressToBytes32(
-            USER_RECEIVER
-        );
+        validAcrossData.receiverAddress =
+            _convertAddressToBytes32(USER_RECEIVER);
 
         // approval
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -509,10 +482,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         // This should succeed without reverting
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -522,19 +492,15 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         // Set up for EVM chain (not non-EVM)
         bridgeData.receiver = USER_RECEIVER; // EVM address
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDC_POL
-        );
+        validAcrossData.receivingAssetId =
+            _convertAddressToBytes32(ADDRESS_USDC_POL);
 
         // Set receiver address to zero (which should cause InvalidReceiver for EVM)
         validAcrossData.receiverAddress = bytes32(0);
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -547,9 +513,8 @@ contract AcrossFacetV4Test is TestBaseFacet {
         // Set up for EVM chain with destination call
         bridgeData.receiver = USER_RECEIVER;
         bridgeData.hasDestinationCall = true; // This bypasses the address matching check
-        validAcrossData.receivingAssetId = _convertAddressToBytes32(
-            ADDRESS_USDC_POL
-        );
+        validAcrossData.receivingAssetId =
+            _convertAddressToBytes32(ADDRESS_USDC_POL);
         validAcrossData.message = "some message"; // Set message to match hasDestinationCall
 
         // Set receiver address to zero (which should cause InvalidReceiver for EVM)
@@ -557,10 +522,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -577,10 +539,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidNonEVMReceiver.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -593,10 +552,7 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
         vm.expectRevert(InvalidCallData.selector);
 
-        acrossFacetV4.startBridgeTokensViaAcrossV4(
-            bridgeData,
-            validAcrossData
-        );
+        acrossFacetV4.startBridgeTokensViaAcrossV4(bridgeData, validAcrossData);
         vm.stopPrank();
     }
 
@@ -614,9 +570,11 @@ contract AcrossFacetV4Test is TestBaseFacet {
 
     /// @notice Converts an address to a bytes32
     /// @param _address The address to convert
-    function _convertAddressToBytes32(
-        address _address
-    ) internal pure returns (bytes32) {
+    function _convertAddressToBytes32(address _address)
+        internal
+        pure
+        returns (bytes32)
+    {
         return bytes32(uint256(uint160(_address)));
     }
 }

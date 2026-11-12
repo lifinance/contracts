@@ -15,9 +15,8 @@ contract TestAMM {
             _fromToken.transferFrom(msg.sender, address(this), _amountIn);
             _fromToken.burn(address(this), _amountIn);
         } else {
-            (bool success, ) = payable(address(0xd34d)).call{
-                value: msg.value
-            }("");
+            (bool success,) =
+                payable(address(0xd34d)).call{ value: msg.value }("");
             if (!success) revert ExternalCallFailed();
         }
 

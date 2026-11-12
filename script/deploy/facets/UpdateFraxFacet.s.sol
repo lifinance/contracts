@@ -27,15 +27,10 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/frax.json");
         json = vm.readFile(path);
         bytes memory rawMappings = json.parseRaw(".mappings");
-        FraxFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
-            rawMappings,
-            (FraxFacet.ChainIdConfig[])
-        );
+        FraxFacet.ChainIdConfig[] memory chainIdConfigs =
+            abi.decode(rawMappings, (FraxFacet.ChainIdConfig[]));
 
         return
-            abi.encodeWithSelector(
-                FraxFacet.initFrax.selector,
-                chainIdConfigs
-            );
+            abi.encodeWithSelector(FraxFacet.initFrax.selector, chainIdConfigs);
     }
 }

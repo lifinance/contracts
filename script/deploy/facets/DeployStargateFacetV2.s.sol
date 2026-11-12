@@ -8,7 +8,7 @@ import { StargateFacetV2 } from "lifi/Facets/StargateFacetV2.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("StargateFacetV2") {}
+    constructor() DeployScriptBase("StargateFacetV2") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/stargateV2.json");
 
         address tokenMessaging = _getConfigContractAddress(
-            path,
-            string.concat(".tokenMessaging.", network)
+            path, string.concat(".tokenMessaging.", network)
         );
 
         return abi.encode(tokenMessaging);

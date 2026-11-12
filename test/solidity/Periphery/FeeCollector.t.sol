@@ -19,7 +19,7 @@ contract FeeCollectorTest is Test {
     }
 
     // Needed to receive ETH
-    receive() external payable {}
+    receive() external payable { }
 
     function testCanCollectTokenFees() public {
         // Arrange
@@ -29,20 +29,17 @@ contract FeeCollectorTest is Test {
         // Act
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
 
         // Assert
         assert(
-            feeToken.balanceOf(address(feeCollector)) ==
-                integratorFee + lifiFee
+            feeToken.balanceOf(address(feeCollector))
+                == integratorFee + lifiFee
         );
         assert(
-            feeCollector.getTokenBalance(address(0xb33f), address(feeToken)) ==
-                integratorFee
+            feeCollector.getTokenBalance(address(0xb33f), address(feeToken))
+                == integratorFee
         );
         assert(feeCollector.getLifiTokenBalance(address(feeToken)) == lifiFee);
     }
@@ -54,16 +51,14 @@ contract FeeCollectorTest is Test {
 
         // Act
         feeCollector.collectNativeFees{ value: integratorFee + lifiFee }(
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            integratorFee, lifiFee, address(0xb33f)
         );
 
         // Assert
         assert(address(feeCollector).balance == integratorFee + lifiFee);
         assert(
-            feeCollector.getTokenBalance(address(0xb33f), address(0)) ==
-                integratorFee
+            feeCollector.getTokenBalance(address(0xb33f), address(0))
+                == integratorFee
         );
         assert(feeCollector.getLifiTokenBalance(address(0)) == lifiFee);
     }
@@ -74,10 +69,7 @@ contract FeeCollectorTest is Test {
         uint256 lifiFee = 0.015 ether;
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
 
         // Act
@@ -98,10 +90,7 @@ contract FeeCollectorTest is Test {
         uint256 lifiFee = 0.015 ether;
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
         uint256 startingBalance = feeToken.balanceOf(address(this));
 
@@ -121,15 +110,10 @@ contract FeeCollectorTest is Test {
         uint256 lifiFee = 0.015 ether;
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
         feeCollector.collectNativeFees{ value: integratorFee + lifiFee }(
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            integratorFee, lifiFee, address(0xb33f)
         );
 
         // Act
@@ -153,15 +137,10 @@ contract FeeCollectorTest is Test {
         uint256 lifiFee = 0.015 ether;
         feeToken.approve(address(feeCollector), integratorFee + lifiFee);
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
         feeCollector.collectNativeFees{ value: integratorFee + lifiFee }(
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            integratorFee, lifiFee, address(0xb33f)
         );
         uint256 startingTokenBalance = feeToken.balanceOf(address(this));
         uint256 startingETHBalance = address(this).balance;
@@ -174,8 +153,8 @@ contract FeeCollectorTest is Test {
 
         // Assert
         assert(
-            feeToken.balanceOf(address(this)) ==
-                0.015 ether + startingTokenBalance
+            feeToken.balanceOf(address(this))
+                == 0.015 ether + startingTokenBalance
         );
         assert(address(this).balance == 0.015 ether + startingETHBalance);
         assert(address(feeCollector).balance == 1 ether);
@@ -191,10 +170,7 @@ contract FeeCollectorTest is Test {
 
         // make sure feeCollector has collected fees
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
 
         // Act
@@ -214,16 +190,11 @@ contract FeeCollectorTest is Test {
 
         // make sure feeCollector has collected fees
         feeCollector.collectTokenFees(
-            address(feeToken),
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            address(feeToken), integratorFee, lifiFee, address(0xb33f)
         );
 
         feeCollector.collectNativeFees{ value: integratorFee + lifiFee }(
-            integratorFee,
-            lifiFee,
-            address(0xb33f)
+            integratorFee, lifiFee, address(0xb33f)
         );
 
         // Act

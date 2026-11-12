@@ -8,7 +8,7 @@ import { M0Facet } from "lifi/Facets/M0Facet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("M0Facet") {}
+    constructor() DeployScriptBase("M0Facet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/m0.json");
 
         address orderBook = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".orderBook")
+            path, string.concat(".", network, ".orderBook")
         );
 
         return abi.encode(orderBook);

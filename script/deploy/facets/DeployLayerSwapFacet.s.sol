@@ -8,7 +8,7 @@ import { LayerSwapFacet } from "lifi/Facets/LayerSwapFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LayerSwapFacet") {}
+    constructor() DeployScriptBase("LayerSwapFacet") { }
 
     function run()
         public
@@ -20,13 +20,10 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory layerSwapPath = string.concat(
-            root,
-            "/config/layerswap.json"
-        );
+        string memory layerSwapPath =
+            string.concat(root, "/config/layerswap.json");
         address layerSwapDepository = _getConfigContractAddress(
-            layerSwapPath,
-            string.concat(".layerSwapDepository.", network)
+            layerSwapPath, string.concat(".layerSwapDepository.", network)
         );
 
         string memory globalPath = string.concat(root, "/config/global.json");
@@ -34,14 +31,12 @@ contract DeployScript is DeployScriptBase {
 
         address backendSigner;
         if (
-            keccak256(abi.encodePacked(fileSuffix)) ==
-            keccak256(abi.encodePacked("staging."))
+            keccak256(abi.encodePacked(fileSuffix))
+                == keccak256(abi.encodePacked("staging."))
         ) {
             backendSigner = globalJson.readAddress(".backendSigner.staging");
         } else {
-            backendSigner = globalJson.readAddress(
-                ".backendSigner.production"
-            );
+            backendSigner = globalJson.readAddress(".backendSigner.production");
         }
 
         return abi.encode(layerSwapDepository, backendSigner);

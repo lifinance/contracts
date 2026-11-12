@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
-import { CelerCircleBridgeFacet } from "lifi/Facets/CelerCircleBridgeFacet.sol";
+import {
+    CelerCircleBridgeFacet
+} from "lifi/Facets/CelerCircleBridgeFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
     function run()
@@ -20,9 +22,8 @@ contract DeployScript is UpdateScriptBase {
     }
 
     function getCallData() internal pure override returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                CelerCircleBridgeFacet.initCelerCircleBridge.selector
-            );
+        return abi.encodeWithSelector(
+            CelerCircleBridgeFacet.initCelerCircleBridge.selector
+        );
     }
 }

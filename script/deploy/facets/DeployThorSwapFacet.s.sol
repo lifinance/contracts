@@ -8,7 +8,7 @@ import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ThorSwapFacet") {}
+    constructor() DeployScriptBase("ThorSwapFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/thorswap.json");
 
         address thorchainRouter = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".thorchainRouter")
+            path, string.concat(".", network, ".thorchainRouter")
         );
         return abi.encode(thorchainRouter);
     }
