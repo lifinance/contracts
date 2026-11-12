@@ -5,7 +5,56 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { parseTronAddressOutput, parseTroncastArrayOutput } from './tronUtils'
+import type { TronWeb } from 'tronweb'
+
+import {
+  parseTronAddressOutput,
+  parseTroncastArrayOutput,
+  tronExistingDeploymentMode,
+} from './tronUtils'
+
+describe('tronExistingDeploymentMode', () => {
+  const ADDR = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'
+
+  /** A TronWeb whose `getContract` answers `info` and records the address asked. */
+  const fakeTronWeb = (info: { contract_address?: string } | null) => {
+    const asked: string[] = []
+    const tronWeb = {
+      trx: {
+        getContract: async (address: string) => {
+          asked.push(address)
+          return info
+        },
+      },
+    } as unknown as TronWeb
+    return { asked, tronWeb }
+  }
+
+  it('prompts when --proposeOnly is off', () => {
+    const { tronWeb } = fakeTronWeb(null)
+
+    expect(tronExistingDeploymentMode(false, 'EcoFacet', tronWeb)).toEqual({
+      kind: 'prompt',
+    })
+  })
+
+  it('checks the recorded address on-chain when --proposeOnly is on', async () => {
+    const { asked, tronWeb } = fakeTronWeb({ contract_address: ADDR })
+    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb)
+    if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
+
+    expect(await mode.hasCode(ADDR)).toBe(true)
+    expect(asked).toEqual([ADDR])
+  })
+
+  it('reports no code when the chain returns no contract', async () => {
+    const { tronWeb } = fakeTronWeb(null)
+    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb)
+    if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
+
+    expect(await mode.hasCode(ADDR)).toBe(false)
+  })
+})
 
 describe('parseTronAddressOutput', () => {
   const ADDR = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'

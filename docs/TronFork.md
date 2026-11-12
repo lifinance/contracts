@@ -597,6 +597,14 @@ bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
 bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
 
+Each `deploy-and-register-*.ts` script proposes what it deploys, so it refuses to start
+without `SAFE_PROPOSAL_TICKET`, before it builds or spends TRX; `--dryRun` (and the Symbiosis script's `DEFER_CUT=true`,
+which proposes nothing) is exempt.
+When a facet is deployed but its proposal is missing, re-run its script with
+`--proposeOnly`: it proposes the address recorded for the network without deploying, and
+refuses when none is recorded, when it has no code, or when a `tronshasta` run would
+take it from `tron.json`. Production rollouts run these through `/multisig-rollout`.
+
 
 ### Per-network contract references in `config/`
 

@@ -58,6 +58,22 @@ afterAll(() => {
  * the intent itself instead of calling `assertTicketPresent`, so the caller grep
  * must not expect to find it.
  */
+/**
+ * The Tron deploy scripts that check the ticket at entry, before they spend
+ * TRX. Not funnels: they reach the store through the Tron route above, and
+ * `SAFE_PROPOSAL_TICKET` is their only channel — `MultisigSigningProcess.md`
+ * §4.2. `deploy/tron/deploy-ticket-gate.test.ts` pins where the check sits.
+ */
+const TRON_DEPLOY_SCRIPTS = [
+  'deploy/tron/deploy-and-register-allbridge-facet.ts',
+  'deploy/tron/deploy-and-register-eco-facet.ts',
+  'deploy/tron/deploy-and-register-layerswap-facet.ts',
+  'deploy/tron/deploy-and-register-lifi-intent-escrow-facet-v2.ts',
+  'deploy/tron/deploy-and-register-near-intents-facet.ts',
+  'deploy/tron/deploy-and-register-periphery.ts',
+  'deploy/tron/deploy-and-register-symbiosis-facet.ts',
+] as const
+
 const FUNNELS = [
   {
     script: 'deploy/safe/propose-to-safe.ts',
@@ -412,9 +428,12 @@ describe('every route is classified, and each funnel matches its source', () => 
     // and this case names it instead of ignoring it.
     const callers = callersOf('assertTicketPresent')
 
-    const expected = FUNNELS.filter((funnel) => funnel.asserts).map(
-      (funnel) => funnel.script
-    )
+    const expected = [
+      ...FUNNELS.filter((funnel) => funnel.asserts).map(
+        (funnel) => funnel.script
+      ),
+      ...TRON_DEPLOY_SCRIPTS,
+    ]
 
     // Pairs the set comparison with a floor: an empty grep result would
     // otherwise make the comparison trivially true.

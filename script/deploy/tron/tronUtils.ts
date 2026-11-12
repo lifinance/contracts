@@ -19,7 +19,11 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
 
-import type { IDeploymentResult, SupportedChain } from '../../common/types'
+import type {
+  ExistingDeploymentMode,
+  IDeploymentResult,
+  SupportedChain,
+} from '../../common/types'
 import { sleep } from '../../utils/delay'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
 import { logDeployment, saveContractAddress } from '../../utils/utils'
@@ -98,6 +102,27 @@ export async function checkIsDeployedTron(
     `Contract "${contract}" at ${tronAddress}: getContract failed after retries.`
   )
   return false
+}
+
+/**
+ * The `checkExistingDeployment` mode for a Tron deploy-and-register script.
+ *
+ * @param proposeOnly - the script's `--proposeOnly` flag
+ * @param contract - the contract the script deploys
+ * @param tronWeb - reads the recorded address's code in propose-only mode
+ * @returns `proposeOnly` with an on-chain code check, else `prompt`
+ */
+export function tronExistingDeploymentMode(
+  proposeOnly: boolean,
+  contract: string,
+  tronWeb: TronWeb
+): ExistingDeploymentMode {
+  if (!proposeOnly) return { kind: 'prompt' }
+  return {
+    kind: 'proposeOnly',
+    hasCode: (address) =>
+      checkIsDeployedTron(contract, { [contract]: address }, tronWeb),
+  }
 }
 
 /**

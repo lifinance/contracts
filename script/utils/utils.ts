@@ -16,6 +16,7 @@ import type { Hex } from 'viem'
 import networksConfig from '../../config/networks.json'
 import type {
   EVMVersion,
+  ExistingDeploymentMode,
   IDeploymentResult,
   IDiamondDeploymentLog,
   IFoundryProfileDefaultConfig,
@@ -479,12 +480,28 @@ export async function getContractAddress(
   network: NetworkKey,
   contract: string
 ): Promise<string | null> {
+  return (await findContractAddress(network, contract))?.address ?? null
+}
+
+/**
+ * Finds a contract's recorded address and says whether it came from another
+ * network's log.
+ *
+ * @param network - the network whose logs are searched
+ * @param contract - the contract name to look up
+ * @returns the address and `fromOtherNetwork`, or null when no log records it
+ * @throws when `network` would resolve outside `deployments/`
+ */
+async function findContractAddress(
+  network: NetworkKey,
+  contract: string
+): Promise<{ address: string; fromOtherNetwork: boolean } | null> {
   const environment = getEnvironment()
   const fileSuffix =
     environment === EnvironmentEnum.production ? '' : 'staging.'
   const roots = getDeploymentRoots()
 
-  const filesToTry: string[] = []
+  const filesToTry: { path: string; fromOtherNetwork: boolean }[] = []
   for (const root of roots) {
     const base = resolve(root, 'deployments')
     for (const target of [
@@ -494,21 +511,21 @@ export async function getContractAddress(
       const relativePath = relative(base, target)
       if (relativePath.startsWith('..') || isAbsolute(relativePath))
         throw new Error(`Invalid network name: ${network}`)
-      filesToTry.push(target)
+      filesToTry.push({ path: target, fromOtherNetwork: false })
     }
   }
   // When staging Tron, mainnet deployment may be the only file
   if (network === 'tronshasta')
     for (const root of roots)
-      filesToTry.push(resolve(root, 'deployments/tron.json'))
+      filesToTry.push({
+        path: resolve(root, 'deployments/tron.json'),
+        fromOtherNetwork: true,
+      })
 
-  for (const deploymentFile of filesToTry) {
-    const deployments =
-      await readJsonFile<Record<string, string>>(deploymentFile)
-    if (deployments) {
-      const address = deployments[contract] || null
-      if (address) return address
-    }
+  for (const { path, fromOtherNetwork } of filesToTry) {
+    const deployments = await readJsonFile<Record<string, string>>(path)
+    const address = deployments?.[contract]
+    if (address) return { address, fromOtherNetwork }
   }
 
   return null
@@ -595,17 +612,42 @@ export async function getFacetSelectors(
 }
 
 /**
- * Check if a contract is already deployed and prompt for redeploy
+ * Decides whether a deploy script deploys a contract or reuses the address
+ * recorded for the network.
+ *
+ * @param network - the network being deployed to
+ * @param contractName - the contract to look up
+ * @param dryRun - only changes the prompt's wording
+ * @param mode - `prompt` asks before redeploying a recorded address; `redeploy`
+ *   deploys without asking; `proposeOnly` never deploys and returns the recorded
+ *   address for the caller to propose
+ * @returns the recorded address, if any, and whether to deploy
+ * @throws in `proposeOnly` mode when no address is recorded for `network`, when
+ *   the only record is another network's log, or when `hasCode` finds no code
  */
 export async function checkExistingDeployment(
   network: SupportedChain,
   contractName: string,
-  dryRun = false
+  dryRun = false,
+  mode: ExistingDeploymentMode = { kind: 'prompt' }
 ): Promise<{
   exists: boolean
   address: string | null
   shouldRedeploy: boolean
 }> {
+  if (mode.kind === 'redeploy')
+    return { exists: false, address: null, shouldRedeploy: true }
+
+  if (mode.kind === 'proposeOnly') {
+    const address = await recordedAddressWithCode(
+      network,
+      contractName,
+      mode.hasCode
+    )
+    consola.info(`Propose-only: using ${contractName} at ${address}`)
+    return { exists: true, address, shouldRedeploy: false }
+  }
+
   const existingAddress = await getContractAddress(network, contractName)
 
   if (existingAddress) {
@@ -632,6 +674,27 @@ export async function checkExistingDeployment(
     address: null,
     shouldRedeploy: true,
   }
+}
+
+async function recordedAddressWithCode(
+  network: SupportedChain,
+  contractName: string,
+  hasCode: (address: string) => Promise<boolean>
+): Promise<string> {
+  const found = await findContractAddress(network, contractName)
+  if (!found)
+    throw new Error(
+      `--proposeOnly: no ${contractName} address is recorded for ${network}; deploy it first (run without --proposeOnly)`
+    )
+  if (found.fromOtherNetwork)
+    throw new Error(
+      `--proposeOnly: ${contractName} is recorded for ${network} only through another network's log (${found.address}); that address does not exist on ${network} — deploy it there first`
+    )
+  if (!(await hasCode(found.address)))
+    throw new Error(
+      `--proposeOnly: ${contractName} at ${found.address} has no code on ${network} (or it could not be read); check the deployment log before proposing`
+    )
+  return found.address
 }
 
 /**

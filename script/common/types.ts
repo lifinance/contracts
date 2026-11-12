@@ -197,6 +197,12 @@ export interface IDeploymentResult {
   status?: 'success' | 'failed' | 'existing'
 }
 
+/** How a deploy script treats a contract already recorded for its network. */
+export type ExistingDeploymentMode =
+  | { kind: 'prompt' }
+  | { kind: 'redeploy' }
+  | { kind: 'proposeOnly'; hasCode: (address: string) => Promise<boolean> }
+
 export interface INetworkInfo {
   network: string
   block: number

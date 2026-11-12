@@ -28,24 +28,32 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
-import { deployContractWithLogging, validateBalance } from './tronUtils'
+import {
+  deployContractWithLogging,
+  tronExistingDeploymentMode,
+  validateBalance,
+} from './tronUtils'
 
 const CONTRACT_NAME = 'LiFiIntentEscrowFacetV2'
 
 async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
   dryRun?: boolean
+  proposeOnly?: boolean
 }) {
   consola.start(`TRON ${CONTRACT_NAME} Deployment & Registration`)
+  const dryRun = options.dryRun ?? false
+  const proposeOnly = options.proposeOnly ?? false
+  if (!dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 
-  const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
@@ -81,7 +89,6 @@ async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
@@ -99,7 +106,7 @@ async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
       privateKey,
     })
 
-    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
+    if (!proposeOnly) await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
     const escrowConfig = JSON.parse(
       await readFile('config/lifiintentescrow.json', 'utf8')
@@ -125,7 +132,10 @@ async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
 
     const contracts = [CONTRACT_NAME]
 
-    if (!(await confirmDeployment(environment, network, contracts)))
+    if (
+      !proposeOnly &&
+      !(await confirmDeployment(environment, network, contracts))
+    )
       process.exit(0)
 
     const deploymentResults: IDeploymentResult[] = []
@@ -135,7 +145,8 @@ async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       CONTRACT_NAME,
-      dryRun
+      dryRun,
+      tronExistingDeploymentMode(proposeOnly, CONTRACT_NAME, tronWeb)
     )
 
     let facetAddress: string
@@ -230,10 +241,19 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
     },
+    proposeOnly: {
+      type: 'boolean',
+      description:
+        'Skip the deploy and propose the address recorded for the network',
+    },
   },
   async run({ args }) {
     await deployAndRegisterLiFiIntentEscrowFacetV2({
       dryRun: flagIsOn(args.dryRun),
+      proposeOnly: readBooleanFlag(process.argv, {
+        camel: 'proposeOnly',
+        kebab: 'propose-only',
+      }),
     })
   },
 })
