@@ -302,6 +302,73 @@ describe('advanceScan', () => {
     expect(BigInt(outcome.state.span ?? '0')).toBeLessThanOrEqual(1_000n)
   })
 
+  describe('vouched floor', () => {
+    /** Scanned down to `low` from 100_000, on a timelock created at block 0. */
+    const scannedDownTo = (low: bigint) => ({
+      ...initialScanState(undefined, TIMELOCK),
+      floor: '0',
+      low: low.toString(),
+      high: '100000',
+    })
+
+    it('completes history at a vouched floor the endpoints cannot read below', async () => {
+      const deps = chain({ head: 100_000n, floor: 0n, logs: [] })
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10, {
+        vouchedFloor: 50_000n,
+      })
+      expect(outcome.historyComplete).toBe(true)
+      expect(deps.served.every(([from]) => from >= 50_000n)).toBe(true)
+      expect(outcome.state.floor).toBe('0')
+    })
+
+    it('reads history down to a vouched floor that is below what was scanned', async () => {
+      const deps = chain({
+        head: 100_000n,
+        floor: 0n,
+        logs: [scheduledAt(45_000n, id(1)), scheduledAt(35_000n, id(2))],
+      })
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10, {
+        vouchedFloor: 40_000n,
+      })
+      expect(outcome.historyComplete).toBe(true)
+      const history = deps.served.filter(([from]) => from < 50_000n)
+      expect(covers(history, 40_000n, 49_999n)).toBe(true)
+      expect(deps.served.every(([from]) => from >= 40_000n)).toBe(true)
+      expect(Object.keys(outcome.state.operations)).toEqual([id(1)])
+    })
+
+    it('ignores a vouched floor below the creation block', async () => {
+      const deps = chain({
+        head: 1_000n,
+        floor: 100n,
+        logs: [scheduledAt(50n, id(9))],
+      })
+      const outcome = await advanceScan(
+        initialScanState(undefined, TIMELOCK),
+        deps,
+        10,
+        { vouchedFloor: 10n }
+      )
+      expect(outcome.historyComplete).toBe(true)
+      expect(deps.served.every(([from]) => from >= 100n)).toBe(true)
+      expect(outcome.state.floor).toBe('100')
+    })
+
+    it('leaves history incomplete without one when the endpoints refuse older blocks', async () => {
+      const base = chain({ head: 100_000n, floor: 0n, logs: [] })
+      const deps: IScanDependencies = {
+        ...base,
+        getLogs: async (from, to) => {
+          if (from < 50_000n) throw new Error('fromBlock is too far')
+          return base.getLogs(from, to)
+        },
+      }
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10)
+      expect(outcome.historyComplete).toBe(false)
+      expect(outcome.historyError).toContain('fromBlock is too far')
+    })
+  })
+
   it('reports a history range no endpoint serves as incomplete, not covered', async () => {
     const deps = chain({
       head: 100_000n,

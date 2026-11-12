@@ -24,6 +24,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 import {
+  BaseError,
   createPublicClient,
   encodeFunctionData,
   http,
@@ -301,10 +302,49 @@ const timeboxed = (client: PublicClient): PublicClient =>
     },
   })
 
-const describe = (error: unknown): string =>
-  redactUrls(error instanceof Error ? error.message : String(error))
-    .split('\n')[0]
-    ?.slice(0, 300) ?? 'unknown error'
+// viem's first message line is generic ("Invalid parameters were provided to
+// the RPC method."); the provider's own reason is only in `details`.
+const describe = (error: unknown): string => {
+  const text =
+    error instanceof BaseError && error.details
+      ? `${error.shortMessage.split('\n')[0]} (${error.details})`
+      : error instanceof Error
+        ? error.message
+        : String(error)
+  return redactUrls(text).split('\n')[0]?.slice(0, 300) ?? 'unknown error'
+}
+
+/** A block below which a network's timelock history was checked by hand rather than scanned. */
+export interface IVouchedFloor {
+  block: bigint
+  reason: string
+}
+
+/**
+ * Reads a network's vouched history floor from `config/timelockController.json`.
+ *
+ * @param network - Network name.
+ * @param floors - The config's `historyFloors` map.
+ * @returns The floor, or undefined when the network has none.
+ * @throws When the network's entry lacks a decimal `block` or a `reason`.
+ */
+export const vouchedFloorOf = (
+  network: string,
+  floors: Record<string, unknown> | undefined
+): IVouchedFloor | undefined => {
+  const entry = floors?.[network]
+  if (entry === undefined) return undefined
+  const { block, reason } = (entry ?? {}) as Record<string, unknown>
+  if (typeof block !== 'string' || !/^\d+$/.test(block))
+    throw new Error(
+      `config/timelockController.json historyFloors.${network}.block must be a decimal block number string`
+    )
+  if (typeof reason !== 'string' || reason.trim() === '')
+    throw new Error(
+      `config/timelockController.json historyFloors.${network}.reason must say how the history below the block was checked`
+    )
+  return { block: BigInt(block), reason }
+}
 
 /** One `eth_getLogs` endpoint, tagged by its host: the only part of its URL a report may name. */
 export interface ILogEndpoint {
@@ -1068,6 +1108,12 @@ export const watchNetwork = async (
     )
   }
 
+  let vouched: IVouchedFloor | undefined
+  try {
+    vouched = vouchedFloorOf(name, timelockConfig.historyFloors)
+  } catch (error) {
+    return unreadableAfterOwner(describe(error))
+  }
   const previous = initialScanState(ctx.state.networks[name], timelock)
   const readLogRange = createLogRangeReader(logEndpoints, timelock)
   let scan: Awaited<ReturnType<typeof advanceScan>>
@@ -1121,12 +1167,20 @@ export const watchNetwork = async (
       {
         until: startedAt + ctx.historyMs,
         parallel: HISTORY_PARALLEL_RANGES,
+        ...(vouched ? { vouchedFloor: vouched.block } : {}),
       }
     )
   } catch (error) {
     return unreadableAfterOwner(logScanFailureReason(error))
   }
   if (floorNote) notes.push(floorNote)
+  if (
+    vouched &&
+    (scan.state.floor === undefined || BigInt(scan.state.floor) < vouched.block)
+  )
+    notes.push(
+      `history below block ${vouched.block} is vouched for, not scanned: ${vouched.reason}`
+    )
   if (scan.historyError !== undefined)
     notes.push(
       `no endpoint would serve the next history range: ${redactUrls(
