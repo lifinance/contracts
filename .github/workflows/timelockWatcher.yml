@@ -37,7 +37,8 @@
 #         records and deployment records for gate K)
 #     * secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
 # - Known limitations:
-#     * Tron is reported as not covered on every run
+#     * Tron's JSON-RPC serves state only at the latest block, so Tron's history is backfilled from
+#       genesis (a few runs, once) and its getTimestamp reads are not pinned to a block
 #     * History is backfilled from each timelock's creation block for 2 minutes per network per run;
 #       a network whose endpoints only serve narrow log ranges reports "history not scanned yet"
 #       (unverified) until it completes. Dispatch with a larger history-minutes to catch up faster

@@ -244,15 +244,10 @@ describe('jobFails', () => {
     ).toBe(true)
   })
 
-  it('fails when no network could be read, ignoring skipped and uncovered ones', () => {
+  it('fails when no network could be read, ignoring skipped ones', () => {
     const skipped = report({ network: 'zksync', status: 'skipped' })
-    const uncovered = report({
-      network: 'tron',
-      status: 'uncovered',
-      verdict: 'unverified',
-    })
-    expect(jobFails([unreadable, skipped, uncovered], false)).toBe(true)
-    expect(jobFails([skipped, uncovered], false)).toBe(false)
+    expect(jobFails([unreadable, skipped], false)).toBe(true)
+    expect(jobFails([skipped], false)).toBe(false)
     expect(jobFails([], false)).toBe(false)
   })
 
