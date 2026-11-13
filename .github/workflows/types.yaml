@@ -119,13 +119,13 @@ jobs:
           # Handle beta versions for non-main branches
           if [[ "$BRANCH_NAME" != "main" ]]; then
             if [[ "$LATEST_TAG" != *"beta"* ]]; then
-              while read ITEM; do
+              while read -r ITEM; do
                 TAG_NAME=$(jq -r '.name' <<< "$ITEM")
                 if [[ "$TAG_NAME" == "$LATEST_TAG-beta"* ]]; then
                   LATEST_TAG=$TAG_NAME
                   break
                 fi
-              done <<<$(echo "$RELEASE_JSON" | jq -c -r '.[]')
+              done <<< "$(echo "$RELEASE_JSON" | jq -c -r '.[]')"
             fi
           fi
 
@@ -142,7 +142,7 @@ jobs:
           fi
 
           echo "LATEST_TAG=$LATEST_TAG"
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+          echo "LATEST_TAG=$LATEST_TAG" >> "$GITHUB_ENV"
 
       # Step 12: Increment the version number based on the commit message and branch
       - name: Update Version
@@ -192,7 +192,7 @@ jobs:
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}${BETA}"
 
           echo "New version: $NEW_VERSION"
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_ENV"
 
       # Step 13: Push the updated version tag to the repository
       - name: Push Updated Tag
@@ -219,5 +219,5 @@ jobs:
           git tag -a "v$NEW_VERSION" -m "$MESSAGE"
           git push origin tag "v$NEW_VERSION"
           if [[ "$BRANCH_NAME" == "main" ]]; then
-            git push -u origin $BRANCH_NAME
+            git push -u origin "$BRANCH_NAME"
           fi

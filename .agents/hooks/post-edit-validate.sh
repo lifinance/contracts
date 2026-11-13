@@ -52,6 +52,11 @@ case "$FILE" in
     FINDINGS=$(bash -n "$FILE" 2>&1)
     [[ -n "$FINDINGS" ]] && FINDINGS="bash -n: $FINDINGS"
     ;;
+  */.github/workflows/*.yml | */.github/workflows/*.yaml)
+    if command -v actionlint > /dev/null; then
+      FINDINGS=$(actionlint "$REL" 2>&1)
+    fi
+    ;;
 esac
 
 if [[ -n "${FINDINGS//[[:space:]]/}" ]]; then

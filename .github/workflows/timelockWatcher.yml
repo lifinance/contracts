@@ -98,9 +98,9 @@ jobs:
           work="$(mktemp -d)"
           mkdir -p "$work/src"
           echo 'pragma solidity >=0.8.0; contract Probe {}' > "$work/src/Probe.sol"
-          for version in $(grep -E "^solc_version *= *'" foundry.toml | sed -E "s/.*'([0-9.]+)'.*/\1/" | sort -u); do
+          while read -r version; do
             forge build --root "$work" --use "$version" > /dev/null
-          done
+          done < <(grep -E "^solc_version *= *'" foundry.toml | sed -E "s/.*'([0-9.]+)'.*/\1/" | sort -u)
 
       - name: Setup Bun
         id: bun
