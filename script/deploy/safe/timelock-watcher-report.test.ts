@@ -66,14 +66,6 @@ const reports: INetworkReport[] = [
     notes: ['history before block 750 is not scanned yet'],
   },
   {
-    network: 'tron',
-    status: 'uncovered',
-    verdict: 'unverified',
-    reason: 'Tron is not covered',
-    operations: [],
-    notes: [],
-  },
-  {
     network: 'mainnet',
     status: 'unreadable',
     verdict: 'unverified',
@@ -110,11 +102,10 @@ describe('coverageOf', () => {
 describe('tallyReports', () => {
   it('counts every status and verdict', () => {
     expect(tallyReports(reports)).toEqual({
-      networks: 5,
+      networks: 4,
       watched: 2,
       skipped: 1,
       unreadable: 1,
-      uncovered: 1,
       historyIncomplete: 1,
       operations: 1,
       byVerdict: { ok: 0, mismatch: 1, unverified: 0 },
@@ -152,14 +143,13 @@ describe('renderJobSummary', () => {
     expect(escaped).toContain('a\\\\\\|b')
   })
 
-  it('says why a network is not covered or unreadable', () => {
-    expect(summary).toContain('Tron is not covered')
+  it('says why a network is unreadable', () => {
     expect(summary).toContain('the log scan failed')
   })
 
   it('leads with the fleet totals', () => {
     expect(summary).toContain(
-      '5 network(s): 2 watched, 1 unreadable, 1 not covered, 1 skipped'
+      '4 network(s): 2 watched, 1 unreadable, 1 skipped'
     )
   })
 })

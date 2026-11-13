@@ -37,7 +37,10 @@
 #         records and deployment records for gate K)
 #     * secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
 # - Known limitations:
-#     * Tron is reported as not covered on every run
+#     * Tron's JSON-RPC serves state only at the latest block, so Tron's history is backfilled from
+#       genesis (once, about 20 runs or 3-4 hours at the default 2 minutes per run; a dispatch with
+#       a larger history-minutes catches up faster) and its getTimestamp reads are not pinned to a block: there a read of
+#       "never scheduled" drops an operation only when a Cancelled log proves it
 #     * History is backfilled from each timelock's creation block for 2 minutes per network per run;
 #       a network whose endpoints only serve narrow log ranges reports "history not scanned yet"
 #       (unverified) until it completes. Dispatch with a larger history-minutes to catch up faster
@@ -84,6 +87,12 @@ jobs:
           # Gate K checks out each recorded deployment commit to rebuild it.
           fetch-depth: 0
           persist-credentials: false # no git writes needed; avoid leaving GITHUB_TOKEN in .git/config
+
+      - name: Add the Tron source remote
+        id: tron-remote
+        # Tron is built and deployed from the contracts-tron fork, so gate K fetches a Tron record's
+        # commit through this remote (script/deploy/codehash/source-remote.ts); the repo is public.
+        run: git remote add tron https://github.com/lifinance/contracts-tron.git
 
       - name: Install Foundry
         id: foundry

@@ -42,6 +42,7 @@ import timelockConfig from '../../../config/timelockController.json'
 import type { INetworksObject, IWhitelistConfig } from '../../common/types'
 import { isEntrypoint } from '../../utils/is-entrypoint'
 import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { redactUrls } from '../../utils/redactUrls'
 import { SlackNotifier, isUnattendedRun } from '../../utils/slack-notifier'
 import {
@@ -120,6 +121,7 @@ import {
   type INetworkScanState,
   type IScannedOperation,
 } from './timelock-watcher-scan'
+import { tronDeploymentsAsHex, withTronWallets } from './timelock-watcher-tron'
 import {
   buildWatcherCancelInput,
   classifyOperation,
@@ -175,6 +177,12 @@ const DEFAULT_HISTORY_MINUTES = 2
 /** History ranges read at once per network; the endpoints are slow per call, not per block. */
 const HISTORY_PARALLEL_RANGES = 8
 
+/**
+ * TronGrid's cap on one `eth_getLogs` range. Without it the span settles at a
+ * tenth of the cap and every run is refused once trying the next width up.
+ */
+const TRON_MAX_LOG_SPAN = 5_000n // 5,000 blocks
+
 /** Time one network may take beyond its history budget and one gate K rebuild before it counts as unreadable. */
 const NETWORK_OVERHEAD_MS = 6 * 60 * 1000 // 6 minutes
 
@@ -183,6 +191,30 @@ const NETWORK_OVERHEAD_MS = 6 * 60 * 1000 // 6 minutes
  * scheduled before it is dropped, so one lagging node cannot erase it.
  */
 const UNSET_READS_BEFORE_DROP = 3
+
+/**
+ * Whether an operation leaves the watch: executed, or read as never scheduled
+ * and either proven cancelled or, off Tron, read so for enough runs. Tron's
+ * reads cannot be pinned to a block, so a lagging endpoint's 0 is
+ * indistinguishable from a reorg there and only a `Cancelled` log drops it.
+ *
+ * @param network - Network name.
+ * @param stage - The stage read this run, or `undefined` when unread.
+ * @param unsetReads - Consecutive runs that read it as never scheduled.
+ * @param provenCancelled - Whether a `Cancelled` log follows its schedule.
+ * @returns True when the operation is to be dropped from the scan state.
+ */
+export const isSettled = (
+  network: string,
+  stage: TOperationStage | undefined,
+  unsetReads: number,
+  provenCancelled: boolean
+): boolean => {
+  if (stage === 'done') return true
+  if (stage !== 'unset') return false
+  if (provenCancelled) return true
+  return !isTronNetworkKey(network) && unsetReads >= UNSET_READS_BEFORE_DROP
+}
 
 /** An unverifiable gate K result is retried once a day, not every run: each retry is a rebuild. */
 const CODEHASH_UNKNOWN_RETRY_MS = 24 * 60 * 60 * 1000 // 24 hours
@@ -606,27 +638,37 @@ export interface INetworkFindings {
   operations: IOperationReport[]
 }
 
-const DEPLOY_LOG_ENTRY = /"([^"]+)"\s*:\s*"(0x[0-9a-fA-F]{40})"/g
+const DEPLOY_LOG_ENTRY =
+  /"([^"]+)"\s*:\s*"(0x[0-9a-fA-F]{40}|T[1-9A-HJ-NP-Za-km-z]{33})"/g
 
 /**
  * Every address a `git log -p --reverse` of a deploy log added, per name, with
  * the position at which each was first added, so an earlier position is an
  * older address. Reads every pair on an added line, so compact JSON counts too.
+ * Tron's logs spell addresses in base58; each is keyed by its hex.
  *
  * @param patch - The log's patch text, oldest commit first.
- * @returns Name → lowercased address → first position.
+ * @param network - Network the log belongs to.
+ * @returns Name → lowercased hex address → first position.
+ * @throws When a Tron entry is base58-shaped but fails its checksum.
  */
 export const parseDeployLogHistory = (
-  patch: string
+  patch: string,
+  network: string
 ): Map<string, Map<string, number>> => {
+  const tron = isTronNetworkKey(network)
   const firstListed = new Map<string, Map<string, number>>()
   let position = 0
   for (const line of patch.split('\n')) {
     if (!line.startsWith('+') || line.startsWith('+++')) continue
     for (const [, name, address] of line.matchAll(DEPLOY_LOG_ENTRY)) {
       if (!name || !address) continue
+      const base58 = !address.startsWith('0x')
+      if (base58 && !tron) continue
+      const key = (
+        base58 ? normalizeAddressForNetwork(network, address) : address
+      ).toLowerCase()
       const addresses = firstListed.get(name) ?? new Map<string, number>()
-      const key = address.toLowerCase()
       if (!addresses.has(key)) addresses.set(key, position)
       firstListed.set(name, addresses)
       position++
@@ -710,7 +752,18 @@ export const createDeployLogHistoryReader = (
         deadline - Date.now(),
         `reading main's history of deployments/${network}.json`
       )
-      const firstListed = parseDeployLogHistory(patch)
+      let firstListed: Map<string, Map<string, number>>
+      try {
+        firstListed = parseDeployLogHistory(patch, network)
+      } catch (error) {
+        return {
+          read: {
+            ok: false,
+            reason: `${PINNED_REF}'s history of the file holds an address that could not be read: ${describe(error)}`,
+          },
+          final: true,
+        }
+      }
       return firstListed.size > 0
         ? { read: { ok: true, firstListed }, final: true }
         : {
@@ -877,31 +930,52 @@ const runCodehash = async (
  * network, the same expansion the health check compares the diamond against.
  *
  * @param network - Network name.
- * @param deployments - Main's deployments file for it.
+ * @param deployments - Main's deployments file for it, as main spells it
+ *   (base58 on Tron, like the whitelist).
  * @param readPinned - Reader of files at main.
- * @returns The pairs, or `undefined` when the file could not be read or expanded.
+ * @returns The pairs, contracts in lowercase hex, or why the file could not be
+ *   read or expanded.
  */
 export const expectedWhitelist = async (
   network: string,
   deployments: Record<string, unknown>,
   readPinned: IRunContext['readPinned']
-): Promise<Set<string> | undefined> => {
+): Promise<{ pairs: Set<string> } | { reason: string }> => {
   const pinned = await readPinned('config/whitelist.json')
-  if (!pinned.ok) return undefined
-  let failed = false
+  if (!pinned.ok)
+    return {
+      reason: `main's config/whitelist.json could not be read (${pinned.reason})`,
+    }
+  const tron = isTronNetworkKey(network)
+  const errors: string[] = []
   const pairs = await getExpectedPairs(
     network,
     deployments as Record<string, string>,
     pinned.value as unknown as IWhitelistConfig,
-    () => {
-      failed = true
+    (message) => {
+      errors.push(message)
     },
-    () => undefined
+    () => undefined,
+    tron
   )
-  if (failed) return undefined
-  return new Set(
-    pairs.map((p) => `${p.contract.toLowerCase()}:${p.selector.toLowerCase()}`)
-  )
+  if (errors.length > 0)
+    return {
+      reason: `main's config/whitelist.json could not be expanded: ${errors.join('; ')}`,
+    }
+  const keys = new Set<string>()
+  for (const p of pairs) {
+    let contract = p.contract
+    if (tron)
+      try {
+        contract = normalizeAddressForNetwork(network, p.contract)
+      } catch (error) {
+        return {
+          reason: `main's config/whitelist.json lists ${p.contract}, which is not a Tron address: ${describe(error)}`,
+        }
+      }
+    keys.add(`${contract.toLowerCase()}:${p.selector.toLowerCase()}`)
+  }
+  return { pairs: keys }
 }
 
 const knownAddresses = (
@@ -924,9 +998,7 @@ const networkVerdict = (
 ): TWatcherVerdict =>
   flags.mismatch
     ? 'mismatch'
-    : flags.unverified ||
-        report.status === 'unreadable' ||
-        report.status === 'uncovered'
+    : flags.unverified || report.status === 'unreadable'
       ? 'unverified'
       : 'ok'
 
@@ -1026,7 +1098,24 @@ export const watchNetwork = async (
     return unreadable(
       `main's deployments/${name}.json could not be read (${pinned.reason})`
     )
-  const deployments = pinned.value
+  const tron = isTronNetworkKey(name)
+  let deployments: Record<string, unknown>
+  let networkGlobal: Record<string, unknown>
+  let safe: string | undefined
+  try {
+    deployments = tron ? tronDeploymentsAsHex(name, pinned.value) : pinned.value
+    networkGlobal = tron
+      ? withTronWallets(name, globalConfig)
+      : (globalConfig as unknown as Record<string, unknown>)
+    safe =
+      tron && network.safeAddress
+        ? normalizeAddressForNetwork(name, network.safeAddress)
+        : network.safeAddress
+  } catch (error) {
+    return unreadable(
+      `main's Tron addresses could not be read as hex: ${describe(error)}`
+    )
+  }
   const timelock = deployments['LiFiTimelockController'] as Address | undefined
   const diamond = deployments['LiFiDiamond'] as Address | undefined
   if (!timelock)
@@ -1035,18 +1124,6 @@ export const watchNetwork = async (
       status: 'skipped',
       reason: 'no-timelock-deployed',
       verdict: 'ok',
-      operations: [],
-      notes: [],
-    }
-
-  if (isTronNetworkKey(name))
-    return {
-      network: name,
-      status: 'uncovered',
-      timelock,
-      reason:
-        'Tron is not covered: the watcher reads EVM logs only, and the pre-broadcast gate treats Tron as uncovered-tron',
-      verdict: 'unverified',
       operations: [],
       notes: [],
     }
@@ -1124,6 +1201,9 @@ export const watchNetwork = async (
       {
         head: () => client.getBlockNumber(),
         floor: async () => {
+          // Tron's JSON-RPC serves code only at the latest block, so the
+          // creation block cannot be bisected; history is scanned from genesis once.
+          if (tron) return 0n
           const head = await client.getBlockNumber()
           try {
             return await bisectCreationBlock(head, async (blockNumber) => {
@@ -1145,7 +1225,11 @@ export const watchNetwork = async (
           const cancels = []
           for (const log of logs)
             if (log.eventName === 'Cancelled')
-              cancels.push({ id: log.args.id, blockNumber: log.blockNumber })
+              cancels.push({
+                id: log.args.id,
+                blockNumber: log.blockNumber,
+                logIndex: log.logIndex,
+              })
             else if (log.eventName === 'CallScheduled')
               scheduled.push({
                 id: log.args.id,
@@ -1156,6 +1240,7 @@ export const watchNetwork = async (
                 predecessor: log.args.predecessor,
                 delay: log.args.delay,
                 blockNumber: log.blockNumber,
+                logIndex: log.logIndex,
               })
             else salts.push({ id: log.args.id, salt: log.args.salt })
           return { scheduled, salts, cancels }
@@ -1165,6 +1250,7 @@ export const watchNetwork = async (
       {
         until: startedAt + ctx.historyMs,
         parallel: HISTORY_PARALLEL_RANGES,
+        ...(tron ? { maxSpan: TRON_MAX_LOG_SPAN } : {}),
         ...(vouched ? { vouchedFloor: vouched.block } : {}),
       }
     )
@@ -1240,18 +1326,27 @@ export const watchNetwork = async (
       `the timelock's minimum delay is ${liveMinimum}s, below the agreed ${agreedMinimum}s`
     )
   }
-  const known = knownAddresses(deployments, network.safeAddress, timelock)
+  const known = knownAddresses(deployments, safe, timelock)
   // The call-target names go in last, so a wallet sharing an address with the
   // Safe or the timelock can never relabel it.
   const knownForArguments = new Map<string, string>()
-  for (const [key, value] of Object.entries(globalConfig))
+  for (const [key, value] of Object.entries(networkGlobal))
     if (typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value))
       knownForArguments.set(value.toLowerCase(), key)
   for (const [address, label] of known) knownForArguments.set(address, label)
+  // Safe owners stay in EVM hex on Tron too: the same key controls the same
+  // 20 bytes there, so no Tron spelling is needed.
   const safeOwners = new Set(
     globalConfig.safeOwners.map((owner) => owner.toLowerCase())
   )
-  const whitelist = await expectedWhitelist(name, deployments, ctx.readPinned)
+  const whitelistRead = await expectedWhitelist(
+    name,
+    pinned.value,
+    ctx.readPinned
+  )
+  if ('reason' in whitelistRead)
+    consola.warn(`[${name}] ${whitelistRead.reason}`)
+  const whitelist = 'pairs' in whitelistRead ? whitelistRead.pairs : undefined
   const pendingRegistrations = diamond
     ? pendingRegistrationsOf(
         Object.values(scan.state.operations),
@@ -1271,8 +1366,9 @@ export const watchNetwork = async (
         functionName: 'getTimestamp',
         args: [op.id],
         // Pinned, so a fallback endpoint behind this block errors instead of
-        // reading 0 for an operation it has not seen.
-        blockNumber: latestBlock,
+        // reading 0 for an operation it has not seen. Tron's JSON-RPC reads
+        // only the latest block, so there a 0 never drops the operation alone.
+        ...(tron ? {} : { blockNumber: latestBlock }),
       })
       stage = stageOf(readyAt, now)
       // A node behind the scheduling block reads 0 for an operation it has not
@@ -1283,12 +1379,7 @@ export const watchNetwork = async (
       stage = undefined
     }
     const unsetReads = stage === 'unset' ? (op.unsetReads ?? 0) + 1 : 0
-    if (
-      stage === 'done' ||
-      (stage === 'unset' &&
-        (isProvenCancelled(op, scan.state.cancels) ||
-          unsetReads >= UNSET_READS_BEFORE_DROP))
-    ) {
+    if (isSettled(name, stage, unsetReads, isProvenCancelled(op, scan.state))) {
       delete scan.state.operations[op.id]
       delete ctx.state.codehash[findingKey(name, op.id)]
       continue
@@ -1343,7 +1434,7 @@ export const watchNetwork = async (
             ...viemGateReaders(client),
             deployments,
             pinnedDeployments: deployments,
-            globalConfig: globalConfig as unknown as Record<string, unknown>,
+            globalConfig: networkGlobal,
             signTimeRecord: signTimeRecordPresent ? {} : null,
             readScheduledAt: scheduledAtReaderFor(stage, readyAt),
           }
@@ -1413,7 +1504,7 @@ export const watchNetwork = async (
             abi: TIMELOCK_READ_ABI,
             functionName: 'getTimestamp',
             args: [queued as Hex],
-            blockNumber: latestBlock,
+            ...(tron ? {} : { blockNumber: latestBlock }),
           })
           if (readyAt > 1n) {
             flagUnverified = true
@@ -1617,9 +1708,7 @@ const command = defineCommand({
 
     const now = new Date()
     const settled = new Set(
-      reports
-        .filter((r) => r.status === 'watched' || r.status === 'uncovered')
-        .map((r) => r.network)
+      reports.filter((r) => r.status === 'watched').map((r) => r.network)
     )
     const decision = decideAlerts(
       state.alerts,
@@ -1674,7 +1763,7 @@ const command = defineCommand({
 
     const tally = tallyReports(reports)
     consola.info(
-      `Checked ${tally.watched} of ${tally.networks} network(s): ${tally.operations} pending operation(s), ${tally.byVerdict.mismatch} mismatch, ${tally.byVerdict.unverified} unverified, ${tally.byVerdict.ok} ok; ${tally.unreadable} unreadable, ${tally.uncovered} not covered, ${tally.skipped} skipped`
+      `Checked ${tally.watched} of ${tally.networks} network(s): ${tally.operations} pending operation(s), ${tally.byVerdict.mismatch} mismatch, ${tally.byVerdict.unverified} unverified, ${tally.byVerdict.ok} ok; ${tally.unreadable} unreadable, ${tally.skipped} skipped`
     )
     if (jobFails(reports, deliveryFailed)) process.exit(1)
     // A timed-out rebuild keeps running after its network was reported; it must
