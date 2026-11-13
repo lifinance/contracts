@@ -1408,15 +1408,6 @@ export interface IProposalCheckVerdicts {
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
   /**
-   * Why this network's providers cannot be compared, when they cannot.
-   *
-   * The quorum reads every provider at one pinned block, and a chain whose
-   * JSON-RPC serves a code read only at `latest` — Tron — has no height two
-   * providers can be held to. A declared limit, named on the row, kept apart
-   * from a read on a covered chain that simply was not made.
-   */
-  rpcQuorumOutOfScope?: string
-  /**
    * The codehash gate's verdict for this proposal.
    *
    * Required, not optional: the gate is evaluated for every proposal and the
@@ -1718,25 +1709,16 @@ export const proposalCheckResults = (
           ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
-      : verdicts.rpcQuorumOutOfScope
-        ? {
-            checkId: RPC_QUORUM_CHECK_ID,
-            network,
-            status: 'needs-ack',
-            expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
-            actual: verdicts.rpcQuorumOutOfScope,
-            anchor: 'A-DOCUMENTED',
-          }
-        : {
-            checkId: RPC_QUORUM_CHECK_ID,
-            network,
-            // Report-only, so an unmade read is an acknowledgement and not the
-            // `error` every other unmade check here records: this gate must not
-            // block a run on the fleet's missing endpoint redundancy.
-            status: 'needs-ack',
-            expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
-            actual: 'no quorum read was made for this proposal',
-            anchor: 'A-UNRESOLVED',
-          },
+      : {
+          checkId: RPC_QUORUM_CHECK_ID,
+          network,
+          // Report-only, so an unmade read is an acknowledgement and not the
+          // `error` every other unmade check here records: this gate must not
+          // block a run on the fleet's missing endpoint redundancy.
+          status: 'needs-ack',
+          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+          actual: 'no quorum read was made for this proposal',
+          anchor: 'A-UNRESOLVED',
+        },
   ]
 }
