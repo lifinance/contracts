@@ -174,9 +174,15 @@ The facet has no `nonReentrant` modifier. It relies on the Diamond's shared guar
 guarded facet, through the gateway or directly, reverts with `ReentrancyError`. The unit
 suite covers this with a dispatched facet that re-enters `startBridgeAttested`.
 
-The attester runs after the bridge has returned. Re-entry from the attester reaches the
-Diamond as an ordinary external call with the attester as `msg.sender` and no extra
-privileges; for example, `setAttestableSelector` still fails the owner check.
+The shared guard covers only the dispatched bridge call. The attester runs after the bridge
+has returned and released the guard, so it is not covered: re-entry from the attester reaches
+the Diamond as an ordinary external call with the attester as `msg.sender` and no extra
+privileges (for example, `setAttestableSelector` still fails the owner check), and it can call
+`startBridgeAttested` again, running a nested bridge and a nested `attest` inside the outer
+one. An attester must therefore not assume one gateway call per settlement, and a nested
+`attest` must not overwrite facts recorded by another. `BridgeCommitmentLedger` makes only
+`view` calls during `attest`, so it cannot re-enter, and adds receipts per commit and
+validator entry instead of overwriting them.
 
 ## Public Methods
 
