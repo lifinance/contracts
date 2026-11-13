@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'bun:test'
+import { afterEach, describe, expect, it, spyOn } from 'bun:test'
+
+import { ed25519 } from '@noble/curves/ed25519.js'
 
 import { computeSolanaATABytes32, deriveSolanaAddress } from './solanaAddress'
 
@@ -49,6 +51,25 @@ describe('computeSolanaATABytes32', () => {
     expect(await computeSolanaATABytes32(OWNER_07, USDC_MINT)).toBe(
       ATA_OWNER_07_USDC
     )
+  })
+
+  describe('when every bump candidate is on the curve', () => {
+    let fromHexSpy: ReturnType<typeof spyOn> | undefined
+
+    afterEach(() => {
+      fromHexSpy?.mockRestore()
+    })
+
+    it('rejects once all bumps are exhausted', async () => {
+      fromHexSpy = spyOn(ed25519.Point, 'fromHex').mockImplementation(
+        () => ed25519.Point.BASE
+      )
+      await expectRejects(
+        computeSolanaATABytes32(OWNER_11, USDC_MINT),
+        /Unable to find a viable program address bump seed/
+      )
+      expect(fromHexSpy).toHaveBeenCalledTimes(256)
+    })
   })
 
   it('rejects an owner that is not base58', async () => {
