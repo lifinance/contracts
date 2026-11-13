@@ -108,7 +108,6 @@ async function deployCoreFacetsImpl(options: {
     privateKey,
     verbose: options.verbose,
     dryRun: options.dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
     headers,

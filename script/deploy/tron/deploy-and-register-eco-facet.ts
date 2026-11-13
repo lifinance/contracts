@@ -28,20 +28,30 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
-import { deployContractWithLogging, validateBalance } from './tronUtils'
+import {
+  deployContractWithLogging,
+  tronExistingDeploymentMode,
+  validateBalance,
+} from './tronUtils'
 
-async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
+async function deployAndRegisterEcoFacet(options: {
+  dryRun?: boolean
+  proposeOnly?: boolean
+}) {
   consola.start('TRON EcoFacet Deployment & Registration')
+  const dryRun = options.dryRun ?? false
+  const proposeOnly = options.proposeOnly ?? false
+  if (!dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 
-  const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
@@ -77,7 +87,6 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
@@ -95,7 +104,7 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
       privateKey,
     })
 
-    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
+    if (!proposeOnly) await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
     const ecoConfig = JSON.parse(await readFile('config/eco.json', 'utf8'))
     const tronEcoConfig = ecoConfig.tron
@@ -139,7 +148,8 @@ async function deployAndRegisterEcoFacet(options: { dryRun?: boolean }) {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'EcoFacet',
-      dryRun
+      dryRun,
+      tronExistingDeploymentMode(proposeOnly, 'EcoFacet', tronWeb)
     )
 
     let facetAddress: string
@@ -226,10 +236,19 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
     },
+    proposeOnly: {
+      type: 'boolean',
+      description:
+        'Skip the deploy and propose the address recorded for the network',
+    },
   },
   async run({ args }) {
     await deployAndRegisterEcoFacet({
       dryRun: flagIsOn(args.dryRun),
+      proposeOnly: readBooleanFlag(process.argv, {
+        camel: 'proposeOnly',
+        kebab: 'propose-only',
+      }),
     })
   },
 })

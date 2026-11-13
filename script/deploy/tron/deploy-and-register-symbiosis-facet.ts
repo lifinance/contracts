@@ -30,24 +30,38 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
-import { deployContractWithLogging, validateBalance } from './tronUtils'
+import {
+  deployContractWithLogging,
+  tronExistingDeploymentMode,
+  validateBalance,
+} from './tronUtils'
 
 /**
  * Deploy and register SymbiosisFacet to Tron
  */
-async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
+async function deployAndRegisterSymbiosisFacet(options: {
+  dryRun?: boolean
+  proposeOnly?: boolean
+}) {
   consola.start('TRON SymbiosisFacet Deployment & Registration')
+  const dryRun = options.dryRun ?? false
+  const proposeOnly = options.proposeOnly ?? false
+  const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
+  const deferCut = process.env.DEFER_CUT === 'true'
+  if (proposeOnly && (forceRedeploy || deferCut))
+    throw new Error(
+      '--proposeOnly cannot be combined with FORCE_REDEPLOY=true or DEFER_CUT=true; unset them'
+    )
+  if (!dryRun && !deferCut) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
-
-  // Load environment variables
-  const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
@@ -90,7 +104,6 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
@@ -112,7 +125,7 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     })
 
     // Use new utility for balance validation
-    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
+    if (!proposeOnly) await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
     // Load Symbiosis configuration
     const symbiosisConfig = JSON.parse(
@@ -213,14 +226,16 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
     // Deploy SymbiosisFacet
     consola.info('\nDeploying SymbiosisFacet...')
 
-    // checkExistingDeployment prompts "Redeploy?" whenever an address is already
-    // recorded, and with no TTY that prompt never resolves - the run just hangs.
-    // A non-interactive redeploy therefore has to skip the check entirely.
-    const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
-
-    const { exists, address, shouldRedeploy } = forceRedeploy
-      ? { exists: false, address: null, shouldRedeploy: true }
-      : await checkExistingDeployment(network, 'SymbiosisFacet', dryRun)
+    // The "Redeploy?" prompt never resolves without a TTY, so an unattended
+    // redeploy names its answer up front.
+    const { exists, address, shouldRedeploy } = await checkExistingDeployment(
+      network,
+      'SymbiosisFacet',
+      dryRun,
+      forceRedeploy
+        ? { kind: 'redeploy' }
+        : tronExistingDeploymentMode(proposeOnly, 'SymbiosisFacet', tronWeb)
+    )
 
     let facetAddress: string
     if (exists && !shouldRedeploy && address) {
@@ -276,8 +291,6 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       selectors
     )
 
-    const deferCut = process.env.DEFER_CUT === 'true'
-
     if (dryRun)
       consola.info('Dry run - skipping diamondCut proposal for SymbiosisFacet')
     else if (deferCut)
@@ -322,10 +335,19 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
     },
+    proposeOnly: {
+      type: 'boolean',
+      description:
+        'Skip the deploy and propose the address recorded for the network',
+    },
   },
   async run({ args }) {
     await deployAndRegisterSymbiosisFacet({
       dryRun: flagIsOn(args.dryRun),
+      proposeOnly: readBooleanFlag(process.argv, {
+        camel: 'proposeOnly',
+        kebab: 'propose-only',
+      }),
     })
   },
 })

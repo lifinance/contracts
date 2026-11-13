@@ -15,7 +15,7 @@
  * whole content of that section, so a script in neither fails the run.
  */
 
-import { readFileSync, rmSync } from 'fs'
+import { readdirSync, readFileSync, rmSync } from 'fs'
 import { join, relative } from 'path'
 
 import {
@@ -45,6 +45,17 @@ const SANDBOX_ROOT = sandboxCheckout()
 afterAll(() => {
   rmSync(SANDBOX_ROOT, { recursive: true, force: true })
 })
+
+/**
+ * The Tron deploy scripts that check the ticket at entry, before they spend
+ * TRX. Not funnels: they reach the store through the Tron propose route, and
+ * `SAFE_PROPOSAL_TICKET` is their only channel — `MultisigSigningProcess.md`
+ * §4.2. Read from the directory, the same way `deploy/tron/deploy-ticket-gate.test.ts`
+ * finds the scripts whose check it pins, so the two cannot list different sets.
+ */
+const TRON_DEPLOY_SCRIPTS = readdirSync(join(SCRIPT_ROOT, 'deploy', 'tron'))
+  .filter((name) => /^deploy-and-register-.+(?<!\.test)\.ts$/.test(name))
+  .map((name) => `deploy/tron/${name}`)
 
 /**
  * Every funnel that refuses a run at its own entry, with the channels it
@@ -412,9 +423,12 @@ describe('every route is classified, and each funnel matches its source', () => 
     // and this case names it instead of ignoring it.
     const callers = callersOf('assertTicketPresent')
 
-    const expected = FUNNELS.filter((funnel) => funnel.asserts).map(
-      (funnel) => funnel.script
-    )
+    const expected = [
+      ...FUNNELS.filter((funnel) => funnel.asserts).map(
+        (funnel) => funnel.script
+      ),
+      ...TRON_DEPLOY_SCRIPTS,
+    ]
 
     // Pairs the set comparison with a floor: an empty grep result would
     // otherwise make the comparison trivially true.

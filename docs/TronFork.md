@@ -597,6 +597,20 @@ bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
 bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
 
+Each `deploy-and-register-*.ts` script proposes what it deploys, so it refuses to start
+without `SAFE_PROPOSAL_TICKET`, before it builds or spends TRX; `--dryRun` (and the Symbiosis script's `DEFER_CUT=true`,
+which proposes nothing) is exempt.
+When a facet is deployed but its proposal is missing, re-run its script with
+`--proposeOnly`: it proposes the address recorded for the network without deploying, and
+refuses when none is recorded, when a `tronshasta` run would take it from `tron.json`, or
+when the code there is not this checkout's build of the facet. Production rollouts run
+these through `/multisig-rollout`.
+
+`deploy-core-facets.ts` and `register-facets-to-diamond.ts` only bootstrap a new diamond
+the deployer still owns: `register-facets-to-diamond.ts` sends `diamondCut` from the
+deployer, with no ticket and no Safe proposal. A rollout on a live diamond runs only the
+contract's `deploy-and-register-*.ts` script.
+
 
 ### Per-network contract references in `config/`
 

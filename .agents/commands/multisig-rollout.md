@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: "Production rollout: deploy, propose-only or whitelist sync, then Safe proposals through signing and Slack. Use for \"roll out <Facet> vX.Y.Z\", \"propose cuts\", re-proposing deleted Safe txs, Polymer CCTP domain propagation or any mainnet deploy. Testnet → deploy-contract; executed → finish-rollout."
+description: "Production rollout: deploy, propose-only or whitelist sync, then Safe proposals through signing and Slack. Use for \"roll out <Facet> vX.Y.Z\", \"propose cuts\", re-proposing deleted Safe txs, Polymer CCTP domain propagation or any mainnet deploy, Tron included. Testnet → deploy-contract; executed → finish-rollout."
 usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <ContractName> [networks…] | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
@@ -10,7 +10,7 @@ Production deploys always enter here, never `deploy-contract` directly — regis
 
 Three modes:
 
-- **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist writes, explorer verification) is delegated to the **`deploy-contract`** skill; this skill owns the proposal lifecycle around it.
+- **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist writes, explorer verification) is delegated to the **`deploy-contract`** skill (to **`deploy-contract-tron`** for `tron`); this skill owns the proposal lifecycle around it.
 - **propose-only mode** — bytecode already in `deployments/<net>.json` (deferred cuts, recreate-after-delete). Runs `proposeContractToNetworks.sh` — no CREATE3. Same signing/Slack tail as deploy.
 - **whitelist mode** — given a whitelist PR (merged by default, or still open when the user explicitly confirms rolling out ahead of merge), sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
@@ -119,6 +119,8 @@ After confirmation:
 
 It deploys (CREATE3), verifies on the explorer, and registers in the diamond (`diamondCut` for facets, `diamondUpdatePeriphery` for periphery), with the allowlist writes in the registration proposal for diamond-called periphery. Carry forward: deployed addresses, succeeded/failed networks. Files changed on disk are committed in Phase 5.
 
+**Tron (`tron` in the network list)** — split it out before the call above; `deploy-contract` has no Tron pipeline. Run `/deploy-contract-tron <Contract> tron` instead: it deploys and proposes from the `contracts-tron` fork, verifies on Tronscan, and copies `deployments/tron.json` into this checkout (its Phase 5) for this skill's Phase 5 to stage. Then rejoin here at Phase 4 with `tron` in the network list. The Phase 0 ticket and reason exports must also reach the shell that runs the fork's scripts. Tron already deployed and only the proposal missing (propose-only mode) → that skill's facet scripts take `--proposeOnly`, and periphery takes `deploy-and-register-periphery.ts --registerOnly --only <Contract>`; `proposeContractToNetworks.sh` has no Tron path.
+
 **propose-only mode** — run (do **not** call `deploy-contract`):
 
 ```bash
@@ -215,7 +217,7 @@ Expect one `pending` proposal per succeeded network with `signatureCount: 1` (th
 
 ## Phase 5 — Draft PR (deploy mode; propose-only when files dirty)
 
-**deploy mode:** The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). For a diamond-called periphery, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too. Model the PR on #1917. Delegate to `/create-pr` (as **draft**): stage deployment logs + any whitelist diffs; body includes `| Chain | Contract address | Safe nonce |` from Phases 2 and 4.
+**deploy mode:** One PR covers every network, Tron included, because `/finish-rollout` finishes one PR. For `tron`, stage the `deployments/tron.json` that `/deploy-contract-tron` Phase 5 copied in (never `tron.diamond.json`) and state the fork commit `$TRON_COMMIT` in the body. The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). For a diamond-called periphery, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too. Model the PR on #1917. Delegate to `/create-pr` (as **draft**): stage deployment logs + any whitelist diffs; body includes `| Chain | Contract address | Safe nonce |` from Phases 2 and 4.
 
 **propose-only mode:** usually no deployment-log changes — skip the PR unless the regenerated allowlist dirtied `config/whitelist.json` / `config/whitelist.staging.json` (then open a small PR for those). Prefer an existing deploy PR (e.g. deferred-cut PR) as the Slack link when one already has the addresses.
 

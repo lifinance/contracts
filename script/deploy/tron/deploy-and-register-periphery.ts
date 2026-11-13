@@ -39,6 +39,7 @@ import {
   updateDiamondJsonPeriphery,
 } from '../../utils/utils'
 import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
@@ -143,6 +144,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   registerOnly?: boolean
 }) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
+  if (!options.dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
@@ -217,7 +219,6 @@ async function deployAndRegisterPeripheryImpl(options: {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
