@@ -13,7 +13,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import type { PublicClient } from 'viem'
+import { InvalidParamsRpcError, RpcRequestError, type PublicClient } from 'viem'
 
 import {
   LogEndpointsFailedError,
@@ -27,6 +27,7 @@ import {
   parseDeployLogHistory,
   readTimelockLogs,
   unreadableReport,
+  vouchedFloorOf,
   watchNetworkWithin,
   type ILogEndpoint,
   type INetworkFindings,
@@ -694,6 +695,64 @@ describe('createLogRangeReader', () => {
     expect(logScanFailureReason(error)).toBe(
       'the log scan failed: every endpoint failed blocks 644-653: lb.drpc.org: Invalid parameters were provided; rpc.example.org: eth_getLogs does not exist'
     )
+  })
+
+  it("names the provider's own reason behind viem's generic RPC error, without the URL", async () => {
+    const providerError = new InvalidParamsRpcError(
+      new RpcRequestError({
+        body: { method: 'eth_getLogs' },
+        url: 'https://rpc.example.org/v1/SECRETKEY',
+        error: {
+          code: -32602,
+          message:
+            'PARAM_VERIFY_ERROR: fromBlock is too far from the latest block',
+        },
+      })
+    )
+    const read = createLogRangeReader(
+      [
+        endpoint('rpc.example.org', 1_000n, () => {
+          throw providerError
+        }),
+      ],
+      TIMELOCK
+    )
+    const reason = logScanFailureReason(await rejectionOf(read(1n, 10n)))
+    expect(reason).toContain(
+      'rpc.example.org: Invalid parameters were provided to the RPC method. (PARAM_VERIFY_ERROR: fromBlock is too far from the latest block)'
+    )
+    expect(reason).not.toContain('SECRETKEY')
+  })
+})
+
+describe('vouchedFloorOf', () => {
+  const floors = {
+    jovay: { block: '12921411', reason: 'checked by hand' },
+    badBlock: { block: '0x10', reason: 'checked by hand' },
+    noBlock: { reason: 'checked by hand' },
+    noReason: { block: '5' },
+    blankReason: { block: '5', reason: '  ' },
+  }
+
+  it('reads a configured floor', () => {
+    expect(vouchedFloorOf('jovay', floors)).toEqual({
+      block: 12_921_411n,
+      reason: 'checked by hand',
+    })
+  })
+
+  it('has none for a network the config omits, or without a config', () => {
+    expect(vouchedFloorOf('mainnet', floors)).toBeUndefined()
+    expect(vouchedFloorOf('mainnet', undefined)).toBeUndefined()
+  })
+
+  it.each([
+    ['badBlock', 'block must be a decimal'],
+    ['noBlock', 'block must be a decimal'],
+    ['noReason', 'reason must say'],
+    ['blankReason', 'reason must say'],
+  ])('rejects a malformed %s entry', (network, message) => {
+    expect(() => vouchedFloorOf(network, floors)).toThrow(message)
   })
 })
 
