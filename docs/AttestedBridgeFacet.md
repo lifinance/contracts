@@ -67,6 +67,31 @@ therefore:
 - check those facts against settlement state it can verify on its own, and refuse to
   attest outside such a settlement.
 
+### What the gateway does not guarantee
+
+The gateway proves only that the Diamond ran a facet call with exactly `_facetCalldata` and
+then called the attester. The attester has to establish the rest:
+
+- **Uniqueness.** Two calls can carry byte-identical `_facetCalldata`, so a receipt keyed
+  only on its hash merges or replays executions. Bind each receipt to the settlement it
+  serves.
+- **Swap amounts are floors.** On a `swapAndStartBridgeTokensVia*` call the facet overwrites
+  `_bridgeData.minAmount` in memory with the realized swap output, and `AcrossFacetV4`
+  recomputes `outputAmount` from `outputAmountMultiplier`. The attester sees the original
+  calldata, so those words are lower bounds, not the amounts bridged.
+- **Field consistency.** Facets do not require every asset field to agree. On Across V4,
+  `_bridgeData.sendingAssetId`, the last swap's `receivingAssetId` and
+  `_acrossData.sendingAssetId` can differ. Check the fields the attester relies on against
+  each other.
+- **Encoding.** A facet can succeed with a malformed dynamic field it never decodes, and
+  trailing bytes change the calldata hash without changing what ran. Decode only the fields
+  relied on, bounded to `_facetCalldata`, and never key on the raw hash.
+
+`BridgeCommitmentLedger` and its facts adapters in `lifinance/intent-factory` handle each of
+these: receipts are counted per commit and validator entry, the adapters treat swap amounts
+as floors and pin the Across asset fields, and their decode bounds are covered by
+`contracts/test/adapters/`.
+
 `BridgeAttester` must not be added to `whitelistPeripheryFunctions` in
 `config/global.json`. A whitelisted attester could be called from a swap step inside the
 Diamond, with the Diamond as `msg.sender` and no bridge behind the call. Two checks enforce
