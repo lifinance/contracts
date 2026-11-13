@@ -87,12 +87,13 @@ jobs:
               - 'script/common/**'
               - 'script/mongoDb/rpcEndpoints.ts'
               - 'script/troncast/utils/**'
-              # Data the run reads; .env.example becomes the job's .env
+              # Data whose content changes what the localanvil run does; .env.example
+              # becomes the job's .env. whitelist.json and composerWhitelist.json are
+              # read too but hold no localanvil entries, and updateWhitelistPeriphery.test.ts
+              # runs the updater against them on every config/ change.
               - '.env.example'
               - 'config/global.json'
               - 'config/networks.json'
-              - 'config/whitelist.json'
-              - 'config/composerWhitelist.json'
               - 'config/lifiintentescrow.json'
               - 'deployments/localanvil*.json'
               - '!**/*.test.ts'

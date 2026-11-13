@@ -1009,6 +1009,8 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
       'README.md',
       'docs/Setup.md',
       'script/scriptMaster.sh',
+      'config/whitelist.json',
+      'config/composerWhitelist.json',
       'script/deploy/safe/safe-utils.test.ts',
       'script/deploy/shared/assert-zk-toolchain.test.ts',
       'tasks/generateDiamondABI.test.ts',
