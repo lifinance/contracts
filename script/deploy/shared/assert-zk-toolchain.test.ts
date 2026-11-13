@@ -894,7 +894,7 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
    * `**` spans separators, a leading `**\/` also matches zero directories, and `*` stays
    * within one segment.
    *
-   * @param glob - Filter glob without its `!` prefix.
+   * @param glob - Filter glob.
    * @returns An anchored RegExp for repository-relative paths.
    */
   const toRegExp = (glob: string): RegExp => {
@@ -910,21 +910,16 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
     return new RegExp(`^${body}$`)
   }
 
-  const includes = filters.filter((glob) => !glob.startsWith('!')).map(toRegExp)
-  const excludes = filters
-    .filter((glob) => glob.startsWith('!'))
-    .map((glob) => toRegExp(glob.slice(1)))
+  const patterns = filters.map(toRegExp)
 
   /**
-   * Whether a change to a path runs the smoke job under `some-with-excludes`: it matches
-   * at least one positive pattern and no `!` pattern.
+   * Whether a change to a path runs the smoke job.
    *
    * @param path - Repository-relative path.
    * @returns True when the smoke job would run for a change to it.
    */
   const covered = (path: string): boolean =>
-    includes.some((re) => re.test(path)) &&
-    !excludes.some((re) => re.test(path))
+    patterns.some((re) => re.test(path))
 
   /**
    * Repo files a deploy shell script sources, read from its `source` lines.
@@ -941,12 +936,7 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
       .map((match) => match[1] ?? '')
       .filter((path) => path !== '.env')
 
-  it('uses the quantifier that makes the ! patterns exclude', () => {
-    expect(workflow).toMatch(/^\s+predicate-quantifier: 'some-with-excludes'$/m)
-    expect(excludes.length).toBeGreaterThan(0)
-  })
-
-  it('runs for the deploy chokepoint and every file the deploy run sources', () => {
+  it('runs for the deploy chokepoint and every file the deploy flow sources', () => {
     const sourced = [
       ...sourcedBy('script/deploy/deployAllContracts.sh'),
       ...sourcedBy('script/deploy/deploySingleContract.sh'),
@@ -956,15 +946,13 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
     expect(sourced.filter((path) => !covered(path))).toEqual([])
 
     for (const path of [
-      'foundry.toml',
-      'bun.lock',
       'script/helperFunctions.sh',
       'script/deploy/resources/deployGroupingHelpers.sh',
-      'script/deploy/shared/assertZkToolchain.sh',
-      'src/Facets/DiamondCutFacet.sol',
-      'src/Libraries/LibAsset.sol',
-      CHECKER,
-      PIN_READER,
+      'script/deploy/resources/deployRequirements.json',
+      'script/deploy/facets/DeployDiamondCutFacet.s.sol',
+      'script/deploy/facets/utils/DeployScriptBase.sol',
+      'script/deploy/update-deployment-logs.ts',
+      'script/tasks/updateWhitelistPeriphery.ts',
     ]) {
       expect({ path, covered: covered(path) }).toEqual({ path, covered: true })
     }
@@ -995,7 +983,7 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
     expect(pr2413.some(covered)).toBe(true)
   })
 
-  it('skips files the deploy run never loads', () => {
+  it('skips contracts, toolchain, helpers and config the deploy flow depends on', () => {
     const pr2655 = [
       'config/timelockController.json',
       'docs/MultisigSigningProcess.md',
@@ -1007,14 +995,21 @@ describe('deploy-smoke-test triggers on the deploy chokepoint', () => {
     for (const path of [
       ...pr2655,
       'README.md',
-      'docs/Setup.md',
-      'script/scriptMaster.sh',
+      'src/Facets/DiamondCutFacet.sol',
+      'src/Libraries/LibAsset.sol',
+      'foundry.toml',
+      'bun.lock',
+      'lib/forge-std',
+      'config/global.json',
       'config/whitelist.json',
-      'config/composerWhitelist.json',
-      'script/deploy/safe/safe-utils.test.ts',
-      'script/deploy/shared/assert-zk-toolchain.test.ts',
-      'tasks/generateDiamondABI.test.ts',
-      'some.test.ts',
+      'script/universalCast.sh',
+      'script/scriptMaster.sh',
+      'script/deploy/healthCheck.ts',
+      'script/deploy/healthCheckInvariants.ts',
+      'script/tasks/solidity/ApproveRefundWalletInDiamond.s.sol',
+      'script/deploy/update-deployment-logs.cli.test.ts',
+      CHECKER,
+      PIN_READER,
     ]) {
       expect({ path, covered: covered(path) }).toEqual({ path, covered: false })
     }

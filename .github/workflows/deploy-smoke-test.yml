@@ -3,9 +3,11 @@
 # - Triggers on PRs targeting main and on manual dispatch
 # - Validates the deploy script end-to-end so regressions in deploy bash,
 #   Solidity scripts, target state, or whitelist sync surface before merge
-# - Path-gated: heavy job runs only when a file the run executes, sources, compiles
-#   or reads changes. A `smoke-test-required` aggregator job always reports a final
-#   status so this workflow can be a required check on `main` branch protection.
+# - Path-gated: heavy job runs only when a deploy-flow file changes (the deploy shell
+#   scripts, the Solidity deploy/update scripts, the TS steps the flow calls, and the
+#   deploy config), not the contracts, toolchain or helpers they depend on. A
+#   `smoke-test-required` aggregator job always reports a final status so this
+#   workflow can be a required check on `main` branch protection.
 name: Deploy Smoke Test
 
 on:
@@ -24,7 +26,7 @@ concurrency:
 
 jobs:
   detect-changes:
-    # Determines whether a file the run executes, sources, compiles or reads was touched.
+    # Determines whether a deploy-flow file was touched.
     # Always runs (cheap) so the downstream smoke-test-required can report status.
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -38,71 +40,35 @@ jobs:
         id: filter
         uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         with:
-          # List only files the run executes, sources, compiles or reads, so a PR that
-          # changes nothing the run touches skips it. Directories are listed when the
-          # run imports or sources most of them; `!` patterns drop the files inside
-          # them the run never loads. With some-with-excludes a file counts when it
-          # matches a positive pattern and no `!` pattern.
-          # assert-zk-toolchain.test.ts asserts which paths this filter must include
-          # and exclude.
-          predicate-quantifier: 'some-with-excludes'
+          # Deploy-flow files only: a change to one of them can break the deploy itself.
+          # Contracts, toolchain, shared helpers and config the flow merely depends on
+          # are left out on purpose. assert-zk-toolchain.test.ts asserts which paths
+          # this filter must and must not match.
           filters: |
             smoke:
-              # CI setup and the toolchain the job installs
               - '.github/workflows/deploy-smoke-test.yml'
-              - '.github/actions/setup-foundry/**'
-              - '.foundry-version'
-              - '.foundry-sha256'
-              - '.nvmrc'
-              - 'package.json'
-              - 'bun.lock'
-              - 'preinstall.sh'
-              - 'script/troncast/postinstall-tronweb-fix.mjs'
-              - 'tsconfig.json'
-              # `forge build --skip test` compiles src/ and every script .sol
-              - 'foundry.toml'
-              - 'remappings.txt'
-              - '.gitmodules'
-              - 'lib/**'
-              - 'src/**'
-              - 'script/**/*.sol'
-              # Shell the run sources or executes. helperFunctions.sh is the chokepoint
-              # every deploy passes through.
+              # Deploy flow: shell
               - 'script/helperFunctions.sh'
-              - 'script/universalCast.sh'
               - 'script/deploy/*.sh'
-              - 'script/deploy/*.ts'
-              - 'script/deploy/shared/**'
-              - 'script/deploy/resources/**'
+              - 'script/deploy/shared/*.sh'
+              - 'script/deploy/resources/*.sh'
+              - 'script/tasks/diamondSyncWhitelist.sh'
+              - 'script/tasks/diamondUpdateFacet.sh'
+              - 'script/tasks/diamondUpdatePeriphery.sh'
+              - 'script/tasks/updateFacetConfig.sh'
+              - 'script/tasks/verifyERC20ProxyAuthorization.sh'
+              # Deploy flow: Solidity deploy and update scripts
               - 'script/deploy/facets/**'
-              # healthCheck.ts imports these trees
-              - 'script/deploy/safe/**'
-              - 'script/deploy/tron/**'
-              - 'script/deploy/codehash/**'
-              - 'script/deploy/github/**'
-              - 'script/deploy/_targetState.json'
-              - 'script/tasks/*.sh'
-              - 'script/tasks/*.ts'
-              - 'script/utils/**'
-              - 'script/common/**'
-              - 'script/mongoDb/rpcEndpoints.ts'
-              - 'script/troncast/utils/**'
-              # Data whose content changes what the localanvil run does; .env.example
-              # becomes the job's .env. whitelist.json and composerWhitelist.json are
-              # read too but hold no localanvil entries, and updateWhitelistPeriphery.test.ts
-              # runs the updater against them on every config/ change.
-              - '.env.example'
-              - 'config/global.json'
-              - 'config/networks.json'
-              - 'config/lifiintentescrow.json'
-              - 'deployments/localanvil*.json'
-              - '!**/*.test.ts'
-              # The timelock watcher sits in safe/ but nothing the run loads imports it
-              - '!script/deploy/safe/timelock-watcher*'
+              # Deploy flow: TS steps the shell flow calls
+              - 'script/deploy/update-deployment-logs.ts'
+              - 'script/deploy/query-deployment-logs.ts'
+              - 'script/tasks/updateWhitelistPeriphery.ts'
+              # Deploy config
+              - 'script/deploy/resources/deployRequirements.json'
 
   deploy-smoke-test:
     # Always run on manual dispatch; for PRs, skip drafts, require main as the base,
-    # and only run when files that influence the smoke pipeline have changed.
+    # and only run when a deploy-flow file has changed.
     # github.event.pull_request is unset on workflow_dispatch, so the explicit
     # event_name branch is required to keep the manual trigger path working.
     needs: detect-changes
