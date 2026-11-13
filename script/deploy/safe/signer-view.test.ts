@@ -612,7 +612,10 @@ describe('a passed gate that qualifies its pass', () => {
   it('prints the detail under its manifest row', () => {
     const lines = manifest([
       {
-        definition: definition('rpc-quorum', 'Independent RPCs agree'),
+        definition: {
+          ...definition('rpc-quorum', 'Independent RPCs agree'),
+          gate: 'J',
+        },
         result: result('rpc-quorum', 'pass', { detail: TRON_PASS }),
       },
     ])
@@ -623,6 +626,17 @@ describe('a passed gate that qualifies its pass', () => {
     expect(detail).toBe(row + 1)
     expect(lines.join(' ')).toContain('chains match at block 100')
     expect(lines.every((l) => l.length <= VIEW_WIDTH)).toBe(true)
+  })
+
+  // Those gates' findings print in the gate-detail block instead.
+  it('leaves a pass detail of another gate out of the manifest', () => {
+    const lines = manifest([
+      {
+        definition: definition('x', 'A check'),
+        result: result('x', 'pass', { detail: 'printed in its block' }),
+      },
+    ])
+    expect(lines.join('\n')).not.toContain('printed in its block')
   })
 
   it('adds no line for a pass without a detail', () => {

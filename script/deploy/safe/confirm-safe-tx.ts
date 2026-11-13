@@ -1305,7 +1305,7 @@ const processTxs = async (
           chain.id,
           // Tron's JSON-RPC serves `eth_getCode` only at `latest`; the chains
           // are still compared at the pinned block.
-          { codeAt: isTronNetworkKey(network) ? 'latest' : 'pinned' }
+          isTronNetworkKey(network) ? 'latest' : 'pinned'
         )
       } catch (error) {
         log.warn(

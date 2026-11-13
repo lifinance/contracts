@@ -481,9 +481,15 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
         input.docUrls?.get(definition.checkId) ?? ''
       )
     )
-    // A pass prints no row of its own below, so a qualifier on what it passed
-    // on — gate J on Tron reading the code at `latest` — has to sit here.
-    if (entry && bucketOf(entry) === 'passed' && entry.result.detail?.trim())
+    // A pass prints no row of its own below, so gate J's qualifier on a read at
+    // `latest` has to sit here. Other gates' findings print in the
+    // gate-detail block, so they are not repeated here.
+    if (
+      entry &&
+      definition.gate === 'J' &&
+      bucketOf(entry) === 'passed' &&
+      entry.result.detail?.trim()
+    )
       out.push(
         ...wrapValue('→ ', entry.result.detail, DIM, MANIFEST_DETAIL_INDENT)
       )

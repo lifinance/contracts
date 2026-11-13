@@ -165,27 +165,37 @@ export const readQuorumPastTipReorgs = async (
  */
 export type TCodeAt = 'pinned' | 'latest'
 
-/** Options for {@link readCodeQuorumPastTipReorgs}. */
-export interface ICodeQuorumOptions {
-  /** The block the code is read at; `pinned` by default. */
-  codeAt?: TCodeAt
-  /** The per-endpoint read budget. */
-  budgetMs?: number
-}
-
 /**
- * Says on the verdict that the code was read at `latest`, so the operator line
- * does not claim the providers agreed at the pinned block.
+ * Marks a verdict as read at `latest`, so neither the operator line nor a
+ * consumer of `blockNumber` takes the code to have been read at the pinned block.
+ *
+ * Different code is not a same-block disagreement here: each provider read it at
+ * its own head, so a provider a few blocks behind a fresh deploy differs without
+ * lying. It is graded `heights-not-aligned`, an acknowledgement rather than a
+ * definite red. A fork is still graded on the block hashes, which were compared
+ * at the pinned block.
  */
 const describeLatestCodeRead = (
   verdict: IRpcQuorumVerdict
-): IRpcQuorumVerdict => ({
-  ...verdict,
-  detail:
-    verdict.status === 'agreed'
-      ? `${verdict.agreeingProviders} independent providers return the same code read at latest, and their chains match at block ${verdict.blockNumber}`
-      : `${verdict.detail} (code read at latest; chains compared at the pinned block)`,
-})
+): IRpcQuorumVerdict => {
+  const marked: IRpcQuorumVerdict = { ...verdict, valueReadAt: 'latest' }
+  if (verdict.status === 'agreed')
+    return {
+      ...marked,
+      detail: `${verdict.agreeingProviders} independent providers return the same code read at latest, and their chains match at block ${verdict.blockNumber}`,
+    }
+  if (verdict.status === 'disagreement')
+    return {
+      ...marked,
+      status: 'heights-not-aligned',
+      transient: true,
+      detail: `providers returned different code read at their own latest heads, though their chains match at block ${verdict.blockNumber}: a provider behind a recent deploy differs without being wrong, so this read cannot say which is current`,
+    }
+  return {
+    ...marked,
+    detail: `${verdict.detail} (code read at latest; chains compared at the pinned block)`,
+  }
+}
 
 /**
  * Reads the code at one address from every endpoint and grades it with
@@ -195,17 +205,14 @@ const describeLatestCodeRead = (
  * @param address - The address whose code is read.
  * @param endpointUrls - Every endpoint configured for the network.
  * @param chainId - The chain they must serve.
- * @param options - Where the code is read, and the per-endpoint read budget.
+ * @param codeAt - The block the code is read at; see {@link TCodeAt}.
  * @returns The verdict, re-read behind the head when the tip shows a fork.
  */
 export const readCodeQuorumPastTipReorgs = async (
   address: Address,
   endpointUrls: readonly string[],
   chainId: number,
-  {
-    codeAt = 'pinned',
-    budgetMs = ENDPOINT_READ_BUDGET_MS,
-  }: ICodeQuorumOptions = {}
+  codeAt: TCodeAt = 'pinned'
 ): Promise<IRpcQuorumVerdict> => {
   const verdict = await readQuorumPastTipReorgs((behindHead) =>
     collectProviderObservations(
@@ -213,7 +220,7 @@ export const readCodeQuorumPastTipReorgs = async (
       createCodeReader(
         address,
         chainId,
-        budgetMs,
+        ENDPOINT_READ_BUDGET_MS,
         createPinnedBlock(endpointUrls, chainId, behindHead),
         codeAt
       )

@@ -682,9 +682,8 @@ describe('gate J reads Tron at latest', () => {
     const guard = body.lastIndexOf('if (', call)
     expect(body.slice(guard, call)).not.toContain('evmSimulatable')
     const args = body.slice(call, body.indexOf('catch', call))
-    expect(args).toContain(
-      "codeAt: isTronNetworkKey(network) ? 'latest' : 'pinned'"
-    )
+    expect(args).toContain('isTronNetworkKey(')
+    expect(args).toContain("'latest'")
   })
 })
 

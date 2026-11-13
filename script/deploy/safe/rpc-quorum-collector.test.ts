@@ -690,17 +690,22 @@ describe('readCodeQuorumPastTipReorgs', () => {
     ])
     expect(verdict.status).toBe('agreed')
     expect(verdict.detail).toContain(`agree at block ${HEAD}`)
+    expect(verdict.valueReadAt).toBeUndefined()
   })
 
   it('reads the code at latest when asked, still pinning the chain check', async () => {
     const codeReadAt = onOneChain(() => '0x6080')
 
-    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A, B], 1, {
-      codeAt: 'latest',
-    })
+    const verdict = await readCodeQuorumPastTipReorgs(
+      ADDRESS,
+      [A, B],
+      1,
+      'latest'
+    )
 
     expect(codeReadAt).toEqual(['latest', 'latest'])
     expect(verdict.status).toBe('agreed')
+    expect(verdict.valueReadAt).toBe('latest')
     expect(verdict.reachesQuorum).toBe(true)
     expect(verdict.blockNumber).toBe(HEAD)
     expect(verdict.detail).toContain('read at latest')
@@ -708,16 +713,21 @@ describe('readCodeQuorumPastTipReorgs', () => {
     expect(verdict.detail).not.toContain('agree at block')
   })
 
-  it('grades different code read at latest as a disagreement', async () => {
+  it('grades different code read at latest as unaligned heights, not a definite red', async () => {
     onOneChain((host) => (host.includes('infura') ? '0x6081' : '0x6080'))
 
-    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A, B], 1, {
-      codeAt: 'latest',
-    })
+    const verdict = await readCodeQuorumPastTipReorgs(
+      ADDRESS,
+      [A, B],
+      1,
+      'latest'
+    )
 
-    expect(verdict.status).toBe('disagreement')
-    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
-    expect(verdict.detail).toContain('read at latest')
+    expect(verdict.status).toBe('heights-not-aligned')
+    expect(verdict.reachesQuorum).toBe(false)
+    expect(verdict.valueReadAt).toBe('latest')
+    expect(rpcQuorumDefiniteReds(verdict)).toEqual([])
+    expect(verdict.detail).toContain('own latest heads')
   })
 
   it('keeps a fork that persists at latest a definite red', async () => {
@@ -726,9 +736,12 @@ describe('readCodeQuorumPastTipReorgs', () => {
       (host) => `0x${(host.includes('infura') ? 'cd' : 'ab').repeat(32)}`
     )
 
-    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A, B], 1, {
-      codeAt: 'latest',
-    })
+    const verdict = await readCodeQuorumPastTipReorgs(
+      ADDRESS,
+      [A, B],
+      1,
+      'latest'
+    )
 
     expect(new Set(codeReadAt)).toEqual(new Set(['latest']))
     expect(verdict.status).toBe('fork-divergence')
@@ -739,9 +752,7 @@ describe('readCodeQuorumPastTipReorgs', () => {
   it('leaves a single provider at latest a shortfall, not a pass', async () => {
     onOneChain(() => '0x6080')
 
-    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A], 1, {
-      codeAt: 'latest',
-    })
+    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A], 1, 'latest')
 
     expect(verdict.reachesQuorum).toBe(false)
     expect(['insufficient-providers', 'insufficient-responses']).toContain(

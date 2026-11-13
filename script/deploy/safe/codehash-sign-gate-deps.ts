@@ -23,6 +23,7 @@ import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { MongoClient, type Filter } from 'mongodb'
 import { createPublicClient, http, type Address, type Chain } from 'viem'
 
@@ -80,6 +81,7 @@ import {
   createCodeReader,
   createPinnedBlock,
   createPinnedValueReader,
+  ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
 import { getSignTimeTransportConfig } from './sign-time-transport'
 
@@ -1293,7 +1295,14 @@ export const createDeployedCodeReader =
     const verdict = evaluateRpcQuorum(
       await collectProviderObservations(
         fallbacks,
-        createCodeReader(address as Address, chain.id)
+        createCodeReader(
+          address as Address,
+          chain.id,
+          ENDPOINT_READ_BUDGET_MS,
+          undefined,
+          // Tron's JSON-RPC serves `eth_getCode` only at `latest`.
+          isTronNetworkKey(network) ? 'latest' : 'pinned'
+        )
       )
     )
 

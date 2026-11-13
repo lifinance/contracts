@@ -161,6 +161,12 @@ export interface IRpcQuorumVerdict {
   agreedValue?: string
   blockNumber?: bigint
   blockHash?: string
+  /**
+   * `latest` when each provider's value was read at its own head rather than at
+   * {@link IRpcQuorumVerdict.blockNumber}, which then names only the block the
+   * providers' chains were compared at. Absent for a read at the pinned block.
+   */
+  valueReadAt?: 'latest'
   /** Whether a bounded retry could plausibly change this verdict. */
   transient: boolean
   /** One line an operator can act on. */

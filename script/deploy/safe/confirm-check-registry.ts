@@ -1361,9 +1361,9 @@ export const rpcQuorumCheckResult = (
       expected,
       actual: agreed,
       anchor: 'A-CHAIN',
-      // Names the block the agreement holds at, and on Tron that the code was
-      // read at `latest` while only the chains were compared at that block.
-      detail: verdict.detail,
+      // A pass at the pinned block needs no qualifier. One read at `latest`
+      // says the chains, not the code, were compared at the pinned block.
+      ...(verdict.valueReadAt === 'latest' ? { detail: verdict.detail } : {}),
     }
 
   return {
