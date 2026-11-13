@@ -892,16 +892,16 @@ describe('checkExistingDeployment', () => {
     }
   }
 
-  /** A propose-only mode whose code check answers `hasCode` and records what it was asked. */
-  const proposeOnly = (hasCode: boolean) => {
+  /** A propose-only mode whose build check throws `failure` when given, recording each address. */
+  const proposeOnly = (failure?: Error) => {
     const checked: string[] = []
     return {
       checked,
       mode: {
         kind: 'proposeOnly' as const,
-        hasCode: async (address: string) => {
+        assertThisBuild: async (address: string) => {
           checked.push(address)
-          return hasCode
+          if (failure) throw failure
         },
       },
     }
@@ -909,7 +909,7 @@ describe('checkExistingDeployment', () => {
 
   it('proposes the address recorded for the network once it has code', async () => {
     await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
-      const { checked, mode } = proposeOnly(true)
+      const { checked, mode } = proposeOnly()
 
       const result = await checkExistingDeployment(
         'tron',
@@ -939,7 +939,7 @@ describe('checkExistingDeployment', () => {
           'tronshasta',
           'EcoFacet',
           false,
-          proposeOnly(true).mode
+          proposeOnly().mode
         )
 
         expect(result.address).toBe(ADDRESS)
@@ -949,7 +949,7 @@ describe('checkExistingDeployment', () => {
 
   it('refuses to propose when no address is recorded', async () => {
     await withLogs(true, { 'tron.json': {} }, async () => {
-      const { checked, mode } = proposeOnly(true)
+      const { checked, mode } = proposeOnly()
 
       await expectRejects(
         checkExistingDeployment('tron', 'EcoFacet', false, mode),
@@ -961,7 +961,7 @@ describe('checkExistingDeployment', () => {
 
   it('refuses a tronshasta address that only the tron.json fallback records', async () => {
     await withLogs(false, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
-      const { checked, mode } = proposeOnly(true)
+      const { checked, mode } = proposeOnly()
 
       await expectRejects(
         checkExistingDeployment('tronshasta', 'EcoFacet', false, mode),
@@ -971,17 +971,15 @@ describe('checkExistingDeployment', () => {
     })
   })
 
-  it('refuses a recorded address with no code', async () => {
+  it('refuses a recorded address that is not this build, naming why', async () => {
     await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const { checked, mode } = proposeOnly(new Error('on-chain code differs'))
+
       await expectRejects(
-        checkExistingDeployment(
-          'tron',
-          'EcoFacet',
-          false,
-          proposeOnly(false).mode
-        ),
-        `--proposeOnly: EcoFacet at ${ADDRESS} has no code on tron`
+        checkExistingDeployment('tron', 'EcoFacet', false, mode),
+        `--proposeOnly: could not confirm that EcoFacet at ${ADDRESS} on tron is this checkout's build, so nothing was proposed. on-chain code differs`
       )
+      expect(checked).toEqual([ADDRESS])
     })
   })
 

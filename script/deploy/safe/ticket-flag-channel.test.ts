@@ -15,7 +15,7 @@
  * whole content of that section, so a script in neither fails the run.
  */
 
-import { readFileSync, rmSync } from 'fs'
+import { readdirSync, readFileSync, rmSync } from 'fs'
 import { join, relative } from 'path'
 
 import {
@@ -47,6 +47,17 @@ afterAll(() => {
 })
 
 /**
+ * The Tron deploy scripts that check the ticket at entry, before they spend
+ * TRX. Not funnels: they reach the store through the Tron propose route, and
+ * `SAFE_PROPOSAL_TICKET` is their only channel — `MultisigSigningProcess.md`
+ * §4.2. Read from the directory, the same way `deploy/tron/deploy-ticket-gate.test.ts`
+ * finds the scripts whose check it pins, so the two cannot list different sets.
+ */
+const TRON_DEPLOY_SCRIPTS = readdirSync(join(SCRIPT_ROOT, 'deploy', 'tron'))
+  .filter((name) => /^deploy-and-register-.+(?<!\.test)\.ts$/.test(name))
+  .map((name) => `deploy/tron/${name}`)
+
+/**
  * Every funnel that refuses a run at its own entry, with the channels it
  * accepts a ticket through and the exact calls the ticket travels by.
  *
@@ -58,22 +69,6 @@ afterAll(() => {
  * the intent itself instead of calling `assertTicketPresent`, so the caller grep
  * must not expect to find it.
  */
-/**
- * The Tron deploy scripts that check the ticket at entry, before they spend
- * TRX. Not funnels: they reach the store through the Tron route above, and
- * `SAFE_PROPOSAL_TICKET` is their only channel — `MultisigSigningProcess.md`
- * §4.2. `deploy/tron/deploy-ticket-gate.test.ts` pins where the check sits.
- */
-const TRON_DEPLOY_SCRIPTS = [
-  'deploy/tron/deploy-and-register-allbridge-facet.ts',
-  'deploy/tron/deploy-and-register-eco-facet.ts',
-  'deploy/tron/deploy-and-register-layerswap-facet.ts',
-  'deploy/tron/deploy-and-register-lifi-intent-escrow-facet-v2.ts',
-  'deploy/tron/deploy-and-register-near-intents-facet.ts',
-  'deploy/tron/deploy-and-register-periphery.ts',
-  'deploy/tron/deploy-and-register-symbiosis-facet.ts',
-] as const
-
 const FUNNELS = [
   {
     script: 'deploy/safe/propose-to-safe.ts',

@@ -53,7 +53,7 @@ A normal session is rooted in `contracts`, but every step in this skill except P
 
    A failed pull means local `main` diverged — report it, don't merge or reset. A version mismatch prints the fix (`foundryup --install <fork's .foundry-version>`); after the deploy, switch back with `foundryup --install "$(cat <this checkout>/.foundry-version)"` and re-run the checker in this checkout.
 
-3. **Check the fork is synced for the contract you're about to deploy.** If upstream `contracts:main` has changes to `<Contract>` (or to `LibAsset`/`WithdrawablePeriphery`) not yet in the fork, stop and merge the pending `sync/upstream-YYYY-MM-DD` PR first (or open one) — do not deploy stale code. The scripts need the sync too: a fork whose `<script>.ts` predates the ticket gate deploys without checking for a ticket and has no `--proposeOnly`:
+3. **Check the fork is synced for the contract you're about to deploy.** If upstream `contracts:main` has changes to `<Contract>` (or to `LibAsset`/`WithdrawablePeriphery`) not yet in the fork, stop and merge the pending `sync/upstream-YYYY-MM-DD` PR first (or open one) — do not deploy stale code. The scripts need the sync too: a fork whose Phase 3 `deploy-and-register-*.ts` script predates the ticket gate deploys without checking for a ticket and has no `--proposeOnly`:
 
    ```bash
    grep -q assertTicketPresent script/deploy/tron/<script>.ts || { echo "fork scripts predate the ticket gate — merge the upstream sync first"; exit 1; }
@@ -101,16 +101,14 @@ export SAFE_PROPOSAL_REASON="roll out EcoFacet v3.0.0 to tron (EXSC-1234)"   # s
 
 The scripts refuse a run without the ticket before they build or spend TRX (`--dryRun` excepted). The reason is optional to the scripts, so ask for it: without one, signers see `Reason: — none given —`.
 
-## Phase 3 — Run the deploy scripts (in order)
+## Phase 3 — Run the contract's deploy-and-register script
 
 **`PRODUCTION` alone picks the network and the key.** The scripts ignore `NETWORK`: `getEnvironment()` (`script/utils/utils.ts`) reads `PRODUCTION`, and `PRODUCTION=true` means `tron` with `PRIVATE_KEY_PRODUCTION` (deployerWallet), anything else means `tronshasta` with `PRIVATE_KEY` (devWallet). Both keys come from `.env`; an exported `PRODUCTION` wins over the `.env` value. Set it explicitly for every run, and check the network the script logs before it broadcasts:
 
 ```bash
 export PRODUCTION=true    # tron (mainnet); PRODUCTION=false (tronshasta) only for scripts that support it
 
-bunx tsx script/deploy/tron/deploy-core-facets.ts
-bunx tsx script/deploy/tron/register-facets-to-diamond.ts
-# only the ones relevant to <Contract>'s type:
+# the one for <Contract>:
 bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --only <Contract>
 bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-allbridge-facet.ts
@@ -122,7 +120,9 @@ bunx tsx script/deploy/tron/deploy-and-register-lifi-intent-escrow-facet-v2.ts
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with the devkit's default safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.
 
-**Already deployed, only the proposal missing** (the propose step failed, or a Safe proposal was deleted): re-run the facet script with `--proposeOnly`. It skips the Redeploy prompt, the confirmation and the balance check, and proposes the address recorded for the network. It refuses when no address is recorded, when a `tronshasta` address would come from the `tron.json` fallback, and when the address has no code. Never answer the interactive "Redeploy?" prompt to get there — `Yes` starts another full deploy. Periphery uses `deploy-and-register-periphery.ts --registerOnly --only <Contract>` instead.
+**Never run `deploy-core-facets.ts` or `register-facets-to-diamond.ts` in a rollout.** They bootstrap a new diamond the deployer still owns: `register-facets-to-diamond.ts` sends `diamondCut` straight from the deployer, with no ticket and no Safe proposal. On a timelock-owned diamond the cut reverts after the Energy is spent; on one an EOA still owns it changes the diamond outside the multisig flow.
+
+**Already deployed, only the proposal missing** (the propose step failed, or a Safe proposal was deleted): re-run the facet script with `--proposeOnly`. It skips the Redeploy prompt and the balance check, still shows the network confirmation, and proposes the address recorded for the network. It refuses when no address is recorded, when a `tronshasta` address would come from the `tron.json` fallback, and when the runtime code at the address doesn't match this checkout's artifact in `out/` (an older build left in the log, or no code). A failed read refuses with the RPC error; retry it rather than redeploying. Never answer the interactive "Redeploy?" prompt to get there — `Yes` starts another full deploy. Periphery uses `deploy-and-register-periphery.ts --registerOnly --only <Contract>` instead.
 
 **The scripts build first.** They deploy the artifact in `out/` but label it with the source file's `@custom:version`, so every script that reads `out/` (the deploy scripts, `register-facets-to-diamond.ts` and `transfer-ownership-to-timelock.ts`) first runs `forge build --skip 'test/**'` with `FOUNDRY_*` overrides removed and `FOUNDRY_PROFILE=default` set, so `[profile.default]` applies even when `.env` names another profile. It then refuses unless every `src/` artifact records the default profile's solc version, EVM version and optimizer runs. A failed build or check stops the run before anything is broadcast.
 

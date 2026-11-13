@@ -639,10 +639,10 @@ export async function checkExistingDeployment(
     return { exists: false, address: null, shouldRedeploy: true }
 
   if (mode.kind === 'proposeOnly') {
-    const address = await recordedAddressWithCode(
+    const address = await recordedAddressOfThisBuild(
       network,
       contractName,
-      mode.hasCode
+      mode.assertThisBuild
     )
     consola.info(`Propose-only: using ${contractName} at ${address}`)
     return { exists: true, address, shouldRedeploy: false }
@@ -676,10 +676,10 @@ export async function checkExistingDeployment(
   }
 }
 
-async function recordedAddressWithCode(
+async function recordedAddressOfThisBuild(
   network: SupportedChain,
   contractName: string,
-  hasCode: (address: string) => Promise<boolean>
+  assertThisBuild: (address: string) => Promise<void>
 ): Promise<string> {
   const found = await findContractAddress(network, contractName)
   if (!found)
@@ -690,10 +690,15 @@ async function recordedAddressWithCode(
     throw new Error(
       `--proposeOnly: ${contractName} is recorded for ${network} only through another network's log (${found.address}); that address does not exist on ${network} — deploy it there first`
     )
-  if (!(await hasCode(found.address)))
+  try {
+    await assertThisBuild(found.address)
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error)
     throw new Error(
-      `--proposeOnly: ${contractName} at ${found.address} has no code on ${network} (or it could not be read); check the deployment log before proposing`
+      `--proposeOnly: could not confirm that ${contractName} at ${found.address} on ${network} is this checkout's build, so nothing was proposed. ${reason}`,
+      { cause: error }
     )
+  }
   return found.address
 }
 

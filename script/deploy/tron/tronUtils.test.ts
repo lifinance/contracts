@@ -1,4 +1,9 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import {
+  afterAll,
   describe,
   expect,
   it,
@@ -15,44 +20,92 @@ import {
 
 describe('tronExistingDeploymentMode', () => {
   const ADDR = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'
+  // A solc-shaped runtime: body, then a CBOR metadata trailer and its length word.
+  const runtime = (body: string): string =>
+    `${body}a264697066735822${'11'.repeat(34)}64736f6c634300081d0033`
+  const THIS_BUILD = runtime('608060405260016000')
+  const OLDER_BUILD = runtime('608060405260026000')
 
-  /** A TronWeb whose `getContract` answers `info` and records the address asked. */
-  const fakeTronWeb = (info: { contract_address?: string } | null) => {
+  const OUT_ROOT = mkdtempSync(join(tmpdir(), 'tron-propose-only-'))
+  mkdirSync(join(OUT_ROOT, 'EcoFacet.sol'))
+  writeFileSync(
+    join(OUT_ROOT, 'EcoFacet.sol', 'EcoFacet.json'),
+    JSON.stringify({ deployedBytecode: { object: `0x${THIS_BUILD}` } })
+  )
+  afterAll(() => rmSync(OUT_ROOT, { recursive: true, force: true }))
+
+  /** A TronWeb whose `getContractInfo` answers `read()` and records the address asked. */
+  const fakeTronWeb = (
+    read: () => Promise<{ runtimecode?: string } | null>
+  ) => {
     const asked: string[] = []
     const tronWeb = {
       trx: {
-        getContract: async (address: string) => {
+        getContractInfo: async (address: string) => {
           asked.push(address)
-          return info
+          return read()
         },
       },
     } as unknown as TronWeb
     return { asked, tronWeb }
   }
 
+  const proposeOnlyMode = (tronWeb: TronWeb) => {
+    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb, OUT_ROOT)
+    if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
+    return mode
+  }
+
+  const rejection = async (promise: Promise<unknown>): Promise<string> => {
+    try {
+      await promise
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    throw new Error('expected a rejection')
+  }
+
   it('prompts when --proposeOnly is off', () => {
-    const { tronWeb } = fakeTronWeb(null)
+    const { tronWeb } = fakeTronWeb(async () => null)
 
     expect(tronExistingDeploymentMode(false, 'EcoFacet', tronWeb)).toEqual({
       kind: 'prompt',
     })
   })
 
-  it('checks the recorded address on-chain when --proposeOnly is on', async () => {
-    const { asked, tronWeb } = fakeTronWeb({ contract_address: ADDR })
-    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb)
-    if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
+  it('accepts a recorded address holding this checkout build', async () => {
+    const { asked, tronWeb } = fakeTronWeb(async () => ({
+      runtimecode: THIS_BUILD,
+    }))
 
-    expect(await mode.hasCode(ADDR)).toBe(true)
+    await proposeOnlyMode(tronWeb).assertThisBuild(ADDR)
     expect(asked).toEqual([ADDR])
   })
 
-  it('reports no code when the chain returns no contract', async () => {
-    const { tronWeb } = fakeTronWeb(null)
-    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb)
-    if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
+  it('refuses a recorded address holding an older build', async () => {
+    const { tronWeb } = fakeTronWeb(async () => ({ runtimecode: OLDER_BUILD }))
 
-    expect(await mode.hasCode(ADDR)).toBe(false)
+    expect(
+      await rejection(proposeOnlyMode(tronWeb).assertThisBuild(ADDR))
+    ).toContain(`EcoFacet (${ADDR}): on-chain code differs`)
+  })
+
+  it('refuses a recorded address with no code', async () => {
+    const { tronWeb } = fakeTronWeb(async () => ({}))
+
+    expect(
+      await rejection(proposeOnlyMode(tronWeb).assertThisBuild(ADDR))
+    ).toContain('no code at that address')
+  })
+
+  it('reports a failed read as the read error, not as missing code', async () => {
+    const { tronWeb } = fakeTronWeb(async () => {
+      throw new Error('503 Service Unavailable')
+    })
+
+    expect(
+      await rejection(proposeOnlyMode(tronWeb).assertThisBuild(ADDR))
+    ).toBe('503 Service Unavailable')
   })
 })
 

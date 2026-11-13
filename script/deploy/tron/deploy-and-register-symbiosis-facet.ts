@@ -218,10 +218,7 @@ async function deployAndRegisterSymbiosisFacet(options: {
     const contracts = ['SymbiosisFacet']
 
     // Use new utility for confirmation
-    if (
-      !proposeOnly &&
-      !(await confirmDeployment(environment, network, contracts))
-    )
+    if (!(await confirmDeployment(environment, network, contracts)))
       process.exit(0)
 
     const deploymentResults: IDeploymentResult[] = []

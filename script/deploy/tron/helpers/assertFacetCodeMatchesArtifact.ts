@@ -25,6 +25,26 @@ export type TRuntimeCodeReader = (
 ) => Promise<string | undefined>
 
 /**
+ * Builds a runtime-code reader on TronWeb's `getContractInfo`. A failed read throws rather
+ * than reading as "no code", so an RPC outage is never mistaken for a missing contract.
+ *
+ * @param tronWeb - Any client exposing `trx.getContractInfo`.
+ * @returns A reader for `assertFacetCodeMatchesArtifacts`.
+ */
+export const tronRuntimeCodeReader =
+  (tronWeb: {
+    trx: {
+      getContractInfo: (
+        address: string
+      ) => Promise<{ runtimecode?: string } | null | undefined>
+    }
+  }): TRuntimeCodeReader =>
+  async (address) => {
+    const info = await tronWeb.trx.getContractInfo(address)
+    return info?.runtimecode ? `0x${info.runtimecode}` : undefined
+  }
+
+/**
  * Compares on-chain runtime code with an artifact, ignoring immutable values and the
  * metadata trailer: neither changes which selectors the code dispatches.
  *

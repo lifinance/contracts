@@ -138,10 +138,7 @@ async function deployAndRegisterEcoFacet(options: {
 
     const contracts = ['EcoFacet']
 
-    if (
-      !proposeOnly &&
-      !(await confirmDeployment(environment, network, contracts))
-    )
+    if (!(await confirmDeployment(environment, network, contracts)))
       process.exit(0)
 
     const deploymentResults: IDeploymentResult[] = []

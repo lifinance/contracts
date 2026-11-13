@@ -16,6 +16,7 @@ import {
   tronAddressToHex,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
+import { join } from 'node:path'
 import type { TronWeb } from 'tronweb'
 import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
 
@@ -40,6 +41,10 @@ import {
   assertTronToolchainOrThrow,
   buildForgeArtifactsOrThrow,
 } from './assertTronToolchain'
+import {
+  assertFacetCodeMatchesArtifacts,
+  tronRuntimeCodeReader,
+} from './helpers/assertFacetCodeMatchesArtifact'
 import {
   assertRecordedArgsMatchAbi,
   constructorInputTypes,
@@ -107,21 +112,31 @@ export async function checkIsDeployedTron(
 /**
  * The `checkExistingDeployment` mode for a Tron deploy-and-register script.
  *
+ * In propose-only mode the recorded address must hold this checkout's build: the cut's
+ * selectors and the logged `@custom:version` both come from `out/`, so an older facet left
+ * in the log by a failed deploy would be proposed under the wrong selectors and version.
+ *
  * @param proposeOnly - the script's `--proposeOnly` flag
  * @param contract - the contract the script deploys
- * @param tronWeb - reads the recorded address's code in propose-only mode
- * @returns `proposeOnly` with an on-chain code check, else `prompt`
+ * @param tronWeb - reads the recorded address's runtime code in propose-only mode
+ * @param outRoot - Forge output directory holding the contract's artifact
+ * @returns `proposeOnly` with an on-chain artifact match, else `prompt`
  */
 export function tronExistingDeploymentMode(
   proposeOnly: boolean,
   contract: string,
-  tronWeb: TronWeb
+  tronWeb: TronWeb,
+  outRoot: string = join(process.cwd(), 'out')
 ): ExistingDeploymentMode {
   if (!proposeOnly) return { kind: 'prompt' }
   return {
     kind: 'proposeOnly',
-    hasCode: (address) =>
-      checkIsDeployedTron(contract, { [contract]: address }, tronWeb),
+    assertThisBuild: (address) =>
+      assertFacetCodeMatchesArtifacts({
+        facets: { [contract]: address },
+        readRuntimeCode: tronRuntimeCodeReader(tronWeb),
+        outRoot,
+      }),
   }
 }
 

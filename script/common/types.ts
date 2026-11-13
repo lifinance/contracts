@@ -201,7 +201,11 @@ export interface IDeploymentResult {
 export type ExistingDeploymentMode =
   | { kind: 'prompt' }
   | { kind: 'redeploy' }
-  | { kind: 'proposeOnly'; hasCode: (address: string) => Promise<boolean> }
+  | {
+      kind: 'proposeOnly'
+      /** Throws unless the code at `address` is this checkout's build of the contract. */
+      assertThisBuild: (address: string) => Promise<void>
+    }
 
 export interface INetworkInfo {
   network: string
