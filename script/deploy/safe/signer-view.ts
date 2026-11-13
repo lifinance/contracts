@@ -278,6 +278,10 @@ const MANIFEST_WORD_WIDTH = 10
 const MANIFEST_BLOCKS_WIDTH = 6
 /** The letter's cell, sized to its own header plus a separating column. */
 const MANIFEST_GATE_WIDTH = 5
+/** A passed gate's detail line starts under the gate's title. */
+const MANIFEST_DETAIL_INDENT = ' '.repeat(
+  2 + GLYPH_CELL_WIDTH + MANIFEST_GATE_WIDTH
+)
 const MANIFEST_FIXED =
   2 +
   GLYPH_CELL_WIDTH +
@@ -477,6 +481,18 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
         input.docUrls?.get(definition.checkId) ?? ''
       )
     )
+    // A pass prints no row of its own below, so gate J's qualifier on a read at
+    // `latest` has to sit here. Other gates' findings print in the
+    // gate-detail block, so they are not repeated here.
+    if (
+      entry &&
+      definition.gate === 'J' &&
+      bucketOf(entry) === 'passed' &&
+      entry.result.detail?.trim()
+    )
+      out.push(
+        ...wrapValue('→ ', entry.result.detail, DIM, MANIFEST_DETAIL_INDENT)
+      )
   }
 
   // A result the roster cannot name still has to reach the screen. It would

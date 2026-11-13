@@ -639,6 +639,126 @@ describe('readCodeQuorumPastTipReorgs', () => {
     )
     expect(verdict.status).toBe('agreed')
   })
+
+  /** Providers answering per host; records the block tag each code read names. */
+  const onOneChain = (
+    code: (host: string) => string,
+    hash: (host: string) => string = () => BLOCK_HASH
+  ): unknown[] => {
+    const codeReadAt: unknown[] = []
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      const host = new URL(String(input)).host
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+        params?: unknown[]
+      }
+      const hex = (value: bigint) => `0x${value.toString(16)}`
+      let result: unknown
+      if (body.method === 'eth_chainId') result = '0x1'
+      else if (body.method === 'eth_blockNumber') result = hex(HEAD)
+      else if (body.method === 'eth_getCode') {
+        codeReadAt.push(body.params?.[1])
+        result = code(host)
+      } else if (body.method === 'eth_getBlockByNumber')
+        result = {
+          number: String(body.params?.[0]),
+          hash: hash(host),
+          parentHash: `0x${'00'.repeat(32)}`,
+          timestamp: '0x0',
+          transactions: [],
+        }
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+    return codeReadAt
+  }
+
+  it('reads the code at the pinned hex height by default', async () => {
+    const codeReadAt = onOneChain(() => '0x6080')
+
+    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A, B], 1)
+
+    expect(codeReadAt).toEqual([
+      `0x${HEAD.toString(16)}`,
+      `0x${HEAD.toString(16)}`,
+    ])
+    expect(verdict.status).toBe('agreed')
+    expect(verdict.detail).toContain(`agree at block ${HEAD}`)
+    expect(verdict.valueReadAt).toBeUndefined()
+  })
+
+  it('reads the code at latest when asked, still pinning the chain check', async () => {
+    const codeReadAt = onOneChain(() => '0x6080')
+
+    const verdict = await readCodeQuorumPastTipReorgs(
+      ADDRESS,
+      [A, B],
+      1,
+      'latest'
+    )
+
+    expect(codeReadAt).toEqual(['latest', 'latest'])
+    expect(verdict.status).toBe('agreed')
+    expect(verdict.valueReadAt).toBe('latest')
+    expect(verdict.reachesQuorum).toBe(true)
+    expect(verdict.blockNumber).toBe(HEAD)
+    expect(verdict.detail).toContain('read at latest')
+    expect(verdict.detail).toContain(`chains match at block ${HEAD}`)
+    expect(verdict.detail).not.toContain('agree at block')
+  })
+
+  it('grades different code read at latest as a disagreement, a definite red', async () => {
+    onOneChain((host) => (host.includes('infura') ? '0x6081' : '0x6080'))
+
+    const verdict = await readCodeQuorumPastTipReorgs(
+      ADDRESS,
+      [A, B],
+      1,
+      'latest'
+    )
+
+    expect(verdict.status).toBe('disagreement')
+    expect(verdict.valueReadAt).toBe('latest')
+    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+    expect(verdict.detail).toContain('different code read at latest')
+    expect(verdict.detail).not.toContain(`values at block`)
+  })
+
+  it('keeps a fork that persists at latest a definite red', async () => {
+    const codeReadAt = onOneChain(
+      () => '0x6080',
+      (host) => `0x${(host.includes('infura') ? 'cd' : 'ab').repeat(32)}`
+    )
+
+    const verdict = await readCodeQuorumPastTipReorgs(
+      ADDRESS,
+      [A, B],
+      1,
+      'latest'
+    )
+
+    expect(new Set(codeReadAt)).toEqual(new Set(['latest']))
+    expect(verdict.status).toBe('fork-divergence')
+    expect(verdict.detail).toContain('the fork persisted')
+    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+  })
+
+  it('leaves a single provider at latest a shortfall, not a pass', async () => {
+    onOneChain(() => '0x6080')
+
+    const verdict = await readCodeQuorumPastTipReorgs(ADDRESS, [A], 1, 'latest')
+
+    expect(verdict.reachesQuorum).toBe(false)
+    expect(['insufficient-providers', 'insufficient-responses']).toContain(
+      verdict.status
+    )
+  })
 })
 describe('codeReadLabel', () => {
   it('names what was read and where, for the operator line', () => {
