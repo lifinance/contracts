@@ -1,7 +1,7 @@
 ---
 name: aikido-address-findings
 description: Triages Aikido findings on the current branch's PR (aikido-pr-checks[bot] comments, default) or the repo feed (`all` / an issue ID) — ignores catalog false positives and fixes real findings after the user confirms. Use for "address aikido findings", "triage aikido", or when Aikido comments on a PR.
-usage: /aikido-address-findings [<issue-id> | all | pr] [repo-name] — scope defaults to "pr" (current branch's PR), repo defaults to the current git repo
+usage: /aikido-address-findings [<issue-id> | all | pr] [unattended] [repo-name] — scope defaults to "pr" (current branch's PR), repo defaults to the current git repo; `unattended` runs without confirmation (used by /drive-pr)
 ---
 
 # Aikido Address Findings
@@ -17,6 +17,15 @@ usage: /aikido-address-findings [<issue-id> | all | pr] [repo-name] — scope de
 `pr` works off PR review-comment IDs and ignores via a GitHub reply; `all`/`<issue-id>` work off feed `issue_id`s and ignore via the MCP. They don't mix.
 
 Never hardcode the repo name: this repo and its `contracts-tron` fork share most code under **different** Aikido repo names, so the wrong one returns the wrong findings.
+
+### `unattended`
+
+Optional input after the scope, for callers that drive a PR without the user (`/drive-pr`). Without it, behaviour is unchanged. With it:
+
+- Phase 1: the caller has confirmed the Aikido check run completed, so no bot comment means a clean scan — report "no findings" and return.
+- Phase 2: no "Proceed?" confirmation. **Ignore** and **Fix** findings go ahead; **Manual review** findings are reported and not acted on, and `/aikido-update-false-positive-catalog` is not offered.
+- Phase 4 commits as usual; the caller pushes.
+- Phase 5 and the Phase 6 offer are skipped. The Phase 6 report lists each finding with its root comment `id`.
 
 ## Preflight
 
