@@ -168,12 +168,7 @@ export type TCodeAt = 'pinned' | 'latest'
 /**
  * Marks a verdict as read at `latest`, so neither the operator line nor a
  * consumer of `blockNumber` takes the code to have been read at the pinned block.
- *
- * Different code is not a same-block disagreement here: each provider read it at
- * its own head, so a provider a few blocks behind a fresh deploy differs without
- * lying. It is graded `heights-not-aligned`, an acknowledgement rather than a
- * definite red. A fork is still graded on the block hashes, which were compared
- * at the pinned block.
+ * The status is kept: different code stays a `disagreement`.
  */
 const describeLatestCodeRead = (
   verdict: IRpcQuorumVerdict
@@ -187,9 +182,7 @@ const describeLatestCodeRead = (
   if (verdict.status === 'disagreement')
     return {
       ...marked,
-      status: 'heights-not-aligned',
-      transient: true,
-      detail: `providers returned different code read at their own latest heads, though their chains match at block ${verdict.blockNumber}: a provider behind a recent deploy differs without being wrong, so this read cannot say which is current`,
+      detail: `providers returned different code read at latest, though their chains match at block ${verdict.blockNumber} (largest agreeing group: ${verdict.largestAgreeingGroup} provider(s) of ${verdict.respondingProviders} that answered): one of them is wrong or behind a recent deploy, and this read cannot say which`,
     }
   return {
     ...marked,

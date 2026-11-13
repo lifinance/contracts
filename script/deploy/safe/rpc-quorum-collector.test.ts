@@ -713,7 +713,7 @@ describe('readCodeQuorumPastTipReorgs', () => {
     expect(verdict.detail).not.toContain('agree at block')
   })
 
-  it('grades different code read at latest as unaligned heights, not a definite red', async () => {
+  it('grades different code read at latest as a disagreement, a definite red', async () => {
     onOneChain((host) => (host.includes('infura') ? '0x6081' : '0x6080'))
 
     const verdict = await readCodeQuorumPastTipReorgs(
@@ -723,11 +723,11 @@ describe('readCodeQuorumPastTipReorgs', () => {
       'latest'
     )
 
-    expect(verdict.status).toBe('heights-not-aligned')
-    expect(verdict.reachesQuorum).toBe(false)
+    expect(verdict.status).toBe('disagreement')
     expect(verdict.valueReadAt).toBe('latest')
-    expect(rpcQuorumDefiniteReds(verdict)).toEqual([])
-    expect(verdict.detail).toContain('own latest heads')
+    expect(rpcQuorumDefiniteReds(verdict)).toHaveLength(1)
+    expect(verdict.detail).toContain('different code read at latest')
+    expect(verdict.detail).not.toContain(`values at block`)
   })
 
   it('keeps a fork that persists at latest a definite red', async () => {
