@@ -353,7 +353,7 @@
         "contractName": "AttestedBridgeFacet",
         "sourceId": "src/Facets/AttestedBridgeFacet.sol",
         "version": "1.0.0",
-        "closureHash": "0x515299469ddc5a70b7e3e4d24391e97da0370258a8b7bab417e001772c276d55",
+        "closureHash": "0xbbbd4eabad71ee260545b5507a559b9f64552a1e633ad870adf519e67b928f71",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -373,9 +373,9 @@
           }
         }
       },
-      "maskedHash": "0xf321fb5778334dc03bcab8cc45d13d8fbbbb721bba0e04aa976ec2c06289f8e0",
+      "maskedHash": "0x9f5e9bfc24e23727f6a2955d6f685134d5d30b62a1723f8076fc33c0c5cf2184",
       "lineage": "AttestedBridgeFacet@1.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 2288
+      "rawByteLength": 2455
     },
     {
       "key": {
