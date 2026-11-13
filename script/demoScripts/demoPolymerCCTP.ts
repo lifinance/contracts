@@ -28,9 +28,7 @@ import {
   ADDRESS_USDC_SOL,
   DEV_WALLET_ADDRESS,
   NON_EVM_ADDRESS,
-  computeSolanaATABytes32,
   createContractObject,
-  deriveSolanaAddress,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -39,6 +37,10 @@ import {
   setupEnvironment,
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
+import {
+  computeSolanaATABytes32,
+  deriveSolanaAddress,
+} from './utils/solanaAddress'
 
 config({ quiet: true })
 

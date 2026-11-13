@@ -122,7 +122,6 @@ import {
   ADDRESS_USDT_ETH,
   LIFI_CHAIN_ID_SOLANA,
   NON_EVM_ADDRESS,
-  deriveSolanaAddress,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -133,6 +132,7 @@ import {
   solanaAddressToBytes32,
   zeroPadAddressToBytes32,
 } from './utils/demoScriptHelpers'
+import { deriveSolanaAddress } from './utils/solanaAddress'
 
 config({ quiet: true })
 
