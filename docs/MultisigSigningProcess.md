@@ -515,7 +515,13 @@ signer sees:
    (`selector-registry.ts`), then one batched `api.4byte.sourcify.dev` lookup
    for the rest, which supplies the full signature instead. A selector none
    of them names reads "no name for this selector". The name is stated, not
-   graded.
+   graded. A `setAttestableSelector(selector, enabled)` call reads "Enable"
+   or "Disable for attested dispatch" with the selector and its name, and
+   says whether `config/global.json` → `attestableSelectors` lists the
+   selector. The name there is `<Facet>.<function>` from that entry, shown
+   only when the facet's artifact under `out/` has the selector; otherwise it
+   comes from the local selector registry, then 4byte. The listing is stated,
+   not graded.
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present, and the

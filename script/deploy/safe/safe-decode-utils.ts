@@ -742,6 +742,9 @@ const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
 const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
+const ABI_SET_ATTESTABLE_SELECTOR = parseAbi([
+  'function setAttestableSelector(bytes4,bool)',
+])
 // grantRole / revokeRole / renounceRole share the (bytes32,address) shape
 const ABI_ACCESS_CONTROL_ROLE = parseAbi([
   'function grantRole(bytes32,address)',
@@ -857,6 +860,8 @@ export function getAbiForKnownFunction(functionName: string): Abi | null {
       return ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST
     case 'registerPeripheryContract':
       return ABI_REGISTER_PERIPHERY_CONTRACT
+    case 'setAttestableSelector':
+      return ABI_SET_ATTESTABLE_SELECTOR
     case 'grantRole':
     case 'revokeRole':
     case 'renounceRole':

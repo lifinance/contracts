@@ -23,6 +23,7 @@ import {
   getAddress,
   getContract,
   parseAbi,
+  toFunctionSelector,
   zeroAddress,
   type Address,
   type Hex,
@@ -56,6 +57,12 @@ import {
   baseSemanticVersion,
   TARGET_STATE_VERSION_LATEST,
 } from './safe/pinned-target-state'
+import {
+  evaluateAttestableSelectors,
+  parseAttestableSelectors,
+  type IAttestableSelector,
+  type IAttestableSelectorsConfig,
+} from './shared/attestableSelectors'
 import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -141,6 +148,8 @@ export interface IHealthCheckGlobalConfig {
   whitelistPeripheryFunctions: Record<string, unknown>
   /** Contract name → networks it is allowlisted on; a contract absent from it is allowlisted everywhere. */
   whitelistPeripheryNetworks?: Record<string, unknown>
+  /** Selectors AttestedBridgeFacet is expected to dispatch, and where; see `attestableSelectors.ts`. */
+  attestableSelectors?: unknown
 }
 
 /** A single registered facet with its selector list, as read from `LiFiDiamond.facets()`. */
@@ -1446,6 +1455,150 @@ async function readSelectorAllowlist(
     else record(selector, result?.reason ?? 'no result')
   })
   return { answers, firstError }
+}
+
+/** Registry name of the attester `AttestedBridgeFacet` reports bridge calls to. */
+const BRIDGE_ATTESTER = 'BridgeAttester'
+
+/**
+ * Read `getWhitelistedSelectorsForContract(address)` from the diamond.
+ *
+ * @param ctx - the health-check context (diamond address and client)
+ * @param address - the contract to ask about (hex on EVM, base58 on Tron)
+ * @returns the selectors the diamond allowlists for `address`
+ * @throws when no client is configured or the read fails
+ */
+async function readWhitelistedSelectors(
+  ctx: IHealthCheckContext,
+  address: string
+): Promise<readonly string[]> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const output = await callTronContract(
+      ctx.diamondAddress,
+      'getWhitelistedSelectorsForContract(address)',
+      [address],
+      'bytes4[]',
+      ctx.tronRpcUrl
+    )
+    return parseTroncastArrayOutput(output).map(String)
+  }
+
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const manager = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function getWhitelistedSelectorsForContract(address) external view returns (bytes4[])',
+    ]),
+    client: ctx.publicClient,
+  })
+  return manager.read.getWhitelistedSelectorsForContract([address as Address])
+}
+
+/** `AttestedBridgeFacet`'s own selectors, which the contract never lets be attestable. */
+const ATTESTED_BRIDGE_GATEWAY_SELECTORS: ReadonlySet<Hex> = new Set([
+  toFunctionSelector('startBridgeAttested(bytes,bytes)'),
+  toFunctionSelector('setAttestableSelector(bytes4,bool)'),
+  toFunctionSelector('isAttestableSelector(bytes4)'),
+])
+const IS_ATTESTABLE_SELECTOR = toFunctionSelector(
+  'isAttestableSelector(bytes4)'
+)
+
+/**
+ * Check the diamond's attestable selectors against `config/global.json` → `attestableSelectors`.
+ *
+ * The mapping cannot be listed on chain, so every selector the diamond routes is probed, plus each
+ * listed one: that covers every flag the gateway could act on, and a listed flag whose selector
+ * has since left the diamond. A flag on a selector that is neither routed nor listed is harmless
+ * (the gateway reverts `FunctionDoesNotExist`) and is not looked for.
+ */
+async function checkAttestableSelectors(
+  ctx: IHealthCheckContext
+): Promise<void> {
+  if (ctx.onChainFacets.length === 0) {
+    ctx.logWarn(
+      'On-chain facet list unavailable - attestable selectors not checked'
+    )
+    return
+  }
+  const routedTo = new Map<Hex, string>()
+  for (const facet of ctx.onChainFacets)
+    for (const selector of facet.selectors)
+      routedTo.set(selector.toLowerCase() as Hex, facet.address)
+  if (!routedTo.has(IS_ATTESTABLE_SELECTOR)) {
+    consola.info('AttestedBridgeFacet is not cut - nothing to check')
+    return
+  }
+  if (ctx.isTron || !ctx.publicClient) {
+    ctx.logWarn(
+      'AttestedBridgeFacet is cut, but its selectors are checked on EVM networks only'
+    )
+    return
+  }
+
+  let config: IAttestableSelectorsConfig
+  try {
+    config = parseAttestableSelectors(ctx.globalConfig.attestableSelectors)
+  } catch (error: unknown) {
+    ctx.logError(`config/global.json: ${String(error)}`)
+    return
+  }
+  const expected: ReadonlyMap<Hex, IAttestableSelector> = config.networks.has(
+    ctx.networkLower
+  )
+    ? config.selectors
+    : new Map()
+  const probed = new Set<Hex>(
+    [...routedTo.keys()].filter(
+      (selector) => !ATTESTED_BRIDGE_GATEWAY_SELECTORS.has(selector)
+    )
+  )
+  for (const selector of expected.keys()) probed.add(selector)
+
+  const gateway = getContract({
+    address: ctx.diamondAddress as Address,
+    abi: parseAbi([
+      'function isAttestableSelector(bytes4) external view returns (bool)',
+    ]),
+    client: ctx.publicClient,
+  })
+  let enabled: Map<Hex, boolean>
+  try {
+    // Concurrent so the client's multicall batching folds them into a few round-trips.
+    const selectors = [...probed]
+    const answers = await Promise.all(
+      selectors.map((selector) => gateway.read.isAttestableSelector([selector]))
+    )
+    enabled = new Map(
+      selectors.map((selector, i) => [selector, answers[i] === true])
+    )
+  } catch (error: unknown) {
+    report(
+      ctx,
+      error,
+      `could not read isAttestableSelector: ${redactUrls(String(error))}`
+    )
+    return
+  }
+
+  const { errors, warnings } = evaluateAttestableSelectors({
+    expected,
+    enabled,
+    routedTo,
+    deployedContracts: Object.fromEntries(
+      Object.entries(ctx.deployedContracts).map(([name, address]) => [
+        name,
+        String(address),
+      ])
+    ),
+  })
+  for (const message of errors) ctx.logError(message)
+  for (const message of warnings) ctx.logWarn(message)
+  if (errors.length === 0 && warnings.length === 0)
+    consola.success(
+      `Attestable selectors match config (${expected.size} expected, ${probed.size} probed)`
+    )
 }
 
 /**
@@ -3062,7 +3215,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     scope: { environments: ['production'] },
     readsOnChainFacets: true,
     remediation:
-      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if destination calls genuinely do not apply here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
+      'Deploy the missing companion contract on this network and register it via diamondUpdatePeriphery, or - if the facet genuinely does not need it here - add a reasoned notRequiredOn entry to config/global.json -> facetPeripheryCouplings.',
     run: async (ctx) => {
       // Triggers on facets live in the diamond, not on target state: the failure this guards against
       // is a facet being live while its companion is absent, and target state itself was missing the
@@ -3102,7 +3255,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       const wanted = required.map((requirement) => requirement.companion)
       // A companion is present iff the registry returns a non-null (non-zero) address. A read that
       // fails or returns malformed output is undetermined, never treated as absence - one flaky RPC
-      // (or troncast output drift) must not raise a false "destination calls disabled" gate.
+      // (or troncast output drift) must not raise a false "companion missing" gate.
       const registered = new Map<string, boolean>()
       const unresolved = new Set<string>()
       const markUnresolved = (companion: string, reason: unknown): void => {
@@ -3158,7 +3311,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         ctx.logError(
           `${triggeredBy.join(
             ', '
-          )} live but companion ${companion} not registered in Diamond - destination calls for this integration are disabled on this network`
+          )} live but companion ${companion} not registered in Diamond - the facet cannot work on this network without it`
         )
       }
     },
@@ -3395,6 +3548,69 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           `${verified} registered periphery contract(s) have their selectors allowlisted`
         )
     },
+  },
+  {
+    name: 'bridge-attester-not-allowlisted',
+    description:
+      'The attester registered under BridgeAttester has no selector on the diamond allowlist',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    remediation:
+      'Remove every allowlisted selector of the BridgeAttester address (config/whitelist.json, then sync). While any is listed, a swap step could call the attester as the diamond, and the Intent Factory ledger refuses every attestation (LedgerAllowListed).',
+    run: async (ctx) => {
+      // The attester trusts any call from the diamond. The allowlist is the generic path by which
+      // a swap step makes the diamond call an arbitrary contract, so it must name no attester
+      // selector. The check mirrors the ledger's own guard: any listed selector at all.
+      let attester: string | null
+      try {
+        attester = await readPeripheryRegistry(BRIDGE_ATTESTER, ctx)
+      } catch (error: unknown) {
+        report(
+          ctx,
+          error,
+          `${BRIDGE_ATTESTER}: could not read the PeripheryRegistry, so its allowlist was not checked: ${redactUrls(
+            String(error)
+          )}`
+        )
+        return
+      }
+      if (attester === null) return
+
+      let selectors: readonly string[]
+      try {
+        selectors = await readWhitelistedSelectors(ctx, attester)
+      } catch (error: unknown) {
+        report(
+          ctx,
+          error,
+          `${BRIDGE_ATTESTER} (${attester}): could not read its allowlisted selectors: ${redactUrls(
+            String(error)
+          )}`
+        )
+        return
+      }
+
+      if (selectors.length > 0) {
+        ctx.logError(
+          `${BRIDGE_ATTESTER} (${attester}) has allowlisted selectors ${selectors.join(
+            ', '
+          )} - the diamond can call it outside AttestedBridgeFacet`
+        )
+        return
+      }
+      consola.success(`${BRIDGE_ATTESTER} (${attester}) is not allowlisted`)
+    },
+  },
+  {
+    name: 'attestable-selectors-match-config',
+    description:
+      'AttestedBridgeFacet dispatches only the selectors config lists for this network, each routed to its deploy-log facet',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'Align setAttestableSelector with config/global.json attestableSelectors: enable each listed selector, disable any other. A listed selector that routes to another facet or to nothing means the facet changed since review: re-confirm it with the Intent Factory team, then update the config or disable the selector.',
+    run: checkAttestableSelectors,
   },
   {
     name: 'erc20proxy-owner',
