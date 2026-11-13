@@ -4,6 +4,12 @@
  * 20-byte hex. Imported by the watcher when it watches a Tron network.
  */
 
+import {
+  evm20HexStringToTronBase58,
+  getTronWebCodecOnlyForNetwork,
+} from '@lifi/tron-devkit'
+import type { Address } from 'viem'
+
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
 const TRON_BASE58 = /^T[1-9A-HJ-NP-Za-km-z]{33}$/
@@ -13,12 +19,27 @@ const isBase58 = (value: unknown): value is string =>
   typeof value === 'string' && TRON_BASE58.test(value)
 
 /**
+ * The 20-byte hex of a Tron address. The conversion drops the version byte
+ * unchecked, so a checksum-valid string under another version byte would
+ * otherwise convert to a different account's hex.
+ */
+const tronHex = (network: string, base58: string): Address => {
+  const hex = normalizeAddressForNetwork(network, base58)
+  const tronWeb = getTronWebCodecOnlyForNetwork(network)
+  if (evm20HexStringToTronBase58(tronWeb, hex) !== base58)
+    throw new Error(
+      `${base58} is not a Tron account address: its version byte is not 0x41`
+    )
+  return hex
+}
+
+/**
  * A deployments file with every base58 address spelled as hex.
  *
  * @param network - Tron network name.
  * @param deployments - Main's parsed `deployments/<network>.json`.
  * @returns A copy whose base58 addresses are checksummed hex; other values unchanged.
- * @throws When a base58-shaped value fails its checksum.
+ * @throws When a base58-shaped value fails its checksum or is not a Tron account.
  */
 export const tronDeploymentsAsHex = (
   network: string,
@@ -27,14 +48,14 @@ export const tronDeploymentsAsHex = (
   Object.fromEntries(
     Object.entries(deployments).map(([name, value]) => [
       name,
-      isBase58(value) ? normalizeAddressForNetwork(network, value) : value,
+      isBase58(value) ? tronHex(network, value) : value,
     ])
   )
 
 /**
  * The global config with every EVM wallet replaced by its `tronWallets`
- * counterpart, in hex, since Tron's refund, pauser and withdraw wallets differ.
- * No EVM wallet survives, so none is accepted as a Tron recipient.
+ * counterpart, in hex: main lists Tron's wallets separately, so they can
+ * differ. No EVM wallet survives, so none is accepted as a Tron recipient.
  *
  * @param network - Tron network name.
  * @param globalConfig - Parsed `config/global.json`.
@@ -58,7 +79,7 @@ export const withTronWallets = (
       throw new Error(
         `config/global.json tronWallets.${name} is missing or not a Tron address`
       )
-    overlay[name] = normalizeAddressForNetwork(network, tron)
+    overlay[name] = tronHex(network, tron)
   }
   return { ...globalConfig, ...overlay }
 }

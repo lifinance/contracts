@@ -61,6 +61,7 @@ export interface IScheduledCallLog {
   predecessor: Hex
   delay: bigint
   blockNumber: bigint
+  logIndex: number
 }
 
 /** One decoded `CallSalt` log. */
@@ -73,6 +74,30 @@ export interface ICallSaltLog {
 export interface ICancelledLog {
   id: Hex
   blockNumber: bigint
+  logIndex: number
+}
+
+/**
+ * Where a log sits in the chain. `logIndex` is undefined for a position saved
+ * before the scan state recorded log indexes.
+ */
+interface ILogPosition {
+  blockNumber: bigint
+  logIndex: number | undefined
+}
+
+/**
+ * Whether `a` comes after `b`. Within one block the log index decides, so a
+ * batch that cancels an operation and schedules it again in the same block
+ * leaves it scheduled. Without both indexes, neither is after the other.
+ */
+const isAfter = (a: ILogPosition, b: ILogPosition): boolean => {
+  if (a.blockNumber !== b.blockNumber) return a.blockNumber > b.blockNumber
+  return (
+    a.logIndex !== undefined &&
+    b.logIndex !== undefined &&
+    a.logIndex > b.logIndex
+  )
 }
 
 /** Logs one `eth_getLogs` range returned, by event. */
@@ -99,8 +124,12 @@ export interface IScannedOperation {
   salt: Hex
   /** Block of the latest `CallScheduled` log seen for this id. */
   blockNumber: string
+  /** Log index of that log within `blockNumber`. */
+  logIndex?: number
   /** Block of the latest `Cancelled` log seen for this id, if any. */
   cancelledInBlock?: string
+  /** Log index of that log within `cancelledInBlock`. */
+  cancelledLogIndex?: number
   /** Runs in which `getTimestamp` read 0 with no `Cancelled` log to explain it; a failed read neither counts nor resets. */
   unsetReads?: number
 }
@@ -122,6 +151,8 @@ export interface INetworkScanState {
    * the schedule it undoes.
    */
   cancels?: Record<string, string>
+  /** Log index of each `cancels` entry within its block. */
+  cancelLogIndexes?: Record<string, number>
 }
 
 /**
@@ -222,7 +253,7 @@ export const mergeScheduledLogs = (
     calls.push(call)
     calls.sort((a, b) => a.index - b.index)
     const existingIsNewer =
-      existing !== undefined && BigInt(existing.blockNumber) > log.blockNumber
+      existing !== undefined && isAfter(scheduledPosition(existing), log)
     merged[key] = {
       ...existing,
       id: key as Hex,
@@ -233,6 +264,7 @@ export const mergeScheduledLogs = (
       blockNumber: existingIsNewer
         ? existing.blockNumber
         : log.blockNumber.toString(),
+      logIndex: existingIsNewer ? existing.logIndex : log.logIndex,
     }
   }
   for (const salt of logs.salts) {
@@ -241,32 +273,63 @@ export const mergeScheduledLogs = (
   }
   for (const cancel of logs.cancels) {
     const existing = merged[cancel.id.toLowerCase()]
-    if (
-      existing &&
-      (existing.cancelledInBlock === undefined ||
-        BigInt(existing.cancelledInBlock) < cancel.blockNumber)
-    )
+    if (!existing) continue
+    const seen = cancelledPosition(existing)
+    if (seen === undefined || !isAfter(seen, cancel))
       merged[existing.id] = {
         ...existing,
         cancelledInBlock: cancel.blockNumber.toString(),
+        cancelledLogIndex: cancel.logIndex,
       }
   }
   return merged
 }
 
+const scheduledPosition = (op: IScannedOperation): ILogPosition => ({
+  blockNumber: BigInt(op.blockNumber),
+  logIndex: op.logIndex,
+})
+
+const cancelledPosition = (op: IScannedOperation): ILogPosition | undefined =>
+  op.cancelledInBlock === undefined
+    ? undefined
+    : {
+        blockNumber: BigInt(op.cancelledInBlock),
+        logIndex: op.cancelledLogIndex,
+      }
+
+/** The network-wide cancel map of the scan state, by lowercased id. */
+type TCancelMaps = Required<
+  Pick<INetworkScanState, 'cancels' | 'cancelLogIndexes'>
+>
+
+const stateCancelPosition = (
+  state: Partial<TCancelMaps>,
+  key: string
+): ILogPosition | undefined => {
+  const block = state.cancels?.[key]
+  return block === undefined
+    ? undefined
+    : { blockNumber: BigInt(block), logIndex: state.cancelLogIndexes?.[key] }
+}
+
 const emptyLogs = (): IRangeLogs => ({ scheduled: [], salts: [], cancels: [] })
 
-/** Folds cancel logs into the per-id latest-cancel map. */
+/** Folds cancel logs into the per-id latest-cancel maps. */
 const mergeCancels = (
-  cancels: Readonly<Record<string, string>>,
+  known: TCancelMaps,
   logs: readonly ICancelledLog[]
-): Record<string, string> => {
-  const merged = { ...cancels }
+): TCancelMaps => {
+  const merged: TCancelMaps = {
+    cancels: { ...known.cancels },
+    cancelLogIndexes: { ...known.cancelLogIndexes },
+  }
   for (const log of logs) {
     const key = log.id.toLowerCase()
-    const seen = merged[key]
-    if (seen === undefined || BigInt(seen) < log.blockNumber)
-      merged[key] = log.blockNumber.toString()
+    const seen = stateCancelPosition(merged, key)
+    if (seen !== undefined && isAfter(seen, log)) continue
+    merged.cancels[key] = log.blockNumber.toString()
+    merged.cancelLogIndexes[key] = log.logIndex
   }
   return merged
 }
@@ -282,18 +345,20 @@ const appendLogs = (into: IRangeLogs, from: IRangeLogs): void => {
  * that `getTimestamp` reading 0 is explained rather than a lagging node.
  *
  * @param op - The operation.
- * @param cancels - The network's cancels by id, from its scan state.
+ * @param state - The network's scan state, for cancels read before the schedule.
  * @returns True when a `Cancelled` log follows its latest `CallScheduled`.
  */
 export const isProvenCancelled = (
   op: IScannedOperation,
-  cancels: Readonly<Record<string, string>> = {}
+  state: Partial<TCancelMaps> = {}
 ): boolean => {
-  const latest = [op.cancelledInBlock, cancels[op.id.toLowerCase()]]
-    .filter((b): b is string => b !== undefined)
-    .map(BigInt)
-    .reduce((a, b) => (a > b ? a : b), -1n)
-  return latest >= BigInt(op.blockNumber)
+  const scheduled = scheduledPosition(op)
+  return [
+    cancelledPosition(op),
+    stateCancelPosition(state, op.id.toLowerCase()),
+  ]
+    .filter((p): p is ILogPosition => p !== undefined)
+    .some((cancel) => isAfter(cancel, scheduled))
 }
 
 /**
@@ -419,8 +484,9 @@ const readRangeDownward = async (
  * @param previous - State from the last run, already matched to this timelock.
  * @param deps - Chain readers.
  * @param logBudget - Calls the backward (history) leg may spend.
- * @param history - Clock time the backward leg must stop by, the clock, and
- *   how many ranges it may read at once.
+ * @param history - Clock time the backward leg must stop by, the clock, how
+ *   many ranges it may read at once, and the widest range the network's
+ *   endpoints are known to serve.
  * @returns The advanced state and whether history is complete.
  * @throws When the head, the floor or a range of the forward leg cannot be read.
  */
@@ -428,7 +494,12 @@ export const advanceScan = async (
   previous: INetworkScanState,
   deps: IScanDependencies,
   logBudget: number,
-  history: { until?: number; now?: () => number; parallel?: number } = {}
+  history: {
+    until?: number
+    now?: () => number
+    parallel?: number
+    maxSpan?: bigint
+  } = {}
 ): Promise<IScanOutcome> => {
   const head = await deps.head()
   // A floor that could not be resolved is not saved, so the next run retries it.
@@ -441,9 +512,13 @@ export const advanceScan = async (
     previous.span !== undefined
       ? BigInt(previous.span) * SPAN_SHRINK
       : MAX_LOG_SPAN
-  let span = widened < MAX_LOG_SPAN ? widened : MAX_LOG_SPAN
+  const maxSpan = history.maxSpan ?? MAX_LOG_SPAN
+  let span = widened < maxSpan ? widened : maxSpan
   let operations = previous.operations
-  let cancels = previous.cancels ?? {}
+  let cancels: TCancelMaps = {
+    cancels: previous.cancels ?? {},
+    cancelLogIndexes: previous.cancelLogIndexes ?? {},
+  }
   let logCalls = 0
   let scheduledLogs = 0
   let historyError: string | undefined
@@ -513,7 +588,7 @@ export const advanceScan = async (
       high: reached.toString(),
       span: span.toString(),
       operations,
-      cancels,
+      ...cancels,
     },
   }
 }

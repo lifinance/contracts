@@ -176,6 +176,12 @@ const DEFAULT_HISTORY_MINUTES = 2
 /** History ranges read at once per network; the endpoints are slow per call, not per block. */
 const HISTORY_PARALLEL_RANGES = 8
 
+/**
+ * TronGrid's cap on one `eth_getLogs` range. Without it the span settles at a
+ * tenth of the cap and every run is refused once trying the next width up.
+ */
+const TRON_MAX_LOG_SPAN = 5_000n // 5,000 blocks
+
 /** Time one network may take beyond its history budget and one gate K rebuild before it counts as unreadable. */
 const NETWORK_OVERHEAD_MS = 6 * 60 * 1000 // 6 minutes
 
@@ -1175,7 +1181,11 @@ export const watchNetwork = async (
           const cancels = []
           for (const log of logs)
             if (log.eventName === 'Cancelled')
-              cancels.push({ id: log.args.id, blockNumber: log.blockNumber })
+              cancels.push({
+                id: log.args.id,
+                blockNumber: log.blockNumber,
+                logIndex: log.logIndex,
+              })
             else if (log.eventName === 'CallScheduled')
               scheduled.push({
                 id: log.args.id,
@@ -1186,6 +1196,7 @@ export const watchNetwork = async (
                 predecessor: log.args.predecessor,
                 delay: log.args.delay,
                 blockNumber: log.blockNumber,
+                logIndex: log.logIndex,
               })
             else salts.push({ id: log.args.id, salt: log.args.salt })
           return { scheduled, salts, cancels }
@@ -1195,6 +1206,7 @@ export const watchNetwork = async (
       {
         until: startedAt + ctx.historyMs,
         parallel: HISTORY_PARALLEL_RANGES,
+        ...(tron ? { maxSpan: TRON_MAX_LOG_SPAN } : {}),
       }
     )
   } catch (error) {
@@ -1262,6 +1274,8 @@ export const watchNetwork = async (
     if (typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value))
       knownForArguments.set(value.toLowerCase(), key)
   for (const [address, label] of known) knownForArguments.set(address, label)
+  // Safe owners stay in EVM hex on Tron too: the same key controls the same
+  // 20 bytes there, so no Tron spelling is needed.
   const safeOwners = new Set(
     globalConfig.safeOwners.map((owner) => owner.toLowerCase())
   )
@@ -1305,14 +1319,7 @@ export const watchNetwork = async (
       stage = undefined
     }
     const unsetReads = stage === 'unset' ? (op.unsetReads ?? 0) + 1 : 0
-    if (
-      isSettled(
-        name,
-        stage,
-        unsetReads,
-        isProvenCancelled(op, scan.state.cancels)
-      )
-    ) {
+    if (isSettled(name, stage, unsetReads, isProvenCancelled(op, scan.state))) {
       delete scan.state.operations[op.id]
       delete ctx.state.codehash[findingKey(name, op.id)]
       continue

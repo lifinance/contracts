@@ -6,6 +6,8 @@ const TIMELOCK_BASE58 = 'TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu'
 const TIMELOCK_HEX = '0x161f35951702e93ffee662ed16fb538c283462a5'
 const REFUND_BASE58 = 'TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD'
 const REFUND_HEX = '0x156cebba59deb2cb23742f70dcb0a11cc775591f'
+/** Checksum-valid base58 under version byte 0x42, not Tron's 0x41. */
+const OTHER_VERSION_BASE58 = 'TbKcWzjyNreUq3ub5hQFKUbCX7wyoDAGww'
 
 describe('tronDeploymentsAsHex', () => {
   it('spells every base58 address as hex and leaves other values alone', () => {
@@ -26,6 +28,12 @@ describe('tronDeploymentsAsHex', () => {
   it('throws on a base58-shaped value whose checksum fails', () => {
     const broken = `${TIMELOCK_BASE58.slice(0, -1)}v`
     expect(() => tronDeploymentsAsHex('tron', { Broken: broken })).toThrow()
+  })
+
+  it('throws on a checksum-valid address under another version byte', () => {
+    expect(() =>
+      tronDeploymentsAsHex('tron', { Other: OTHER_VERSION_BASE58 })
+    ).toThrow('version byte is not 0x41')
   })
 })
 
@@ -63,5 +71,14 @@ describe('withTronWallets', () => {
         tronWallets: { refundWallet: 'Tbroken' },
       })
     ).toThrow('tronWallets.refundWallet')
+  })
+
+  it('throws on a Tron wallet under another version byte', () => {
+    expect(() =>
+      withTronWallets('tron', {
+        refundWallet: '0x0000000000000000000000000000000000000001',
+        tronWallets: { refundWallet: OTHER_VERSION_BASE58 },
+      })
+    ).toThrow('version byte is not 0x41')
   })
 })
