@@ -150,10 +150,11 @@ The histories are unrelated enough that cherry-picking is the wrong tool — **c
 
 ```bash
 # capture the fork commit before leaving it — goes in the PR body for re-verification
-TRON_COMMIT=$(git -C ../contracts-tron rev-parse HEAD)
+# <fork> is the contracts-tron checkout Phase 0 located
+TRON_COMMIT=$(git -C <fork> rev-parse HEAD)
 
 # back in the contracts checkout (this repo), in the rollout's working tree
-cp ../contracts-tron/deployments/tron.json deployments/tron.json
+cp <fork>/deployments/tron.json deployments/tron.json
 git diff deployments/tron.json   # only <Contract>'s entry should change
 ```
 
