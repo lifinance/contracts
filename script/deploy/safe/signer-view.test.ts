@@ -596,6 +596,53 @@ describe('a check with a write-up to point at', () => {
   })
 })
 
+describe('a passed gate that qualifies its pass', () => {
+  const TRON_PASS =
+    '2 independent providers return the same code read at latest, and their chains match at block 100'
+
+  const manifest = (entries: IBucketedResult[]): string[] =>
+    renderGateManifest({
+      entries,
+      roster: entries.flatMap((e) => (e.definition ? [e.definition] : [])),
+      mustReport: new Set(entries.map((e) => e.result.checkId)),
+    }).map(stripAnsi)
+
+  // The passed bucket prints nothing below the manifest, so gate J on Tron
+  // saying where it read the code would otherwise never reach the screen.
+  it('prints the detail under its manifest row', () => {
+    const lines = manifest([
+      {
+        definition: definition('rpc-quorum', 'Independent RPCs agree'),
+        result: result('rpc-quorum', 'pass', { detail: TRON_PASS }),
+      },
+    ])
+    const row = lines.findIndex((l) => l.includes('Independent RPCs agree'))
+    const detail = lines.findIndex((l) => l.includes('read at latest'))
+
+    expect(row).toBeGreaterThan(-1)
+    expect(detail).toBe(row + 1)
+    expect(lines.join(' ')).toContain('chains match at block 100')
+    expect(lines.every((l) => l.length <= VIEW_WIDTH)).toBe(true)
+  })
+
+  it('adds no line for a pass without a detail', () => {
+    const lines = manifest([entry('x', 'pass')])
+    const row = lines.findIndex((l) => l.includes('title for x'))
+    expect(lines[row + 1]).toBe('')
+  })
+
+  // A row that asks something prints its detail in its own bucket below.
+  it('leaves a non-passing row detail to the bucket below', () => {
+    const lines = manifest([
+      {
+        definition: definition('x', 'A check'),
+        result: result('x', 'fail', { detail: 'only below' }),
+      },
+    ])
+    expect(lines.join('\n')).not.toContain('only below')
+  })
+})
+
 describe('check notes', () => {
   it('prints a note under the check it belongs to', () => {
     const plain = renderCheckGroups([
