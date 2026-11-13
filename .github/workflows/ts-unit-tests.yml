@@ -72,6 +72,8 @@ jobs:
               # a config-only change can drop the naming rule or a directive
               # mapping without touching script/**
               - '.oxlintrc.json'
+              # assert-zk-toolchain.test.ts asserts this workflow's smoke filter
+              - '.github/workflows/deploy-smoke-test.yml'
               # validateScriptsWorkflow.test.ts guards this workflow's lint step
               - '.github/workflows/validateScripts.yml'
               - '.github/workflows/ts-unit-tests.yml'
