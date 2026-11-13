@@ -105,7 +105,10 @@ dispatched facet.
 (`OnlyContractOwner`). The set lives in its own Diamond storage namespace
 (`com.lifi.facets.attested_bridge`), and each change emits
 `AttestableSelectorSet(selector, enabled)`. The facet's own three selectors can never be
-enabled (`GatewaySelectorNotAttestable`), so the gateway cannot dispatch itself.
+enabled (`GatewaySelectorNotAttestable`), so the gateway cannot dispatch itself. A selector
+can be enabled only while the Diamond routes it (`FunctionDoesNotExist` otherwise), so enable
+it in the same timelock batch as, or after, the cut that adds its facet. Disabling works on
+any selector.
 
 **Enable only bridge entrypoints guarded by `nonReentrant`.** The gateway has no
 reentrancy guard of its own (see below).
@@ -132,10 +135,11 @@ checks hold it to the code and the chain:
   `deployments/<network>.json`; a listed selector that is not enabled yet is a warning,
   since config is merged before the timelocked `setAttestableSelector` executes.
 
-The flag is keyed by selector, so it survives a cut of the facet that serves it. The
-health check confirms the route, not the new code: when a dispatched facet is upgraded,
-confirming it is still `nonReentrant` and that Intent Factory's adapters still decode it
-is a review step.
+The flag is keyed by selector, so it survives a cut of the facet that serves it, including a
+cut that removes the route; dispatch then reverts `FunctionDoesNotExist` until the selector is
+routed again. The health check confirms the route, not the new code: when a dispatched
+facet is upgraded, confirming it is still `nonReentrant` and that Intent Factory's adapters
+still decode it is a review step.
 
 ## Reentrancy
 
@@ -173,16 +177,16 @@ function attest(
 
 ## Events and Errors
 
-| Name                                                           | Defined in               | Raised when                                                 |
-| -------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------- |
-| `AttestableSelectorSet(bytes4 indexed selector, bool enabled)` | `AttestedBridgeFacet`    | `setAttestableSelector` succeeds                            |
-| `InvalidCallData()`                                            | `GenericErrors`          | `_facetCalldata` is shorter than four bytes                 |
-| `SelectorNotAttestable()`                                      | `AttestedBridgeFacet`    | the selector is not enabled                                 |
-| `FunctionDoesNotExist()`                                       | `LibDiamond`             | the Diamond has no facet for the selector                   |
-| `AttesterNotRegistered()`                                      | `AttestedBridgeFacet`    | no contract code is registered under `BridgeAttester`       |
-| `GatewaySelectorNotAttestable()`                               | `AttestedBridgeFacet`    | `setAttestableSelector` is called with a gateway selector   |
-| `OnlyContractOwner()`                                          | `GenericErrors`          | `setAttestableSelector` is called by anyone but the owner   |
-| `ReentrancyError()`                                            | `ReentrancyGuard`        | a guarded facet is re-entered while a dispatched facet runs |
+| Name                                                           | Defined in            | Raised when                                                                                       |
+| -------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------- |
+| `AttestableSelectorSet(bytes4 indexed selector, bool enabled)` | `AttestedBridgeFacet` | `setAttestableSelector` succeeds                                                                  |
+| `InvalidCallData()`                                            | `GenericErrors`       | `_facetCalldata` is shorter than four bytes                                                       |
+| `SelectorNotAttestable()`                                      | `AttestedBridgeFacet` | the selector is not enabled                                                                       |
+| `FunctionDoesNotExist()`                                       | `LibDiamond`          | the Diamond has no facet for the selector, on dispatch or when `setAttestableSelector` enables it |
+| `AttesterNotRegistered()`                                      | `AttestedBridgeFacet` | no contract code is registered under `BridgeAttester`                                             |
+| `GatewaySelectorNotAttestable()`                               | `AttestedBridgeFacet` | `setAttestableSelector` is called with a gateway selector                                         |
+| `OnlyContractOwner()`                                          | `GenericErrors`       | `setAttestableSelector` is called by anyone but the owner                                         |
+| `ReentrancyError()`                                            | `ReentrancyGuard`     | a guarded facet is re-entered while a dispatched facet runs                                       |
 
 The facet emits no event when it dispatches. The bridge facet emits its usual
 `LiFiTransferStarted`, and the attester can record the attestation itself.

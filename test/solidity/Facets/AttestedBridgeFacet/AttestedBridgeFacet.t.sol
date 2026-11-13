@@ -234,6 +234,19 @@ abstract contract GatewayDiamondTestBase is Test {
         AttestedBridgeFacet(diamond).setAttestableSelector(_selector, true);
     }
 
+    function _enableThenUnroute(bytes4 _selector) internal {
+        _enable(_selector);
+        bytes4[] memory selectors = new bytes4[](1);
+        selectors[0] = _selector;
+        LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
+        cut[0] = LibDiamond.FacetCut(
+            address(0),
+            LibDiamond.FacetCutAction.Remove,
+            selectors
+        );
+        DiamondCutFacet(diamond).diamondCut(cut, address(0), "");
+    }
+
     function _fundAndApprove(uint256 _amount) internal {
         token.mint(address(this), _amount);
         token.approve(diamond, type(uint256).max);
@@ -421,29 +434,49 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         AttestedBridgeFacet(diamond).startBridgeAttested(inner, ATTESTER_DATA);
     }
 
-    function testRevert_EnabledSelectorWithoutFacet() public {
-        _registerAttester(address(new RecordingAttester()));
-        _enable(bytes4(0xdeadbeef));
+    function testRevert_EnableUnroutedSelector() public {
         vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
 
-        AttestedBridgeFacet(diamond).startBridgeAttested(
-            hex"deadbeef",
-            ATTESTER_DATA
+        AttestedBridgeFacet(diamond).setAttestableSelector(
+            bytes4(0xdeadbeef),
+            true
         );
     }
 
+    function test_DisableUnroutedSelector() public {
+        _enableThenUnroute(SentinelFacet.sentinel.selector);
+
+        AttestedBridgeFacet(diamond).setAttestableSelector(
+            SentinelFacet.sentinel.selector,
+            false
+        );
+
+        assertFalse(
+            AttestedBridgeFacet(diamond).isAttestableSelector(
+                SentinelFacet.sentinel.selector
+            )
+        );
+    }
+
+    function testRevert_EnabledSelectorWithoutFacet() public {
+        _registerAttester(address(new RecordingAttester()));
+        _enableThenUnroute(SentinelFacet.sentinel.selector);
+        bytes memory call = abi.encodeCall(SentinelFacet.sentinel, ());
+        vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
+
+        AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
+    }
+
     function testRevert_FunctionDoesNotExistBeforeAttesterLookup() public {
-        _enable(bytes4(0xdeadbeef));
+        _enableThenUnroute(SentinelFacet.sentinel.selector);
+        bytes memory call = abi.encodeCall(SentinelFacet.sentinel, ());
         vm.record();
         vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
 
-        AttestedBridgeFacet(diamond).startBridgeAttested(
-            hex"deadbeef",
-            ATTESTER_DATA
-        );
+        AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
 
         (bytes32[] memory reads, ) = vm.accesses(diamond);
-        _assertRead(reads, _facetSlot(bytes4(0xdeadbeef)));
+        _assertRead(reads, _facetSlot(SentinelFacet.sentinel.selector));
         _assertNotRead(reads, _bridgeAttesterSlot());
     }
 
@@ -801,10 +834,7 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         );
     }
 
-    function test_SetAttestableSelectorForAnySelector(
-        bytes4 selector,
-        bool enabled
-    ) public {
+    function test_DisableAnySelector(bytes4 selector) public {
         vm.assume(
             selector != AttestedBridgeFacet.startBridgeAttested.selector &&
                 selector !=
@@ -813,18 +843,24 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         );
 
         vm.expectEmit(true, true, true, true, diamond);
-        emit AttestableSelectorSet(selector, enabled);
+        emit AttestableSelectorSet(selector, false);
         vm.record();
 
-        AttestedBridgeFacet(diamond).setAttestableSelector(selector, enabled);
+        AttestedBridgeFacet(diamond).setAttestableSelector(selector, false);
 
         (, bytes32[] memory writes) = vm.accesses(diamond);
         assertEq(writes.length, 1);
         assertEq(writes[0], _attestableSlot(selector));
-        assertEq(
-            AttestedBridgeFacet(diamond).isAttestableSelector(selector),
-            enabled
+        assertFalse(
+            AttestedBridgeFacet(diamond).isAttestableSelector(selector)
         );
+    }
+
+    function testRevert_EnableAnyUnroutedSelector(bytes4 selector) public {
+        vm.assume(vm.load(diamond, _facetSlot(selector)) == bytes32(0));
+        vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
+
+        AttestedBridgeFacet(diamond).setAttestableSelector(selector, true);
     }
 
     function testRevert_SetAttestableSelectorFromAnyNonOwner(

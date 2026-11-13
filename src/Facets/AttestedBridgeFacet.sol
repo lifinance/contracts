@@ -80,7 +80,8 @@ contract AttestedBridgeFacet {
 
     /// @notice Enables or disables a bridge-entry selector for `startBridgeAttested`; Diamond
     ///         owner only
-    /// @dev Enable only entrypoints guarded by `nonReentrant`: the gateway has no guard of its own
+    /// @dev Enable only entrypoints guarded by `nonReentrant`: the gateway has no guard of its own.
+    ///      Enabling requires the Diamond to route `_selector`; disabling does not
     /// @param _selector The bridge-entry selector
     /// @param _enabled Whether the gateway may dispatch it
     function setAttestableSelector(bytes4 _selector, bool _enabled) external {
@@ -90,6 +91,14 @@ contract AttestedBridgeFacet {
             _selector == this.setAttestableSelector.selector ||
             _selector == this.isAttestableSelector.selector
         ) revert GatewaySelectorNotAttestable();
+        if (
+            _enabled &&
+            LibDiamond
+                .diamondStorage()
+                .selectorToFacetAndPosition[_selector]
+                .facetAddress ==
+            address(0)
+        ) revert LibDiamond.FunctionDoesNotExist();
 
         getStorage().attestable[_selector] = _enabled;
 
