@@ -612,6 +612,117 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
     expect(lines).toContain('register periphery "FeeCollector"')
   })
 
+  describe('bytes after the decoded arguments', () => {
+    const TRAILER = 'deadbeef'
+    const NOT_SHOWN = '4 BYTES AFTER THE ARGUMENTS ARE NOT SHOWN'
+    const setOwner = encodeFunctionData({
+      abi: parseAbi(['function setOwner(address)']),
+      functionName: 'setOwner',
+      args: [FACET],
+    })
+    const withTrailer = `${setOwner}${TRAILER}` as `0x${string}`
+
+    const occurrences = (text: string, needle: string): number =>
+      text.split(needle).length - 1
+
+    it('shows the decoded arguments and says the trailing bytes are not shown', async () => {
+      const lines = plain(await render(withTrailer))
+      const text = lines.join('\n')
+      expect(text).toContain('setOwner [')
+      expect(text).toContain(FACET)
+      const warning = lines.findIndex((line) => line.includes(NOT_SHOWN))
+      expect(warning).toBeGreaterThan(0)
+      expect(lines[warning + 1]).toContain(`0x${TRAILER}`)
+      expect(text).not.toContain('COULD NOT')
+    })
+
+    it('says so under a call nested in a schedule', async () => {
+      const lines = plain(
+        await render(
+          encodeFunctionData({
+            abi: ABI_SCHEDULE,
+            functionName: 'schedule',
+            args: [DIAMOND, 0n, withTrailer, ZERO_WORD, ZERO_WORD, 10_800n],
+          })
+        )
+      )
+      const warning = lines.findIndex((line) => line.includes(NOT_SHOWN))
+      expect(occurrences(lines.join('\n'), NOT_SHOWN)).toBe(1)
+      expect(lines[warning]).toStartWith(`${INDENT}  `)
+      expect(lines[warning + 1]).toContain(`0x${TRAILER}`)
+    })
+
+    it('says so under a call nested in a scheduleBatch', async () => {
+      const lines = plain(await render(scheduleBatch(withTrailer, 10_800n)))
+      const warning = lines.findIndex((line) => line.includes(NOT_SHOWN))
+      expect(occurrences(lines.join('\n'), NOT_SHOWN)).toBe(1)
+      expect(lines[warning]).toStartWith(`${INDENT}  `)
+      expect(lines[warning + 1]).toContain(`0x${TRAILER}`)
+    })
+
+    it('says so under a role grant', async () => {
+      const grant = encodeFunctionData({
+        abi: ABI_ROLE,
+        functionName: 'grantRole',
+        args: [keccak256(stringToHex('PROPOSER_ROLE')), FACET],
+      })
+      const text = plain(await render(`${grant}${TRAILER}`)).join('\n')
+      expect(text).toContain('grant role PROPOSER_ROLE → ')
+      expect(text).toContain(NOT_SHOWN)
+      expect(text).toContain(`0x${TRAILER}`)
+    })
+
+    it('says so under a diamondCut', async () => {
+      const text = plain(await render(`${diamondCut(1)}${TRAILER}`)).join('\n')
+      expect(text).toContain('Replace 2 functions → ')
+      expect(text).toContain(NOT_SHOWN)
+    })
+
+    it('counts a single trailing byte in the singular', async () => {
+      const text = plain(await render(`${setOwner}ab`)).join('\n')
+      expect(text).toContain('1 BYTE AFTER THE ARGUMENTS IS NOT SHOWN')
+    })
+
+    it('reports a gap before a dynamic argument as a non-standard layout, not as trailing bytes', async () => {
+      const canonical = encodeFunctionData({
+        abi: ABI_REGISTER_PERIPHERY,
+        functionName: 'registerPeripheryContract',
+        args: ['FeeCollector', FACET],
+      })
+      const body = canonical.slice(10)
+      const word = (index: number): string =>
+        body.slice(index * 64, (index + 1) * 64)
+      // The string's offset moves from 0x40 to 0x60, over one word of gap.
+      const gapped = `${canonical.slice(0, 10)}${'60'.padStart(64, '0')}${word(
+        1
+      )}${'ee'.repeat(32)}${body.slice(128)}`
+
+      for (const data of [gapped, `${gapped}${TRAILER}`]) {
+        const lines = plain(await render(data))
+        const text = lines.join('\n')
+        expect(text).toContain('register periphery "FeeCollector"')
+        expect(text).not.toContain('AFTER THE ARGUMENTS')
+        const warning = lines.findIndex((line) =>
+          line.includes('ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT')
+        )
+        expect(warning).toBeGreaterThan(0)
+        expect(lines[warning + 1]).toContain(canonical.slice(0, 10))
+      }
+    })
+
+    it('says nothing about canonical calldata', async () => {
+      for (const data of [
+        setOwner,
+        diamondCut(1),
+        scheduleBatch(setOwner, 10_800n),
+      ]) {
+        const text = plain(await render(data)).join('\n')
+        expect(text).not.toContain('AFTER THE ARGUMENTS')
+        expect(text).not.toContain('ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT')
+      }
+    })
+  })
+
   it('lists the arguments of a call it has no special rendering for', async () => {
     const lines = plain(
       await render(
