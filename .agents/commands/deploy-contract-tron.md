@@ -1,6 +1,6 @@
 ---
 name: deploy-contract-tron
-description: "Deploys a facet/periphery contract to Tron (tron/tronshasta) from the contracts-tron fork with the TronWeb scripts, verifies on Tronscan, and PRs the deploy logs to upstream lifinance/contracts, never the fork. Use for \"deploy <Contract> to tron\". EVM → deploy-contract."
+description: "Deploys a facet/periphery contract to Tron (tron/tronshasta) from the contracts-tron fork with the TronWeb scripts, verifies on Tronscan, and brings the deploy log back to upstream lifinance/contracts, never the fork. Use for \"deploy <Contract> to tron\". EVM → deploy-contract."
 usage: /deploy-contract-tron <ContractName> <tron|tronshasta...>
 ---
 
@@ -53,7 +53,11 @@ A normal session is rooted in `contracts`, but every step in this skill except P
 
    A failed pull means local `main` diverged — report it, don't merge or reset. A version mismatch prints the fix (`foundryup --install <fork's .foundry-version>`); after the deploy, switch back with `foundryup --install "$(cat <this checkout>/.foundry-version)"` and re-run the checker in this checkout.
 
-3. **Check the fork is synced for the contract you're about to deploy.** If upstream `contracts:main` has changes to `<Contract>` (or to `LibAsset`/`WithdrawablePeriphery`) not yet in the fork, stop and merge the pending `sync/upstream-YYYY-MM-DD` PR first (or open one) — do not deploy stale code.
+3. **Check the fork is synced for the contract you're about to deploy.** If upstream `contracts:main` has changes to `<Contract>` (or to `LibAsset`/`WithdrawablePeriphery`) not yet in the fork, stop and merge the pending `sync/upstream-YYYY-MM-DD` PR first (or open one) — do not deploy stale code. The scripts need the sync too: a fork whose `<script>.ts` predates the ticket gate deploys without checking for a ticket and has no `--proposeOnly`:
+
+   ```bash
+   grep -q assertTicketPresent script/deploy/tron/<script>.ts || { echo "fork scripts predate the ticket gate — merge the upstream sync first"; exit 1; }
+   ```
 
 4. **Verify the `-tron` delta survived the last sync.** After any sync, confirm the bypass branch is still present:
 
@@ -68,6 +72,8 @@ A normal session is rooted in `contracts`, but every step in this skill except P
    ```bash
    cd <fork> && PRODUCTION=<true|false> bunx tsx script/deploy/tron/<script>.ts --dryRun
    ```
+
+   For `deploy-and-register-periphery.ts`, add `--only <Contract>`: without it the script plans every periphery contract.
 
    It estimates the deploy's Energy and TRX cost and checks the deployer's balance net of delegated Energy, deploying and proposing nothing. When the contract is already recorded, answer **Yes** to "Redeploy? (DRY RUN - will simulate)": **No** skips the estimate. If it reports a shortfall, stop: fund the deployer or rent Energy, then re-run it.
 
@@ -105,7 +111,7 @@ export PRODUCTION=true    # tron (mainnet); PRODUCTION=false (tronshasta) only f
 bunx tsx script/deploy/tron/deploy-core-facets.ts
 bunx tsx script/deploy/tron/register-facets-to-diamond.ts
 # only the ones relevant to <Contract>'s type:
-bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --only <Contract>
 bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-allbridge-facet.ts
 bunx tsx script/deploy/tron/deploy-and-register-near-intents-facet.ts
@@ -134,9 +140,11 @@ bunx tsx script/deploy/tron/verify-tron-contracts.ts --network <tron|tronshasta>
 
 It is the only Tron path that sets the MongoDB `verified` flag, so a manual Tronscan upload leaves the record unverified. A record that fails to flag ends the run non-zero; re-run that contract. Flags and the browser fallback: `docs/TronFork.md` → "Contract verification (Tronscan)".
 
-## Phase 5 — PR the deploy logs to *upstream*, never the fork
+## Phase 5 — Bring the deploy log to *upstream*, never the fork
 
-The histories are unrelated enough that cherry-picking is the wrong tool — **copy the generated JSON as plain data** from the `contracts-tron` checkout into a fresh branch of `contracts`. A deploy-log PR opened against `contracts-tron` → close it and re-open against upstream.
+**`tron` only.** A `tronshasta` run skips this phase: upstream tracks no `tronshasta` log (EXSC-818 removed it), so its `deployments/tronshasta.staging.json` stays in the fork.
+
+The histories are unrelated enough that cherry-picking is the wrong tool — **copy the generated JSON as plain data** from the `contracts-tron` checkout into this `contracts` checkout. A deploy-log PR opened against `contracts-tron` → close it and re-open against upstream.
 
 **Only `tron.json` moves now.** The scripts write `tron.diamond.json` in the fork as soon as the cut or periphery registration is proposed, but upstream it mirrors the loupe (`docs/DeploymentLogs.md`), so it changes only once the timelock op executes — `/finish-rollout` regenerates it then. Never copy the fork's `tron.diamond.json` upstream.
 
@@ -144,19 +152,12 @@ The histories are unrelated enough that cherry-picking is the wrong tool — **c
 # capture the fork commit before leaving it — goes in the PR body for re-verification
 TRON_COMMIT=$(git -C ../contracts-tron rev-parse HEAD)
 
-# back in the contracts checkout (this repo)
-git checkout -b deploy-tron-<contract>-<date> origin/main
+# back in the contracts checkout (this repo), in the rollout's working tree
 cp ../contracts-tron/deployments/tron.json deployments/tron.json
 git diff deployments/tron.json   # only <Contract>'s entry should change
 ```
 
-Then delegate the commit / template / Linear ticket / push / create mechanic to `/create-pr` as a **draft**, passing:
-
-- **files to stage**: `deployments/tron.json` (nothing else).
-- **title / commit message**: `chore(<Contract>): deploy vX.Y.Z-tron to tron`.
-- **body** (the "Why"): deploy-log update from `contracts-tron`, fork commit `$TRON_COMMIT`, and the `| Chain | Contract address | Safe nonce |` table, the nonce read from this checkout with `bunx tsx script/deploy/safe/list-pending-proposals.ts --network <tron|tronshasta> --maxAgeHours 2 --json`.
-
-The fork commit hash in the PR body (it flows into MongoDB via deploy-log ingestion) is what lets someone re-verify bytecode later from that exact fork commit.
+**Don't open a PR here.** `/multisig-rollout` Phase 5 stages `deployments/tron.json` with the EVM networks' logs and opens one draft PR for the whole rollout, the PR `/finish-rollout` later finishes. Hand back `$TRON_COMMIT` for its body: the fork commit flows into MongoDB via deploy-log ingestion and lets someone re-verify the bytecode later from that exact commit.
 
 **Signing runs from this checkout, not the fork.** `confirm-safe-tx.ts` and `list-pending-proposals.ts` read the proposal store, not the fork's code, so `/multisig-rollout` Phases 4–8 run here in `lifinance/contracts`.
 
@@ -164,7 +165,7 @@ Once merged upstream, these logs reach `contracts-tron` again on the next upstre
 
 ## Output
 
-Report: contract + version, network(s), deployed address(es), Tronscan verification status, and the upstream PR URL (or explicit note that Phase 5 is still pending and who owns it). Inside `/multisig-rollout`, hand these back and continue at its Phase 4.
+Report: contract + version, network(s), deployed address(es), Tronscan verification status, and, for `tron`, `$TRON_COMMIT` with `deployments/tron.json` copied into this checkout. Inside `/multisig-rollout`, hand these back and continue at its Phase 4.
 
 ## Failure modes
 
