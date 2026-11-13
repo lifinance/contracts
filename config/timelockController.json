@@ -1,3 +1,9 @@
 {
-  "minDelay": 10800
+  "minDelay": 10800,
+  "historyFloors": {
+    "jovay": {
+      "block": "12921411",
+      "reason": "jovay RPCs serve eth_getLogs only for the latest 100000 blocks; every operation the jovay Safe scheduled before 2026-11-12 (Safe nonces 0-23) was checked done on-chain (EXSC-1250)"
+    }
+  }
 }
