@@ -350,6 +350,85 @@
     },
     {
       "key": {
+        "contractName": "CCTPFacet",
+        "sourceId": "src/Facets/CCTPFacet.sol",
+        "version": "1.0.0",
+        "closureHash": "0x9daa819aa94ee1a4a6ece2de3ad32a697c3b872093e4dc855fb172429eea2910",
+        "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
+        "settingsSource": "artifact",
+        "solcVersion": "0.8.29+commit.ab55807c"
+      },
+      "build": {
+        "repo": "contracts",
+        "profile": "default",
+        "hashedSettings": {
+          "evmVersion": "cancun",
+          "libraries": {},
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "optimizer": {
+            "enabled": true,
+            "runs": 1000000
+          }
+        }
+      },
+      "maskedHash": "0x90e175bcebe937bce6e0bd0d8f880fdee4d94df2f82fe1c730f1e610f48cd89f",
+      "lineage": "CCTPFacet@1.0.0 (default: solc 0.8.29, cancun)",
+      "rawByteLength": 12030,
+      "immutableOffsets": [
+        {
+          "start": 206,
+          "length": 32
+        },
+        {
+          "start": 370,
+          "length": 32
+        },
+        {
+          "start": 720,
+          "length": 32
+        },
+        {
+          "start": 985,
+          "length": 32
+        },
+        {
+          "start": 1178,
+          "length": 32
+        },
+        {
+          "start": 1256,
+          "length": 32
+        },
+        {
+          "start": 1970,
+          "length": 32
+        },
+        {
+          "start": 2356,
+          "length": 32
+        },
+        {
+          "start": 5302,
+          "length": 32
+        },
+        {
+          "start": 5344,
+          "length": 32
+        },
+        {
+          "start": 5588,
+          "length": 32
+        },
+        {
+          "start": 5630,
+          "length": 32
+        }
+      ]
+    },
+    {
+      "key": {
         "contractName": "CalldataVerificationFacet",
         "sourceId": "src/Facets/CalldataVerificationFacet.sol",
         "version": "2.0.0",
