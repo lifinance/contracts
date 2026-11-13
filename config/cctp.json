@@ -1,0 +1,49 @@
+{
+  "IMPORTANT DEV NOTICE": "mappings are applied by initCCTP when the facet is cut in; to add a mapping on chains that already run CCTPFacet, propose setCCTPChainIdToDomainId on each of them",
+  "Source for TokenMessengerV2 addresses and CCTP domain IDs: https://developers.circle.com/cctp/references/contract-addresses#tokenmessengerv2": {},
+  "Source for USDC addresses: https://developers.circle.com/stablecoins/usdc-contract-addresses": {},
+  "Source for chainId to CCTP domain mappings: https://developers.circle.com/cctp/cctp-supported-blockchains#cctp-v2-supported-domains": {},
+  "mappings": [
+    { "chainId": 1, "domainId": 0 },
+    { "chainId": 43114, "domainId": 1 },
+    { "chainId": 10, "domainId": 2 },
+    { "chainId": 42161, "domainId": 3 },
+    { "chainId": 1151111081099710, "domainId": 5 },
+    { "chainId": 8453, "domainId": 6 },
+    { "chainId": 137, "domainId": 7 },
+    { "chainId": 146, "domainId": 13 },
+    { "chainId": 1672, "domainId": 31 }
+  ],
+  "mainnet": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"
+  },
+  "arbitrum": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831"
+  },
+  "avalanche": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E"
+  },
+  "base": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  },
+  "optimism": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"
+  },
+  "pharos": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0xC879C018dB60520F4355C26eD1a6D572cdAC1815"
+  },
+  "polygon": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"
+  },
+  "sonic": {
+    "tokenMessengerV2": "0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d",
+    "usdc": "0x29219dd400f2Bf60E5a23d13Be72B486D4038894"
+  }
+}

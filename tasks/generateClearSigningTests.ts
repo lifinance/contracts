@@ -241,6 +241,8 @@ const DISPLAYED_COMPONENT_VALUES: Record<string, unknown> = {
   '_paxosData.quote.integratorFeeReceiver': RECEIVER,
   '_paxosData.nativeFee': NATIVE_VALUE,
   '_paxosData.refundRecipient': RECEIVER,
+  '_cctpData.maxCCTPFee': 1_000_000n,
+  '_cctpData.refundRecipient': RECEIVER,
   '_polymerData.polymerTokenFee': 2_000_000n,
   '_polymerData.maxCCTPFee': 1_000_000n,
   '_polymerData.refundRecipient': RECEIVER,
@@ -438,6 +440,57 @@ const VARIANT_CASES: IVariantCase[] = [
       bridgeData: { destinationChainId: HYPERCORE_CHAIN_ID },
       components: {
         '_polymerData.hookData': forwarderHook(RECEIVER.slice(2).toLowerCase()),
+      },
+    },
+  },
+  {
+    // A Circle Forwarding Service delivery request; the mint still goes to
+    // `_bridgeData.receiver`.
+    functionName: 'startBridgeTokensViaCCTP',
+    label: 'Circle delivery hook',
+    overrides: {
+      components: { '_cctpData.hookData': forwarderHook('') },
+    },
+  },
+  {
+    // CCTP mints to the token account; the owner wallet is only reported.
+    functionName: 'startBridgeTokensViaCCTP',
+    label: 'Solana destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: SOLANA_CHAIN_ID,
+      },
+      components: {
+        '_cctpData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_cctpData.solanaReceiverATA': SOLANA_TOKEN_ACCOUNT,
+      },
+    },
+  },
+  {
+    // The forwarder pays the strkey in hookData; nonEVMReceiver is tracking.
+    functionName: 'startBridgeTokensViaCCTP',
+    label: 'Stellar destination',
+    overrides: {
+      bridgeData: {
+        receiver: NON_EVM_ADDRESS,
+        destinationChainId: STELLAR_CHAIN_ID,
+      },
+      components: {
+        '_cctpData.nonEVMReceiver': NON_EVM_RECEIVER,
+        '_cctpData.hookData': STELLAR_HOOK_DATA,
+      },
+    },
+  },
+  {
+    // The forwarder credits the address at hookData[32:52], checked against
+    // `_bridgeData.receiver`.
+    functionName: 'startBridgeTokensViaCCTP',
+    label: 'HyperCore destination',
+    overrides: {
+      bridgeData: { destinationChainId: HYPERCORE_CHAIN_ID },
+      components: {
+        '_cctpData.hookData': forwarderHook(RECEIVER.slice(2).toLowerCase()),
       },
     },
   },

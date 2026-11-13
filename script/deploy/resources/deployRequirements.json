@@ -137,6 +137,22 @@
       }
     }
   },
+  "CCTPFacet": {
+    "configData": {
+      "_tokenMessenger": {
+        "configFileName": "cctp.json",
+        "keyInConfigFile": ".<NETWORK>.tokenMessengerV2",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "CCTP_TOKEN_MESSENGER"
+      },
+      "_usdc": {
+        "configFileName": "cctp.json",
+        "keyInConfigFile": ".<NETWORK>.usdc",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "CCTP_USDC"
+      }
+    }
+  },
   "CelerCircleBridgeFacet": {
     "configData": {
       "_circleBridgeProxy": {
