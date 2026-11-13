@@ -1493,6 +1493,14 @@ describe('rpcQuorumCheckResult', () => {
     expect(result.anchor).toBe('A-CHAIN')
   })
 
+  it('carries the verdict detail onto a pass, so a latest-code read is disclosed', () => {
+    const detail =
+      '2 independent providers return the same code read at latest, and their chains match at block 100'
+    const result = rpcQuorumCheckResult(quorumVerdict({ detail }), NETWORK)
+    expect(result.status).toBe('pass')
+    expect(result.detail).toBe(detail)
+  })
+
   // Report-only: the fleet still has single-endpoint production chains, and
   // enforcing the quorum there would turn missing redundancy into a refusal.
   it('never records a mismatch, whatever the shortfall', () => {

@@ -1361,6 +1361,9 @@ export const rpcQuorumCheckResult = (
       expected,
       actual: agreed,
       anchor: 'A-CHAIN',
+      // Names the block the agreement holds at, and on Tron that the code was
+      // read at `latest` while only the chains were compared at that block.
+      detail: verdict.detail,
     }
 
   return {
