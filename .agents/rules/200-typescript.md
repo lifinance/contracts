@@ -95,7 +95,7 @@ concurrency (chunk the array or use a small pool) rather than reverting to seque
 ## Solana addresses and dev wallet address ([CONV:SOLANA-DEV-WALLET])
 
 - **Solana addresses (base58, bytes32)**: Derive dynamically from the signer’s private key. Do **not** hardcode Solana addresses or store them in config (e.g. `config/global.json`).
-  - **Source**: `script/demoScripts/utils/demoScriptHelpers.ts`
+  - **Source**: `script/demoScripts/utils/solanaAddress.ts` (`deriveSolanaAddress`, `computeSolanaATABytes32`); `solanaAddressToBytes32` stays in `demoScriptHelpers.ts`
   - **Base58**: `deriveSolanaAddress(privateKey)` — use for logging, Solana APIs, or ATA computation.
   - **Bytes32**: `solanaAddressToBytes32(deriveSolanaAddress(privateKey))` — use for contract/struct fields that expect bytes32 (e.g. non-EVM receiver, mintRecipient).
   - **Private key**: `getPrivateKeyForEnvironment(EnvironmentEnum.staging)` (or `EnvironmentEnum.production`) from `demoScriptHelpers`. Example: `demoAcrossV4.ts`, `demoPolymerCCTP.ts`, `demoNEARIntents.ts`.
