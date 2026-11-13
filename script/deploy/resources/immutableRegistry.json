@@ -83,6 +83,17 @@
       "authorityBearing": true
     }
   },
+  "CCTPFacet": {
+    "CCTP_TOKEN_MESSENGER": {
+      "source": "config",
+      "configData": "_tokenMessenger",
+      "authorityBearing": true
+    },
+    "CCTP_USDC": {
+      "source": "config",
+      "configData": "_usdc"
+    }
+  },
   "CelerCircleBridgeFacet": {
     "CIRCLE_BRIDGE_PROXY": {
       "source": "config",

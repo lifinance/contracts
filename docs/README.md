@@ -13,6 +13,7 @@
 - [AllBridge Facet](./AllBridgeFacet.md)
 - [Arbitrum Bridge Facet](./ArbitrumBridgeFacet.md)
 - [CalldataVerification Facet](./CalldataVerificationFacet.md)
+- [CCTP Facet](./CCTPFacet.md)
 - [Celer Circle Bridge Facet](./CelerCircleBridgeFacet.md)
 - [Chainflip Facet](./ChainflipFacet.md)
 - [DeBridge DLN Facet](./DeBridgeDlnFacet.md)
