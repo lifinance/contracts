@@ -22,10 +22,10 @@ Never hardcode the repo name: this repo and its `contracts-tron` fork share most
 
 Optional input after the scope, for callers that drive a PR without the user (`/drive-pr`). Without it, behaviour is unchanged. With it:
 
-- Phase 1: the caller has confirmed the Aikido check run completed, so no bot comment means a clean scan — report "no findings" and return.
+- Phase 1 (`pr`): read the Aikido check run on the PR head (`gh pr view --json headRefOid`, then `gh api repos/{owner}/{repo}/commits/<headRefOid>/check-runs?check_name=Aikido%20Security%3A%20check%20code --jq '.check_runs[0] | {status, conclusion, title: .output.title}'`). No bot comment counts as a clean scan only when it is `completed` / `success` / `Scan completed`; otherwise, with no comment, report the scan as failed with its conclusion and title, and return. Also skip findings whose review thread is resolved: GraphQL `reviewThreads` (paginated) with `isResolved` and the first comment's `databaseId`, which equals the root comment `id`.
 - Phase 2: no "Proceed?" confirmation. **Ignore** and **Fix** findings go ahead; **Manual review** findings are reported and not acted on, and `/aikido-update-false-positive-catalog` is not offered.
 - Phase 4 commits as usual; the caller pushes.
-- Phase 5 and the Phase 6 offer are skipped. The Phase 6 report lists each finding with its root comment `id`.
+- Phase 5 and the Phase 6 offer are skipped. The Phase 6 report lists each finding with its identifier: the root comment `id` in `pr` mode, the `issue_id` in `all` / `<issue-id>` mode.
 
 ## Preflight
 
