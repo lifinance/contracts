@@ -20,7 +20,7 @@ PR number or URL. Without one: `gh pr view --json number,url`; if that finds no 
 ## Preflight
 
 ```bash
-gh pr view <N> --json number,url,isDraft,isCrossRepository,author,headRefName,headRefOid
+gh pr view <N> --json number,url,isDraft,isCrossRepository,author,baseRefName,headRefName,headRefOid
 gh api user -q .login
 gh api repos/lifinance/contracts/pulls/<N>/files --paginate --jq '.[].filename'
 ```
@@ -62,15 +62,18 @@ Never wait with a foreground polling loop. Save the script below to a file in th
 scratchpad and run `bash <file>` in the background (Claude Code: Bash `run_in_background`; an
 inline multi-line command is refused in a worktree session). Continue when it reports.
 `<SHA>` is the pushed head (`git rev-parse HEAD`); `<PHASE>` is `A` or `B`; `<SOL>` is `1`
-when the PR changes `src/**/*.sol`, else `0`.
+only on the first Phase B round right after `gh pr ready` when the PR changes `src/**/*.sol`,
+else `0` (`securityAlertsReview` runs on `ready_for_review` only, never on later pushes);
+`<MAIN>` is `1` when `baseRefName` is `main`, else `0` (`version-control` and
+`verify-signed-commits` only run on PRs into `main`).
 
 ```bash
-N=<N>; SHA=<SHA>; PHASE=<PHASE>; SOL=<SOL>; REPO=lifinance/contracts
+N=<N>; SHA=<SHA>; PHASE=<PHASE>; SOL=<SOL>; MAIN=<MAIN>; REPO=lifinance/contracts
 run_state() {
   gh api "repos/$REPO/commits/$SHA/check-runs?check_name=$1" \
     --jq '.check_runs[0] | "\(.status) \(.conclusion) \(.output.title)"'
 }
-for _ in $(seq 1 90); do
+for _ in $(seq 1 15); do
   head=$(gh pr view "$N" --repo "$REPO" --json headRefOid -q .headRefOid)
   [ "$head" = "$SHA" ] && break
   sleep 20
@@ -78,7 +81,8 @@ done
 [ "$head" = "$SHA" ] || { echo "HEAD MOVED: PR head is $head, expected $SHA"; exit 1; }
 gh pr checks "$N" --repo "$REPO" --watch --interval 30 >/dev/null 2>&1 || true
 waits="CodeRabbit"
-[ "$PHASE" = B ] && waits="$waits Aikido%20Security%3A%20check%20code version-control verify-signed-commits"
+[ "$PHASE" = B ] && waits="$waits Aikido%20Security%3A%20check%20code"
+[ "$PHASE" = B ] && [ "$MAIN" = 1 ] && waits="$waits version-control verify-signed-commits"
 [ "$PHASE" = B ] && [ "$SOL" = 1 ] && waits="$waits check-security-alerts"
 for _ in $(seq 1 90); do
   pending=""
@@ -99,8 +103,8 @@ gh pr checks "$N" --repo "$REPO" --json name,state,event,workflow,link
 ```
 
 `gh pr checks --watch` can return before the bot checks or the ready-only checks register, hence
-the second loop. In Phase B it waits for `version-control`, `verify-signed-commits`, Aikido and
-(for Solidity PRs) `check-security-alerts` to complete with a conclusion other than `skipped`, so
+the second loop. In Phase B it waits for Aikido, `version-control` and `verify-signed-commits`
+(PRs into `main`) and `check-security-alerts` (`SOL=1`) to complete with a conclusion other than `skipped`, so
 a draft's `SKIPPED` on the same SHA is never read as a pass. No check run on `<SHA>` means it has
 not started.
 
