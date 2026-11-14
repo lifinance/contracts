@@ -155,6 +155,8 @@ gh pr view <N> --json comments \
 gh pr comment <N> --body "@coderabbitai review"
 ```
 
+After posting, wait in the background (bounded, 30 min) until the `CodeRabbit` check run on
+`<SHA>` is `completed` with a title other than `Review rate limited`, then read its threads.
 If it is still rate limited once everything else is clean, carry on and put
 "CodeRabbit not reviewed (rate limited)" in the final report. Never count it as reviewed.
 
