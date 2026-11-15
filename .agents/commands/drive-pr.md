@@ -79,7 +79,14 @@ for _ in $(seq 1 15); do
   sleep 20
 done
 [ "$head" = "$SHA" ] || { echo "HEAD MOVED: PR head is $head, expected $SHA"; exit 1; }
-gh pr checks "$N" --repo "$REPO" --watch --interval 30 >/dev/null 2>&1 || true
+for _ in $(seq 1 60); do
+  ci=$(gh pr checks "$N" --repo "$REPO" --json name,state,event --jq '
+    [.[] | select(.event != "pull_request_review" and (.name | startswith("audit-") | not))]
+    | "\(length) \([.[] | select(.state | IN("QUEUED","IN_PROGRESS","PENDING","WAITING","REQUESTED"))] | length)"')
+  [ "${ci%% *}" != 0 ] && [ "${ci##* }" = 0 ] && break
+  sleep 30
+done
+[ "${ci##* }" = 0 ] || echo "CI NOT SETTLED: ${ci##* } checks still in progress"
 waits="CodeRabbit"
 [ "$PHASE" = B ] && waits="$waits Aikido%20Security%3A%20check%20code"
 [ "$PHASE" = B ] && [ "$MAIN" = 1 ] && waits="$waits version-control verify-signed-commits"
@@ -102,14 +109,16 @@ gh pr view "$N" --repo "$REPO" --json headRefOid,isDraft
 gh pr checks "$N" --repo "$REPO" --json name,state,event,workflow,link
 ```
 
-`gh pr checks --watch` can return before the bot checks or the ready-only checks register, hence
-the second loop. In Phase B it waits for Aikido, `version-control` and `verify-signed-commits`
+The first loop waits up to 30 min for the CI checks this skill classifies (ignored checks don't
+hold it); it needs at least one check on the head, so it doesn't pass before any register. It can
+end before the bot checks or the ready-only checks register, hence the second loop. In Phase B it waits for Aikido, `version-control` and `verify-signed-commits`
 (PRs into `main`) and `check-security-alerts` (`SOL=1`) to complete with a conclusion other than `skipped`, so
 a draft's `SKIPPED` on the same SHA is never read as a pass. No check run on `<SHA>` means it has
 not started.
 
 - `HEAD MOVED` → someone else pushed: `git pull --ff-only` and start the round on the new head.
-- `NOT SETTLED` after 30 min → treat those checks as failures not caused by the diff.
+- `CI NOT SETTLED` or `NOT SETTLED` after 30 min → treat those checks as failures not caused by
+  the diff.
 - Never report clean unless the final `headRefOid` equals `<SHA>`.
 
 Bot settled states:
@@ -204,8 +213,9 @@ Threads by people stay open: resolving them is the reviewer's call. List them in
 
 Once its check run has settled, run `/aikido-address-findings pr unattended`. It reads the
 check run's conclusion itself, skips findings whose thread is already resolved, ignores catalog
-false positives and commits fixes; this skill pushes them. Then resolve each Aikido thread whose
-finding was ignored or fixed. A **Manual review** finding or a failed scan is a stop condition.
+false positives and commits fixes; this skill pushes them. Resolve each ignored finding's thread
+now; resolve a fixed finding's thread only after the step 6 push succeeds. A **Manual review**
+finding or a failed scan is a stop condition, and threads of unpushed fixes stay open.
 
 ### 6. Push and repeat
 
