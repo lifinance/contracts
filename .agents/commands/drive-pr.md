@@ -79,14 +79,16 @@ for _ in $(seq 1 15); do
   sleep 20
 done
 [ "$head" = "$SHA" ] || { echo "HEAD MOVED: PR head is $head, expected $SHA"; exit 1; }
+prev=""; settled=0
 for _ in $(seq 1 60); do
   ci=$(gh pr checks "$N" --repo "$REPO" --json name,state,event --jq '
     [.[] | select(.event != "pull_request_review" and (.name | startswith("audit-") | not))]
     | "\(length) \([.[] | select(.state | IN("QUEUED","IN_PROGRESS","PENDING","WAITING","REQUESTED"))] | length)"')
-  [ "${ci%% *}" != 0 ] && [ "${ci##* }" = 0 ] && break
+  if [ "${ci%% *}" != 0 ] && [ "${ci##* }" = 0 ] && [ "$ci" = "$prev" ]; then settled=1; break; fi
+  prev="$ci"
   sleep 30
 done
-[ "${ci##* }" = 0 ] || echo "CI NOT SETTLED: ${ci##* } checks still in progress"
+[ "$settled" = 1 ] || echo "CI NOT SETTLED: <counted> <in progress> = $ci"
 waits="CodeRabbit"
 [ "$PHASE" = B ] && waits="$waits Aikido%20Security%3A%20check%20code"
 [ "$PHASE" = B ] && [ "$MAIN" = 1 ] && waits="$waits version-control verify-signed-commits"
@@ -110,7 +112,8 @@ gh pr checks "$N" --repo "$REPO" --json name,state,event,workflow,link
 ```
 
 The first loop waits up to 30 min for the CI checks this skill classifies (ignored checks don't
-hold it); it needs at least one check on the head, so it doesn't pass before any register. It can
+hold it); it ends only when at least one check is registered, none is in progress, and the count
+is unchanged across two polls 30 s apart, so late-registering workflows are caught. It can
 end before the bot checks or the ready-only checks register, hence the second loop. In Phase B it waits for Aikido, `version-control` and `verify-signed-commits`
 (PRs into `main`) and `check-security-alerts` (`SOL=1`) to complete with a conclusion other than `skipped`, so
 a draft's `SKIPPED` on the same SHA is never read as a pass. No check run on `<SHA>` means it has
