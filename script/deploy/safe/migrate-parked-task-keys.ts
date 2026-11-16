@@ -21,7 +21,7 @@
  *   bunx tsx ./script/deploy/safe/migrate-parked-task-keys.ts [--apply]
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'

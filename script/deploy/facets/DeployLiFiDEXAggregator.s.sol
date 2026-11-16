@@ -8,7 +8,7 @@ import { LiFiDEXAggregator } from "lifi/Periphery/LiFiDEXAggregator.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LiFiDEXAggregator") {}
+    constructor() DeployScriptBase("LiFiDEXAggregator") { }
 
     function run()
         public
@@ -16,9 +16,8 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = LiFiDEXAggregator(
-            deploy(type(LiFiDEXAggregator).creationCode)
-        );
+        deployed =
+            LiFiDEXAggregator(deploy(type(LiFiDEXAggregator).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {

@@ -32,19 +32,15 @@ contract DeployScript is UpdateScriptBase {
         json = vm.readFile(path);
 
         address standardBridge = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".standardBridge")
+            path, string.concat(".", network, ".standardBridge")
         );
 
-        bytes memory rawConfig = json.parseRaw(
-            string.concat(".", network, ".tokens")
-        );
+        bytes memory rawConfig =
+            json.parseRaw(string.concat(".", network, ".tokens"));
         Config[] memory configs = abi.decode(rawConfig, (Config[]));
 
         bytes memory callData = abi.encodeWithSelector(
-            OptimismBridgeFacet.initOptimism.selector,
-            configs,
-            standardBridge
+            OptimismBridgeFacet.initOptimism.selector, configs, standardBridge
         );
 
         return callData;

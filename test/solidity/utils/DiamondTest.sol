@@ -7,37 +7,35 @@ import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { OwnershipFacet } from "lifi/Facets/OwnershipFacet.sol";
 import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
-import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import {
+    PeripheryRegistryFacet
+} from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { Test } from "forge-std/Test.sol";
 
 contract DiamondTest is Test {
     LibDiamond.FacetCut[] internal cut;
 
-    function createDiamond(
-        address _diamondOwner,
-        address _pauserWallet
-    ) internal returns (LiFiDiamond) {
+    function createDiamond(address _diamondOwner, address _pauserWallet)
+        internal
+        returns (LiFiDiamond)
+    {
         vm.startPrank(_diamondOwner);
         DiamondCutFacet diamondCut = new DiamondCutFacet();
         DiamondLoupeFacet diamondLoupe = new DiamondLoupeFacet();
         OwnershipFacet ownership = new OwnershipFacet();
         PeripheryRegistryFacet periphery = new PeripheryRegistryFacet();
-        EmergencyPauseFacet emergencyPause = new EmergencyPauseFacet(
-            _pauserWallet
-        );
-        LiFiDiamond diamond = new LiFiDiamond(
-            _diamondOwner,
-            address(diamondCut)
-        );
+        EmergencyPauseFacet emergencyPause =
+            new EmergencyPauseFacet(_pauserWallet);
+        LiFiDiamond diamond =
+            new LiFiDiamond(_diamondOwner, address(diamondCut));
 
         bytes4[] memory functionSelectors;
 
         // Diamond Loupe
 
         functionSelectors = new bytes4[](5);
-        functionSelectors[0] = DiamondLoupeFacet
-            .facetFunctionSelectors
-            .selector;
+        functionSelectors[0] =
+        DiamondLoupeFacet.facetFunctionSelectors.selector;
         functionSelectors[1] = DiamondLoupeFacet.facets.selector;
         functionSelectors[2] = DiamondLoupeFacet.facetAddress.selector;
         functionSelectors[3] = DiamondLoupeFacet.facetAddresses.selector;
@@ -55,9 +53,7 @@ contract DiamondTest is Test {
         functionSelectors = new bytes4[](4);
         functionSelectors[0] = OwnershipFacet.transferOwnership.selector;
         functionSelectors[1] = OwnershipFacet.cancelOwnershipTransfer.selector;
-        functionSelectors[2] = OwnershipFacet
-            .confirmOwnershipTransfer
-            .selector;
+        functionSelectors[2] = OwnershipFacet.confirmOwnershipTransfer.selector;
         functionSelectors[3] = OwnershipFacet.owner.selector;
 
         cut.push(
@@ -70,12 +66,10 @@ contract DiamondTest is Test {
 
         // PeripheryRegistryFacet
         functionSelectors = new bytes4[](2);
-        functionSelectors[0] = PeripheryRegistryFacet
-            .registerPeripheryContract
-            .selector;
-        functionSelectors[1] = PeripheryRegistryFacet
-            .getPeripheryContract
-            .selector;
+        functionSelectors[0] =
+        PeripheryRegistryFacet.registerPeripheryContract.selector;
+        functionSelectors[1] =
+        PeripheryRegistryFacet.getPeripheryContract.selector;
 
         cut.push(
             LibDiamond.FacetCut({
@@ -141,11 +135,8 @@ contract DiamondTest is Test {
             })
         );
 
-        DiamondCutFacet(address(_diamond)).diamondCut(
-            cut,
-            _init,
-            _initCallData
-        );
+        DiamondCutFacet(address(_diamond))
+            .diamondCut(cut, _init, _initCallData);
 
         delete cut;
         vm.stopPrank();

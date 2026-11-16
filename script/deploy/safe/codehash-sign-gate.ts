@@ -326,10 +326,10 @@ export const evaluateCodehashSignGate = async (
               ', '
             )} — so it cannot state whether an installation is present. Nothing here has been verified.`
           : collected.knownCalls.length > 0
-          ? `This proposal calls ${collected.knownCalls.join(
-              ', '
-            )} and installs no code, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.`
-          : 'No diamondCut and no periphery registration was decoded from this calldata, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
+            ? `This proposal calls ${collected.knownCalls.join(
+                ', '
+              )} and installs no code, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.`
+            : 'No diamondCut and no periphery registration was decoded from this calldata, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
     }
 
   return {

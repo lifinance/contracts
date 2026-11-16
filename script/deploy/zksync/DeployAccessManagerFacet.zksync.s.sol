@@ -5,7 +5,7 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("AccessManagerFacet") {}
+    constructor() DeployScriptBase("AccessManagerFacet") { }
 
     function run() public returns (AccessManagerFacet deployed) {
         deployed = AccessManagerFacet(

@@ -537,10 +537,7 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     const spoofed = await render(
       encodeFunctionData({
         abi: parseAbi(['function registerPeripheryContract(string,address)']),
-        args: [
-          'GasZip​Periphery',
-          '0x363d698649cd04f9692Ab86e8365b227c1ee859d',
-        ],
+        args: ['GasZip​Periphery', '0x363d698649cd04f9692Ab86e8365b227c1ee859d'],
       })
     )
     const spoofedLine = spoofed.find((line) =>

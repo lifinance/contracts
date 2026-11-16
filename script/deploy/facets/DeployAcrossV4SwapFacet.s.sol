@@ -8,7 +8,7 @@ import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("AcrossV4SwapFacet") {}
+    constructor() DeployScriptBase("AcrossV4SwapFacet") { }
 
     function run()
         public
@@ -16,17 +16,14 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = AcrossV4SwapFacet(
-            deploy(type(AcrossV4SwapFacet).creationCode)
-        );
+        deployed =
+            AcrossV4SwapFacet(deploy(type(AcrossV4SwapFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/across.json");
-        string memory networksPath = string.concat(
-            root,
-            "/config/networks.json"
-        );
+        string memory networksPath =
+            string.concat(root, "/config/networks.json");
 
         address spokePoolPeriphery = _getConfigContractAddress(
             path,
@@ -35,8 +32,7 @@ contract DeployScript is DeployScriptBase {
             false
         );
         address spokePool = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".acrossSpokePool")
+            path, string.concat(".", network, ".acrossSpokePool")
         );
 
         // allowNonContractAddress: true — some networks use a dummy wrappedNative (e.g. tempo uses
@@ -66,24 +62,21 @@ contract DeployScript is DeployScriptBase {
         string memory globalJson = vm.readFile(globalPath);
         address backendSigner;
         if (
-            keccak256(abi.encodePacked(fileSuffix)) ==
-            keccak256(abi.encodePacked("staging."))
+            keccak256(abi.encodePacked(fileSuffix))
+                == keccak256(abi.encodePacked("staging."))
         ) {
             backendSigner = globalJson.readAddress(".backendSigner.staging");
         } else {
-            backendSigner = globalJson.readAddress(
-                ".backendSigner.production"
-            );
+            backendSigner = globalJson.readAddress(".backendSigner.production");
         }
 
-        return
-            abi.encode(
-                spokePoolPeriphery,
-                spokePool,
-                wrappedNative,
-                sponsoredOftSrcPeriphery,
-                sponsoredCctpSrcPeriphery,
-                backendSigner
-            );
+        return abi.encode(
+            spokePoolPeriphery,
+            spokePool,
+            wrappedNative,
+            sponsoredOftSrcPeriphery,
+            sponsoredCctpSrcPeriphery,
+            backendSigner
+        );
     }
 }

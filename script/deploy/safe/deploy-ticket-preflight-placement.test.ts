@@ -21,15 +21,7 @@
  */
 
 import { execFileSync } from 'child_process'
-import {
-  chmodSync,
-  existsSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'fs'
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -40,7 +32,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withholdCredentials } from './spawn-env'
+import {
+  freshChildEnv,
+  sandboxCheckout,
+  withholdCredentials,
+} from './spawn-env'
 
 const REFUSAL = 'No Linear ticket supplied'
 /** Printed by the driver on the statement after the guard, and by nothing else. */
@@ -71,27 +67,12 @@ const toolchainShim = (): string => {
 }
 
 /**
- * The paths the driver reads before it reaches the guard. Symlinked rather than
- * copied, so the sandbox exercises this checkout's real scripts and config.
- */
-const SANDBOX_LINKS = [
-  '.git',
-  'config',
-  'deployments',
-  'foundry.toml',
-  'lib',
-  'node_modules',
-  'package.json',
-  'script',
-  'src',
-  'tsconfig.json',
-]
-
-/**
  * The env file the sandbox runs on: the path settings the driver resolves
  * contracts and config through, and the production flag it cross-checks against
  * `--production`. Values are `.env.example`'s, and none of them is a
- * credential — the point of the sandbox is that there is none to hold.
+ * credential — the point of the sandbox is that there is none to hold. The
+ * blank proposal-intent lines every checkout carries are added by
+ * `sandboxCheckout`.
  */
 const SANDBOX_ENV = [
   'PRODUCTION=true',
@@ -110,52 +91,18 @@ const SANDBOX_ENV = [
   `DEPLOY_CONFIG_FILE_PATH="${join(REPO_ROOT, 'config')}/"`,
   'VERIFY_CONTRACTS=false',
   'MAX_CONCURRENT_JOBS=1',
-  // Blank, exactly as `.env.example` ships them and as every checkout derived
-  // from it carries them. Omitting them made the sandbox the one shape where a
-  // caller's exported ticket survives `set -a; source .env`.
-  'SAFE_PROPOSAL_TICKET=',
-  'SAFE_PROPOSAL_REASON=',
-].join('\n')
-
-/**
- * A working directory the driver can run in without this machine's env file.
- *
- * @returns the sandbox root
- */
-const sandbox = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), 'ticket-preflight-repo-'))
-  for (const entry of SANDBOX_LINKS) {
-    const source = join(REPO_ROOT, entry)
-    if (existsSync(source)) symlinkSync(source, join(dir, entry))
-  }
-  writeFileSync(join(dir, '.env'), `${SANDBOX_ENV}\n`)
-  return dir
-}
+]
 
 const run = (
   args: string[],
   options: { env?: Record<string, string> } = {}
 ): { output: string; refused: boolean } => {
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-  }
-  // `bun test` sets NODE_ENV=test; this child is exercised as a CLI.
-  delete env.NODE_ENV
-  // Set empty rather than deleted, so a developer's own exported ticket cannot
-  // decide the cases below. A case that is about a supplied ticket overrides
-  // this through `options.env`.
-  env.SAFE_PROPOSAL_TICKET = ''
-  env.SAFE_PROPOSAL_REASON = ''
-  // The mirrors too: they are the channel that survives the env file, so a
-  // developer's inherited one would otherwise rescue the refusal cases.
-  env.RESOLVED_SAFE_PROPOSAL_TICKET = ''
-  env.RESOLVED_SAFE_PROPOSAL_REASON = ''
-  Object.assign(env, options.env ?? {})
+  const env = freshChildEnv(options.env)
   withholdCredentials(env)
   const shim = toolchainShim()
   env.PATH = `${shim}:${env.PATH ?? ''}`
 
-  const root = sandbox()
+  const root = sandboxCheckout(SANDBOX_ENV)
   const result = Bun.spawnSync(
     ['bash', join('script', 'deploy', 'deployContractToNetworks.sh'), ...args],
     {

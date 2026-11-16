@@ -3,14 +3,22 @@ pragma solidity ^0.8.17;
 
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
 import { IAllBridge } from "lifi/Interfaces/IAllBridge.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NotInitialized, OnlyContractOwner } from "lifi/Errors/GenericErrors.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
+import {
+    InvalidConfig,
+    InvalidNonEVMReceiver,
+    InvalidReceiver,
+    NotInitialized,
+    OnlyContractOwner
+} from "lifi/Errors/GenericErrors.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 
 // Stub AllBridgeFacet Contract
 contract TestAllBridgeFacet is AllBridgeFacet, TestWhitelistManagerBase {
-    constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) {}
+    constructor(IAllBridge _allBridge) AllBridgeFacet(_allBridge) { }
 }
 
 contract AllBridgeFacetTest is TestBaseFacet {
@@ -49,13 +57,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
 
     error UnsupportedAllBridgeChainId();
 
-    event AllBridgeChainMappingsInitialized(
-        AllBridgeFacet.ChainIdConfig[] chainIdConfigs
-    );
+    event AllBridgeChainMappingsInitialized(AllBridgeFacet
+                .ChainIdConfig[] chainIdConfigs);
 
     event ChainIdToAllBridgeChainIdSet(
-        uint256 indexed chainId,
-        uint256 allBridgeChainId
+        uint256 indexed chainId, uint256 allBridgeChainId
     );
 
     event ChainIdToAllBridgeChainIdUnset(uint256 indexed chainId);
@@ -69,67 +75,52 @@ contract AllBridgeFacetTest is TestBaseFacet {
         view
         returns (AllBridgeFacet.ChainIdConfig[] memory)
     {
-        AllBridgeFacet.ChainIdConfig[]
-            memory configs = new AllBridgeFacet.ChainIdConfig[](15);
+        AllBridgeFacet.ChainIdConfig[] memory configs =
+            new AllBridgeFacet.ChainIdConfig[](15);
         configs[0] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_ETHEREUM,
-            ALLBRIDGE_ID_ETHEREUM
+            LIFI_CHAIN_ID_ETHEREUM, ALLBRIDGE_ID_ETHEREUM
         );
         configs[1] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_BSC,
-            ALLBRIDGE_ID_BSC
+            LIFI_CHAIN_ID_BSC, ALLBRIDGE_ID_BSC
         );
         configs[2] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_TRON,
-            ALLBRIDGE_ID_TRON
+            LIFI_CHAIN_ID_TRON, ALLBRIDGE_ID_TRON
         );
         configs[3] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_SOLANA,
-            ALLBRIDGE_ID_SOLANA
+            LIFI_CHAIN_ID_SOLANA, ALLBRIDGE_ID_SOLANA
         );
         configs[4] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_POLYGON,
-            ALLBRIDGE_ID_POLYGON
+            LIFI_CHAIN_ID_POLYGON, ALLBRIDGE_ID_POLYGON
         );
         configs[5] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_ARBITRUM,
-            ALLBRIDGE_ID_ARBITRUM
+            LIFI_CHAIN_ID_ARBITRUM, ALLBRIDGE_ID_ARBITRUM
         );
         configs[6] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_STELLAR,
-            ALLBRIDGE_ID_STELLAR
+            LIFI_CHAIN_ID_STELLAR, ALLBRIDGE_ID_STELLAR
         );
         configs[7] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_AVALANCHE,
-            ALLBRIDGE_ID_AVALANCHE
+            LIFI_CHAIN_ID_AVALANCHE, ALLBRIDGE_ID_AVALANCHE
         );
         configs[8] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_BASE,
-            ALLBRIDGE_ID_BASE
+            LIFI_CHAIN_ID_BASE, ALLBRIDGE_ID_BASE
         );
         configs[9] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_OPTIMISM,
-            ALLBRIDGE_ID_OPTIMISM
+            LIFI_CHAIN_ID_OPTIMISM, ALLBRIDGE_ID_OPTIMISM
         );
         configs[10] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_CELO,
-            ALLBRIDGE_ID_CELO
+            LIFI_CHAIN_ID_CELO, ALLBRIDGE_ID_CELO
         );
         configs[11] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_SONIC,
-            ALLBRIDGE_ID_SONIC
+            LIFI_CHAIN_ID_SONIC, ALLBRIDGE_ID_SONIC
         );
         configs[12] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_SUI,
-            ALLBRIDGE_ID_SUI
+            LIFI_CHAIN_ID_SUI, ALLBRIDGE_ID_SUI
         );
         configs[13] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_UNICHAIN,
-            ALLBRIDGE_ID_UNICHAIN
+            LIFI_CHAIN_ID_UNICHAIN, ALLBRIDGE_ID_UNICHAIN
         );
         configs[14] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_LINEA,
-            ALLBRIDGE_ID_LINEA
+            LIFI_CHAIN_ID_LINEA, ALLBRIDGE_ID_LINEA
         );
 
         return configs;
@@ -144,10 +135,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
         internal
         returns (TestAllBridgeFacet)
     {
-        LiFiDiamond testDiamond = createDiamond(
-            USER_DIAMOND_OWNER,
-            USER_PAUSER
-        );
+        LiFiDiamond testDiamond =
+            createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
         TestAllBridgeFacet facet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
 
@@ -167,25 +156,19 @@ contract AllBridgeFacetTest is TestBaseFacet {
 
         allBridgeFacet = new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
         bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = allBridgeFacet
-            .startBridgeTokensViaAllBridge
-            .selector;
-        functionSelectors[1] = allBridgeFacet
-            .swapAndStartBridgeTokensViaAllBridge
-            .selector;
-        functionSelectors[2] = allBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = allBridgeFacet
-            .getChainIdToAllBridgeChainId
-            .selector;
+        functionSelectors[0] =
+        allBridgeFacet.startBridgeTokensViaAllBridge.selector;
+        functionSelectors[1] =
+        allBridgeFacet.swapAndStartBridgeTokensViaAllBridge.selector;
+        functionSelectors[2] =
+        allBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        allBridgeFacet.getChainIdToAllBridgeChainId.selector;
         functionSelectors[4] = allBridgeFacet.initAllBridge.selector;
-        functionSelectors[5] = allBridgeFacet
-            .setChainIdToAllBridgeChainId
-            .selector;
-        functionSelectors[6] = allBridgeFacet
-            .unsetChainIdToAllBridgeChainId
-            .selector;
+        functionSelectors[5] =
+        allBridgeFacet.setChainIdToAllBridgeChainId.selector;
+        functionSelectors[6] =
+        allBridgeFacet.unsetChainIdToAllBridgeChainId.selector;
 
         addFacet(diamond, address(allBridgeFacet), functionSelectors);
         allBridgeFacet = TestAllBridgeFacet(address(diamond));
@@ -195,16 +178,13 @@ contract AllBridgeFacetTest is TestBaseFacet {
         vm.stopPrank();
 
         allBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         allBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
         allBridgeFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
 
         setFacetAddressInTestBase(address(allBridgeFacet), "AllBridgeFacet");
@@ -213,10 +193,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
         bridgeData.bridge = "allbridge";
         bridgeData.destinationChainId = 137;
 
-        uint256 fees = ALLBRIDGE_ROUTER.getTransactionCost(5) +
-            ALLBRIDGE_ROUTER.getMessageCost(
-                5,
-                IAllBridge.MessengerProtocol.Allbridge
+        uint256 fees = ALLBRIDGE_ROUTER.getTransactionCost(5)
+            + ALLBRIDGE_ROUTER.getMessageCost(
+                5, IAllBridge.MessengerProtocol.Allbridge
             );
         // produce valid AllBridgeData
         validAllBridgeData = AllBridgeFacet.AllBridgeData({
@@ -233,13 +212,17 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool) internal override {
         allBridgeFacet.startBridgeTokensViaAllBridge{
             value: addToMessageValue
-        }(bridgeData, validAllBridgeData);
+        }(
+            bridgeData, validAllBridgeData
+        );
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal override {
         allBridgeFacet.swapAndStartBridgeTokensViaAllBridge{
             value: addToMessageValue
-        }(bridgeData, swapData, validAllBridgeData);
+        }(
+            bridgeData, swapData, validAllBridgeData
+        );
     }
 
     function testBase_CanBridgeNativeTokens() public override {
@@ -261,13 +244,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
     }
 
     function test_CanBridgeAndPayFeeWithBridgedToken() public {
-        validAllBridgeData.fees =
-            ALLBRIDGE_ROUTER.getBridgingCostInTokens(
-                5,
-                IAllBridge.MessengerProtocol.Allbridge,
-                ADDRESS_USDC
-            ) +
-            1; // add 1 wei to avoid rounding errors
+        validAllBridgeData.fees = ALLBRIDGE_ROUTER.getBridgingCostInTokens(
+            5, IAllBridge.MessengerProtocol.Allbridge, ADDRESS_USDC
+        ) + 1; // add 1 wei to avoid rounding errors
 
         validAllBridgeData.payFeeWithSendingAsset = true;
         vm.startPrank(USER_SENDER);
@@ -289,13 +268,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
 
         // prepare bridgeData
         bridgeData.hasSourceSwaps = true;
-        validAllBridgeData.fees =
-            ALLBRIDGE_ROUTER.getBridgingCostInTokens(
-                5,
-                IAllBridge.MessengerProtocol.Allbridge,
-                ADDRESS_USDC
-            ) +
-            1; // add 1 wei to avoid rounding errors
+        validAllBridgeData.fees = ALLBRIDGE_ROUTER.getBridgingCostInTokens(
+            5, IAllBridge.MessengerProtocol.Allbridge, ADDRESS_USDC
+        ) + 1; // add 1 wei to avoid rounding errors
         validAllBridgeData.payFeeWithSendingAsset = true;
 
         // reset swap data
@@ -334,8 +309,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidReceiver.selector);
 
         allBridgeFacet.startBridgeTokensViaAllBridge(
-            bridgeData,
-            validAllBridgeData
+            bridgeData, validAllBridgeData
         );
     }
 
@@ -351,8 +325,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidNonEVMReceiver.selector);
 
         allBridgeFacet.startBridgeTokensViaAllBridge(
-            bridgeData,
-            validAllBridgeData
+            bridgeData, validAllBridgeData
         );
 
         vm.stopPrank();
@@ -369,12 +342,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
         );
 
         // Calculate fees for Solana destination
-        uint256 fees = ALLBRIDGE_ROUTER.getTransactionCost(
-            ALLBRIDGE_ID_SOLANA
-        ) +
-            ALLBRIDGE_ROUTER.getMessageCost(
-                ALLBRIDGE_ID_SOLANA,
-                IAllBridge.MessengerProtocol.Allbridge
+        uint256 fees = ALLBRIDGE_ROUTER.getTransactionCost(ALLBRIDGE_ID_SOLANA)
+            + ALLBRIDGE_ROUTER.getMessageCost(
+                ALLBRIDGE_ID_SOLANA, IAllBridge.MessengerProtocol.Allbridge
             );
         validAllBridgeData.fees = fees;
         validAllBridgeData.receiveToken = ADDRESS_USDC_SOLANA; // Solana USDC
@@ -396,7 +366,9 @@ contract AllBridgeFacetTest is TestBaseFacet {
 
         allBridgeFacet.startBridgeTokensViaAllBridge{
             value: validAllBridgeData.fees
-        }(bridgeData, validAllBridgeData);
+        }(
+            bridgeData, validAllBridgeData
+        );
 
         vm.stopPrank();
     }
@@ -437,8 +409,7 @@ contract AllBridgeFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         allBridgeFacet.startBridgeTokensViaAllBridge(
-            bridgeData,
-            validAllBridgeData
+            bridgeData, validAllBridgeData
         );
 
         vm.stopPrank();
@@ -543,12 +514,10 @@ contract AllBridgeFacetTest is TestBaseFacet {
         uint256 chainId = 1329;
         uint256 allBridgeChainId = 16;
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
-        chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(
-            chainId,
-            allBridgeChainId
-        );
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] =
+            AllBridgeFacet.ChainIdConfig(chainId, allBridgeChainId);
 
         vm.expectEmit(true, true, true, true);
         emit ChainIdToAllBridgeChainIdSet(chainId, allBridgeChainId);
@@ -566,8 +535,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function test_CanSetMultipleChainIdsToAllBridgeChainId() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](2);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](2);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 16);
         chainIdConfigs[1] = AllBridgeFacet.ChainIdConfig(324, 15);
 
@@ -584,8 +553,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
     {
         vm.startPrank(USER_SENDER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 16);
 
         vm.expectRevert(OnlyContractOwner.selector);
@@ -598,10 +567,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_FailsToSetChainIdToAllBridgeChainIdIfNotInitialized()
         public
     {
-        TestAllBridgeFacet uninitializedFacet = _deployUninitializedAllBridgeFacet();
+        TestAllBridgeFacet uninitializedFacet =
+            _deployUninitializedAllBridgeFacet();
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 16);
 
         vm.startPrank(USER_DIAMOND_OWNER);
@@ -616,8 +586,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToAllBridgeChainIdWithEmptyConfig() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](0);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](0);
 
         vm.expectRevert(InvalidConfig.selector);
 
@@ -629,8 +599,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToAllBridgeChainIdWithZeroChainId() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(0, 16);
 
         vm.expectRevert(InvalidConfig.selector);
@@ -645,8 +615,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
     {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 0);
 
         vm.expectRevert(InvalidConfig.selector);
@@ -691,7 +661,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_FailsToUnsetChainIdToAllBridgeChainIdIfNotInitialized()
         public
     {
-        TestAllBridgeFacet uninitializedFacet = _deployUninitializedAllBridgeFacet();
+        TestAllBridgeFacet uninitializedFacet =
+            _deployUninitializedAllBridgeFacet();
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
@@ -723,24 +694,20 @@ contract AllBridgeFacetTest is TestBaseFacet {
     }
 
     function test_InitAllBridge() public {
-        LiFiDiamond testDiamond = createDiamond(
-            USER_DIAMOND_OWNER,
-            USER_PAUSER
-        );
+        LiFiDiamond testDiamond =
+            createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
-        TestAllBridgeFacet actualFacet = new TestAllBridgeFacet(
-            ALLBRIDGE_ROUTER
-        );
+        TestAllBridgeFacet actualFacet =
+            new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
 
         bytes4[] memory functionSelectors = new bytes4[](2);
         functionSelectors[0] = actualFacet.initAllBridge.selector;
-        functionSelectors[1] = actualFacet
-            .getChainIdToAllBridgeChainId
-            .selector;
+        functionSelectors[1] =
+        actualFacet.getChainIdToAllBridgeChainId.selector;
         addFacet(testDiamond, address(actualFacet), functionSelectors);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = _defaultChainIdConfigs();
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            _defaultChainIdConfigs();
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
@@ -750,9 +717,8 @@ contract AllBridgeFacetTest is TestBaseFacet {
         AllBridgeFacet(address(testDiamond)).initAllBridge(chainIdConfigs);
 
         assertEq(
-            AllBridgeFacet(address(testDiamond)).getChainIdToAllBridgeChainId(
-                LIFI_CHAIN_ID_STELLAR
-            ),
+            AllBridgeFacet(address(testDiamond))
+                .getChainIdToAllBridgeChainId(LIFI_CHAIN_ID_STELLAR),
             ALLBRIDGE_ID_STELLAR
         );
         vm.stopPrank();
@@ -765,26 +731,23 @@ contract AllBridgeFacetTest is TestBaseFacet {
         TestAllBridgeFacet facet = _deployUninitializedAllBridgeFacet();
 
         // first init: map Polygon and Arbitrum
-        AllBridgeFacet.ChainIdConfig[]
-            memory firstConfigs = new AllBridgeFacet.ChainIdConfig[](2);
+        AllBridgeFacet.ChainIdConfig[] memory firstConfigs =
+            new AllBridgeFacet.ChainIdConfig[](2);
         firstConfigs[0] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_POLYGON,
-            ALLBRIDGE_ID_POLYGON
+            LIFI_CHAIN_ID_POLYGON, ALLBRIDGE_ID_POLYGON
         );
         firstConfigs[1] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_ARBITRUM,
-            ALLBRIDGE_ID_ARBITRUM
+            LIFI_CHAIN_ID_ARBITRUM, ALLBRIDGE_ID_ARBITRUM
         );
 
         vm.startPrank(USER_DIAMOND_OWNER);
         facet.initAllBridge(firstConfigs);
 
         // second init: overwrite Polygon's mapping only, omit Arbitrum
-        AllBridgeFacet.ChainIdConfig[]
-            memory secondConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory secondConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         secondConfigs[0] = AllBridgeFacet.ChainIdConfig(
-            LIFI_CHAIN_ID_POLYGON,
-            ALLBRIDGE_ID_BASE
+            LIFI_CHAIN_ID_POLYGON, ALLBRIDGE_ID_BASE
         );
         facet.initAllBridge(secondConfigs);
         vm.stopPrank();
@@ -804,12 +767,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_InitAllBridgeWithZeroChainId() public {
         vm.startPrank(address(0));
 
-        TestAllBridgeFacet uninitializedFacet = new TestAllBridgeFacet(
-            ALLBRIDGE_ROUTER
-        );
+        TestAllBridgeFacet uninitializedFacet =
+            new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(0, 16);
 
         vm.expectRevert(InvalidConfig.selector);
@@ -822,12 +784,11 @@ contract AllBridgeFacetTest is TestBaseFacet {
     function testRevert_InitAllBridgeWithZeroAllBridgeChainId() public {
         vm.startPrank(address(0));
 
-        TestAllBridgeFacet uninitializedFacet = new TestAllBridgeFacet(
-            ALLBRIDGE_ROUTER
-        );
+        TestAllBridgeFacet uninitializedFacet =
+            new TestAllBridgeFacet(ALLBRIDGE_ROUTER);
 
-        AllBridgeFacet.ChainIdConfig[]
-            memory chainIdConfigs = new AllBridgeFacet.ChainIdConfig[](1);
+        AllBridgeFacet.ChainIdConfig[] memory chainIdConfigs =
+            new AllBridgeFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = AllBridgeFacet.ChainIdConfig(1329, 0);
 
         vm.expectRevert(InvalidConfig.selector);

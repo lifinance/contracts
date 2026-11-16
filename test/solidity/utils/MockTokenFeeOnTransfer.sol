@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 // A mock fee-on-transfer token contract that implements ERC20
 contract MockFeeOnTransferToken is IERC20 {
     string public name;
@@ -49,11 +50,10 @@ contract MockFeeOnTransferToken is IERC20 {
         return true;
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool) {
+    function transferFrom(address from, address to, uint256 amount)
+        external
+        returns (bool)
+    {
         if (allowance[from][msg.sender] != type(uint256).max) {
             allowance[from][msg.sender] -= amount;
         }

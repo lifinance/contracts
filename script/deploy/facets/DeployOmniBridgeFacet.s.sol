@@ -8,7 +8,7 @@ import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("OmniBridgeFacet") {}
+    constructor() DeployScriptBase("OmniBridgeFacet") { }
 
     function run()
         public
@@ -23,12 +23,10 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/omni.json");
 
         address foreignOmniBridge = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".foreignOmniBridge")
+            path, string.concat(".", network, ".foreignOmniBridge")
         );
         address wethOmniBridge = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".wethOmniBridge")
+            path, string.concat(".", network, ".wethOmniBridge")
         );
 
         return abi.encode(foreignOmniBridge, wethOmniBridge);

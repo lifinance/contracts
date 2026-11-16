@@ -100,8 +100,8 @@ describe('updateWhitelistPeriphery network scoping', () => {
         }
       )
       const generated = readFileSync(WHITELIST_PATH, 'utf8')
-      // prettier owns config/ and always ends a file with one newline; a generator that
-      // disagrees makes the file flip-flop between every sync run and every format run
+      // committed config/ files end with exactly one newline; a generator that disagrees
+      // makes the file flip-flop between every sync run and every hand edit
       expect(generated.endsWith('\n')).toBe(true)
       expect(generated.endsWith('\n\n')).toBe(false)
     } finally {

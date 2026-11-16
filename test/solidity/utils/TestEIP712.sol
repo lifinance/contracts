@@ -15,34 +15,34 @@ abstract contract TestEIP712 {
         uint256 _chainId,
         address _verifyingContract
     ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256(
-                        "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                    ),
-                    keccak256(bytes(_name)),
-                    keccak256(bytes(_version)),
-                    _chainId,
-                    _verifyingContract
-                )
-            );
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256(bytes(_name)),
+                keccak256(bytes(_version)),
+                _chainId,
+                _verifyingContract
+            )
+        );
     }
 
-    function _digest(
-        bytes32 _domainSeparatorHash,
-        bytes32 _structHash
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked("\x19\x01", _domainSeparatorHash, _structHash)
-            );
+    function _digest(bytes32 _domainSeparatorHash, bytes32 _structHash)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(
+            abi.encodePacked("\x19\x01", _domainSeparatorHash, _structHash)
+        );
     }
 
-    function _signDigest(
-        uint256 _privateKey,
-        bytes32 _digestHash
-    ) internal pure returns (bytes memory) {
+    function _signDigest(uint256 _privateKey, bytes32 _digestHash)
+        internal
+        pure
+        returns (bytes memory)
+    {
         (uint8 v, bytes32 r, bytes32 s) = VM.sign(_privateKey, _digestHash);
         return abi.encodePacked(r, s, v);
     }

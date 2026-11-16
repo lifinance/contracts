@@ -3,7 +3,10 @@
 /**
  * Report-only timelock watcher: finds every pending operation on every
  * production `LiFiTimelockController` from its logs, re-checks it, and alerts
- * Slack on a mismatch or an unverified finding that lasts three runs.
+ * Slack on a mismatch or an unverified finding that lasts three runs. The job
+ * fails on a mismatch, an alert it could not deliver, a crash, or a run that
+ * read no network; one unreadable network is an unverified finding, not a
+ * failed job.
  *
  * Run by `.github/workflows/timelockWatcher.yml`; runnable locally for a dry run
  * (Slack is only posted from CI). It never cancels, executes or signs anything.
@@ -11,7 +14,7 @@
  *   bunx tsx ./script/deploy/safe/timelock-watcher.ts [--network <name>] [--stateFile <path>]
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { existsSync } from 'fs'
 import { readFile, writeFile } from 'fs/promises'
@@ -21,6 +24,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 import {
+  BaseError,
   createPublicClient,
   encodeFunctionData,
   http,
@@ -56,7 +60,13 @@ import {
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
-import { createPinnedBlobReader } from './pinned-target-state'
+import {
+  PINNED_REF,
+  createPinnedAnchor,
+  createPinnedBlobReader,
+  createPinnedGitRunner,
+  type PinnedAnchor,
+} from './pinned-target-state'
 import { runPreBroadcastGate, viemGateReaders } from './prebroadcast-gate'
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import {
@@ -85,6 +95,7 @@ import {
 } from './timelock-watcher-alerts'
 import {
   createRebuildGate,
+  WatcherTimeoutError,
   withTimeout,
   type IRebuildGate,
 } from './timelock-watcher-rebuild'
@@ -118,15 +129,18 @@ import {
   gradeDelay,
   gradeDelegatecall,
   gradeIdentity,
+  gradeRollback,
   gradeState,
   gradeTargets,
   installedAddresses,
   installsCode,
   pendingRegistrationsOf,
+  registrationChangesOf,
   scheduledAtReaderFor,
   stageOf,
   type ICheckOutcome,
   type TCodehashResult,
+  type TDeployLogHistory,
   type TOperationStage,
   type TWatcherVerdict,
 } from './timelock-watcher-verdict'
@@ -288,37 +302,184 @@ const timeboxed = (client: PublicClient): PublicClient =>
     },
   })
 
-const describe = (error: unknown): string =>
-  redactUrls(error instanceof Error ? error.message : String(error))
-    .split('\n')[0]
-    ?.slice(0, 300) ?? 'unknown error'
+// viem's first message line is generic ("Invalid parameters were provided to
+// the RPC method."); the provider's own reason is only in `details`.
+const describe = (error: unknown): string => {
+  const text =
+    error instanceof BaseError && error.details
+      ? `${error.shortMessage.split('\n')[0]} (${error.details.split('\n')[0]})`
+      : error instanceof Error
+        ? error.message
+        : String(error)
+  return redactUrls(text).split('\n')[0]?.slice(0, 300) ?? 'unknown error'
+}
+
+/** A block below which a network's timelock history was checked by hand rather than scanned. */
+export interface IVouchedFloor {
+  block: bigint
+  reason: string
+}
+
+/**
+ * Reads a network's vouched history floor from `config/timelockController.json`.
+ *
+ * @param network - Network name.
+ * @param floors - The config's `historyFloors` map.
+ * @returns The floor, or undefined when the network has none.
+ * @throws When the network's entry lacks a decimal `block` or a `reason`.
+ */
+export const vouchedFloorOf = (
+  network: string,
+  floors: Record<string, unknown> | undefined
+): IVouchedFloor | undefined => {
+  const entry = floors?.[network]
+  if (entry === undefined) return undefined
+  const { block, reason } = (entry ?? {}) as Record<string, unknown>
+  if (typeof block !== 'string' || !/^\d+$/.test(block))
+    throw new Error(
+      `config/timelockController.json historyFloors.${network}.block must be a decimal block number string`
+    )
+  if (typeof reason !== 'string' || reason.trim() === '')
+    throw new Error(
+      `config/timelockController.json historyFloors.${network}.reason must say how the history below the block was checked`
+    )
+  return { block: BigInt(block), reason }
+}
+
+/** One `eth_getLogs` endpoint, tagged by its host: the only part of its URL a report may name. */
+export interface ILogEndpoint {
+  host: string
+  reader: PublicClient
+}
+
+/** Every endpoint failed a log range; its message names each endpoint's redacted error. */
+export class LogEndpointsFailedError extends Error {
+  /**
+   * @param fromBlock - First block of the range.
+   * @param toBlock - Last block of the range.
+   * @param failures - One `host: error` entry per endpoint, already redacted.
+   */
+  public constructor(
+    fromBlock: bigint,
+    toBlock: bigint,
+    failures: readonly string[]
+  ) {
+    super(
+      `every endpoint failed blocks ${fromBlock}-${toBlock}: ${failures.join(
+        '; '
+      )}`
+    )
+    this.name = 'LogEndpointsFailedError'
+  }
+}
+
+/**
+ * The reason an unreadable network gives for a failed log scan.
+ *
+ * @param error - What the scan threw.
+ * @returns A redacted, single-line reason.
+ */
+export const logScanFailureReason = (error: unknown): string =>
+  `the log scan failed: ${
+    error instanceof LogEndpointsFailedError ? error.message : describe(error)
+  }`
 
 /**
  * One client per endpoint, for `eth_getLogs` only. An endpoint that refuses a
  * range is not retried behind the fallback transport's back-off on every call:
  * the scan moves to the endpoint that last answered and stays there.
  */
-const createLogReaders = (chain: Chain): PublicClient[] =>
+const createLogEndpoints = (chain: Chain): ILogEndpoint[] =>
   chain.rpcUrls.default.http.flatMap((rpcUrl) => {
     try {
       const config = getTransportConfigFromRpcUrl(rpcUrl)
       return [
-        timeboxed(
-          createPublicClient({
-            chain,
-            transport: http(config.url, {
-              ...(config.fetchOptions
-                ? { fetchOptions: config.fetchOptions }
-                : {}),
-              retryCount: 1,
-            }),
-          }) as PublicClient
-        ),
+        {
+          host: new URL(config.url).hostname,
+          reader: timeboxed(
+            createPublicClient({
+              chain,
+              transport: http(config.url, {
+                ...(config.fetchOptions
+                  ? { fetchOptions: config.fetchOptions }
+                  : {}),
+                retryCount: 1,
+              }),
+            }) as PublicClient
+          ),
+        },
       ]
     } catch {
       return []
     }
   })
+
+/**
+ * Reads log ranges from the first endpoint that serves them, starting at the
+ * one that last answered.
+ *
+ * @param endpoints - The network's `eth_getLogs` endpoints.
+ * @param timelock - The timelock whose logs to read.
+ * @returns A reader of one range's timelock logs.
+ * @throws {LogRangeBehindError} When no endpoint has reached the range's end
+ *   and none refused it, or one has reached part of it.
+ * @throws {LogEndpointsFailedError} When every endpoint failed the range.
+ */
+export const createLogRangeReader = (
+  endpoints: readonly ILogEndpoint[],
+  timelock: Address
+) => {
+  let preferred = 0
+  // An endpoint that answers eth_getLogs only up to its own head, without an
+  // error, would let the scan record blocks it never saw as covered.
+  const heads = new Map<number, bigint>()
+  return async (fromBlock: bigint, toBlock: bigint) => {
+    const failures: string[] = []
+    let lastError: unknown
+    let furthest = -1n
+    let refused = false
+    for (let k = 0; k < endpoints.length; k++) {
+      const at = (preferred + k) % endpoints.length
+      const { host, reader } = endpoints[at] as ILogEndpoint
+      try {
+        let head = heads.get(at)
+        if (head === undefined || head < toBlock) {
+          head = await reader.getBlockNumber()
+          heads.set(at, head)
+        }
+        if (head < toBlock) {
+          if (head > furthest) furthest = head
+          throw new LogRangeBehindError(
+            `the endpoint is at block ${head}, behind ${toBlock}`,
+            head
+          )
+        }
+        const logs = await readTimelockLogs(
+          reader,
+          timelock,
+          fromBlock,
+          toBlock
+        )
+        preferred = at
+        return logs
+      } catch (error) {
+        lastError = error
+        if (!(error instanceof LogRangeBehindError)) refused = true
+        failures.push(`${host}: ${describe(error)}`)
+      }
+    }
+    // An endpoint that has reached part of the range can serve it up to its
+    // head, whatever the others did; the next range narrows from there.
+    if (furthest >= fromBlock)
+      throw new LogRangeBehindError(
+        `no endpoint served the range; the furthest is at block ${furthest}`,
+        furthest,
+        refused
+      )
+    if (!refused) throw lastError
+    throw new LogEndpointsFailedError(fromBlock, toBlock, failures)
+  }
+}
 
 /**
  * Reads one range of a timelock's schedule, salt and cancel logs.
@@ -426,7 +587,156 @@ interface IRunContext {
     deps: () => ISignTimeCodehashDeps
   }
   readPinned: ReturnType<typeof createPinnedBlobReader>
+  readDeployLogHistory: (
+    network: string,
+    deadline: number
+  ) => Promise<TDeployLogHistory>
   expired: Set<string>
+  found: Map<string, INetworkFindings>
+}
+
+/**
+ * What a network's watch has established so far. It lives on the run context
+ * so a network that overruns its timeout still reports what it found.
+ */
+export interface INetworkFindings {
+  timelock: string
+  mismatch: boolean
+  notes: string[]
+  operations: IOperationReport[]
+}
+
+const DEPLOY_LOG_ENTRY = /"([^"]+)"\s*:\s*"(0x[0-9a-fA-F]{40})"/g
+
+/**
+ * Every address a `git log -p --reverse` of a deploy log added, per name, with
+ * the position at which each was first added, so an earlier position is an
+ * older address. Reads every pair on an added line, so compact JSON counts too.
+ *
+ * @param patch - The log's patch text, oldest commit first.
+ * @returns Name → lowercased address → first position.
+ */
+export const parseDeployLogHistory = (
+  patch: string
+): Map<string, Map<string, number>> => {
+  const firstListed = new Map<string, Map<string, number>>()
+  let position = 0
+  for (const line of patch.split('\n')) {
+    if (!line.startsWith('+') || line.startsWith('+++')) continue
+    for (const [, name, address] of line.matchAll(DEPLOY_LOG_ENTRY)) {
+      if (!name || !address) continue
+      const addresses = firstListed.get(name) ?? new Map<string, number>()
+      const key = address.toLowerCase()
+      if (!addresses.has(key)) addresses.set(key, position)
+      firstListed.set(name, addresses)
+      position++
+    }
+  }
+  return firstListed
+}
+
+/** A history read, and whether it can change within the run. */
+interface IHistoryAttempt {
+  read: TDeployLogHistory
+  final: boolean
+}
+
+/**
+ * Reads every address `deployments/<network>.json` listed per name along
+ * main's first-parent history (a merge commit's own changes included, a side
+ * branch's intermediate states not), at the commit the other pinned reads use.
+ * A shallow clone is unreadable rather than read, since its history would hide
+ * the addresses a rollback returns to. No `--follow`: combined with
+ * `--first-parent` it drops commits, and a history cut short by a rename
+ * surfaces in {@link gradeRollback} as main's current address missing.
+ *
+ * Results are kept per network only when they cannot change within the run;
+ * a git failure, a timeout or a transient anchor failure is read again.
+ *
+ * @param anchor - The pinned `origin/main`.
+ * @param git - Runs git in this checkout and returns its stdout.
+ * @returns A reader taking a network name and the time by which it must answer.
+ */
+export const createDeployLogHistoryReader = (
+  anchor: PinnedAnchor,
+  git: (args: string[]) => Promise<string> = createPinnedGitRunner()
+): ((network: string, deadline: number) => Promise<TDeployLogHistory>) => {
+  const reads = new Map<string, Promise<TDeployLogHistory>>()
+  let shallow: Promise<boolean> | undefined
+  const isShallow = (): Promise<boolean> => {
+    shallow ??= git(['rev-parse', '--is-shallow-repository']).then(
+      (out) => out.trim() !== 'false',
+      (error: unknown) => {
+        shallow = undefined
+        throw error
+      }
+    )
+    return shallow
+  }
+  const attempt = async (
+    network: string,
+    deadline: number
+  ): Promise<IHistoryAttempt> => {
+    const anchored = await anchor()
+    if (!anchored.ok)
+      return {
+        read: {
+          ok: false,
+          reason: `${PINNED_REF} could not be pinned (${anchored.reason})`,
+        },
+        final: anchored.reason === 'remote-unexpected',
+      }
+    try {
+      if (await isShallow())
+        return {
+          read: { ok: false, reason: 'the clone is shallow' },
+          final: true,
+        }
+      const patch = await withTimeout(
+        git([
+          'log',
+          '--first-parent',
+          '--diff-merges=first-parent',
+          '--reverse',
+          '-p',
+          '--format=',
+          '--unified=0',
+          '--no-color',
+          '--no-ext-diff',
+          anchored.revision,
+          '--',
+          `deployments/${network}.json`,
+        ]),
+        deadline - Date.now(),
+        `reading main's history of deployments/${network}.json`
+      )
+      const firstListed = parseDeployLogHistory(patch)
+      return firstListed.size > 0
+        ? { read: { ok: true, firstListed }, final: true }
+        : {
+            read: {
+              ok: false,
+              reason: `${PINNED_REF} has no history of the file`,
+            },
+            final: true,
+          }
+    } catch (error) {
+      return {
+        read: { ok: false, reason: `git failed: ${describe(error)}` },
+        final: false,
+      }
+    }
+  }
+  return (network, deadline) => {
+    const known = reads.get(network)
+    if (known) return known
+    const pending = attempt(network, deadline).then(({ read, final }) => {
+      if (!final) reads.delete(network)
+      return read
+    })
+    reads.set(network, pending)
+    return pending
+  }
 }
 
 const encodeOperation = (op: IScannedOperation): Hex =>
@@ -615,10 +925,84 @@ const networkVerdict = (
   flags.mismatch
     ? 'mismatch'
     : flags.unverified ||
-      report.status === 'unreadable' ||
-      report.status === 'uncovered'
-    ? 'unverified'
-    : 'ok'
+        report.status === 'unreadable' ||
+        report.status === 'uncovered'
+      ? 'unverified'
+      : 'ok'
+
+/**
+ * The report of a network that could not be read to the end.
+ *
+ * @param network - Network name.
+ * @param reason - Why it could not be read.
+ * @param found - What was established before the read failed: the timelock, a
+ *   network mismatch already found (the diamond's owner, the minimum delay),
+ *   the notes saying so, and the operations already graded.
+ * @returns An unreadable report: a mismatch when one was found, else unverified.
+ */
+export const unreadableReport = (
+  network: string,
+  reason: string,
+  found: Partial<INetworkFindings> = {}
+): INetworkReport => ({
+  network,
+  status: 'unreadable',
+  reason,
+  ...(found.timelock ? { timelock: found.timelock } : {}),
+  verdict: found.mismatch ? 'mismatch' : 'unverified',
+  operations: found.operations ?? [],
+  notes: found.notes ?? [],
+})
+
+/**
+ * Runs one network's watch under its timeout. A watch that times out or
+ * throws is reported unreadable, keeping a copy of what it found before then,
+ * so a mismatch it saw still fails the job and pages.
+ *
+ * @param name - Network name.
+ * @param ctx - The run context: its timeout budget, the networks that
+ *   overran, and what each watch has found so far.
+ * @param watch - The network's watch.
+ * @returns The watch's report, or the unreadable report that replaces it.
+ */
+export const watchNetworkWithin = async (
+  name: string,
+  ctx: Pick<IRunContext, 'historyMs' | 'expired' | 'found'>,
+  watch: () => Promise<INetworkReport>
+): Promise<INetworkReport> => {
+  try {
+    const started = Date.now()
+    const report = await withTimeout(
+      watch(),
+      networkTimeoutMs(ctx),
+      `watching ${name}`
+    )
+    consola.info(
+      `[${name}] ${report.status}, ${report.verdict}, ${
+        report.operations.length
+      } pending, ${Math.round((Date.now() - started) / 1000)}s`
+    )
+    return report
+  } catch (error) {
+    ctx.expired.add(name)
+    // The watch keeps running after a timeout, so its findings are copied.
+    const found = ctx.found.get(name)
+    return {
+      ...unreadableReport(
+        name,
+        `the watcher failed on this network: ${describe(error)}`,
+        found
+          ? {
+              ...found,
+              notes: [...found.notes],
+              operations: [...found.operations],
+            }
+          : {}
+      ),
+      ...(error instanceof WatcherTimeoutError ? {} : { crashed: true }),
+    }
+  }
+}
 
 /**
  * Watches one network.
@@ -634,15 +1018,8 @@ export const watchNetwork = async (
 ): Promise<INetworkReport> => {
   const name = network.name
   const startedAt = Date.now()
-  const unreadable = (reason: string, timelock?: string): INetworkReport => ({
-    network: name,
-    status: 'unreadable',
-    reason,
-    ...(timelock ? { timelock } : {}),
-    verdict: 'unverified',
-    operations: [],
-    notes: [],
-  })
+  const unreadable = (reason: string, timelock?: string): INetworkReport =>
+    unreadableReport(name, reason, timelock ? { timelock } : {})
 
   const pinned = await ctx.readPinned(`deployments/${name}.json`)
   if (!pinned.ok)
@@ -675,11 +1052,11 @@ export const watchNetwork = async (
     }
 
   let client: PublicClient
-  let logReaders: PublicClient[]
+  let logEndpoints: ILogEndpoint[]
   try {
     const chain = getViemChainForNetworkName(name)
-    logReaders = createLogReaders(chain)
-    if (logReaders.length === 0)
+    logEndpoints = createLogEndpoints(chain)
+    if (logEndpoints.length === 0)
       throw new Error('no RPC endpoint can serve eth_getLogs')
     client = timeboxed(
       createPublicClient({
@@ -691,9 +1068,19 @@ export const watchNetwork = async (
     return unreadable(describe(error), timelock)
   }
 
-  const notes: string[] = []
-  let flagMismatch = false
+  // An unreadable network no longer fails the job, so a mismatch found before
+  // the read failed or timed out must stay on its report.
+  const found: INetworkFindings = {
+    timelock,
+    mismatch: false,
+    notes: [],
+    operations: [],
+  }
+  ctx.found.set(name, found)
+  const { notes, operations } = found
   let flagUnverified = false
+  const unreadableAfterOwner = (reason: string): INetworkReport =>
+    unreadableReport(name, reason, found)
 
   if (diamond)
     try {
@@ -703,7 +1090,7 @@ export const watchNetwork = async (
         functionName: 'owner',
       })
       if (owner.toLowerCase() !== timelock.toLowerCase()) {
-        flagMismatch = true
+        found.mismatch = true
         notes.push(
           `LiFiDiamond is owned by ${owner}, not by the timelock main names; operations on that owner are not watched`
         )
@@ -721,13 +1108,16 @@ export const watchNetwork = async (
     )
   }
 
+  let vouched: IVouchedFloor | undefined
+  try {
+    vouched = vouchedFloorOf(name, timelockConfig.historyFloors)
+  } catch (error) {
+    return unreadableAfterOwner(describe(error))
+  }
   const previous = initialScanState(ctx.state.networks[name], timelock)
-  let preferredReader = 0
-  // An endpoint that answers eth_getLogs only up to its own head, without an
-  // error, would let the scan record blocks it never saw as covered.
-  const readerHeads = new Map<number, bigint>()
+  const readLogRange = createLogRangeReader(logEndpoints, timelock)
   let scan: Awaited<ReturnType<typeof advanceScan>>
-  let floorNote: string | undefined
+  let floorError: string | undefined
   try {
     scan = await advanceScan(
       previous,
@@ -744,55 +1134,12 @@ export const watchNetwork = async (
               return code !== undefined && code !== '0x'
             })
           } catch (error) {
-            floorNote = `creation block unknown (${describe(
-              error
-            )}); history is scanned from genesis this run, and the next run tries again`
+            floorError = describe(error)
             return undefined
           }
         },
         getLogs: async (fromBlock, toBlock) => {
-          let logs: Awaited<ReturnType<typeof readTimelockLogs>> | undefined
-          let lastError: unknown
-          let furthest = -1n
-          let refusal: unknown
-          for (let k = 0; k < logReaders.length && !logs; k++) {
-            const at = (preferredReader + k) % logReaders.length
-            const reader = logReaders[at] as PublicClient
-            try {
-              let readerHead = readerHeads.get(at)
-              if (readerHead === undefined || readerHead < toBlock) {
-                readerHead = await reader.getBlockNumber()
-                readerHeads.set(at, readerHead)
-              }
-              if (readerHead < toBlock) {
-                if (readerHead > furthest) furthest = readerHead
-                throw new LogRangeBehindError(
-                  `the endpoint is at block ${readerHead}, behind ${toBlock}`,
-                  readerHead
-                )
-              }
-              logs = await readTimelockLogs(
-                reader,
-                timelock,
-                fromBlock,
-                toBlock
-              )
-              preferredReader = at
-            } catch (error) {
-              lastError = error
-              if (!(error instanceof LogRangeBehindError)) refusal = error
-            }
-          }
-          // An endpoint that has reached part of the range can serve it up to its
-          // head, whatever the others did; the next range narrows from there.
-          if (!logs)
-            throw furthest >= fromBlock
-              ? new LogRangeBehindError(
-                  `no endpoint served the range; the furthest is at block ${furthest}`,
-                  furthest,
-                  refusal !== undefined
-                )
-              : refusal ?? lastError
+          const logs = await readLogRange(fromBlock, toBlock)
           const scheduled = []
           const salts = []
           const cancels = []
@@ -818,12 +1165,28 @@ export const watchNetwork = async (
       {
         until: startedAt + ctx.historyMs,
         parallel: HISTORY_PARALLEL_RANGES,
+        ...(vouched ? { vouchedFloor: vouched.block } : {}),
       }
     )
   } catch (error) {
-    return unreadable(`the log scan failed: ${describe(error)}`, timelock)
+    return unreadableAfterOwner(logScanFailureReason(error))
   }
-  if (floorNote) notes.push(floorNote)
+  if (floorError !== undefined)
+    notes.push(
+      `creation block unknown (${floorError}); history is scanned from ${
+        scan.historyFloor > 0n ? `block ${scan.historyFloor}` : 'genesis'
+      } this run, and the next run tries again`
+    )
+  if (vouched && scan.historyFloor === vouched.block)
+    notes.push(
+      `history below block ${vouched.block} is vouched for, not scanned: ${vouched.reason}`
+    )
+  if (vouched && vouched.block > scan.head) {
+    flagUnverified = true
+    notes.push(
+      `config/timelockController.json historyFloors.${name}.block ${vouched.block} is above the head (${scan.head}), so it is ignored`
+    )
+  }
   if (scan.historyError !== undefined)
     notes.push(
       `no endpoint would serve the next history range: ${redactUrls(
@@ -853,9 +1216,8 @@ export const watchNetwork = async (
     now = latest.timestamp
     latestBlock = latest.number
   } catch (error) {
-    return unreadable(
-      `the latest block could not be read: ${describe(error)}`,
-      timelock
+    return unreadableAfterOwner(
+      `the latest block could not be read: ${describe(error)}`
     )
   }
   try {
@@ -873,7 +1235,7 @@ export const watchNetwork = async (
     flagUnverified = true
     notes.push('getMinDelay() could not be read')
   } else if (liveMinimum < agreedMinimum) {
-    flagMismatch = true
+    found.mismatch = true
     notes.push(
       `the timelock's minimum delay is ${liveMinimum}s, below the agreed ${agreedMinimum}s`
     )
@@ -897,7 +1259,6 @@ export const watchNetwork = async (
         knownForArguments
       )
     : new Set<string>()
-  const operations: IOperationReport[] = []
   const livePending = new Set<string>()
 
   for (const op of Object.values(scan.state.operations)) {
@@ -993,17 +1354,16 @@ export const watchNetwork = async (
     }
     checks.push(authorities)
 
+    const deadline = startedAt + networkTimeoutMs(ctx) - DEADLINE_MARGIN_MS
     const codehash = gradeCodehash(
-      await runCodehash(
-        name,
-        op,
-        client,
-        ctx,
-        network.isZkEVM,
-        startedAt + networkTimeoutMs(ctx) - DEADLINE_MARGIN_MS
-      )
+      await runCodehash(name, op, client, ctx, network.isZkEVM, deadline)
     )
     checks.push(codehash)
+    const rollback = await gradeRollback(
+      registrationChangesOf(op, diamond, deployments),
+      () => ctx.readDeployLogHistory(name, deadline)
+    )
+    checks.push(rollback)
 
     if (signTimeRecordRead && !signTimeRecordPresent)
       opNotes.push(
@@ -1023,6 +1383,7 @@ export const watchNetwork = async (
         identity: identity.leg,
         codehash,
         authorities,
+        rollback,
         stage,
         signTimeRecordPresent,
       })
@@ -1090,7 +1451,7 @@ export const watchNetwork = async (
   return {
     ...base,
     verdict: networkVerdict(base, {
-      mismatch: flagMismatch,
+      mismatch: found.mismatch,
       unverified: flagUnverified,
     }),
   }
@@ -1119,6 +1480,38 @@ export const findingsOf = (
       reasons: op.reasons,
     })),
   ])
+
+/**
+ * Whether the run fails the job. One unreadable network does not: it is an
+ * unverified network finding, which pages Slack once it lasts three runs. A
+ * watcher crash does, and so does a run where no network could be read, since
+ * both point at the watcher or its inputs rather than at one network's RPCs.
+ *
+ * @param reports - This run's network reports.
+ * @param deliveryFailed - Whether an alert could not be delivered.
+ * @returns True on an operation or network mismatch, an undelivered alert, a
+ *   watcher crash, or every readable network being unreadable.
+ */
+export const jobFails = (
+  reports: readonly INetworkReport[],
+  deliveryFailed: boolean
+): boolean => {
+  const readable = reports.filter(
+    (r) => r.status === 'watched' || r.status === 'unreadable'
+  )
+  const noneRead =
+    readable.length > 0 && readable.every((r) => r.status === 'unreadable')
+  return (
+    deliveryFailed ||
+    noneRead ||
+    reports.some(
+      (r) =>
+        r.crashed === true ||
+        r.verdict === 'mismatch' ||
+        r.operations.some((op) => op.verdict === 'mismatch')
+    )
+  )
+}
 
 const command = defineCommand({
   meta: {
@@ -1185,7 +1578,8 @@ const command = defineCommand({
       throw new Error(`No active production network matches ${args.network}`)
 
     const state = await loadWatcherState(stateFile)
-    const readPinned = createPinnedBlobReader()
+    const anchor = createPinnedAnchor()
+    const readPinned = createPinnedBlobReader({ anchor })
     let codehashDeps: ISignTimeCodehashDeps | undefined
     const store = await openWatcherStore()
     const ctx: IRunContext = {
@@ -1195,6 +1589,7 @@ const command = defineCommand({
       historyBudget,
       historyMs: historyMinutes * 60 * 1000,
       readPinned,
+      readDeployLogHistory: createDeployLogHistoryReader(anchor),
       codehash: {
         gate: createRebuildGate({
           budget: codehashBudget,
@@ -1207,39 +1602,13 @@ const command = defineCommand({
           })),
       },
       expired: new Set<string>(),
+      found: new Map<string, INetworkFindings>(),
     }
 
     let reports: INetworkReport[]
     try {
-      reports = await mapWithConcurrency(
-        networks,
-        NETWORK_CONCURRENCY,
-        async (n) => {
-          try {
-            const started = Date.now()
-            const report = await withTimeout(
-              watchNetwork(n, ctx),
-              networkTimeoutMs(ctx),
-              `watching ${n.name}`
-            )
-            consola.info(
-              `[${n.name}] ${report.status}, ${report.verdict}, ${
-                report.operations.length
-              } pending, ${Math.round((Date.now() - started) / 1000)}s`
-            )
-            return report
-          } catch (error) {
-            ctx.expired.add(n.name)
-            return {
-              network: n.name,
-              status: 'unreadable' as const,
-              reason: `the watcher failed on this network: ${describe(error)}`,
-              verdict: 'unverified' as const,
-              operations: [],
-              notes: [],
-            }
-          }
-        }
+      reports = await mapWithConcurrency(networks, NETWORK_CONCURRENCY, (n) =>
+        watchNetworkWithin(n.name, ctx, () => watchNetwork(n, ctx))
       )
     } finally {
       await codehashDeps?.close()
@@ -1304,17 +1673,10 @@ const command = defineCommand({
     consola.log(summary)
 
     const tally = tallyReports(reports)
-    const networkMismatch = reports.some((r) => r.verdict === 'mismatch')
     consola.info(
       `Checked ${tally.watched} of ${tally.networks} network(s): ${tally.operations} pending operation(s), ${tally.byVerdict.mismatch} mismatch, ${tally.byVerdict.unverified} unverified, ${tally.byVerdict.ok} ok; ${tally.unreadable} unreadable, ${tally.uncovered} not covered, ${tally.skipped} skipped`
     )
-    if (
-      tally.unreadable > 0 ||
-      tally.byVerdict.mismatch > 0 ||
-      networkMismatch ||
-      deliveryFailed
-    )
-      process.exit(1)
+    if (jobFails(reports, deliveryFailed)) process.exit(1)
     // A timed-out rebuild keeps running after its network was reported; it must
     // not hold the job open.
     process.exit(0)

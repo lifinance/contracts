@@ -1,6 +1,10 @@
 {
   "editor.formatOnSave": true,
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "oxc.fmt.configPath": ".oxfmtrc.json",
+  "[solidity]": {
+    "editor.formatOnSave": false
+  },
   "editor.codeActionsOnSave": {
     "source.fixAll": true
   },

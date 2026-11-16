@@ -78,10 +78,10 @@ const CLIENT_SIGN_CALLS = new RegExp(`\\w+\\.(?:${SIGN_METHODS})\\(`, 'gu')
  *
  * A separate pattern rather than a widened `CLIENT_SIGN_CALLS`, so the
  * exhaustive assertion below keeps comparing against readable call text. Every
- * one of these compiles and survives prettier unchanged, and a cast is the
+ * one of these compiles and survives oxfmt unchanged, and a cast is the
  * natural shape at the Safe/Tron seam — so an ungated route could be added in
  * one of the forms the check cannot see. Line-broken and spaced-out dots are
- * deliberately not covered: prettier collapses them before they can be
+ * deliberately not covered: oxfmt collapses them before they can be
  * committed.
  */
 const ANY_ROUTE = `${SIGN_METHODS}|executeTransaction`

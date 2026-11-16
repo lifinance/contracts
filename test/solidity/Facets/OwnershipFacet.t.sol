@@ -14,13 +14,11 @@ contract OwnershipFacetTest is TestBaseLocal {
     error NotPendingOwner();
 
     event OwnershipTransferRequested(
-        address indexed _from,
-        address indexed _to
+        address indexed _from, address indexed _to
     );
 
     event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
+        address indexed previousOwner, address indexed newOwner
     );
 
     function setUp() public {

@@ -281,8 +281,8 @@ export const resolveImport = (
   const path = rule
     ? normalise(rule.target + specifier.slice(rule.prefix.length))
     : DIRECT_PATH_ROOTS.some((root) => specifier.startsWith(root))
-    ? normalise(specifier)
-    : undefined
+      ? normalise(specifier)
+      : undefined
 
   if (path === undefined) return undefined
 

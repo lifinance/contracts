@@ -544,8 +544,8 @@ const gradeSelectors = (
         moved === undefined
           ? 'on chain'
           : composed
-          ? 'by an earlier call in this proposal'
-          : 'by an earlier cut in this same call'
+            ? 'by an earlier call in this proposal'
+            : 'by an earlier cut in this same call'
 
       if (current === undefined) {
         unchecked.push(
@@ -983,8 +983,8 @@ export const evaluateExecutability = (
           .map((finding) => finding.detail)
           .join('; ')}`
       : error
-      ? errors.join(' ')
-      : '',
+        ? errors.join(' ')
+        : '',
   }
 }
 

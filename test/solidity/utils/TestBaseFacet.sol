@@ -2,7 +2,15 @@
 pragma solidity ^0.8.17;
 
 import { TestBase, LibSwap, ReentrancyChecker } from "./TestBase.sol";
-import { TransferFromFailed, NoSwapDataProvided, InformationMismatch, ReentrancyError, CannotBridgeToSameNetwork, InvalidReceiver, InvalidAmount } from "src/Errors/GenericErrors.sol";
+import {
+    TransferFromFailed,
+    NoSwapDataProvided,
+    InformationMismatch,
+    ReentrancyError,
+    CannotBridgeToSameNetwork,
+    InvalidReceiver,
+    InvalidAmount
+} from "src/Errors/GenericErrors.sol";
 
 // contains default test cases that can and should be used by
 abstract contract TestBaseFacet is TestBase {
@@ -38,9 +46,7 @@ abstract contract TestBaseFacet is TestBase {
         public
         virtual
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(ADDRESS_USDC, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -89,9 +95,7 @@ abstract contract TestBaseFacet is TestBase {
         public
         virtual
         assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(swapData[0].fromAmount)
+            ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount)
         )
         assertBalanceChange(ADDRESS_DAI, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_USDC, USER_SENDER, 0)
@@ -362,9 +366,8 @@ abstract contract TestBaseFacet is TestBase {
     //! only works if function is also protected with "refundExcessiveGas" modifier
     function failReentrantCall(bytes memory callData) internal virtual {
         // deploy and call attacker contract
-        ReentrancyChecker attacker = new ReentrancyChecker(
-            _facetTestContractAddress
-        );
+        ReentrancyChecker attacker =
+            new ReentrancyChecker(_facetTestContractAddress);
         dai.transfer(address(attacker), dai.balanceOf(USER_SENDER));
         vm.deal(address(attacker), 10000 ether);
         vm.expectRevert(ReentrancyError.selector);

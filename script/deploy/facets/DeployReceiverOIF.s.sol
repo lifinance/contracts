@@ -8,7 +8,7 @@ import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ReceiverOIF") {}
+    constructor() DeployScriptBase("ReceiverOIF") { }
 
     function run()
         public
@@ -21,23 +21,18 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
-        string memory path = string.concat(
-            root,
-            "/config/lifiintentescrow.json"
-        );
+        string memory path =
+            string.concat(root, "/config/lifiintentescrow.json");
         // allowNonContractAddress: true — OIFOutputSettlerSimple is a reserved, deterministically
         // deployed vanity address, identical on every EVM chain (Tron cannot reproduce it and
         // carries its own address under the `tron` key in the same config file). ReceiverOIF is deployed on a chain
@@ -52,12 +47,7 @@ contract DeployScript is DeployScriptBase {
 
         // get Executor address from deploy log
         path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
         address executor = _getConfigContractAddress(path, ".Executor");
 

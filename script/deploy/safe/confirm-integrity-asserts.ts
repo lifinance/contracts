@@ -1291,10 +1291,10 @@ export const assertIntegrityAssertsAllowSigning = (
           : `The integrity verdict is about a different transaction than the one now being signed — it graded ${run.gradedKey} and this is ${key}. A verdict only ever speaks for one transaction.`,
       ]
     : gradedNothing
-    ? [
-        'The integrity assertions recorded no graded result at all, so nothing about this transaction was established. An empty verdict is not a pass.',
-      ]
-    : []
+      ? [
+          'The integrity assertions recorded no graded result at all, so nothing about this transaction was established. An empty verdict is not a pass.',
+        ]
+      : []
 
   const detail = (run?.verdict.blocking ?? []).map(
     (blocked) =>

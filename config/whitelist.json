@@ -1417,14 +1417,6 @@
             }
           }
         ],
-        "gravity": [
-          {
-            "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
-            "functions": {
-              "0x90411a32": "swap(address,(address,address,address,address,uint256,uint256,uint256,uint256,address,bytes),(uint256,uint256,uint256,bytes)[])"
-            }
-          }
-        ],
         "mantle": [
           {
             "address": "0x6352a56caadc4f1e25cd6c75970fa768a3304e64",
@@ -1877,6 +1869,15 @@
             "functions": {
               "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
               "0x59e50fed": "swapGeneric((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
+              "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
+            }
+          }
+        ],
+        "elysium": [
+          {
+            "address": "0x6131b5fae19ea4f9d964eac0408e4408b66337b5",
+            "functions": {
+              "0xe21fd0e9": "swap((address,address,bytes,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes))",
               "0x8af033fb": "swapSimpleMode(address,(address,address,address[],uint256[],address[],uint256[],address,uint256,uint256,uint256,bytes),bytes,bytes)"
             }
           }
@@ -4438,14 +4439,6 @@
             }
           }
         ],
-        "gravity": [
-          {
-            "address": "0x63d3c7ab37ca36a2a0a338076c163ff60c72527c",
-            "functions": {
-              "0x3f0bde25": "IceCreamSwap()"
-            }
-          }
-        ],
         "soneium": [
           {
             "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
@@ -4585,6 +4578,14 @@
         "pharos": [
           {
             "address": "0x2ca37ff95caf25366ef16fc2e655b78a165d125f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
+        "elysium": [
+          {
+            "address": "0x6af335771d1ddf7dd1501ecc89e978455fe5c6dd",
             "functions": {
               "0x3f0bde25": "IceCreamSwap()"
             }
@@ -4843,6 +4844,14 @@
       "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/nexroute.svg",
       "webUrl": "https://nexroute.io",
       "contracts": {
+        "base": [
+          {
+            "address": "0xf0E976E8460fdbc8B563816Fea2cf89CB7D55eA7",
+            "functions": {
+              "0xf8989325": ""
+            }
+          }
+        ],
         "bsc": [
           {
             "address": "0x6c9534e06a4aa13abf296278a194385f7ca16e70",
@@ -4867,6 +4876,12 @@
           },
           {
             "address": "0x58C8fa6dC39040A382fE787C5C8A12F0CdCe1289",
+            "functions": {
+              "0xf8989325": ""
+            }
+          },
+          {
+            "address": "0xf0E976E8460fdbc8B563816Fea2cf89CB7D55eA7",
             "functions": {
               "0xf8989325": ""
             }
@@ -5065,7 +5080,7 @@
     "mainnet": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5074,6 +5089,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5185,7 +5204,7 @@
     "0g": [
       {
         "name": "FeeForwarder",
-        "address": "0xb3AB05AC1e5f7761eC997fde5990E420E501Fe13",
+        "address": "0xa912b4E9e964E4E4AbA11e4463d84a65B384E7df",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5194,6 +5213,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5243,7 +5266,7 @@
     "abstract": [
       {
         "name": "FeeForwarder",
-        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
+        "address": "0x24A72DD17De0f92dA5460c46CC2948e3a5cB755d",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5252,6 +5275,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5301,7 +5328,7 @@
     "apechain": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5310,6 +5337,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5359,7 +5390,7 @@
     "arbitrum": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5368,6 +5399,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5457,7 +5492,7 @@
     "arbitrumnova": [
       {
         "name": "FeeForwarder",
-        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
+        "address": "0x906A51f3d8dF12B7030D5299D1098dd89fFe830b",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5466,6 +5501,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5524,6 +5563,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5569,7 +5612,7 @@
     "arc": [
       {
         "name": "FeeForwarder",
-        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
+        "address": "0x906A51f3d8dF12B7030D5299D1098dd89fFe830b",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5578,6 +5621,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5642,6 +5689,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5673,7 +5724,7 @@
     "avalanche": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5682,6 +5733,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5793,7 +5848,7 @@
     "base": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5802,6 +5857,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5922,6 +5981,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -5967,7 +6030,7 @@
     "berachain": [
       {
         "name": "FeeForwarder",
-        "address": "0xc431Ee11b784960CF6ed6a69f91B93fB565b4d44",
+        "address": "0x4A94f07E5e44CC5873221D3f157Eaaa9c1012f1C",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -5976,6 +6039,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6065,7 +6132,7 @@
     "bsc": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6074,6 +6141,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6163,7 +6234,7 @@
     "celo": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6172,6 +6243,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6261,7 +6336,7 @@
     "cronos": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6270,6 +6345,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6312,6 +6391,64 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
+    "elysium": [
+      {
+        "name": "FeeForwarder",
+        "address": "0x4526C1294A3231e0D921FBB3d086620D69BF1d03",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x9cB69783F3f17A00A6A605358D8f7855efC35F09",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x14B3998dC894e753cEF7C762DC84DC7B767FdDCC",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0x7932803CCaeA498aa5ea0985B3Da528cf21e8Ce5",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }
@@ -6377,7 +6514,7 @@
     "flare": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6386,6 +6523,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6493,7 +6634,7 @@
     "fraxtal": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6502,6 +6643,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6561,7 +6706,7 @@
     "fuse": [
       {
         "name": "FeeForwarder",
-        "address": "0x79C3F5B651Ee5782Ba15d968B088458cd5f1f4EF",
+        "address": "0x315042693AC6007EFF9ca86989cCd6160A2515b8",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6570,6 +6715,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6619,7 +6768,7 @@
     "gnosis": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6628,6 +6777,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6736,68 +6889,10 @@
         ]
       }
     ],
-    "gravity": [
-      {
-        "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x7fA60f4A59Dd8285C5Fcd8fd2A92A2Ca45ef8a0C",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      }
-    ],
     "hemi": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6806,6 +6901,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6855,7 +6954,7 @@
     "hyperevm": [
       {
         "name": "FeeForwarder",
-        "address": "0xba072Bf218314E51d5c3d254800d799840ae6a25",
+        "address": "0x960413AF34CF1e428E9A157Cd4aABab78134d865",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6864,6 +6963,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -6953,7 +7056,7 @@
     "immutablezkevm": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -6962,6 +7065,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7021,7 +7128,7 @@
     "injective": [
       {
         "name": "FeeForwarder",
-        "address": "0xB08ED2b55d226CA88642926240FA1Ef42d4b2297",
+        "address": "0x390353B48e5ED4f46e9921edDFEDD5f4930E4c22",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7030,6 +7137,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7079,7 +7190,7 @@
     "ink": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7088,6 +7199,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7147,7 +7262,7 @@
     "jovay": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7156,6 +7271,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7205,7 +7324,7 @@
     "kaia": [
       {
         "name": "FeeForwarder",
-        "address": "0x5161370f81b3054f43361644Ad332625f5E0804F",
+        "address": "0xd66fc63B89D7c9dcC2D69dfe86C7511b2bf4C655",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7214,6 +7333,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7263,7 +7386,7 @@
     "katana": [
       {
         "name": "FeeForwarder",
-        "address": "0xaaa55A0157670Ff2b4CF82F5cd2C754FE54BA574",
+        "address": "0xEC51f3746626919d01a62563D9730804306898D1",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7272,6 +7395,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7361,7 +7488,7 @@
     "linea": [
       {
         "name": "FeeForwarder",
-        "address": "0x72015d314542457cBB6BF14318d82464E4D413ec",
+        "address": "0xd7C2Aa1BfD2Aa089D1a9e2b3ecd7cc0A6b268FcF",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7370,6 +7497,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7456,118 +7587,10 @@
         ]
       }
     ],
-    "lisk": [
-      {
-        "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
-        "selectors": [
-          {
-            "selector": "0x0e8ae67f",
-            "signature": "forwardNativeFees((address,uint256)[])"
-          },
-          {
-            "selector": "0x332d746b",
-            "signature": "forwardERC20Fees(address,(address,uint256)[])"
-          }
-        ]
-      },
-      {
-        "name": "GasZipPeriphery",
-        "address": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-        "selectors": [
-          {
-            "selector": "0x8b71ae6c",
-            "signature": "depositToGasZipERC20((address,address,address,address,uint256,bytes,bool),(bytes32,uint256))"
-          },
-          {
-            "selector": "0xc4af5a74",
-            "signature": "depositToGasZipNative((bytes32,uint256),uint256)"
-          }
-        ]
-      },
-      {
-        "name": "TokenWrapper",
-        "address": "0x603a538477d44064eA5A5d8C345b4Ff6fca1142a",
-        "selectors": [
-          {
-            "selector": "0x3ccfd60b",
-            "signature": "withdraw()"
-          },
-          {
-            "selector": "0xd0e30db0",
-            "signature": "deposit()"
-          }
-        ]
-      },
-      {
-        "name": "LiFiDEXAggregator",
-        "address": "0x7347996d9c81035E3EA667Bf4240bB134a969B56",
-        "selectors": [
-          {
-            "selector": "0x2646478b",
-            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
-          }
-        ]
-      },
-      {
-        "name": "OutputValidator",
-        "address": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
-        "selectors": [
-          {
-            "selector": "0x27444dab",
-            "signature": "validateERC20Output(address,uint256,address)"
-          },
-          {
-            "selector": "0x5d865df2",
-            "signature": "validateNativeOutput(uint256,address)"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0xE69b860Fb5F12552b9C7675966Ef9522fB734232",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x7EBd42b33Cd721D2189d84BeB0B088296c8Ee5d9",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      },
-      {
-        "name": "Composer",
-        "address": "0x351802bA143D4DE0bf3123267cAdd6D082fefB29",
-        "selectors": [
-          {
-            "selector": "0x00a32e6c",
-            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
-          }
-        ]
-      }
-    ],
     "mantle": [
       {
         "name": "FeeForwarder",
-        "address": "0x79C3F5B651Ee5782Ba15d968B088458cd5f1f4EF",
+        "address": "0x315042693AC6007EFF9ca86989cCd6160A2515b8",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7576,6 +7599,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7665,7 +7692,7 @@
     "megaeth": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7674,6 +7701,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7763,7 +7794,7 @@
     "metis": [
       {
         "name": "FeeForwarder",
-        "address": "0xF46B6684DF5D121D5FDD6cA76Ef4919c65887083",
+        "address": "0xf39ba89EE7Cb552985E4b475060b825567bAa6bB",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7772,6 +7803,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7821,7 +7856,7 @@
     "mode": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7830,6 +7865,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7889,7 +7928,7 @@
     "monad": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7898,6 +7937,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -7987,7 +8030,7 @@
     "morph": [
       {
         "name": "FeeForwarder",
-        "address": "0xb3AB05AC1e5f7761eC997fde5990E420E501Fe13",
+        "address": "0xa912b4E9e964E4E4AbA11e4463d84a65B384E7df",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -7996,6 +8039,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8045,7 +8092,7 @@
     "nibiru": [
       {
         "name": "FeeForwarder",
-        "address": "0xC748171a028401BfD0c0F0a757ab4A1F93b00576",
+        "address": "0xC8023EBcD005A572F0Ac3abB4bE7B86Ae5eF209F",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8054,6 +8101,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8103,7 +8154,7 @@
     "optimism": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8112,6 +8163,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8224,6 +8279,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8269,7 +8328,7 @@
     "pharos": [
       {
         "name": "FeeForwarder",
-        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
+        "address": "0x906A51f3d8dF12B7030D5299D1098dd89fFe830b",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8278,6 +8337,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8347,7 +8410,7 @@
     "plasma": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8356,6 +8419,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8425,7 +8492,7 @@
     "plume": [
       {
         "name": "FeeForwarder",
-        "address": "0xa2D39966793873f4514E5EcBDB0e1a84cAffa650",
+        "address": "0x15583505386A1a952b8d515b6bF052134c3f14e0",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8434,6 +8501,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8523,7 +8594,7 @@
     "polygon": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8532,6 +8603,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8643,7 +8718,7 @@
     "robinhood": [
       {
         "name": "FeeForwarder",
-        "address": "0xF4BFFE4dfC693f37715A47c15BdA8af9ed8f7Cf1",
+        "address": "0xEf17eF207Fc9558F8Da5D32fBb94Ea6d4348f24F",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8652,6 +8727,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8711,7 +8790,7 @@
     "ronin": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8720,6 +8799,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8769,7 +8852,7 @@
     "rootstock": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8778,6 +8861,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8827,7 +8914,7 @@
     "scroll": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8836,6 +8923,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8925,7 +9016,7 @@
     "sei": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -8934,6 +9025,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -8992,6 +9087,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9037,7 +9136,7 @@
     "somnia": [
       {
         "name": "FeeForwarder",
-        "address": "0x30D40571bEc82bda31856eF33898feee09065023",
+        "address": "0x47774583BA99e830d46235eDd706AeC8f8bbc3BB",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9046,6 +9145,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9095,7 +9198,7 @@
     "soneium": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9104,6 +9207,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9207,7 +9314,7 @@
     "sonic": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9216,6 +9323,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9305,7 +9416,7 @@
     "stable": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9314,6 +9425,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9421,7 +9536,7 @@
     "tempo": [
       {
         "name": "FeeForwarder",
-        "address": "0xEDff4051B8286d2333149429F019dC10E23570da",
+        "address": "0x906A51f3d8dF12B7030D5299D1098dd89fFe830b",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9430,6 +9545,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9505,7 +9624,7 @@
     "unichain": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9514,6 +9633,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9617,7 +9740,7 @@
     "vana": [
       {
         "name": "FeeForwarder",
-        "address": "0xA5971Bd73Dbb879aAaA6fEcB95Dc3fD50c2e3C25",
+        "address": "0x735cCB84BCdeABF820c69adA959f7C7C41F54f86",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9626,6 +9749,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9685,7 +9812,7 @@
     "viction": [
       {
         "name": "FeeForwarder",
-        "address": "0xBeAA6FCb23f6E0Ec6AceB41Ae502e881A0B101Cc",
+        "address": "0xB8f510deCC41EA8e7df78ED96F336193006A6Cce",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9694,6 +9821,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9753,7 +9884,7 @@
     "worldchain": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9762,6 +9893,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9861,7 +9996,7 @@
     "xdc": [
       {
         "name": "FeeForwarder",
-        "address": "0x58Cb4abF0C88b0eBF6248923E21a92105a0d4a25",
+        "address": "0x4a6Fb49C2eB4FBc4C70Fb2088EE37A1205cBd2f0",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9870,6 +10005,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9919,7 +10058,7 @@
     "xlayer": [
       {
         "name": "FeeForwarder",
-        "address": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+        "address": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9928,6 +10067,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
@@ -9987,7 +10130,7 @@
     "zksync": [
       {
         "name": "FeeForwarder",
-        "address": "0xA577ddDa8E06BE1a0705fE9c6e6Ce2D2011100c9",
+        "address": "0x24A72DD17De0f92dA5460c46CC2948e3a5cB755d",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9996,6 +10139,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },

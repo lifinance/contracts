@@ -15,7 +15,7 @@ are embedded in rule files.
 
 | Task | Command |
 |---|---|
-| Format | `bunx prettier --write <file>` (scoped; `bun format:fix` rewrites the whole tree) |
+| Format | `bunx oxfmt <file>` (TS/JS), `bunx prettier --write <file>` (`src/` and `archive/` Solidity; never `forge fmt`), `forge fmt <file>` (`test/` and `script/` Solidity) (scoped; `bun format:fix` rewrites the whole tree) |
 | Lint | `bunx oxlint --type-aware <file>` (TS/JS) |
 | Test (Solidity) | `bun run test` (bare `bun test` runs Bun's own test runner) |
 | Test (TypeScript) | `bun test:ts` |
@@ -27,12 +27,10 @@ are embedded in rule files.
 
 ## Environment & resource access
 
-Internal resources — the Safe proposal MongoDB (`SC_MONGODB_URI`) and deploy
-infrastructure — are reached through the `lifi-connect` tunnel. Agents **cannot**
-perform the interactive/secret steps (browser Okta SSO, 1Password credentials,
-opening a production tunnel). Before doing Safe/deploy work that touches these,
-read `docs/Setup-agents.md` — what an agent must not do and how commands differ
-in a non-interactive shell. Full setup (human path) is in `docs/Setup.md`.
+Run Mongo-backed scripts via their `bun run` package script, without pre-checking
+access; they load `.env` themselves. Safe scripts need the `lifi-connect` tunnel:
+assume it's up, and if a script reports it down, hand that to the human. Never run the browser SSO login, open a prod tunnel, or use
+1Password/`op`. Details: `docs/Setup-agents.md`.
 
 ## SC feature-PR lifecycle
 

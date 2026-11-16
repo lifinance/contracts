@@ -4,7 +4,9 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
 import { InvalidCallData } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { MockRelayDepository } from "../utils/MockRelayDepository.sol";
 
 // Reverter contract for testing error cases
@@ -21,9 +23,9 @@ contract TestRelayDepositoryFacet is
     RelayDepositoryFacet,
     TestWhitelistManagerBase
 {
-    constructor(
-        address _relayDepository
-    ) RelayDepositoryFacet(_relayDepository) {}
+    constructor(address _relayDepository)
+        RelayDepositoryFacet(_relayDepository)
+    { }
 }
 
 contract RelayDepositoryFacetTest is TestBaseFacet {
@@ -41,41 +43,34 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         mockDepository = new MockRelayDepository(ALLOCATOR_ADDRESS);
 
         // Deploy facet
-        relayDepositoryFacet = new TestRelayDepositoryFacet(
-            address(mockDepository)
-        );
+        relayDepositoryFacet =
+            new TestRelayDepositoryFacet(address(mockDepository));
 
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = relayDepositoryFacet
-            .startBridgeTokensViaRelayDepository
+        functionSelectors[0] =
+        relayDepositoryFacet.startBridgeTokensViaRelayDepository.selector;
+        functionSelectors[1] =
+        relayDepositoryFacet.swapAndStartBridgeTokensViaRelayDepository
             .selector;
-        functionSelectors[1] = relayDepositoryFacet
-            .swapAndStartBridgeTokensViaRelayDepository
-            .selector;
-        functionSelectors[2] = relayDepositoryFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[2] =
+        relayDepositoryFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(relayDepositoryFacet), functionSelectors);
         relayDepositoryFacet = TestRelayDepositoryFacet(address(diamond));
 
         // Setup DEX approvals
         relayDepositoryFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         relayDepositoryFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         relayDepositoryFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(
-            address(relayDepositoryFacet),
-            "RelayDepositoryFacet"
+            address(relayDepositoryFacet), "RelayDepositoryFacet"
         );
 
         // Setup bridge data
@@ -84,8 +79,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
 
         // Setup valid depository data
         validDepositoryData = RelayDepositoryFacet.RelayDepositoryData({
-            orderId: bytes32("test-order-id"),
-            depositorAddress: USER_SENDER
+            orderId: bytes32("test-order-id"), depositorAddress: USER_SENDER
         });
     }
 
@@ -93,27 +87,29 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         if (isNative) {
             relayDepositoryFacet.startBridgeTokensViaRelayDepository{
                 value: bridgeData.minAmount
-            }(bridgeData, validDepositoryData);
+            }(
+                bridgeData, validDepositoryData
+            );
         } else {
             relayDepositoryFacet.startBridgeTokensViaRelayDepository(
-                bridgeData,
-                validDepositoryData
+                bridgeData, validDepositoryData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             relayDepositoryFacet.swapAndStartBridgeTokensViaRelayDepository{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validDepositoryData);
+            }(
+                bridgeData, swapData, validDepositoryData
+            );
         } else {
             relayDepositoryFacet.swapAndStartBridgeTokensViaRelayDepository(
-                bridgeData,
-                swapData,
-                validDepositoryData
+                bridgeData, swapData, validDepositoryData
             );
         }
     }
@@ -134,14 +130,10 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
     function test_CanDepositERC20Tokens()
         public
         assertBalanceChange(
-            ADDRESS_USDC,
-            USER_SENDER,
-            -int256(defaultUSDCAmount)
+            ADDRESS_USDC, USER_SENDER, -int256(defaultUSDCAmount)
         )
         assertBalanceChange(
-            ADDRESS_USDC,
-            address(mockDepository),
-            int256(defaultUSDCAmount)
+            ADDRESS_USDC, address(mockDepository), int256(defaultUSDCAmount)
         )
     {
         vm.startPrank(USER_SENDER);
@@ -166,9 +158,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
             -int256(defaultNativeAmount + addToMessageValue)
         )
         assertBalanceChange(
-            address(0),
-            address(mockDepository),
-            int256(defaultNativeAmount)
+            address(0), address(mockDepository), int256(defaultNativeAmount)
         )
     {
         vm.startPrank(USER_SENDER);
@@ -189,14 +179,10 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
     function test_CanSwapAndDepositERC20Tokens()
         public
         assertBalanceChange(
-            ADDRESS_DAI,
-            USER_SENDER,
-            -int256(swapData[0].fromAmount)
+            ADDRESS_DAI, USER_SENDER, -int256(swapData[0].fromAmount)
         )
         assertBalanceChange(
-            ADDRESS_USDC,
-            address(mockDepository),
-            int256(bridgeData.minAmount)
+            ADDRESS_USDC, address(mockDepository), int256(bridgeData.minAmount)
         )
     {
         vm.startPrank(USER_SENDER);
@@ -343,12 +329,10 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Create invalid depository data with zero address
-        RelayDepositoryFacet.RelayDepositoryData
-            memory invalidDepositoryData = RelayDepositoryFacet
-                .RelayDepositoryData({
-                    orderId: bytes32("test-order-id"),
-                    depositorAddress: address(0)
-                });
+        RelayDepositoryFacet.RelayDepositoryData memory invalidDepositoryData =
+            RelayDepositoryFacet.RelayDepositoryData({
+                orderId: bytes32("test-order-id"), depositorAddress: address(0)
+            });
 
         // Approval for ERC20 case
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
@@ -356,8 +340,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         // Expect revert with InvalidCallData error for ERC20 deposit
         vm.expectRevert(InvalidCallData.selector);
         relayDepositoryFacet.startBridgeTokensViaRelayDepository(
-            bridgeData,
-            invalidDepositoryData
+            bridgeData, invalidDepositoryData
         );
 
         // Test native token case as well
@@ -368,7 +351,9 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
         relayDepositoryFacet.startBridgeTokensViaRelayDepository{
             value: defaultNativeAmount
-        }(bridgeData, invalidDepositoryData);
+        }(
+            bridgeData, invalidDepositoryData
+        );
 
         vm.stopPrank();
     }
@@ -378,12 +363,10 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Create invalid depository data with zero address
-        RelayDepositoryFacet.RelayDepositoryData
-            memory invalidDepositoryData = RelayDepositoryFacet
-                .RelayDepositoryData({
-                    orderId: bytes32("test-order-id"),
-                    depositorAddress: address(0)
-                });
+        RelayDepositoryFacet.RelayDepositoryData memory invalidDepositoryData =
+            RelayDepositoryFacet.RelayDepositoryData({
+                orderId: bytes32("test-order-id"), depositorAddress: address(0)
+            });
 
         // Prepare bridge data with source swaps
         bridgeData.hasSourceSwaps = true;
@@ -397,9 +380,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         // Expect revert with InvalidCallData error
         vm.expectRevert(InvalidCallData.selector);
         relayDepositoryFacet.swapAndStartBridgeTokensViaRelayDepository(
-            bridgeData,
-            swapData,
-            invalidDepositoryData
+            bridgeData, swapData, invalidDepositoryData
         );
 
         vm.stopPrank();
@@ -413,9 +394,8 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Set unique order ID for each fuzz run
-        validDepositoryData.orderId = keccak256(
-            abi.encodePacked("fuzz", amount)
-        );
+        validDepositoryData.orderId =
+            keccak256(abi.encodePacked("fuzz", amount));
 
         // Approval
         usdc.approve(_facetTestContractAddress, amount);
@@ -428,8 +408,7 @@ contract RelayDepositoryFacetTest is TestBaseFacet {
         uint256 initialBalance = usdc.balanceOf(address(mockDepository));
         initiateBridgeTxWithFacet(false);
         assertEq(
-            usdc.balanceOf(address(mockDepository)),
-            initialBalance + amount
+            usdc.balanceOf(address(mockDepository)), initialBalance + amount
         );
 
         vm.stopPrank();

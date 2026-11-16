@@ -23,7 +23,7 @@
  *     --network mode --operationId 0xc465… [--dryRun] [--force]
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'

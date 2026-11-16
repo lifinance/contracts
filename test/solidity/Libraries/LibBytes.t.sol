@@ -5,27 +5,29 @@ import { Test } from "forge-std/Test.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 
 contract LibBytesHarness {
-    function slice(
-        bytes calldata _bytes,
-        uint256 _start,
-        uint256 _length
-    ) external pure returns (bytes memory) {
+    function slice(bytes calldata _bytes, uint256 _start, uint256 _length)
+        external
+        pure
+        returns (bytes memory)
+    {
         bytes memory data = _bytes;
         return LibBytes.slice(data, _start, _length);
     }
 
-    function toAddress(
-        bytes calldata _bytes,
-        uint256 _start
-    ) external pure returns (address) {
+    function toAddress(bytes calldata _bytes, uint256 _start)
+        external
+        pure
+        returns (address)
+    {
         bytes memory data = _bytes;
         return LibBytes.toAddress(data, _start);
     }
 
-    function toHexString(
-        uint256 _value,
-        uint256 _length
-    ) external pure returns (string memory) {
+    function toHexString(uint256 _value, uint256 _length)
+        external
+        pure
+        returns (string memory)
+    {
         return LibBytes.toHexString(_value, _length);
     }
 
@@ -37,9 +39,11 @@ contract LibBytesHarness {
         return LibBytes.toAddress(_value);
     }
 
-    function toAddressUnchecked(
-        bytes32 _value
-    ) external pure returns (address) {
+    function toAddressUnchecked(bytes32 _value)
+        external
+        pure
+        returns (address)
+    {
         return LibBytes.toAddressUnchecked(_value);
     }
 }
@@ -127,8 +131,8 @@ contract LibBytesTest is Test {
 
     function testRevert_toAddress_bytes32_HighBitsSet() public {
         bytes32 dirty = bytes32(
-            (uint256(1) << 160) |
-                uint160(0x1234567890AbcdEF1234567890aBcdef12345678)
+            (uint256(1) << 160)
+                | uint160(0x1234567890AbcdEF1234567890aBcdef12345678)
         );
 
         vm.expectRevert(

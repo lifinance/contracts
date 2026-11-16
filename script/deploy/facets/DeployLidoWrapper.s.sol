@@ -8,7 +8,7 @@ import { stdJson } from "forge-std/Script.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LidoWrapper") {}
+    constructor() DeployScriptBase("LidoWrapper") { }
 
     function run()
         public
@@ -25,27 +25,22 @@ contract DeployScript is DeployScriptBase {
 
         // extract stETH and wstWETH token addresses for the given network
         address stETHAddress = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".stETH")
+            path, string.concat(".", network, ".stETH")
         );
         address wstETHAddress = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".wstETH")
+            path, string.concat(".", network, ".wstETH")
         );
 
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract refundWallet address
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
         return abi.encode(stETHAddress, wstETHAddress, refundWalletAddress);
     }

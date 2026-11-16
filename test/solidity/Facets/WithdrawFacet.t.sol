@@ -10,9 +10,7 @@ contract WithdrawFacetTest is TestBaseLocal {
     WithdrawFacet internal withdrawFacet;
 
     event LogWithdraw(
-        address indexed _assetAddress,
-        address _to,
-        uint256 amount
+        address indexed _assetAddress, address _to, uint256 amount
     );
 
     function setUp() public {
@@ -65,9 +63,8 @@ contract WithdrawFacetTest is TestBaseLocal {
     function test_ZeroAddressRecipientDefaultsToSender() public {
         uint256 amount = 100 * 1e6;
         _fundDiamond(amount);
-        uint256 balanceBefore = IERC20(ADDRESS_USDC).balanceOf(
-            USER_DIAMOND_OWNER
-        );
+        uint256 balanceBefore =
+            IERC20(ADDRESS_USDC).balanceOf(USER_DIAMOND_OWNER);
 
         vm.startPrank(USER_DIAMOND_OWNER);
         withdrawFacet.withdraw(ADDRESS_USDC, address(0), amount);

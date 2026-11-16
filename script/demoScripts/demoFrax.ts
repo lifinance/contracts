@@ -67,7 +67,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // Read the Forge artifact at runtime rather than statically importing it: the
 // validate-scripts CI job runs without a prior `forge build`, so a static

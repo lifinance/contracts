@@ -304,8 +304,8 @@ const main = defineCommand({
         ? args.step === '1'
           ? 1
           : args.step === '2'
-          ? 2
-          : undefined
+            ? 2
+            : undefined
         : undefined
     if (args.step !== undefined && stepNum === undefined) {
       consola.error('Invalid --step. Use 1 or 2.')
@@ -354,8 +354,8 @@ const main = defineCommand({
       stepNum === 1
         ? 'Running step 1 (transferOwnership → Timelock)...'
         : stepNum === 2
-        ? 'Running step 2 (Safe proposal: Timelock → confirmOwnershipTransfer)...'
-        : 'Starting transfer of Diamond ownership to Timelock...'
+          ? 'Running step 2 (Safe proposal: Timelock → confirmOwnershipTransfer)...'
+          : 'Starting transfer of Diamond ownership to Timelock...'
     )
 
     try {

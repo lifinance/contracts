@@ -8,7 +8,7 @@ import { MayanFacet } from "lifi/Facets/MayanFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("MayanFacet") {}
+    constructor() DeployScriptBase("MayanFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/mayan.json");
 
         address bridge = _getConfigContractAddress(
-            path,
-            string.concat(".bridges.", network, ".bridge")
+            path, string.concat(".bridges.", network, ".bridge")
         );
 
         return abi.encode(bridge);

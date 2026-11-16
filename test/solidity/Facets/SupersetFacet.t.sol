@@ -4,14 +4,34 @@ pragma solidity ^0.8.17;
 import { LibSwap } from "../utils/TestBase.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
-import { ISupersetHubPoolManager } from "lifi/Interfaces/ISupersetHubPoolManager.sol";
-import { ISupersetSpokePoolManager } from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
-import { ISupersetPoolManager } from "lifi/Interfaces/ISupersetPoolManager.sol";
-import { IOmniTokenAddressBook } from "lifi/Interfaces/IOmniTokenAddressBook.sol";
+import {
+    ISupersetHubPoolManager
+} from "lifi/Interfaces/ISupersetHubPoolManager.sol";
+import {
+    ISupersetSpokePoolManager
+} from "lifi/Interfaces/ISupersetSpokePoolManager.sol";
+import {
+    ISupersetPoolManager
+} from "lifi/Interfaces/ISupersetPoolManager.sol";
+import {
+    IOmniTokenAddressBook
+} from "lifi/Interfaces/IOmniTokenAddressBook.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
-import { DeadlineExpired, InvalidConfig, NativeAssetNotSupported, InformationMismatch, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    DeadlineExpired,
+    InvalidConfig,
+    NativeAssetNotSupported,
+    InformationMismatch,
+    NotInitialized,
+    OnlyContractOwner,
+    UnsupportedChainId
+} from "lifi/Errors/GenericErrors.sol";
+import {
+    SafeERC20
+} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 /// @dev Resolves OmniToken IDs to local tokens. Defaults to interpreting the ID
 ///      as a raw EVM address (mirrors the mocks' test-only path shortcut); an
@@ -23,9 +43,12 @@ contract MockOmniTokenAddressBook is IOmniTokenAddressBook {
         tokens[_id] = _token;
     }
 
-    function getAddressForOmniToken(
-        uint256 _id
-    ) external view override returns (address) {
+    function getAddressForOmniToken(uint256 _id)
+        external
+        view
+        override
+        returns (address)
+    {
         address token = tokens[_id];
 
         return token == address(0) ? address(uint160(_id)) : token;
@@ -82,11 +105,8 @@ contract MockSupersetHubPoolManager is
         // omniTokenId there and resolves it via its OmniTokenAddressBook.
         address inputToken = address(uint160(uint256(bytes32(_path[0:32]))));
 
-        IERC20(inputToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _amountIn
-        );
+        IERC20(inputToken)
+            .safeTransferFrom(msg.sender, address(this), _amountIn);
 
         lastCall = Call({
             path: _path,
@@ -111,23 +131,21 @@ contract MockSupersetHubPoolManager is
         underFill = _underFill;
     }
 
-    function exactInput(
-        ExactInputParams calldata _params
-    ) external payable override returns (uint256 amountOut) {
+    function exactInput(ExactInputParams calldata _params)
+        external
+        payable
+        override
+        returns (uint256 amountOut)
+    {
         // First 20 bytes of the Uniswap-V3 path are the input token.
         address inputToken = address(bytes20(_params.path[0:20]));
 
-        IERC20(inputToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _params.amountIn
-        );
+        IERC20(inputToken)
+            .safeTransferFrom(msg.sender, address(this), _params.amountIn);
 
         lastExactInput = _params;
         return
-            underFill
-                ? _params.amountOutMinimum - 1
-                : _params.amountOutMinimum;
+            underFill ? _params.amountOutMinimum - 1 : _params.amountOutMinimum;
     }
 }
 
@@ -143,23 +161,19 @@ contract MockFixedSwapRouter {
         uint256 _toAmount,
         address _to
     ) external {
-        IERC20(_fromToken).safeTransferFrom(
-            msg.sender,
-            address(this),
-            _fromAmount
-        );
+        IERC20(_fromToken)
+            .safeTransferFrom(msg.sender, address(this), _fromAmount);
         IERC20(_toToken).safeTransfer(_to, _toAmount);
     }
 }
 
 contract TestSupersetFacet is SupersetFacet, TestWhitelistManagerBase {
-    constructor(address _poolManager) SupersetFacet(_poolManager) {}
+    constructor(address _poolManager) SupersetFacet(_poolManager) { }
 }
 
 contract SupersetFacetTest is TestBaseFacet {
-    event SupersetChainMappingsInitialized(
-        SupersetFacet.ChainIdConfig[] chainIdConfigs
-    );
+    event SupersetChainMappingsInitialized(SupersetFacet
+                .ChainIdConfig[] chainIdConfigs);
     event ChainIdToEidSet(uint256 indexed chainId, uint32 lzEid);
 
     // Real Superset spoke deployment on Base mainnet (see config/superset.json).
@@ -180,18 +194,12 @@ contract SupersetFacetTest is TestBaseFacet {
         returns (SupersetFacet.ChainIdConfig[] memory configs)
     {
         configs = new SupersetFacet.ChainIdConfig[](3);
-        configs[0] = SupersetFacet.ChainIdConfig({
-            chainId: 42161,
-            lzEid: 30110
-        }); // Arbitrum
-        configs[1] = SupersetFacet.ChainIdConfig({
-            chainId: 8453,
-            lzEid: 30184
-        }); // Base
-        configs[2] = SupersetFacet.ChainIdConfig({
-            chainId: 130,
-            lzEid: 30320
-        }); // Unichain
+        configs[0] =
+            SupersetFacet.ChainIdConfig({ chainId: 42161, lzEid: 30110 }); // Arbitrum
+        configs[1] =
+            SupersetFacet.ChainIdConfig({ chainId: 8453, lzEid: 30184 }); // Base
+        configs[2] =
+            SupersetFacet.ChainIdConfig({ chainId: 130, lzEid: 30320 }); // Unichain
     }
 
     function setUp() public {
@@ -202,15 +210,12 @@ contract SupersetFacetTest is TestBaseFacet {
         supersetFacet = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
         bytes4[] memory functionSelectors = new bytes4[](6);
-        functionSelectors[0] = supersetFacet
-            .startBridgeTokensViaSuperset
-            .selector;
-        functionSelectors[1] = supersetFacet
-            .swapAndStartBridgeTokensViaSuperset
-            .selector;
-        functionSelectors[2] = supersetFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        supersetFacet.startBridgeTokensViaSuperset.selector;
+        functionSelectors[1] =
+        supersetFacet.swapAndStartBridgeTokensViaSuperset.selector;
+        functionSelectors[2] =
+        supersetFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = supersetFacet.initSuperset.selector;
         functionSelectors[4] = supersetFacet.setChainIdToEid.selector;
         functionSelectors[5] = supersetFacet.getChainIdToEid.selector;
@@ -223,16 +228,13 @@ contract SupersetFacetTest is TestBaseFacet {
         vm.stopPrank();
 
         supersetFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         supersetFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         supersetFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(supersetFacet), "SupersetFacet");
@@ -245,9 +247,7 @@ contract SupersetFacetTest is TestBaseFacet {
             // omniId=2 (USDC) → fee=3000 → omniId=3 (WBTC). Identical encoding
             // to the executed mainnet run in demoSuperset.ts.
             path: abi.encodePacked(
-                bytes32(uint256(2)),
-                bytes3(uint24(3000)),
-                bytes32(uint256(3))
+                bytes32(uint256(2)), bytes3(uint24(3000)), bytes32(uint256(3))
             ),
             amountOutMin: 1,
             refundAddress: USER_SENDER,
@@ -265,20 +265,21 @@ contract SupersetFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool) internal override {
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         uint256 value = isNative
             ? swapData[0].fromAmount + validSupersetData.lzFee
             : validSupersetData.lzFee;
 
         supersetFacet.swapAndStartBridgeTokensViaSuperset{ value: value }(
-            bridgeData,
-            swapData,
-            validSupersetData
+            bridgeData, swapData, validSupersetData
         );
     }
 
@@ -402,7 +403,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: bridgeData.minAmount + validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_NativeAssetNotSupported_SwapAndBridge() public {
@@ -416,7 +419,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.swapAndStartBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, swapData, validSupersetData);
+        }(
+            bridgeData, swapData, validSupersetData
+        );
     }
 
     function testRevert_DestinationCallNotSupported() public {
@@ -429,7 +434,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_EmptyPath() public {
@@ -442,7 +449,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_MisalignedPathLength() public {
@@ -461,7 +470,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_ZeroAmountOutMin() public {
@@ -474,7 +485,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_PathTokenMismatch() public {
@@ -489,7 +502,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_SwapOutputTokenMismatch() public {
@@ -516,7 +531,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.swapAndStartBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, swapData, validSupersetData);
+        }(
+            bridgeData, swapData, validSupersetData
+        );
     }
 
     function testRevert_FallbackEoAIsContract() public {
@@ -530,7 +547,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_InsufficientNativeValue() public {
@@ -542,7 +561,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee - 1
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_DeadlineExpired() public {
@@ -555,7 +576,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_RefundAddressIsZero() public {
@@ -568,7 +591,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_FallbackEoAIsZero() public {
@@ -581,7 +606,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function test_RefundsExcessNativeToRefundAddress() public {
@@ -595,7 +622,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee + excess
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
 
         // Refund address gets at least the explicit excess; LayerZero may also
         // refund the difference between our generous lzFee budget and the live
@@ -622,7 +651,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
 
         assertEq(
             usdc.balanceOf(USER_SENDER),
@@ -645,7 +676,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
 
         assertEq(
             usdc.balanceOf(USER_SENDER),
@@ -657,14 +690,10 @@ contract SupersetFacetTest is TestBaseFacet {
         vm.chainId(42161);
 
         MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
-        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
-            2,
-            ADDRESS_USDC
-        );
-        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
-            3,
-            ADDRESS_DAI
-        );
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK()))
+            .setToken(2, ADDRESS_USDC);
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK()))
+            .setToken(3, ADDRESS_DAI);
 
         TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
 
@@ -683,8 +712,7 @@ contract SupersetFacetTest is TestBaseFacet {
         validSupersetData.lzFee = 0;
 
         hubFacet.startBridgeTokensViaSuperset{ value: 0 }(
-            bridgeData,
-            validSupersetData
+            bridgeData, validSupersetData
         );
 
         (
@@ -710,14 +738,10 @@ contract SupersetFacetTest is TestBaseFacet {
         vm.chainId(42161);
 
         MockSupersetHubPoolManager mockHub = new MockSupersetHubPoolManager();
-        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
-            2,
-            ADDRESS_USDC
-        );
-        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK())).setToken(
-            3,
-            ADDRESS_DAI
-        );
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK()))
+            .setToken(2, ADDRESS_USDC);
+        MockOmniTokenAddressBook(address(mockHub.ADDRESS_BOOK()))
+            .setToken(3, ADDRESS_DAI);
         mockHub.setUnderFill(true);
 
         TestSupersetFacet hubFacet = new TestSupersetFacet(address(mockHub));
@@ -741,8 +765,7 @@ contract SupersetFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidConfig.selector);
 
         hubFacet.startBridgeTokensViaSuperset{ value: 0 }(
-            bridgeData,
-            validSupersetData
+            bridgeData, validSupersetData
         );
     }
 
@@ -778,17 +801,14 @@ contract SupersetFacetTest is TestBaseFacet {
         );
 
         hubFacet.startBridgeTokensViaSuperset{ value: hubData.lzFee }(
-            bridgeData,
-            hubData
+            bridgeData, hubData
         );
 
         (
             ,
-            uint256 amountIn,
-            ,
+            uint256 amountIn,,
             address recipient,
-            address fallbackEoA,
-            ,
+            address fallbackEoA,,
             uint32 toEid,
             uint256 lzFee,
             address inputToken
@@ -807,8 +827,7 @@ contract SupersetFacetTest is TestBaseFacet {
     function test_PositiveSlippageAdjustsAmountOutMin() public {
         MockFixedSwapRouter mockRouter = new MockFixedSwapRouter();
         supersetFacet.addAllowedContractSelector(
-            address(mockRouter),
-            MockFixedSwapRouter.swap.selector
+            address(mockRouter), MockFixedSwapRouter.swap.selector
         );
 
         // Swap floor on the post-swap token (DAI). Actual swap output is 2x the
@@ -847,8 +866,8 @@ contract SupersetFacetTest is TestBaseFacet {
         // slippage on the 100 DAI floor).
         spokeData.amountOutMin = 99 * 10 ** dai.decimals();
         // Actual swap returns 2x → facet should scale the destination floor by 2×.
-        uint256 expectedAmountOutMin = (spokeData.amountOutMin *
-            swapOutputDAI) / swapFloorDAI;
+        uint256 expectedAmountOutMin =
+            (spokeData.amountOutMin * swapOutputDAI) / swapFloorDAI;
 
         // Short-circuit the real spoke and verify the exact calldata + value.
         bytes memory expectedCalldata = abi.encodeCall(
@@ -885,7 +904,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.swapAndStartBridgeTokensViaSuperset{
             value: spokeData.lzFee
-        }(bridgeData, localSwaps, spokeData);
+        }(
+            bridgeData, localSwaps, spokeData
+        );
     }
 
     // --- Chain mapping admin tests ---
@@ -907,12 +928,10 @@ contract SupersetFacetTest is TestBaseFacet {
     function test_CanSetChainIdToEid() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
-        configs[0] = SupersetFacet.ChainIdConfig({
-            chainId: 999,
-            lzEid: 30364
-        });
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
+        configs[0] =
+            SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 30364 });
 
         vm.expectEmit(true, true, true, true);
         emit ChainIdToEidSet(999, 30364);
@@ -937,12 +956,10 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToEidFromNonOwner() public {
         vm.startPrank(USER_SENDER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
-        configs[0] = SupersetFacet.ChainIdConfig({
-            chainId: 999,
-            lzEid: 30364
-        });
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
+        configs[0] =
+            SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 30364 });
 
         vm.expectRevert(OnlyContractOwner.selector);
 
@@ -954,8 +971,8 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToEidEmpty() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](0);
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](0);
 
         vm.expectRevert(InvalidConfig.selector);
 
@@ -967,8 +984,8 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToEidZeroChainId() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
         configs[0] = SupersetFacet.ChainIdConfig({ chainId: 0, lzEid: 30364 });
 
         vm.expectRevert(InvalidConfig.selector);
@@ -981,8 +998,8 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToEidZeroEid() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
         configs[0] = SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 0 });
 
         vm.expectRevert(InvalidConfig.selector);
@@ -995,12 +1012,10 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToEidBeforeInit() public {
         TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
-        configs[0] = SupersetFacet.ChainIdConfig({
-            chainId: 999,
-            lzEid: 30364
-        });
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
+        configs[0] =
+            SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 30364 });
 
         vm.prank(address(0));
         vm.expectRevert(NotInitialized.selector);
@@ -1010,8 +1025,7 @@ contract SupersetFacetTest is TestBaseFacet {
 
     function test_InitSupersetEmitsAndSetsMappings() public {
         TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
-        SupersetFacet.ChainIdConfig[]
-            memory configs = _defaultChainIdConfigs();
+        SupersetFacet.ChainIdConfig[] memory configs = _defaultChainIdConfigs();
 
         vm.prank(address(0));
         // Per-entry ChainIdToEidSet events fire first, in config order…
@@ -1045,8 +1059,8 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_InitSupersetEmpty() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](0);
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](0);
 
         vm.expectRevert(InvalidConfig.selector);
 
@@ -1058,8 +1072,8 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_InitSupersetZeroChainId() public {
         TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
         configs[0] = SupersetFacet.ChainIdConfig({ chainId: 0, lzEid: 30364 });
 
         vm.prank(address(0));
@@ -1071,8 +1085,8 @@ contract SupersetFacetTest is TestBaseFacet {
     function testRevert_InitSupersetZeroEid() public {
         TestSupersetFacet fresh = new TestSupersetFacet(SPOKE_POOL_MANAGER);
 
-        SupersetFacet.ChainIdConfig[]
-            memory configs = new SupersetFacet.ChainIdConfig[](1);
+        SupersetFacet.ChainIdConfig[] memory configs =
+            new SupersetFacet.ChainIdConfig[](1);
         configs[0] = SupersetFacet.ChainIdConfig({ chainId: 999, lzEid: 0 });
 
         vm.prank(address(0));
@@ -1094,7 +1108,9 @@ contract SupersetFacetTest is TestBaseFacet {
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 
     function testRevert_DestinationChainIdUnsupported() public {
@@ -1106,13 +1122,14 @@ contract SupersetFacetTest is TestBaseFacet {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                UnsupportedChainId.selector,
-                1151111081099710
+                UnsupportedChainId.selector, 1151111081099710
             )
         );
 
         supersetFacet.startBridgeTokensViaSuperset{
             value: validSupersetData.lzFee
-        }(bridgeData, validSupersetData);
+        }(
+            bridgeData, validSupersetData
+        );
     }
 }

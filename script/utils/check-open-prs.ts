@@ -273,10 +273,10 @@ for (const s of seeds) {
     rollup?.state === 'SUCCESS'
       ? 'PASS'
       : rollup?.state === 'FAILURE' || rollup?.state === 'ERROR'
-      ? 'FAIL'
-      : rollup?.state === 'PENDING'
-      ? 'PENDING'
-      : 'NO-CHECKS'
+        ? 'FAIL'
+        : rollup?.state === 'PENDING'
+          ? 'PENDING'
+          : 'NO-CHECKS'
 
   const ciFailures: ICiFailure[] = (rollup?.contexts?.nodes ?? [])
     .filter(
@@ -296,8 +296,8 @@ for (const s of seeds) {
       const kind = HUMAN_GATE_RE.test(name)
         ? ('human-gate' as const)
         : REVIEW_CI_RE.test(name)
-        ? ('review/audit' as const)
-        : ('restartable' as const)
+          ? ('review/audit' as const)
+          : ('restartable' as const)
       return { name, kind }
     })
     // dedupe repeated runs of the same check

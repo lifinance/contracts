@@ -6,7 +6,7 @@
  * Dry run unless `--apply` is passed. A host stored more than once on the chain is refused rather
  * than guessed at.
  */
-import 'dotenv/config'
+import '../utils/loadEnv'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'

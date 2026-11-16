@@ -1,4 +1,4 @@
-import 'dotenv/config'
+import '../utils/loadEnv'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'

@@ -13,7 +13,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 
 import { getTargetName } from './safe-decode-utils'
 import {
@@ -22,8 +22,6 @@ import {
   type IProposalSummary,
   type ISafeTxDocument,
 } from './safe-utils'
-
-dotenv.config()
 
 const VALID_STATUSES = [
   'pending',

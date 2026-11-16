@@ -201,8 +201,8 @@ async function verifySafeThreshold(
       (typeof tronWeb.defaultAddress?.base58 === 'string'
         ? tronWeb.defaultAddress.base58
         : typeof tronWeb.defaultAddress?.hex === 'string'
-        ? tronWeb.defaultAddress.hex
-        : '') || ''
+          ? tronWeb.defaultAddress.hex
+          : '') || ''
     const result = await tronWeb.transactionBuilder.triggerConstantContract(
       safeAddressBase58,
       'getThreshold()',

@@ -3,7 +3,9 @@ pragma solidity ^0.8.17;
 
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondTest } from "../utils/DiamondTest.sol";
-import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import {
+    PeripheryRegistryFacet
+} from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { OnlyContractOwner } from "src/Errors/GenericErrors.sol";
 
 contract PeripheryRegistryFacetTest is DiamondTest {

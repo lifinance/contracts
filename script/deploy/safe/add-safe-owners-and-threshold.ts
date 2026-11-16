@@ -13,7 +13,7 @@
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
-import * as dotenv from 'dotenv'
+import '../../utils/loadEnv'
 import type { Collection } from 'mongodb'
 import {
   createPublicClient,
@@ -46,8 +46,6 @@ const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
 const green = (text: string) => ansi('32', text)
 const yellow = (text: string) => ansi('33', text)
 const red = (text: string) => ansi('31', text)
-dotenv.config()
-
 interface ILedgerOptions {
   derivationPath?: string
   ledgerLive?: boolean
@@ -315,8 +313,8 @@ function printSummary(results: INetworkRunResult[]): void {
       r.status === 'proposed'
         ? green('proposed')
         : r.status === 'skipped'
-        ? yellow('skipped ')
-        : red('failed  ')
+          ? yellow('skipped ')
+          : red('failed  ')
     consola.info(`  ${pad}  ${tag}  ${r.detail}`)
   }
   const failed = results.filter((r) => r.status === 'failed').length
@@ -591,8 +589,8 @@ function printCheckTable(results: ICheckResult[]): void {
       r.status === 'OK'
         ? green('OK    ')
         : r.status === 'DIFF'
-        ? yellow('DIFF  ')
-        : red('FAILED')
+          ? yellow('DIFF  ')
+          : red('FAILED')
 
     const th =
       r.threshold !== undefined

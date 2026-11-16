@@ -536,8 +536,8 @@ const summarise = (
       masked > 0
         ? ` ${masked} bytes were excluded as immutables and are not covered by this result — their values still need checking.`
         : priced > 0
-        ? ` ${priced} bytes holding immutables were compared against the values this repo declares for them.`
-        : ''
+          ? ` ${priced} bytes holding immutables were compared against the values this repo declares for them.`
+          : ''
     // Not "matches main": the rebuild is at the commit each deployment record
     // names, and D3 has the verifier assert that commit's presence rather than
     // its ancestry. Saying main would promise the signer a check nobody runs.

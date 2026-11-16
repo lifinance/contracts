@@ -3,12 +3,19 @@ pragma solidity ^0.8.17;
 import { GasZipFacet } from "lifi/Facets/GasZipFacet.sol";
 import { IGasZip } from "lifi/Interfaces/IGasZip.sol";
 import { LibSwap, TestBaseFacet } from "../utils/TestBaseFacet.sol";
-import { InvalidCallData, CannotBridgeToSameNetwork, InvalidAmount, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    InvalidCallData,
+    CannotBridgeToSameNetwork,
+    InvalidAmount,
+    InvalidConfig
+} from "lifi/Errors/GenericErrors.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GenericSwapFacet Contract
 contract TestGasZipFacet is GasZipFacet, TestWhitelistManagerBase {
-    constructor(address gasZipRouter) GasZipFacet(gasZipRouter) {}
+    constructor(address gasZipRouter) GasZipFacet(gasZipRouter) { }
 }
 
 contract GasZipFacetTest is TestBaseFacet {
@@ -45,9 +52,8 @@ contract GasZipFacetTest is TestBaseFacet {
         // add gasZipFacet to diamond
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = gasZipFacet.startBridgeTokensViaGasZip.selector;
-        functionSelectors[1] = gasZipFacet
-            .swapAndStartBridgeTokensViaGasZip
-            .selector;
+        functionSelectors[1] =
+        gasZipFacet.swapAndStartBridgeTokensViaGasZip.selector;
         functionSelectors[2] = gasZipFacet.getDestinationChainsValue.selector;
 
         functionSelectors[3] = gasZipFacet.addAllowedContractSelector.selector;
@@ -57,36 +63,28 @@ contract GasZipFacetTest is TestBaseFacet {
 
         // whitelist uniswap dex with function selectors
         gasZipFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForETH.selector
+            address(uniswap), uniswap.swapExactTokensForETH.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapETHForExactTokens.selector
+            address(uniswap), uniswap.swapETHForExactTokens.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(gasZipFacet),
-            uniswap.swapExactTokensForTokens.selector
+            address(gasZipFacet), uniswap.swapExactTokensForTokens.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(gasZipFacet),
-            uniswap.swapTokensForExactETH.selector
+            address(gasZipFacet), uniswap.swapTokensForExactETH.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(gasZipFacet),
-            uniswap.swapExactTokensForETH.selector
+            address(gasZipFacet), uniswap.swapExactTokensForETH.selector
         );
         gasZipFacet.addAllowedContractSelector(
-            address(gasZipFacet),
-            uniswap.swapETHForExactTokens.selector
+            address(gasZipFacet), uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(gasZipFacet), "GasZipFacet");
@@ -111,24 +109,27 @@ contract GasZipFacetTest is TestBaseFacet {
         if (isNative) {
             gasZipFacet.startBridgeTokensViaGasZip{
                 value: bridgeData.minAmount
-            }(bridgeData, gasZipData);
+            }(
+                bridgeData, gasZipData
+            );
         } else {
             gasZipFacet.startBridgeTokensViaGasZip(bridgeData, gasZipData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             gasZipFacet.swapAndStartBridgeTokensViaGasZip{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, gasZipData);
+            }(
+                bridgeData, swapData, gasZipData
+            );
         } else {
             gasZipFacet.swapAndStartBridgeTokensViaGasZip(
-                bridgeData,
-                swapData,
-                gasZipData
+                bridgeData, swapData, gasZipData
             );
         }
     }
@@ -136,10 +137,7 @@ contract GasZipFacetTest is TestBaseFacet {
     function test_WillStoreConstructorParametersCorrectly() public {
         gasZipFacet = new TestGasZipFacet(GAS_ZIP_ROUTER_MAINNET);
 
-        assertEq(
-            address(gasZipFacet.GAS_ZIP_ROUTER()),
-            GAS_ZIP_ROUTER_MAINNET
-        );
+        assertEq(address(gasZipFacet.GAS_ZIP_ROUTER()), GAS_ZIP_ROUTER_MAINNET);
     }
 
     function testRevert_WhenConstructedWithZeroAddress() public {
@@ -457,7 +455,9 @@ contract GasZipFacetTest is TestBaseFacet {
 
         gasZipFacet.startBridgeTokensViaGasZip{
             value: bridgeData.minAmount - 1
-        }(bridgeData, gasZipData);
+        }(
+            bridgeData, gasZipData
+        );
     }
 
     function testRevert_WillFailIfMoreThan32ChainIds() public {

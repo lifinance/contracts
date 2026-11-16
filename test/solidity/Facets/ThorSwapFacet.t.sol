@@ -4,11 +4,13 @@ pragma solidity ^0.8.17;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ThorSwapFacet } from "lifi/Facets/ThorSwapFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub ThorSwapFacet Contract
 contract TestThorSwapFacet is ThorSwapFacet, TestWhitelistManagerBase {
-    constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) {}
+    constructor(address _thorchainRouter) ThorSwapFacet(_thorchainRouter) { }
 }
 
 contract ThorSwapFacetTest is TestBaseFacet {
@@ -24,33 +26,26 @@ contract ThorSwapFacetTest is TestBaseFacet {
 
         thorSwapFacet = new TestThorSwapFacet(THORCHAIN_ROUTER);
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = thorSwapFacet
-            .startBridgeTokensViaThorSwap
-            .selector;
-        functionSelectors[1] = thorSwapFacet
-            .swapAndStartBridgeTokensViaThorSwap
-            .selector;
-        functionSelectors[2] = thorSwapFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = thorSwapFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        thorSwapFacet.startBridgeTokensViaThorSwap.selector;
+        functionSelectors[1] =
+        thorSwapFacet.swapAndStartBridgeTokensViaThorSwap.selector;
+        functionSelectors[2] =
+        thorSwapFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        thorSwapFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(thorSwapFacet), functionSelectors);
         thorSwapFacet = TestThorSwapFacet(address(diamond));
 
         thorSwapFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         thorSwapFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         thorSwapFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         setFacetAddressInTestBase(address(thorSwapFacet), "ThorSwapFacet");
@@ -79,15 +74,12 @@ contract ThorSwapFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_SENDER);
         // Approve tokens for the contract
-        ERC20(deprecatedRune).approve(
-            address(thorSwapFacet),
-            bridgeData.minAmount
-        );
+        ERC20(deprecatedRune)
+            .approve(address(thorSwapFacet), bridgeData.minAmount);
 
         vm.expectRevert(ThorSwapFacet.DeprecatedToken.selector);
         thorSwapFacet.startBridgeTokensViaThorSwap(
-            bridgeData,
-            validThorSwapData
+            bridgeData, validThorSwapData
         );
         vm.stopPrank();
     }
@@ -96,27 +88,29 @@ contract ThorSwapFacetTest is TestBaseFacet {
         if (isNative) {
             thorSwapFacet.startBridgeTokensViaThorSwap{
                 value: bridgeData.minAmount
-            }(bridgeData, validThorSwapData);
+            }(
+                bridgeData, validThorSwapData
+            );
         } else {
             thorSwapFacet.startBridgeTokensViaThorSwap(
-                bridgeData,
-                validThorSwapData
+                bridgeData, validThorSwapData
             );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             thorSwapFacet.swapAndStartBridgeTokensViaThorSwap{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validThorSwapData);
+            }(
+                bridgeData, swapData, validThorSwapData
+            );
         } else {
             thorSwapFacet.swapAndStartBridgeTokensViaThorSwap(
-                bridgeData,
-                swapData,
-                validThorSwapData
+                bridgeData, swapData, validThorSwapData
             );
         }
     }

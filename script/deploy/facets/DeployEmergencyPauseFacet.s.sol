@@ -8,7 +8,7 @@ import { EmergencyPauseFacet } from "lifi/Facets/EmergencyPauseFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("EmergencyPauseFacet") {}
+    constructor() DeployScriptBase("EmergencyPauseFacet") { }
 
     function run()
         public

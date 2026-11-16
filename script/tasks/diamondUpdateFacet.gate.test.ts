@@ -167,8 +167,8 @@ describe('placement inside diamondUpdateFacet', () => {
     MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=1
     export SEND_PROPOSALS_DIRECTLY_TO_DIAMOND="${options.directFlag}"
     diamondUpdateFacet "${options.network ?? 'mainnet'}" "${
-    options.environment
-  }" LiFiDiamond UpdateTestFacet true 2>&1
+      options.environment
+    }" LiFiDiamond UpdateTestFacet true 2>&1
     echo "rc=$?"
   `
 

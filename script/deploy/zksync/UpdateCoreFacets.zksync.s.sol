@@ -17,14 +17,11 @@ contract DeployScript is UpdateScriptBase {
         _rejectVerificationMode();
 
         // Read core facets dynamically from global.json config
-        string memory globalConfigPath = string.concat(
-            vm.projectRoot(),
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(vm.projectRoot(), "/config/global.json");
         string memory globalConfig = vm.readFile(globalConfigPath);
-        string[] memory coreFacets = globalConfig.readStringArray(
-            ".coreFacets"
-        );
+        string[] memory coreFacets =
+            globalConfig.readStringArray(".coreFacets");
 
         emit log("Core facets found in config/global.json: ");
         emit log_uint(coreFacets.length);
@@ -44,14 +41,10 @@ contract DeployScript is UpdateScriptBase {
         // Handle DiamondLoupeFacet separately as it needs special treatment
         if (!loupeExists) {
             emit log("Loupe does not exist on diamond yet");
-            address diamondLoupeAddress = _getConfigContractAddress(
-                path,
-                ".DiamondLoupeFacet"
-            );
-            bytes4[] memory loupeSelectors = getSelectors(
-                "DiamondLoupeFacet",
-                exclude
-            );
+            address diamondLoupeAddress =
+                _getConfigContractAddress(path, ".DiamondLoupeFacet");
+            bytes4[] memory loupeSelectors =
+                getSelectors("DiamondLoupeFacet", exclude);
 
             buildInitialCut(loupeSelectors, diamondLoupeAddress);
             vm.startBroadcast(deployerPrivateKey);
@@ -70,15 +63,15 @@ contract DeployScript is UpdateScriptBase {
 
             // Skip DiamondCutFacet and DiamondLoupeFacet as it was already handled
             if (
-                keccak256(bytes(facetName)) ==
-                keccak256(bytes("DiamondLoupeFacet"))
+                keccak256(bytes(facetName))
+                    == keccak256(bytes("DiamondLoupeFacet"))
             ) {
                 continue;
             }
             // Skip DiamondLoupeFacet as it was already handled
             if (
-                keccak256(bytes(facetName)) ==
-                keccak256(bytes("DiamondCutFacet"))
+                keccak256(bytes(facetName))
+                    == keccak256(bytes("DiamondCutFacet"))
             ) {
                 continue;
             }
@@ -87,8 +80,7 @@ contract DeployScript is UpdateScriptBase {
             emit log(facetName);
             // Use _getConfigContractAddress which validates the contract exists
             address facetAddress = _getConfigContractAddress(
-                path,
-                string.concat(".", facetName)
+                path, string.concat(".", facetName)
             );
             bytes4[] memory selectors = getSelectors(facetName, exclude);
 
@@ -105,10 +97,7 @@ contract DeployScript is UpdateScriptBase {
         if (noBroadcast) {
             if (cut.length > 0) {
                 cutData = abi.encodeWithSelector(
-                    DiamondCutFacet.diamondCut.selector,
-                    cut,
-                    address(0),
-                    ""
+                    DiamondCutFacet.diamondCut.selector, cut, address(0), ""
                 );
             }
             emit log("=== DIAMOND CUT CALLDATA FOR MANUAL EXECUTION ===");

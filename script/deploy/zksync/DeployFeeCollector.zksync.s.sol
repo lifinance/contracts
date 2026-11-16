@@ -8,7 +8,7 @@ import { stdJson } from "forge-std/Script.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("FeeCollector") {}
+    constructor() DeployScriptBase("FeeCollector") { }
 
     function run()
         public
@@ -21,18 +21,15 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract feeCollectorOwner address
-        address feeCollectorOwnerAddress = globalConfigJson.readAddress(
-            ".feeCollectorOwner"
-        );
+        address feeCollectorOwnerAddress =
+            globalConfigJson.readAddress(".feeCollectorOwner");
 
         return abi.encode(feeCollectorOwnerAddress);
     }

@@ -4,14 +4,16 @@ pragma solidity ^0.8.17;
 import { Test } from "forge-std/Test.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { DiamondTest } from "../utils/DiamondTest.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { SupersetFacet } from "lifi/Facets/SupersetFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { IERC20 } from "lifi/Libraries/LibAsset.sol";
 
 /// @dev Diamond-compatible facet with the whitelist test helpers.
 contract TestSupersetFacetHub is SupersetFacet, TestWhitelistManagerBase {
-    constructor(address _poolManager) SupersetFacet(_poolManager) {}
+    constructor(address _poolManager) SupersetFacet(_poolManager) { }
 }
 
 /// @title SupersetFacet hub same-chain (DEX) fork test
@@ -101,8 +103,8 @@ contract SupersetFacetHubForkTest is Test, DiamondTest, ILiFi {
 
         // amountOutMin is a safe floor below the ~74.8 tGBP live quote for 100 USDC.
         uint256 amountOutMin = 74e18;
-        SupersetFacet.SupersetData memory supersetData = SupersetFacet
-            .SupersetData({
+        SupersetFacet.SupersetData memory supersetData =
+            SupersetFacet.SupersetData({
                 // omniId(USDC) || fee(500) || omniId(tGBP); resolved to local
                 // addresses on-chain by the facet before calling `exactInput`.
                 path: abi.encodePacked(
@@ -142,11 +144,7 @@ contract SupersetFacetHubForkTest is Test, DiamondTest, ILiFi {
 
         // Output delivered atomically to the receiver, honouring the slippage floor.
         uint256 received = tgbp.balanceOf(USER_RECEIVER) - receiverTgbpBefore;
-        assertGe(
-            received,
-            amountOutMin,
-            "receiver got less than amountOutMin"
-        );
+        assertGe(received, amountOutMin, "receiver got less than amountOutMin");
         // Bound above the quote so a silent routing change is caught.
         assertLe(received, 76e18, "output above expected range");
 

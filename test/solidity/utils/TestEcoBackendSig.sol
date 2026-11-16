@@ -27,25 +27,24 @@ abstract contract TestEcoBackendSig is TestEIP712 {
         ILiFi.BridgeData memory _bridgeData,
         EcoFacet.EcoData memory _ecoData
     ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    ECO_PAYLOAD_TYPEHASH,
-                    _bridgeData.transactionId,
-                    _bridgeData.sendingAssetId,
-                    _bridgeData.minAmount,
-                    _bridgeData.destinationChainId,
-                    _bridgeData.receiver,
-                    keccak256(_ecoData.nonEVMReceiver),
-                    _ecoData.intentDestination,
-                    keccak256(_ecoData.encodedRoute),
-                    _ecoData.prover,
-                    _ecoData.refundRecipient,
-                    _ecoData.rewardDeadline,
-                    _ecoData.solanaATA,
-                    _ecoData.deadline
-                )
-            );
+        return keccak256(
+            abi.encode(
+                ECO_PAYLOAD_TYPEHASH,
+                _bridgeData.transactionId,
+                _bridgeData.sendingAssetId,
+                _bridgeData.minAmount,
+                _bridgeData.destinationChainId,
+                _bridgeData.receiver,
+                keccak256(_ecoData.nonEVMReceiver),
+                _ecoData.intentDestination,
+                keccak256(_ecoData.encodedRoute),
+                _ecoData.prover,
+                _ecoData.refundRecipient,
+                _ecoData.rewardDeadline,
+                _ecoData.solanaATA,
+                _ecoData.deadline
+            )
+        );
     }
 
     /// @dev Signs the EcoPayload derived from the given bridge and eco data with
@@ -55,8 +54,7 @@ abstract contract TestEcoBackendSig is TestEIP712 {
         ILiFi.BridgeData memory _bridgeData,
         EcoFacet.EcoData memory _ecoData
     ) internal view returns (bytes memory) {
-        return
-            _signEcoDataWith(backendSignerPrivateKey, _bridgeData, _ecoData);
+        return _signEcoDataWith(backendSignerPrivateKey, _bridgeData, _ecoData);
     }
 
     /// @dev Same as `_signEcoData` but signs with an arbitrary key (used to test

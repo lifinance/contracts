@@ -118,20 +118,6 @@
       "0xa219439258ca9da29e9cc4ce5596924745e12b93"
     ]
   },
-  "lisk": {
-    "chainId": 1135,
-    "acrossSpokePool": "0x9552a0a6624A23B848060AE5901659CDDa1f83f8",
-    "spokePoolPeriphery": "0x10D8b8DaA26d307489803e10477De69C0492B610",
-    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
-    "tokensToApprove": [
-      "0x4200000000000000000000000000000000000006",
-      "0xf242275d3a6527d877f2c927a82d9b057609cc71",
-      "0x03c7054bcb39f7b2e5b2c7acb37583e32d70cfa3",
-      "0x05d032ac25d322df992303dca074ee7392c117b9",
-      "0xac485391eb2d7d88253a7f1ef18c37f4242d1a24"
-    ]
-  },
   "megaeth": {
     "chainId": 4326,
     "acrossSpokePool": "0x3Db06DA8F0a24A525f314eeC954fC5c6a973d40E",

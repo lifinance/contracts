@@ -7,7 +7,7 @@
  *
  *   bunx tsx script/deploy/safe/delete-pending-proposals.ts --network fuse --hashes 0xaaa,0xbbb
  */
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'

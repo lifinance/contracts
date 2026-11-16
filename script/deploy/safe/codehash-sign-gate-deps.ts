@@ -1890,7 +1890,7 @@ export const buildRecordQuery = (
  * @throws When the surviving records disagree on contract, version or commit
  */
 export const resolveDeploymentRecord = <
-  T extends { contractName: string; version?: string; gitCommitHash?: string }
+  T extends { contractName: string; version?: string; gitCommitHash?: string },
 >(
   candidates: T[],
   address: string,

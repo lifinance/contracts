@@ -287,6 +287,26 @@ vyper = { path = './fakevy' }
       "[etherscan]\nmainnet = 'k'\n",
       /etherscan\.mainnet is not/,
     ],
+    [
+      'fmt',
+      "[fmt]\nline_length = 79\nsolc = './fake-solc'\n",
+      /fmt\.solc is not/,
+    ],
+    [
+      'fmt.line_length as a string',
+      "[fmt]\nline_length = '79'\n",
+      /fmt\.line_length is not/,
+    ],
+    [
+      'fmt.ignore that is not a list',
+      "[fmt]\nignore = 'src/**'\n",
+      /fmt\.ignore is not/,
+    ],
+    [
+      'fmt.ignore entry that is not a string',
+      '[fmt]\nignore = ["src/**", 1]\n',
+      /fmt\.ignore is not/,
+    ],
   ])(
     'refuses a %s key outside what main has carried',
     (_what, section, pattern) => {
@@ -294,9 +314,15 @@ vyper = { path = './fakevy' }
     }
   )
 
+  it('refuses a top-level fmt that is not a table', () => {
+    expect(() => readCheckoutProfiles(`fmt = 'x'\n${HONEST}`)).toThrow(
+      /fmt is not a value the rebuild allows/
+    )
+  })
+
   it('accepts the sections as main spells them, a numeric chain included', () => {
     const profiles = readCheckoutProfiles(
-      `${HONEST}[lint]\nlint_on_build = false\n[external.zksync]\nzksolc = "1.5.15"\nfoundry_zksync = "v0.0.32"\n[rpc_endpoints]\nmainnet = "\${ETH_NODE_URI_MAINNET}"\n[etherscan]\nzksync = { key = "k", url = "u", chain = 324, verifier = "zksync" }\n`
+      `${HONEST}[lint]\nlint_on_build = false\n[fmt]\nline_length = 79\nquote_style = "double"\nbracket_spacing = true\nignore = ["src/**"]\n[external.zksync]\nzksolc = "1.5.15"\nfoundry_zksync = "v0.0.32"\n[rpc_endpoints]\nmainnet = "\${ETH_NODE_URI_MAINNET}"\n[etherscan]\nzksync = { key = "k", url = "u", chain = 324, verifier = "zksync" }\n`
     )
     expect(profiles.default?.solcVersion).toBe('0.8.29')
   })

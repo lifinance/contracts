@@ -42,7 +42,7 @@ cores, so the guard and the withholding widen together. Consequences:
   test, or a child whose `cwd` holds no `.env` — annotate it with a trailing
   `// spawn-env: <reason>` comment on the statement's own line, and keep that
   statement standalone: the marker only counts on the line its statement ends
-  on, and prettier relocates a trailing comment when the unset is the unbraced
+  on, and oxfmt relocates a trailing comment when the unset is the unbraced
   body of an `if`/`else`, which silently detaches it. Brace the branch.
 - **A credential whose name carries no core is invisible** to both the scan and
   the sweep. Adding a new kind of secret to the store means adding its core,
@@ -50,6 +50,17 @@ cores, so the guard and the withholding widen together. Consequences:
 - **Only tests that call `withholdCredentials` are covered.** Other tests that
   spawn a child build the environment by hand; nothing yet asserts that a
   spawning test calls the helper. Tracked in EXSC-996.
+
+## Isolating a spawned child from the developer's settings ([CONV:TEST-SPAWN-ISOLATION])
+
+`bun test` loads the developer's `.env` into the test process, so a child handed
+`{ ...process.env }` inherits settings such as direct-send mode, and a case
+passes or fails by machine. Build the child's environment with `freshChildEnv()`
+from `script/deploy/safe/spawn-env.ts` instead. A child that loads `.env` from
+its cwd — bash sourcing the framework, a module importing `dotenv/config` —
+reads the developer's file back for every name left unset, so run it with
+`cwd: sandboxCheckout()`: symlinks into the checkout plus an env file that
+carries `.env.example`'s blank proposal-intent lines.
 
 ## Asserting rejections ([CONV:TEST-ASSERT-REJECTS])
 

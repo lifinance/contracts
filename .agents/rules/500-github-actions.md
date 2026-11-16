@@ -54,7 +54,7 @@ paths:
 
 - **Always install foundry via the project's `./.github/actions/setup-foundry` composite action.** Do not call `foundry-rs/foundry-toolchain` directly from a workflow.
 - The composite action reads `.foundry-version`, installs that exact version, and verifies the installed binary matches the pin. This keeps every CI runner and every dev's pre-commit hook on the same foundry version.
-- To bump foundry repo-wide, change one line in `.foundry-version`. Every workflow that uses the composite action picks it up on the next run.
+- To bump foundry repo-wide, change one line in `.foundry-version` and, in the same PR, replace `.foundry-sha256` with the new release's attested linux_amd64 hashes. Every workflow that uses the composite action picks it up on the next run; a stale `.foundry-sha256` makes CI ignore the cached binaries and reinstall on every run.
 - **Correct**:
 
   ```yaml

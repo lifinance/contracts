@@ -3,11 +3,23 @@ pragma solidity ^0.8.17;
 
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { SymbiosisFacet } from "lifi/Facets/SymbiosisFacet.sol";
-import { ISymbiosisMetaRouter } from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
+import {
+    ISymbiosisMetaRouter
+} from "lifi/Interfaces/ISymbiosisMetaRouter.sol";
 import { IOnchainSwapV3 } from "lifi/Interfaces/IOnchainSwapV3.sol";
-import { InvalidConfig, InvalidReceiver, InvalidDestinationChain, InvalidNonEVMReceiver, InformationMismatch, NoSwapDataProvided, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import {
+    InvalidConfig,
+    InvalidReceiver,
+    InvalidDestinationChain,
+    InvalidNonEVMReceiver,
+    InformationMismatch,
+    NoSwapDataProvided,
+    InvalidCallData
+} from "lifi/Errors/GenericErrors.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 // Stub SymbiosisFacet Contract
@@ -26,17 +38,16 @@ contract TestSymbiosisFacet is SymbiosisFacet, TestWhitelistManagerBase {
             _onchainSwapV3Gateway,
             _backendSigner
         )
-    {}
+    { }
 }
 
 /// @dev Builds the EIP-712 backend signature required on the OnchainSwapV3 path.
 ///      Kept in a library so both the standard and fork test contracts can reuse it.
 library OnchainSwapV3Signing {
     // Must match SymbiosisFacet.SYMBIOSIS_PAYLOAD_TYPEHASH
-    bytes32 internal constant SYMBIOSIS_PAYLOAD_TYPEHASH =
-        keccak256(
-            "SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 fee,uint256 deadline,address refundRecipient)"
-        );
+    bytes32 internal constant SYMBIOSIS_PAYLOAD_TYPEHASH = keccak256(
+        "SymbiosisPayload(bytes32 transactionId,uint256 minAmount,address sendingAssetId,uint256 destinationChainId,bytes32 nonEvmReceiver,address dex,address dexgateway,bytes32 onchainSwapDataHash,uint256 fee,uint256 deadline,address refundRecipient)"
+    );
 
     function digest(
         ILiFi.BridgeData memory _bridgeData,
@@ -86,19 +97,16 @@ library OnchainSwapV3Signing {
 ///      to `refundRecipient` and are never stranded at the calling contract
 ///      (`msg.sender`).
 contract RelayerProxy {
-    function approveToken(
-        address token,
-        address spender,
-        uint256 amount
-    ) external {
+    function approveToken(address token, address spender, uint256 amount)
+        external
+    {
         IERC20(token).approve(spender, amount);
     }
 
-    function callDiamond(
-        address diamond,
-        uint256 value,
-        bytes calldata data
-    ) external payable {
+    function callDiamond(address diamond, uint256 value, bytes calldata data)
+        external
+        payable
+    {
         (bool success, bytes memory ret) = diamond.call{ value: value }(data);
         if (!success) {
             // bubble up the original revert reason
@@ -109,7 +117,7 @@ contract RelayerProxy {
         }
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }
 
 contract SymbiosisFacetTest is TestBaseFacet {
@@ -140,12 +148,11 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
     TestSymbiosisFacet internal symbiosisFacet;
     SymbiosisFacet.SymbiosisData internal symbiosisData;
-    bytes32 internal constant BTC_RECEIVER =
-        bytes32(
-            uint256(
-                0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-            )
-        );
+    bytes32 internal constant BTC_RECEIVER = bytes32(
+        uint256(
+            0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+        )
+    );
 
     function setUp() public {
         customBlockNumberForForking = 19317492;
@@ -160,35 +167,28 @@ contract SymbiosisFacetTest is TestBaseFacet {
         );
 
         bytes4[] memory functionSelectors = new bytes4[](3);
-        functionSelectors[0] = symbiosisFacet
-            .startBridgeTokensViaSymbiosis
-            .selector;
-        functionSelectors[1] = symbiosisFacet
-            .swapAndStartBridgeTokensViaSymbiosis
-            .selector;
-        functionSelectors[2] = symbiosisFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        symbiosisFacet.startBridgeTokensViaSymbiosis.selector;
+        functionSelectors[1] =
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis.selector;
+        functionSelectors[2] =
+        symbiosisFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(symbiosisFacet), functionSelectors);
 
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
 
         symbiosisFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         symbiosisFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForETH.selector
+            address(uniswap), uniswap.swapExactTokensForETH.selector
         );
         symbiosisFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapETHForExactTokens.selector
+            address(uniswap), uniswap.swapETHForExactTokens.selector
         );
         symbiosisFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
 
         setFacetAddressInTestBase(address(symbiosisFacet), "SymbiosisFacet");
@@ -235,19 +235,20 @@ contract SymbiosisFacetTest is TestBaseFacet {
     function initiateBridgeTxWithFacet(bool isNative) internal override {
         if (isNative) {
             symbiosisData.firstSwapCalldata = _getFirstDexCallData();
-            symbiosisData
-                .firstDexRouter = 0x1111111254EEB25477B68fb85Ed929f73A960582; // One Inch
+            symbiosisData.firstDexRouter =
+            0x1111111254EEB25477B68fb85Ed929f73A960582; // One Inch
             symbiosisData.approvedTokens = new address[](2);
             symbiosisData.approvedTokens[0] = address(0);
             symbiosisData.approvedTokens[1] = ADDRESS_USDC;
             symbiosisData.callData = _getRelayCallData();
             symbiosisFacet.startBridgeTokensViaSymbiosis{
                 value: bridgeData.minAmount
-            }(bridgeData, symbiosisData);
+            }(
+                bridgeData, symbiosisData
+            );
         } else {
             symbiosisFacet.startBridgeTokensViaSymbiosis(
-                bridgeData,
-                symbiosisData
+                bridgeData, symbiosisData
             );
         }
     }
@@ -255,7 +256,9 @@ contract SymbiosisFacetTest is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(bool) internal override {
         symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis{
             value: addToMessageValue
-        }(bridgeData, swapData, symbiosisData);
+        }(
+            bridgeData, swapData, symbiosisData
+        );
     }
 
     /// OnchainSwapV3 path ///
@@ -277,14 +280,13 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
     /// @dev Signs the current bridgeData/symbiosisData for the OnchainSwapV3 path
     ///      against the diamond (verifyingContract) with the given key.
-    function _signOnchainSwapV3(
-        uint256 _pk
-    ) internal view returns (bytes memory) {
+    function _signOnchainSwapV3(uint256 _pk)
+        internal
+        view
+        returns (bytes memory)
+    {
         bytes32 digest = OnchainSwapV3Signing.digest(
-            bridgeData,
-            symbiosisData,
-            _facetTestContractAddress,
-            block.chainid
+            bridgeData, symbiosisData, _facetTestContractAddress, block.chainid
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_pk, digest);
 
@@ -302,10 +304,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidSignature.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -320,10 +319,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(SignatureExpired.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -339,10 +335,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidSignature.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -373,10 +366,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidDestinationChain.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -390,10 +380,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidReceiver.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -407,10 +394,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidNonEVMReceiver.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -435,7 +419,9 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         unsupportedFacet.startBridgeTokensViaSymbiosis{
             value: bridgeData.minAmount
-        }(bridgeData, symbiosisData);
+        }(
+            bridgeData, symbiosisData
+        );
         vm.stopPrank();
     }
 
@@ -457,9 +443,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         vm.expectRevert(InformationMismatch.selector);
 
         symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
-            bridgeData,
-            swapData,
-            symbiosisData
+            bridgeData, swapData, symbiosisData
         );
         vm.stopPrank();
     }
@@ -518,10 +502,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InformationMismatch.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -536,10 +517,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InformationMismatch.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -557,10 +535,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(bridgeData);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -583,9 +558,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         deal(ADDRESS_USDC, address(proxy), bridgeData.minAmount);
         vm.deal(address(this), excessNative);
         proxy.approveToken(
-            ADDRESS_USDC,
-            _facetTestContractAddress,
-            bridgeData.minAmount
+            ADDRESS_USDC, _facetTestContractAddress, bridgeData.minAmount
         );
 
         bytes memory callData = abi.encodeWithSelector(
@@ -595,9 +568,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         );
 
         proxy.callDiamond{ value: excessNative }(
-            _facetTestContractAddress,
-            excessNative,
-            callData
+            _facetTestContractAddress, excessNative, callData
         );
 
         // the ERC20 MetaRouter path forwards no native, so the whole attached
@@ -626,9 +597,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         deal(ADDRESS_DAI, address(proxy), swapData[0].fromAmount);
         vm.deal(address(this), excessNative);
         proxy.approveToken(
-            ADDRESS_DAI,
-            _facetTestContractAddress,
-            swapData[0].fromAmount
+            ADDRESS_DAI, _facetTestContractAddress, swapData[0].fromAmount
         );
 
         bytes memory callData = abi.encodeWithSelector(
@@ -639,9 +608,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         );
 
         proxy.callDiamond{ value: excessNative }(
-            _facetTestContractAddress,
-            excessNative,
-            callData
+            _facetTestContractAddress, excessNative, callData
         );
 
         assertEq(refundRecipient.balance, excessNative);
@@ -657,10 +624,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InvalidCallData.selector);
 
-        symbiosisFacet.startBridgeTokensViaSymbiosis(
-            bridgeData,
-            symbiosisData
-        );
+        symbiosisFacet.startBridgeTokensViaSymbiosis(bridgeData, symbiosisData);
         vm.stopPrank();
     }
 
@@ -676,9 +640,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
 
         symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
-            bridgeData,
-            swapData,
-            symbiosisData
+            bridgeData, swapData, symbiosisData
         );
         vm.stopPrank();
     }
@@ -754,8 +716,8 @@ contract SymbiosisFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         symbiosisData.firstSwapCalldata = _getFirstDexCallData();
-        symbiosisData
-            .firstDexRouter = 0x1111111254EEB25477B68fb85Ed929f73A960582; // One Inch
+        symbiosisData.firstDexRouter =
+        0x1111111254EEB25477B68fb85Ed929f73A960582; // One Inch
         symbiosisData.approvedTokens = new address[](2);
         symbiosisData.approvedTokens[0] = address(0);
         symbiosisData.approvedTokens[1] = ADDRESS_USDC;
@@ -811,9 +773,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(InformationMismatch.selector);
         symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
-            bridgeData,
-            swapData,
-            symbiosisData
+            bridgeData, swapData, symbiosisData
         );
 
         vm.stopPrank();
@@ -829,9 +789,7 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
         vm.expectRevert(NoSwapDataProvided.selector);
         symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis(
-            bridgeData,
-            swapData,
-            symbiosisData
+            bridgeData, swapData, symbiosisData
         );
 
         vm.stopPrank();
@@ -839,13 +797,11 @@ contract SymbiosisFacetTest is TestBaseFacet {
 
     // These values are normally returned from the API. They are hardcoded for testing.
     function _getFirstDexCallData() internal pure returns (bytes memory) {
-        return
-            hex"e449022e0000000000000000000000000000000000000000000000000de0b6b3a764000000000000000000000000000000000000000000000000000000000000bde5814b00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000088e6a0c2ddd26feeb64f039a2c41296fcb3f5640ea698b47";
+        return hex"e449022e0000000000000000000000000000000000000000000000000de0b6b3a764000000000000000000000000000000000000000000000000000000000000bde5814b00000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000088e6a0c2ddd26feeb64f039a2c41296fcb3f5640ea698b47";
     }
 
     function _getRelayCallData() internal pure returns (bytes memory) {
-        return
-            hex"ce654c17000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000aae6000000000000000000000000000000000000000000000000000000000c04cddaa000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd000000000000000000000000b8f275fbf7a959f4bce59999a2ef122a099e81a80000000000000000000000005523985926aa12ba58dc5ad00ddca99678d7227e000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd000000000000000000000000000000000000000000000000000000000000dbe00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000cb28fbe3e9c0fea62e0e63ff3f232cecfe555ad40000000000000000000000000000000000000000000000000000000000000260000000000000000000000000b8f275fbf7a959f4bce59999a2ef122a099e81a800000000000000000000000000000000000000000000000000000000000005800000000000000000000000000000000000000000000000000000000000000064000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd73796d62696f7369732d6170690000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000007d6ec42b5d9566931560411a8652cea00b90d9820000000000000000000000005e19efc6ac9c80bfaa755259c9fab2398a8e87eb00000000000000000000000000000000000000000000000000000000000002e41e859a0500000000000000000000000000000000000000000000000000000000c04cddaa00000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000024000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000002cbabd7329b84e2c0a317702410e7c73d0e0246d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000c48f6bdeaa0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000c0422f4a0000000000000000000000000000000000000000000000abc2fad74a2adb215c000000000000000000000000cb28fbe3e9c0fea62e0e63ff3f232cecfe555ad40000000000000000000000000000000000000000000000000000000065e6d4f90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000006148fd6c649866596c3d8a971fc313e5ece8488200000000000000000000000000000000000000000000000000000000000000020000000000000000000000007d6ec42b5d9566931560411a8652cea00b90d9820000000000000000000000005e19efc6ac9c80bfaa755259c9fab2398a8e87eb00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000544e66bb55000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000c7d713b49da00000000000000000000000000000000000000000000000000aecf70aac3e4c1f30300000000000000000000000000000000000000000000000000000000000000000000000000000000000000002cbabd7329b84e2c0a317702410e7c73d0e0246d0000000000000000000000001111111254eeb25477b68fb85ed929f73a9605820000000000000000000000005e19efc6ac9c80bfaa755259c9fab2398a8e87eb00000000000000000000000000000000000000000000000000000000000001c000000000000000000000000000000000000000000000000000000000000000c4000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd0000000000000000000000005aa5f7f84ed0e5db0a4a85c3947ea16b53352fd4000000000000000000000000b8f275fbf7a959f4bce59999a2ef122a099e81a8000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd000000000000000000000000000000000000000000000000000000000000003873796d62696f7369732d61706900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000032812aa3caf000000000000000000000000e37e799d5077682fa0a244d46e5649f71457bd090000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000d5f05644ef5d0a36ca8c8b5177ffbd09ec63f92f000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd0000000000000000000000000000000000000000000000aec2f339889ae7f3030000000000000000000000000000000000000000000000006d28db4537cfadb30000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018100000000000000000000000000000000000000016300014d00010300001a0020d6bdbf788ac76a51cc950d9822d68b83fe1ad97b32cd580d00a007e5c0d20000000000000000000000000000000000000000000000c500008900003a4020d5f05644ef5d0a36ca8c8b5177ffbd09ec63f92fdd93f59a000000000000000000000000e37e799d5077682fa0a244d46e5649f71457bd0902a00000000000000000000000000000000000000000000000000000000000000001ee63c1e501172fcd41e0913e95784454622d1c3724f546f84955d398326f99059ff775485246999027b31979554101bb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c00042e1a7d4d000000000000000000000000000000000000000000000000000000000000000000a0f2fa6b66eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000007089216463c3a0990000000000000000002cab6cb4577c5dc0611111111254eeb25477b68fb85ed929f73a96058200000000000000000000000000000000000000000000000000000000000000ea698b4700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        return hex"ce654c17000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000aae6000000000000000000000000000000000000000000000000000000000c04cddaa000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd000000000000000000000000b8f275fbf7a959f4bce59999a2ef122a099e81a80000000000000000000000005523985926aa12ba58dc5ad00ddca99678d7227e000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd000000000000000000000000000000000000000000000000000000000000dbe00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000cb28fbe3e9c0fea62e0e63ff3f232cecfe555ad40000000000000000000000000000000000000000000000000000000000000260000000000000000000000000b8f275fbf7a959f4bce59999a2ef122a099e81a800000000000000000000000000000000000000000000000000000000000005800000000000000000000000000000000000000000000000000000000000000064000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd73796d62696f7369732d6170690000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000007d6ec42b5d9566931560411a8652cea00b90d9820000000000000000000000005e19efc6ac9c80bfaa755259c9fab2398a8e87eb00000000000000000000000000000000000000000000000000000000000002e41e859a0500000000000000000000000000000000000000000000000000000000c04cddaa00000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000024000000000000000000000000000000000000000000000000000000000000002a00000000000000000000000002cbabd7329b84e2c0a317702410e7c73d0e0246d0000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000c48f6bdeaa0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000c0422f4a0000000000000000000000000000000000000000000000abc2fad74a2adb215c000000000000000000000000cb28fbe3e9c0fea62e0e63ff3f232cecfe555ad40000000000000000000000000000000000000000000000000000000065e6d4f90000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000006148fd6c649866596c3d8a971fc313e5ece8488200000000000000000000000000000000000000000000000000000000000000020000000000000000000000007d6ec42b5d9566931560411a8652cea00b90d9820000000000000000000000005e19efc6ac9c80bfaa755259c9fab2398a8e87eb00000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000544e66bb55000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000c7d713b49da00000000000000000000000000000000000000000000000000aecf70aac3e4c1f30300000000000000000000000000000000000000000000000000000000000000000000000000000000000000002cbabd7329b84e2c0a317702410e7c73d0e0246d0000000000000000000000001111111254eeb25477b68fb85ed929f73a9605820000000000000000000000005e19efc6ac9c80bfaa755259c9fab2398a8e87eb00000000000000000000000000000000000000000000000000000000000001c000000000000000000000000000000000000000000000000000000000000000c4000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd0000000000000000000000005aa5f7f84ed0e5db0a4a85c3947ea16b53352fd4000000000000000000000000b8f275fbf7a959f4bce59999a2ef122a099e81a8000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd000000000000000000000000000000000000000000000000000000000000003873796d62696f7369732d61706900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000032812aa3caf000000000000000000000000e37e799d5077682fa0a244d46e5649f71457bd090000000000000000000000008ac76a51cc950d9822d68b83fe1ad97b32cd580d000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee000000000000000000000000d5f05644ef5d0a36ca8c8b5177ffbd09ec63f92f000000000000000000000000f93d011544e89a28b5bdbdd833016cc5f26e82cd0000000000000000000000000000000000000000000000aec2f339889ae7f3030000000000000000000000000000000000000000000000006d28db4537cfadb30000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000018100000000000000000000000000000000000000016300014d00010300001a0020d6bdbf788ac76a51cc950d9822d68b83fe1ad97b32cd580d00a007e5c0d20000000000000000000000000000000000000000000000c500008900003a4020d5f05644ef5d0a36ca8c8b5177ffbd09ec63f92fdd93f59a000000000000000000000000e37e799d5077682fa0a244d46e5649f71457bd0902a00000000000000000000000000000000000000000000000000000000000000001ee63c1e501172fcd41e0913e95784454622d1c3724f546f84955d398326f99059ff775485246999027b31979554101bb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c00042e1a7d4d000000000000000000000000000000000000000000000000000000000000000000a0f2fa6b66eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee0000000000000000000000000000000000000000000000007089216463c3a0990000000000000000002cab6cb4577c5dc0611111111254eeb25477b68fb85ed929f73a96058200000000000000000000000000000000000000000000000000000000000000ea698b4700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     }
 }
 
@@ -863,12 +819,11 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
     // dex == dexgateway in both replayed onswap txs
     address internal constant ONSWAP_DEX =
         0x09D479E04D2dd46AaD77618435e5c639EA769264;
-    bytes32 internal constant BTC_RECEIVER =
-        bytes32(
-            uint256(
-                0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
-            )
-        );
+    bytes32 internal constant BTC_RECEIVER = bytes32(
+        uint256(
+            0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+        )
+    );
     uint256 internal constant BACKEND_SIGNER_PK = 0xB4C;
     // OnchainSwapV3.fee is the 2nd storage slot (slot 0 == Ownable._owner).
     // Verified on-chain: owner @slot0, fee @slot1, onchainGateway @slot2.
@@ -902,17 +857,15 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
 
         bytes4[] memory selectors = new bytes4[](3);
         selectors[0] = symbiosisFacet.startBridgeTokensViaSymbiosis.selector;
-        selectors[1] = symbiosisFacet
-            .swapAndStartBridgeTokensViaSymbiosis
-            .selector;
+        selectors[1] =
+        symbiosisFacet.swapAndStartBridgeTokensViaSymbiosis.selector;
         selectors[2] = symbiosisFacet.addAllowedContractSelector.selector;
         addFacet(diamond, address(symbiosisFacet), selectors);
         symbiosisFacet = TestSymbiosisFacet(address(diamond));
 
         // whitelist the source-swap DEX call used by the swap-entrypoint fork test
         symbiosisFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactTokens.selector
+            address(uniswap), uniswap.swapTokensForExactTokens.selector
         );
     }
 
@@ -971,10 +924,7 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
         sd.deadline = block.timestamp + 1 hours;
 
         bytes32 digest = OnchainSwapV3Signing.digest(
-            bd,
-            sd,
-            address(symbiosisFacet),
-            block.chainid
+            bd, sd, address(symbiosisFacet), block.chainid
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(BACKEND_SIGNER_PK, digest);
         sd.signature = abi.encodePacked(r, s, v);
@@ -988,10 +938,8 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
         uint256 amount,
         bytes memory onchainSwapData
     ) internal {
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(sendingAssetId, amount, onchainSwapData);
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) =
+            _buildOnchainSwapV3(sendingAssetId, amount, onchainSwapData);
 
         uint256 value;
         vm.startPrank(USER_SENDER);
@@ -1004,9 +952,7 @@ abstract contract SymbiosisOnchainSwapV3ForkTestBase is TestBase {
 
         vm.expectEmit(true, true, true, true, address(symbiosisFacet));
         emit BridgeToNonEVMChainBytes32(
-            bd.transactionId,
-            bd.destinationChainId,
-            BTC_RECEIVER
+            bd.transactionId, bd.destinationChainId, BTC_RECEIVER
         );
 
         vm.expectEmit(true, true, true, true, address(symbiosisFacet));
@@ -1036,11 +982,7 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
     }
 
     function test_CanBridgeERC20TokensViaOnchainSwapV3() public {
-        _bridgeViaOnchainSwapV3(
-            ADDRESS_USDC,
-            ONSWAP_AMOUNT,
-            _onswapCalldata()
-        );
+        _bridgeViaOnchainSwapV3(ADDRESS_USDC, ONSWAP_AMOUNT, _onswapCalldata());
     }
 
     /// Finding #8: nonzero OnchainSwapV3 router fee ///
@@ -1054,15 +996,9 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
     function test_ERC20ViaOnchainSwapV3_withNonZeroFee_succeeds() public {
         _setRouterFee(NONZERO_FEE);
 
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(
-                ADDRESS_USDC,
-                ONSWAP_AMOUNT,
-                _onswapCalldata(),
-                NONZERO_FEE
-            );
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) = _buildOnchainSwapV3(
+            ADDRESS_USDC, ONSWAP_AMOUNT, _onswapCalldata(), NONZERO_FEE
+        );
 
         vm.deal(USER_SENDER, NONZERO_FEE);
         vm.startPrank(USER_SENDER);
@@ -1071,17 +1007,14 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
 
         vm.expectEmit(true, true, true, true, address(symbiosisFacet));
         emit BridgeToNonEVMChainBytes32(
-            bd.transactionId,
-            bd.destinationChainId,
-            BTC_RECEIVER
+            bd.transactionId, bd.destinationChainId, BTC_RECEIVER
         );
 
         vm.expectEmit(true, true, true, true, address(symbiosisFacet));
         emit LiFiTransferStarted(bd);
 
         symbiosisFacet.startBridgeTokensViaSymbiosis{ value: NONZERO_FEE }(
-            bd,
-            sd
+            bd, sd
         );
         vm.stopPrank();
     }
@@ -1095,10 +1028,8 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
         _setRouterFee(NONZERO_FEE);
 
         uint256 amount = 1 ether;
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(address(0), amount, hex"abcdef", NONZERO_FEE);
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) =
+            _buildOnchainSwapV3(address(0), amount, hex"abcdef", NONZERO_FEE);
 
         vm.mockCall(
             ONCHAIN_SWAP_V3,
@@ -1120,7 +1051,9 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
 
         symbiosisFacet.startBridgeTokensViaSymbiosis{
             value: amount + NONZERO_FEE
-        }(bd, sd);
+        }(
+            bd, sd
+        );
         vm.stopPrank();
     }
 
@@ -1130,14 +1063,9 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
         _setRouterFee(NONZERO_FEE);
 
         // signed against fee == 0 while the router now charges NONZERO_FEE
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(
-                ADDRESS_USDC,
-                ONSWAP_AMOUNT,
-                _onswapCalldata()
-            );
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) = _buildOnchainSwapV3(
+            ADDRESS_USDC, ONSWAP_AMOUNT, _onswapCalldata()
+        );
 
         vm.startPrank(USER_SENDER);
         deal(ADDRESS_USDC, USER_SENDER, ONSWAP_AMOUNT);
@@ -1156,15 +1084,9 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
     {
         _setRouterFee(NONZERO_FEE);
 
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(
-                ADDRESS_USDC,
-                ONSWAP_AMOUNT,
-                _onswapCalldata(),
-                NONZERO_FEE
-            );
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) = _buildOnchainSwapV3(
+            ADDRESS_USDC, ONSWAP_AMOUNT, _onswapCalldata(), NONZERO_FEE
+        );
 
         vm.startPrank(USER_SENDER);
         deal(ADDRESS_USDC, USER_SENDER, ONSWAP_AMOUNT);
@@ -1185,10 +1107,8 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
         _setRouterFee(NONZERO_FEE);
 
         uint256 amount = 1 ether;
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(address(0), amount, hex"abcdef", NONZERO_FEE);
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) =
+            _buildOnchainSwapV3(address(0), amount, hex"abcdef", NONZERO_FEE);
 
         vm.deal(USER_SENDER, amount);
         vm.startPrank(USER_SENDER);
@@ -1200,21 +1120,14 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
     }
 
     function testRevert_OnchainSwapV3ReplayProtection() public {
-        (
-            ILiFi.BridgeData memory bd,
-            SymbiosisFacet.SymbiosisData memory sd
-        ) = _buildOnchainSwapV3(
-                ADDRESS_USDC,
-                ONSWAP_AMOUNT,
-                _onswapCalldata()
-            );
+        (ILiFi.BridgeData memory bd, SymbiosisFacet.SymbiosisData memory sd) = _buildOnchainSwapV3(
+            ADDRESS_USDC, ONSWAP_AMOUNT, _onswapCalldata()
+        );
 
         vm.startPrank(USER_SENDER);
         deal(ADDRESS_USDC, USER_SENDER, ONSWAP_AMOUNT * 2);
-        IERC20(ADDRESS_USDC).approve(
-            address(symbiosisFacet),
-            ONSWAP_AMOUNT * 2
-        );
+        IERC20(ADDRESS_USDC)
+            .approve(address(symbiosisFacet), ONSWAP_AMOUNT * 2);
 
         // first use of the backend-signed quote succeeds
         symbiosisFacet.startBridgeTokensViaSymbiosis(bd, sd);
@@ -1239,31 +1152,23 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
         address refundRecipient = makeAddr("onchainSwapV3SwapRefund");
         uint256 surplus = 500 * 1e6; // realized swap output exceeds the signed floor
 
-        (
-            LibSwap.SwapData[] memory swaps,
-            uint256 amountInMax
-        ) = _wethToUsdcExactOut(ONSWAP_AMOUNT + surplus);
+        (LibSwap.SwapData[] memory swaps, uint256 amountInMax) =
+            _wethToUsdcExactOut(ONSWAP_AMOUNT + surplus);
         // minAmount is the signed floor (ONSWAP_AMOUNT), NOT the realized output
         ILiFi.BridgeData memory bd = _btcSwapBridgeData(ONSWAP_AMOUNT);
-        SymbiosisFacet.SymbiosisData memory sd = _signedSwapData(
-            refundRecipient,
-            bd
-        );
+        SymbiosisFacet.SymbiosisData memory sd =
+            _signedSwapData(refundRecipient, bd);
 
         deal(ADDRESS_WRAPPED_NATIVE, USER_SENDER, amountInMax);
         vm.startPrank(USER_SENDER);
-        IERC20(ADDRESS_WRAPPED_NATIVE).approve(
-            address(symbiosisFacet),
-            amountInMax
-        );
+        IERC20(ADDRESS_WRAPPED_NATIVE)
+            .approve(address(symbiosisFacet), amountInMax);
 
         // onswap executes with exactly the signed amount (BTC bridge event fires),
         // rather than reverting InvalidSignature on the inflated post-swap amount.
         vm.expectEmit(true, true, true, true, address(symbiosisFacet));
         emit BridgeToNonEVMChainBytes32(
-            bd.transactionId,
-            bd.destinationChainId,
-            BTC_RECEIVER
+            bd.transactionId, bd.destinationChainId, BTC_RECEIVER
         );
         vm.expectEmit(true, true, true, true, address(symbiosisFacet));
         emit LiFiTransferStarted(bd);
@@ -1279,9 +1184,7 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
 
     /// @dev WETH -> USDC exact-output source swap into the diamond (leftover WETH
     ///      is refunded by the facet). Kept out of the test body to bound stack depth.
-    function _wethToUsdcExactOut(
-        uint256 targetOut
-    )
+    function _wethToUsdcExactOut(uint256 targetOut)
         internal
         view
         returns (LibSwap.SwapData[] memory swaps, uint256 amountInMax)
@@ -1313,9 +1216,11 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
 
     /// @dev BTC-destination bridgeData for the OnchainSwapV3 swap entrypoint, with
     ///      minAmount pinned to the backend-signed floor.
-    function _btcSwapBridgeData(
-        uint256 signedAmount
-    ) internal view returns (ILiFi.BridgeData memory bd) {
+    function _btcSwapBridgeData(uint256 signedAmount)
+        internal
+        view
+        returns (ILiFi.BridgeData memory bd)
+    {
         bd = ILiFi.BridgeData({
             transactionId: keccak256("exsc-267-swap-surplus"),
             bridge: "symbiosis",
@@ -1345,17 +1250,13 @@ contract SymbiosisFacetOnchainSwapV3ERC20ForkTest is
         sd.deadline = block.timestamp + 1 hours;
 
         bytes32 digest = OnchainSwapV3Signing.digest(
-            bd,
-            sd,
-            address(symbiosisFacet),
-            block.chainid
+            bd, sd, address(symbiosisFacet), block.chainid
         );
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(BACKEND_SIGNER_PK, digest);
         sd.signature = abi.encodePacked(r, s, v);
     }
 
     function _onswapCalldata() internal pure returns (bytes memory) {
-        return
-            hex"bc982fc400000000000000000000000000000000000000000000000000000002540be40000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000236000000000000000000000000000000000000000000000000000000000000023e0000000000000000000000000000000000000000000000000000000000000246000000000000000000000000000000000000000000000000000000000000024e0000000000000000000000000e350879fec09cc2d551289ce559e795746a83dc50000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000020c00000000000000000000000000000000000000000000000000000000000002140000000000000000000000000000000000000000000000000000000000000202490411a32000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b00000000000000000000000009d479e04d2dd46aad77618435e5c639ea76926400000000000000000000000000000000000000000000000000000002540be4000000000000000000000000000000000000000000000000000000000000f2df590000000000000000000000000000000000000000000000000000000000f417ca00000000000000000000000000000000000000000000000000000000000000020000000000000000000000003254ae00947e44b7fd03f50b93b9acfed59f962000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000ac00000000000000000000000000000000000000000000000000000000000000dc000000000000000000000000000000000000000000000000000000000000010c00000000000000000000000000000000000000000000000000000000000001ac00000000000000000000000000000000000000000000000000000000000001be00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000094451a74316000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000100000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000008c000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000002c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000064eb5625d9000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008487517c45000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000004a424856bc300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003070b0e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec700000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000440000000000000000000000000000000000000000000000000000000000000044000000000000000000000000000000000000000000000000000000000000026400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000002449f865422000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000000000010000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000004400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000104e5b07cdb00000000000000000000000040ab23e8f571bf19a85605b9638e50cc25a256ec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b00000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002edac17f958d2ee523a2206206994597c13d831ec70000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000640000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000002449f865422000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec700000000000000000000000000000001000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000004400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000104e5b07cdb00000000000000000000000056534741cd8b152df6d48adf7ac51f75169a83b200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b00000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002edac17f958d2ee523a2206206994597c13d831ec70001f42260fac5e5542a773aa44fbcfedf7c193bc2c59900000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000094451a743160000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000000000000000000000000000000100000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000008c000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000002c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000064eb5625d90000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c599000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008487517c450000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c59900000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000004a424856bc300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003070b0e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000001a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000000000000000000000000000000000000000000640000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c59900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000006000000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000440000000000000000000000000000000000000000000000000000000000000044000000000000000000000000000000000000000000000000000000000000026400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000648a6a1e8500000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad000000000000000000000000922164bbbd36acf9e854acbbf32facc949fcaeef0000000000000000000000000000000000000000000000000000000000f417ca00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001a49f86542200000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000000000001000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000004400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000064d1660f9900000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000009d479e04d2dd46aad77618435e5c639ea769264000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000447ff7b0d20000000000000000000000000000000000000000000000000000000000f417ca00000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e4a0d9557000000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad73796d62696f7369732d61707000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001600144ad6df059d1fe5c78e5893057ebe61f6c4c6c8d7000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000006352a56caadc4f1e25cd6c75970fa768a3304e640000000000000000000000002559441724e04f7855e2b6422979a3a6cbaccb96000000000000000000000000d7c3df25683871d18bc838e4f619126442dd38b30000000000000000000000000000000000000000000000000000000000000003000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002400000000000000000000000000000000000000000000000000000000000000440000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        return hex"bc982fc400000000000000000000000000000000000000000000000000000002540be40000000000000000000000000000000000000000000000000000000000000000e0000000000000000000000000000000000000000000000000000000000000236000000000000000000000000000000000000000000000000000000000000023e0000000000000000000000000000000000000000000000000000000000000246000000000000000000000000000000000000000000000000000000000000024e0000000000000000000000000e350879fec09cc2d551289ce559e795746a83dc50000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000020c00000000000000000000000000000000000000000000000000000000000002140000000000000000000000000000000000000000000000000000000000000202490411a32000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b000000000000000000000000000000000000000000000000000000000000006000000000000000000000000000000000000000000000000000000000000001c0000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b00000000000000000000000009d479e04d2dd46aad77618435e5c639ea76926400000000000000000000000000000000000000000000000000000002540be4000000000000000000000000000000000000000000000000000000000000f2df590000000000000000000000000000000000000000000000000000000000f417ca00000000000000000000000000000000000000000000000000000000000000020000000000000000000000003254ae00947e44b7fd03f50b93b9acfed59f962000000000000000000000000000000000000000000000000000000000000001400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000ac00000000000000000000000000000000000000000000000000000000000000dc000000000000000000000000000000000000000000000000000000000000010c00000000000000000000000000000000000000000000000000000000000001ac00000000000000000000000000000000000000000000000000000000000001be00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000094451a74316000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb480000000000000000000000000000000100000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000008c000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000002c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000064eb5625d9000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008487517c45000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000004a424856bc300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003070b0e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000001a00000000000000000000000000000000000000000000000000000000000000020000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000020000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec700000000000000000000000000000000000000000000000000000000000000070000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000060000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000440000000000000000000000000000000000000000000000000000000000000044000000000000000000000000000000000000000000000000000000000000026400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000002449f865422000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec7000000000000000000000000000000010000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000004400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000104e5b07cdb00000000000000000000000040ab23e8f571bf19a85605b9638e50cc25a256ec00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b00000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002edac17f958d2ee523a2206206994597c13d831ec70000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000640000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000002449f865422000000000000000000000000dac17f958d2ee523a2206206994597c13d831ec700000000000000000000000000000001000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000004400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000104e5b07cdb00000000000000000000000056534741cd8b152df6d48adf7ac51f75169a83b200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b00000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000002edac17f958d2ee523a2206206994597c13d831ec70001f42260fac5e5542a773aa44fbcfedf7c193bc2c59900000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000094451a743160000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000000000000000000000000000000100000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000008c000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000018000000000000000000000000000000000000000000000000000000000000002c000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000064eb5625d90000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c599000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000022d473030f116ddee9f6b43ac78ba3000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000008487517c450000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c59900000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000066a9893cc07d91d95644aedd05d03f95e1dba8af00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000004a424856bc300000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000003c0000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000003070b0e000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000022000000000000000000000000000000000000000000000000000000000000002a000000000000000000000000000000000000000000000000000000000000001a000000000000000000000000000000000000000000000000000000000000000200000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c5990000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000002000000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000000000000000000000000000000000000000000640000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000002260fac5e5542a773aa44fbcfedf7c193bc2c59900000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000006000000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad000000000000000000000000a8f8296f4053fd65e89b245d6c7f983a70234c8b000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000440000000000000000000000000000000000000000000000000000000000000044000000000000000000000000000000000000000000000000000000000000026400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000648a6a1e8500000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad000000000000000000000000922164bbbd36acf9e854acbbf32facc949fcaeef0000000000000000000000000000000000000000000000000000000000f417ca00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001a49f86542200000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000000000001000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000004400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000000000064d1660f9900000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000009d479e04d2dd46aad77618435e5c639ea769264000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000447ff7b0d20000000000000000000000000000000000000000000000000000000000f417ca00000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e4a0d9557000000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad73796d62696f7369732d61707000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001600144ad6df059d1fe5c78e5893057ebe61f6c4c6c8d7000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000030000000000000000000000006352a56caadc4f1e25cd6c75970fa768a3304e640000000000000000000000002559441724e04f7855e2b6422979a3a6cbaccb96000000000000000000000000d7c3df25683871d18bc838e4f619126442dd38b30000000000000000000000000000000000000000000000000000000000000003000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb4800000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000001a8b61e7b03891a736b5df865e0ef9c511850ad00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002400000000000000000000000000000000000000000000000000000000000000440000000000000000000000000000000000000000000000000000000000000003000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     }
 }

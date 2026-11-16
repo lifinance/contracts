@@ -69,7 +69,7 @@ import {
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---
 // Bridge 0.1 USDC from Arbitrum to Base:
@@ -208,7 +208,7 @@ const main = async () => {
   // for deriving the non-EVM receiver bytes32.
   const privateKey = getPrivateKeyForEnvironment(EnvironmentEnum.staging)
   const solanaReceiverBase58 = isSolana
-    ? args.receiver ?? deriveSolanaAddress(privateKey)
+    ? (args.receiver ?? deriveSolanaAddress(privateKey))
     : ''
   const evmReceiver: Address = isSolana
     ? NON_EVM_ADDRESS

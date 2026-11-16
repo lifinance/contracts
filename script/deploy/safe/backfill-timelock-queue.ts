@@ -15,7 +15,7 @@
  *   bunx tsx ./script/deploy/safe/backfill-timelock-queue.ts [--dryRun]
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'

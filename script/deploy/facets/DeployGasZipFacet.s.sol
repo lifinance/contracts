@@ -8,7 +8,7 @@ import { stdJson } from "forge-std/Script.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GasZipFacet") {}
+    constructor() DeployScriptBase("GasZipFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/gaszip.json");
 
         address gasZipRouter = _getConfigContractAddress(
-            path,
-            string.concat(".gasZipRouters.", network)
+            path, string.concat(".gasZipRouters.", network)
         );
 
         return abi.encode(gasZipRouter);

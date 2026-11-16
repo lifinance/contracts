@@ -17,9 +17,9 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
+      "0x1221db5424DC22DF9f426ec38A4F31950f6a5600": {
         "Name": "EcoFacet",
-        "Version": "2.0.0"
+        "Version": "3.0.0"
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
@@ -122,7 +122,7 @@
       "ERC20Proxy": "0x314bE5fcf0A204837896e6028C47A9e1FC2919c7",
       "Executor": "0xC9E66aa9b08EB667e450e072E96F7086AD9f2c91",
       "FeeCollector": "0x271970eE66c03c9D62d8e8c718b9841f2Ea7D817",
-      "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
+      "FeeForwarder": "0xDe2b920506EE931a6A2ABDF566526220214FBbAE",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
       "LidoWrapper": "0x071e340577Ad1123cF72fe098BF0b5E62a7ae07E",
       "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",

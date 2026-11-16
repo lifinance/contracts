@@ -251,8 +251,6 @@ scriptMaster() {
       echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< network $NETWORK done"
     done
 
-    playNotificationSound
-
   #---------------------------------------------------------------------------------------------------------------------
   # use case 3: Deploy all contracts to one selected network (=new network)
   elif [[ "$SELECTION" == "3)"* ]]; then
@@ -269,8 +267,6 @@ scriptMaster() {
 
     # check if last command was executed successfully, otherwise exit script with error message
     checkFailure $? "deploy all contracts to network $NETWORK"
-
-    playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 5: Execute a script
@@ -307,8 +303,6 @@ scriptMaster() {
 
     # execute the emergency script
     eval "diamondEMERGENCYPause" '""' "$ENVIRONMENT"
-
-    playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 7: Add or update contract entries in _targetState.json
@@ -476,7 +470,6 @@ scriptMaster() {
   # use case 8: Verify all unverified contracts
   elif [[ "$SELECTION" == "8)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
-    playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 9: Review deploy status (vs. target state)

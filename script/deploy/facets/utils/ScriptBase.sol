@@ -28,10 +28,10 @@ contract ScriptBase is Script, DSTest {
     /// @param path JSON config file path (e.g. root + "/config/networks.json")
     /// @param key JSON key for the address (e.g. ".tempo.wrappedNativeAddress")
     /// @return contractAddress The address read from config; must have code unless overload with flags is used
-    function _getConfigContractAddress(
-        string memory path,
-        string memory key
-    ) internal returns (address contractAddress) {
+    function _getConfigContractAddress(string memory path, string memory key)
+        internal
+        returns (address contractAddress)
+    {
         return _getConfigContractAddress(path, key, false, false);
     }
 
@@ -70,10 +70,9 @@ contract ScriptBase is Script, DSTest {
         if (allowNonContractAddress) return contractAddress;
 
         // check if address contains code
-        if (!LibAsset.isContract(contractAddress))
-            revert(
-                string.concat(key, " in file ", path, " is not a contract")
-            );
+        if (!LibAsset.isContract(contractAddress)) {
+            revert(string.concat(key, " in file ", path, " is not a contract"));
+        }
 
         return contractAddress;
     }

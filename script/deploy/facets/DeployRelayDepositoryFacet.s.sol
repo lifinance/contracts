@@ -8,7 +8,7 @@ import { RelayDepositoryFacet } from "lifi/Facets/RelayDepositoryFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("RelayDepositoryFacet") {}
+    constructor() DeployScriptBase("RelayDepositoryFacet") { }
 
     function run()
         public
@@ -25,8 +25,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/relay.json");
 
         address relayDepository = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".relayDepository")
+            path, string.concat(".", network, ".relayDepository")
         );
 
         return abi.encode(relayDepository);

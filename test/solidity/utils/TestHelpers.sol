@@ -28,11 +28,7 @@ contract TestHelpers is Test {
         else deal(outputToken, address(mockDex), outputAmount);
 
         // set swap outcome
-        mockDex.setSwapOutput(
-            amountInActual,
-            ERC20(outputToken),
-            outputAmount
-        );
+        mockDex.setSwapOutput(amountInActual, ERC20(outputToken), outputAmount);
     }
 
     function deployFundAndWhitelistMockDEX(
@@ -42,40 +38,37 @@ contract TestHelpers is Test {
         uint256 amountInActual
     ) internal returns (MockUniswapDEX mockDex) {
         // deploy and fund
-        mockDex = deployAndFundMockDEX(
-            outputToken,
-            outputAmount,
-            amountInActual
-        );
+        mockDex =
+            deployAndFundMockDEX(outputToken, outputAmount, amountInActual);
         // whitelist DEX & function selector
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapTokensForExactTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapExactTokensForTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapETHForExactTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapExactETHForTokens.selector
-        );
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapExactTokensForETH.selector
-        );
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.swapTokensForExactETH.selector
-        );
-        TestWhitelistManagerBase(diamond).addAllowedContractSelector(
-            address(mockDex),
-            mockDex.mockSwapWillRevertWithReason.selector
-        );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.swapTokensForExactTokens.selector
+            );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.swapExactTokensForTokens.selector
+            );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.swapETHForExactTokens.selector
+            );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.swapExactETHForTokens.selector
+            );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.swapExactTokensForETH.selector
+            );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.swapTokensForExactETH.selector
+            );
+        TestWhitelistManagerBase(diamond)
+            .addAllowedContractSelector(
+                address(mockDex), mockDex.mockSwapWillRevertWithReason.selector
+            );
     }
 }
 

@@ -85,10 +85,8 @@ export function extractCallParams(positionals: readonly unknown[]): string[] {
 
 export function isValidAddress(address: string): boolean {
   // Validate Tron address (base58 or hex)
-  if (address.startsWith('T') && address.length === 34)
-    return true // Base58 format
-  else if (address.startsWith('0x') && address.length === 42)
-    return true // Hex format
+  if (address.startsWith('T') && address.length === 34) return true // Base58 format
+  else if (address.startsWith('0x') && address.length === 42) return true // Hex format
   else if (address.startsWith('41') && address.length === 42) return true // Hex format without 0x
 
   return false

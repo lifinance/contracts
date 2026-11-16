@@ -8,7 +8,7 @@ import { EcoFacet } from "lifi/Facets/EcoFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("EcoFacet") {}
+    constructor() DeployScriptBase("EcoFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/eco.json");
 
         address portal = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".portal")
+            path, string.concat(".", network, ".portal")
         );
 
         string memory globalPath = string.concat(root, "/config/global.json");
@@ -32,14 +31,12 @@ contract DeployScript is DeployScriptBase {
 
         address backendSigner;
         if (
-            keccak256(abi.encodePacked(fileSuffix)) ==
-            keccak256(abi.encodePacked("staging."))
+            keccak256(abi.encodePacked(fileSuffix))
+                == keccak256(abi.encodePacked("staging."))
         ) {
             backendSigner = globalJson.readAddress(".backendSigner.staging");
         } else {
-            backendSigner = globalJson.readAddress(
-                ".backendSigner.production"
-            );
+            backendSigner = globalJson.readAddress(".backendSigner.production");
         }
 
         return abi.encode(portal, backendSigner);

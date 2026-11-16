@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { AcrossV4SwapFacetSponsoredTestBase } from "./AcrossV4SwapFacet.SponsoredBase.t.sol";
+import {
+    AcrossV4SwapFacetSponsoredTestBase
+} from "./AcrossV4SwapFacet.SponsoredBase.t.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { ISponsoredCCTPSrcPeriphery } from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
+import {
+    ISponsoredCCTPSrcPeriphery
+} from "lifi/Interfaces/ISponsoredCCTPSrcPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 contract AcrossV4SwapFacetSponsoredCctpTest is
@@ -16,10 +20,8 @@ contract AcrossV4SwapFacetSponsoredCctpTest is
         uint256 quotedAmount = 100;
         uint256 swapOutputAmount = quotedAmount + 1;
 
-        LibSwap.SwapData[] memory swapData = _swapDataDaiToTokenOut(
-            quotedAmount,
-            swapOutputAmount
-        );
+        LibSwap.SwapData[] memory swapData =
+            _swapDataDaiToTokenOut(quotedAmount, swapOutputAmount);
 
         ISponsoredCCTPSrcPeriphery.SponsoredCCTPQuote memory quote;
         quote.destinationDomain = 0; // chainId=1
@@ -50,9 +52,8 @@ contract AcrossV4SwapFacetSponsoredCctpTest is
             bridgeData,
             swapData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredCCTPSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredCCTPSrcPeriphery,
                 callData: abi.encode(quote, bytes(""), refundRecipient),
                 signature: ""
             })

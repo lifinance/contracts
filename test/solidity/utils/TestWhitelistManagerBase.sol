@@ -23,9 +23,6 @@ abstract contract TestWhitelistManagerBase {
         address _contractAddress,
         bytes4 _selector
     ) external {
-        LibAllowList.removeAllowedContractSelector(
-            _contractAddress,
-            _selector
-        );
+        LibAllowList.removeAllowedContractSelector(_contractAddress, _selector);
     }
 }

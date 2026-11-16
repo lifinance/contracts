@@ -9,7 +9,7 @@ import { IFraxHopV2 } from "lifi/Interfaces/IFraxHopV2.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("FraxFacet") {}
+    constructor() DeployScriptBase("FraxFacet") { }
 
     function run()
         public
@@ -23,20 +23,16 @@ contract DeployScript is DeployScriptBase {
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/frax.json");
 
-        address hop = _getConfigContractAddress(
-            path,
-            string.concat(".hop.", network)
-        );
+        address hop =
+            _getConfigContractAddress(path, string.concat(".hop.", network));
 
         // Tempo (the only chain with non-zero values) is not a zkSync-stack chain, and frax.json
         // lists only Tempo, so on every network deployed through this script both read address(0).
         address tipFeeManager = _getOptionalConfigContractAddress(
-            path,
-            string.concat(".tipFeeManager.", network)
+            path, string.concat(".tipFeeManager.", network)
         );
         address pathUsd = _getOptionalConfigContractAddress(
-            path,
-            string.concat(".pathUsd.", network)
+            path, string.concat(".pathUsd.", network)
         );
 
         return abi.encode(IFraxHopV2(hop), tipFeeManager, pathUsd);

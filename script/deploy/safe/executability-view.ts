@@ -194,7 +194,7 @@ const renderCall = (call: IExecutabilityCall): string[] => {
   // is a finding, not an absence of one.
   const style =
     call.modelled || call.outcome === 'would-revert'
-      ? OUTCOME_STYLE.get(call.outcome) ?? { glyph: '?', colour: YELLOW }
+      ? (OUTCOME_STYLE.get(call.outcome) ?? { glyph: '?', colour: YELLOW })
       : { glyph: '?', colour: YELLOW }
   const out: string[] = ['']
 
@@ -229,8 +229,8 @@ const renderCall = (call: IExecutabilityCall): string[] => {
     call.simulation === 'succeeded'
       ? GREEN
       : call.simulation === 'reverted'
-      ? RED
-      : YELLOW
+        ? RED
+        : YELLOW
   out.push(
     ...paint(wrap(`${phrase}${detail}`, '    ', '      '), simulationColour)
   )
@@ -286,19 +286,19 @@ export const executabilityPanel = (
     total === 0
       ? `${YELLOW}${BOLD}Simulation: INCONCLUSIVE${RESET} — no call was simulated`
       : verdict.refuses
-      ? `${RED}${BOLD}Simulation: FAILED${RESET} — ${reverting} of ${total} ${noun} would revert`
-      : verdict.error
-      ? // A run can be undecided without any single call being undecided — a
-        // selector nobody looked up leaves the payload it sits in unproven
-        // while its own `eth_call` still answered. "0 of 1 call could not be
-        // decided" then reads as nothing being wrong, beside a word that says
-        // something is.
-        `${YELLOW}${BOLD}Simulation: INCONCLUSIVE${RESET} — ${
-          undecided > 0
-            ? `${undecided} of ${total} ${noun} could not be decided`
-            : 'a question about this proposal went unanswered'
-        }`
-      : `${GREEN}${BOLD}Simulation: SUCCESSFUL${RESET} — ${total} of ${total} ${noun} would execute`
+        ? `${RED}${BOLD}Simulation: FAILED${RESET} — ${reverting} of ${total} ${noun} would revert`
+        : verdict.error
+          ? // A run can be undecided without any single call being undecided — a
+            // selector nobody looked up leaves the payload it sits in unproven
+            // while its own `eth_call` still answered. "0 of 1 call could not be
+            // decided" then reads as nothing being wrong, beside a word that says
+            // something is.
+            `${YELLOW}${BOLD}Simulation: INCONCLUSIVE${RESET} — ${
+              undecided > 0
+                ? `${undecided} of ${total} ${noun} could not be decided`
+                : 'a question about this proposal went unanswered'
+            }`
+          : `${GREEN}${BOLD}Simulation: SUCCESSFUL${RESET} — ${total} of ${total} ${noun} would execute`
 
   const out: string[] = [headline]
 

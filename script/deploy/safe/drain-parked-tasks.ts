@@ -17,7 +17,7 @@
  * opener touches out-of-process state.
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { consola } from 'consola'
 import { type WithId } from 'mongodb'

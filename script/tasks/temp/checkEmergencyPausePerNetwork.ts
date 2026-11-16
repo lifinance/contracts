@@ -29,7 +29,7 @@ import {
   type Address,
 } from 'viem'
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import globalConfig from '../../../config/global.json'
 import networksConfig from '../../../config/networks.json'
@@ -472,8 +472,8 @@ function printTable(results: IEmergencyPauseStatus[]): void {
         r.pauserWalletMatches === true
           ? ' ✓'
           : r.pauserWalletMatches === false
-          ? ' ✗ MISMATCH'
-          : ''
+            ? ' ✗ MISMATCH'
+            : ''
       pauserStr = `${r.pauserWalletOnChain}${marker}`.padEnd(pauserWidth)
     } else pauserStr = '—'.padEnd(pauserWidth)
 

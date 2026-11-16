@@ -24,14 +24,11 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/debridgedln.json");
         json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");
-        ChainIdConfig[] memory cidCfg = abi.decode(
-            rawChains,
-            (ChainIdConfig[])
-        );
+        ChainIdConfig[] memory cidCfg =
+            abi.decode(rawChains, (ChainIdConfig[]));
 
         bytes memory callData = abi.encodeWithSelector(
-            DeBridgeDlnFacet.initDeBridgeDln.selector,
-            cidCfg
+            DeBridgeDlnFacet.initDeBridgeDln.selector, cidCfg
         );
 
         return callData;

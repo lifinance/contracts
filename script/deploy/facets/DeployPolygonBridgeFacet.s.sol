@@ -8,7 +8,7 @@ import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("PolygonBridgeFacet") {}
+    constructor() DeployScriptBase("PolygonBridgeFacet") { }
 
     function run()
         public
@@ -25,12 +25,10 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/polygon.json");
 
         address rootChainManager = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".rootChainManager")
+            path, string.concat(".", network, ".rootChainManager")
         );
         address erc20Predicate = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".erc20Predicate")
+            path, string.concat(".", network, ".erc20Predicate")
         );
 
         return abi.encode(rootChainManager, erc20Predicate);

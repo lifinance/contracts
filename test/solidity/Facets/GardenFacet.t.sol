@@ -5,11 +5,13 @@ import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { ILiFi } from "src/Interfaces/ILiFi.sol";
 import { GardenFacet } from "src/Facets/GardenFacet.sol";
 import { InvalidConfig, InvalidReceiver } from "src/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub GardenFacet Contract
 contract TestGardenFacet is GardenFacet, TestWhitelistManagerBase {
-    constructor(address _htlcRegistry) GardenFacet(_htlcRegistry) {}
+    constructor(address _htlcRegistry) GardenFacet(_htlcRegistry) { }
 }
 
 contract GardenFacetTest is TestBaseFacet {
@@ -41,9 +43,8 @@ contract GardenFacetTest is TestBaseFacet {
         gardenFacet = new TestGardenFacet(HTLC_REGISTRY);
         bytes4[] memory functionSelectors = new bytes4[](3);
         functionSelectors[0] = gardenFacet.startBridgeTokensViaGarden.selector;
-        functionSelectors[1] = gardenFacet
-            .swapAndStartBridgeTokensViaGarden
-            .selector;
+        functionSelectors[1] =
+        gardenFacet.swapAndStartBridgeTokensViaGarden.selector;
         functionSelectors[2] = gardenFacet.addAllowedContractSelector.selector;
 
         addFacet(diamond, address(gardenFacet), functionSelectors);
@@ -51,16 +52,13 @@ contract GardenFacetTest is TestBaseFacet {
         gardenFacet = TestGardenFacet(address(diamond));
 
         gardenFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         gardenFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         gardenFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
         setFacetAddressInTestBase(address(gardenFacet), "GardenFacet");
 
@@ -84,27 +82,27 @@ contract GardenFacetTest is TestBaseFacet {
         if (isNative) {
             gardenFacet.startBridgeTokensViaGarden{
                 value: bridgeData.minAmount
-            }(bridgeData, validGardenData);
-        } else {
-            gardenFacet.startBridgeTokensViaGarden(
-                bridgeData,
-                validGardenData
+            }(
+                bridgeData, validGardenData
             );
+        } else {
+            gardenFacet.startBridgeTokensViaGarden(bridgeData, validGardenData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             gardenFacet.swapAndStartBridgeTokensViaGarden{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData, validGardenData);
+            }(
+                bridgeData, swapData, validGardenData
+            );
         } else {
             gardenFacet.swapAndStartBridgeTokensViaGarden(
-                bridgeData,
-                swapData,
-                validGardenData
+                bridgeData, swapData, validGardenData
             );
         }
     }
@@ -119,14 +117,13 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_InvalidGardenDataZeroRedeemer() public {
         // Setup invalid garden data with zero redeemer
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: address(0),
-                refundAddress: USER_SENDER,
-                timelock: 1000, // Number of blocks for refund
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidGardenData = GardenFacet.GardenData({
+            redeemer: address(0),
+            refundAddress: USER_SENDER,
+            timelock: 1000, // Number of blocks for refund
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();
@@ -146,14 +143,13 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_InvalidGardenDataZeroTimelock() public {
         // Setup invalid garden data with zero timelock
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 0, // Zero timelock (invalid)
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 0, // Zero timelock (invalid)
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();
@@ -173,14 +169,13 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_InvalidGardenDataZeroSecretHash() public {
         // Setup invalid garden data with zero secret hash
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 1000, // Number of blocks for refund
-                secretHash: bytes32(0), // Zero secret hash
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 1000, // Number of blocks for refund
+            secretHash: bytes32(0), // Zero secret hash
+            nonEvmReceiver: bytes32(0)
+        });
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();
@@ -221,14 +216,13 @@ contract GardenFacetTest is TestBaseFacet {
         bridgeData.hasSourceSwaps = true;
 
         // Setup invalid garden data with zero redeemer
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: address(0),
-                refundAddress: USER_SENDER,
-                timelock: 1000, // Number of blocks for refund
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidGardenData = GardenFacet.GardenData({
+            redeemer: address(0),
+            refundAddress: USER_SENDER,
+            timelock: 1000, // Number of blocks for refund
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         vm.startPrank(USER_SENDER);
 
@@ -238,9 +232,7 @@ contract GardenFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidGardenData.selector);
 
         gardenFacet.swapAndStartBridgeTokensViaGarden(
-            bridgeData,
-            swapData,
-            invalidGardenData
+            bridgeData, swapData, invalidGardenData
         );
 
         vm.stopPrank();
@@ -254,14 +246,13 @@ contract GardenFacetTest is TestBaseFacet {
         bridgeData.hasSourceSwaps = true;
 
         // Setup invalid garden data with zero timelock
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 0, // Zero timelock (invalid)
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 0, // Zero timelock (invalid)
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         vm.startPrank(USER_SENDER);
 
@@ -271,9 +262,7 @@ contract GardenFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidGardenData.selector);
 
         gardenFacet.swapAndStartBridgeTokensViaGarden(
-            bridgeData,
-            swapData,
-            invalidGardenData
+            bridgeData, swapData, invalidGardenData
         );
 
         vm.stopPrank();
@@ -287,14 +276,13 @@ contract GardenFacetTest is TestBaseFacet {
         bridgeData.hasSourceSwaps = true;
 
         // Setup invalid garden data with zero secret hash
-        GardenFacet.GardenData memory invalidGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 1000, // Number of blocks for refund
-                secretHash: bytes32(0), // Zero secret hash
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 1000, // Number of blocks for refund
+            secretHash: bytes32(0), // Zero secret hash
+            nonEvmReceiver: bytes32(0)
+        });
 
         vm.startPrank(USER_SENDER);
 
@@ -304,9 +292,7 @@ contract GardenFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidGardenData.selector);
 
         gardenFacet.swapAndStartBridgeTokensViaGarden(
-            bridgeData,
-            swapData,
-            invalidGardenData
+            bridgeData, swapData, invalidGardenData
         );
 
         vm.stopPrank();
@@ -315,14 +301,13 @@ contract GardenFacetTest is TestBaseFacet {
     // Positive edge case: Valid data with minimum timelock (1 block)
     function test_ValidDataWithMinimumTimelock() public {
         // Setup valid garden data with minimum timelock for immediate withdrawal
-        GardenFacet.GardenData memory minTimelockData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 1, // Minimum valid timelock (1 block)
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory minTimelockData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 1, // Minimum valid timelock (1 block)
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();
@@ -344,8 +329,8 @@ contract GardenFacetTest is TestBaseFacet {
     // Positive edge case: Valid data with larger timelock
     function test_ValidDataWithLargerTimelock() public {
         // Setup valid garden data with larger timelock
-        GardenFacet.GardenData memory largerTimelockData = GardenFacet
-            .GardenData({
+        GardenFacet.GardenData memory largerTimelockData =
+            GardenFacet.GardenData({
                 redeemer: 0x1234567890123456789012345678901234567890,
                 refundAddress: USER_SENDER,
                 timelock: 10000, // Larger timelock value
@@ -398,14 +383,13 @@ contract GardenFacetTest is TestBaseFacet {
 
     function testRevert_InvalidRefundAddress() public {
         // Setup garden data with zero refund address
-        GardenFacet.GardenData memory invalidRefundData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: address(0), // Invalid refund address
-                timelock: 1000,
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidRefundData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: address(0), // Invalid refund address
+            timelock: 1000,
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();
@@ -430,14 +414,13 @@ contract GardenFacetTest is TestBaseFacet {
         bridgeData.hasSourceSwaps = true;
 
         // Setup garden data with zero refund address
-        GardenFacet.GardenData memory invalidRefundData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: address(0), // Invalid refund address
-                timelock: 1000,
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory invalidRefundData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: address(0), // Invalid refund address
+            timelock: 1000,
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         vm.startPrank(USER_SENDER);
 
@@ -447,9 +430,7 @@ contract GardenFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidReceiver.selector);
 
         gardenFacet.swapAndStartBridgeTokensViaGarden(
-            bridgeData,
-            swapData,
-            invalidRefundData
+            bridgeData, swapData, invalidRefundData
         );
 
         vm.stopPrank();
@@ -466,9 +447,8 @@ contract GardenFacetTest is TestBaseFacet {
         // - bridgeData.receiver is set to a Gnosis Safe address that exists on destination
         // - This Safe has different owners on source vs destination chains
         // - With the fix, refundAddress determines who can refund, not receiver
-        address gnosisSafeWallet = address(
-            0x5Ae1216887b0dAd5a82451EFC5a6EC0A91473cA8
-        );
+        address gnosisSafeWallet =
+            address(0x5Ae1216887b0dAd5a82451EFC5a6EC0A91473cA8);
 
         // Set up bridge data with the Safe address as receiver (destination chain)
         bridgeData.receiver = gnosisSafeWallet;
@@ -478,14 +458,13 @@ contract GardenFacetTest is TestBaseFacet {
 
         // Create garden data with USER_SENDER as the refund address
         // This ensures only USER_SENDER can claim refunds, not the Safe address
-        GardenFacet.GardenData memory secureGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER, // USER_SENDER controls refunds, not the Safe
-                timelock: 1000,
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory secureGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER, // USER_SENDER controls refunds, not the Safe
+            timelock: 1000,
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         // User approves and initiates bridge
         vm.startPrank(USER_SENDER);
@@ -533,18 +512,16 @@ contract GardenFacetTest is TestBaseFacet {
     function test_RefundAddressCanBeDifferentFromSender() public {
         // Test that refund address can be set to a different address than msg.sender
         // This is useful for contract wallets or when user wants a different refund recipient
-        address alternativeRefundAddress = address(
-            0xabCDEF1234567890ABcDEF1234567890aBCDeF12
-        );
+        address alternativeRefundAddress =
+            address(0xabCDEF1234567890ABcDEF1234567890aBCDeF12);
 
-        GardenFacet.GardenData memory customRefundData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: alternativeRefundAddress, // Different from msg.sender
-                timelock: 1000,
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: bytes32(0)
-            });
+        GardenFacet.GardenData memory customRefundData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: alternativeRefundAddress, // Different from msg.sender
+            timelock: 1000,
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: bytes32(0)
+        });
 
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();
@@ -569,14 +546,13 @@ contract GardenFacetTest is TestBaseFacet {
             )
         );
 
-        GardenFacet.GardenData memory nonEvmGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 1000,
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: btcReceiver
-            });
+        GardenFacet.GardenData memory nonEvmGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 1000,
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: btcReceiver
+        });
 
         bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
         bridgeData.destinationChainId = 20000000000001;
@@ -609,14 +585,13 @@ contract GardenFacetTest is TestBaseFacet {
             )
         );
 
-        GardenFacet.GardenData memory nonEvmGardenData = GardenFacet
-            .GardenData({
-                redeemer: 0x1234567890123456789012345678901234567890,
-                refundAddress: USER_SENDER,
-                timelock: 1000,
-                secretHash: keccak256(abi.encodePacked("test_secret")),
-                nonEvmReceiver: btcReceiver
-            });
+        GardenFacet.GardenData memory nonEvmGardenData = GardenFacet.GardenData({
+            redeemer: 0x1234567890123456789012345678901234567890,
+            refundAddress: USER_SENDER,
+            timelock: 1000,
+            secretHash: keccak256(abi.encodePacked("test_secret")),
+            nonEvmReceiver: btcReceiver
+        });
 
         setDefaultSwapDataSingleDAItoUSDC();
         bridgeData.receiver = 0x11f111f111f111F111f111f111F111f111f111F1;
@@ -640,9 +615,7 @@ contract GardenFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(bridgeData);
 
         gardenFacet.swapAndStartBridgeTokensViaGarden(
-            bridgeData,
-            swapData,
-            nonEvmGardenData
+            bridgeData, swapData, nonEvmGardenData
         );
 
         vm.stopPrank();
@@ -657,9 +630,8 @@ contract GardenFacetTest is TestBaseFacet {
             nonEvmReceiver: bytes32(0)
         });
 
-        bridgeData.receiver = address(
-            0x5555555555555555555555555555555555555555
-        );
+        bridgeData.receiver =
+            address(0x5555555555555555555555555555555555555555);
         bridgeData.destinationChainId = DSTCHAIN_ID;
         bridgeData.sendingAssetId = ADDRESS_USDC;
         bridgeData.minAmount = 100 * 10 ** usdc.decimals();

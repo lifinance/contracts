@@ -2,10 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
-import { LiFiIntentEscrowFacetV2 } from "lifi/Facets/LiFiIntentEscrowFacetV2.sol";
+import {
+    LiFiIntentEscrowFacetV2
+} from "lifi/Facets/LiFiIntentEscrowFacetV2.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("LiFiIntentEscrowFacetV2") {}
+    constructor() DeployScriptBase("LiFiIntentEscrowFacetV2") { }
 
     function run()
         public
@@ -22,10 +24,8 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(
-            root,
-            "/config/lifiintentescrow.json"
-        );
+        string memory path =
+            string.concat(root, "/config/lifiintentescrow.json");
 
         // allowNonContractAddress: true — lifiEscrowInputSettler is a reserved, deterministically
         // deployed vanity address, identical on every EVM chain (Tron cannot reproduce it and

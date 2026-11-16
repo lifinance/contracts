@@ -4,7 +4,7 @@ import { consola } from 'consola'
 
 import { SlackNotifier } from './slack-notifier'
 
-import 'dotenv/config'
+import './loadEnv'
 
 interface IArgs {
   channel: string

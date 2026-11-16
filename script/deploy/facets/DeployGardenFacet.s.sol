@@ -8,7 +8,7 @@ import { GardenFacet } from "lifi/Facets/GardenFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GardenFacet") {}
+    constructor() DeployScriptBase("GardenFacet") { }
 
     function run()
         public
@@ -28,8 +28,7 @@ contract DeployScript is DeployScriptBase {
 
         // Read the htlcRegistry address from config
         address htlcRegistry = _getConfigContractAddress(
-            path,
-            string.concat(".htlcRegistry.", network)
+            path, string.concat(".htlcRegistry.", network)
         );
 
         return abi.encode(htlcRegistry);

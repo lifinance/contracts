@@ -13,13 +13,15 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
+  afterAll,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
+import { freshChildEnv, sandboxCheckout } from './spawn-env'
+
 const TIMEOUT_MS = 30_000
 
 /**
@@ -57,6 +59,16 @@ const echoingBunxStub = (ticket: string): string => {
   return dir
 }
 
+// `helperFunctions.sh` sources `.env` from its cwd, so running from the repo
+// root would let a developer's own settings (e.g. direct-send mode) decide the
+// cases below.
+const SANDBOX_ROOT = sandboxCheckout([], ['script', 'config'])
+
+afterAll(() => {
+  // Symlinked entries are removed as links, never followed into the checkout.
+  rmSync(SANDBOX_ROOT, { recursive: true, force: true })
+})
+
 /**
  * Runs the real helper and reports what the caller would see.
  *
@@ -79,17 +91,7 @@ const callHelper = (
   reasonMirror: string
   output: string
 } => {
-  const env: Record<string, string> = {
-    ...(process.env as Record<string, string>),
-    // The post-clobber state a worker starts from, and the state a fresh run
-    // starts from: set empty either way so neither decides a case by accident.
-    SAFE_PROPOSAL_TICKET: '',
-    RESOLVED_SAFE_PROPOSAL_TICKET: '',
-    SAFE_PROPOSAL_REASON: '',
-    RESOLVED_SAFE_PROPOSAL_REASON: '',
-    ...(options.env ?? {}),
-  }
-  delete env.NODE_ENV
+  const env = freshChildEnv(options.env)
   let stub: string | undefined
   if (options.stubEchoesReasonFor !== undefined)
     stub = echoingBunxStub(options.stubEchoesReasonFor)
@@ -109,7 +111,7 @@ const callHelper = (
        echo "REASON_MIRROR=[$RESOLVED_SAFE_PROPOSAL_REASON]"`,
     ],
     {
-      cwd: REPO_ROOT,
+      cwd: SANDBOX_ROOT,
       env,
       timeout: TIMEOUT_MS,
       stdin: 'ignore',
@@ -188,6 +190,24 @@ describe('what the helper does once a ticket has been resolved', () => {
 
     expect(result.rc).toBe(0)
     expect(result.ticket).toBe(URL)
+  })
+
+  it("takes the caller's fresh export over a mirror an earlier rollout left", () => {
+    // A shell that ran an earlier rollout still holds its mirror, and the env
+    // file then blanks the fresh export, so a capture that kept the mirror
+    // handed this run the earlier rollout's ticket. The stub echoes what it
+    // was handed, so only the ticket that reached the resolver can pass.
+    const fresh = 'https://linear.app/lifi-linear/issue/EXSC-9999'
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: '$SAFE_PROPOSAL_TICKET',
+      env: {
+        SAFE_PROPOSAL_TICKET: fresh,
+        RESOLVED_SAFE_PROPOSAL_TICKET: URL,
+      },
+    })
+
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(fresh)
   })
 
   it('does not trust an inherited mirror, it re-resolves it', () => {

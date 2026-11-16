@@ -32,6 +32,8 @@ export interface INetworkReport {
   status: TNetworkStatus
   /** Why a network is skipped, unreadable or uncovered, or what limits it. */
   reason?: string
+  /** Set when the watcher threw on this network rather than timing out. */
+  crashed?: true
   timelock?: string
   verdict: TWatcherVerdict
   scan?: {
@@ -213,8 +215,8 @@ export const renderSlackPosts = (
             a.kind !== 'changed'
               ? ''
               : a.previous === a.finding.verdict
-              ? ' (reasons changed)'
-              : ` (was ${a.previous ?? 'unknown'})`
+                ? ' (reasons changed)'
+                : ` (was ${a.previous ?? 'unknown'})`
           }`
     const reason = a.finding.reasons[0] ? ` — ${a.finding.reasons[0]}` : ''
     const marker = a.kind === 'resolved' ? '✅' : '•'

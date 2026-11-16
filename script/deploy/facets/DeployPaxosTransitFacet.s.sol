@@ -8,7 +8,7 @@ import { PaxosTransitFacet } from "lifi/Facets/PaxosTransitFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("PaxosTransitFacet") {}
+    constructor() DeployScriptBase("PaxosTransitFacet") { }
 
     function run()
         public
@@ -16,17 +16,15 @@ contract DeployScript is DeployScriptBase {
     {
         constructorArgs = getConstructorArgs();
 
-        deployed = PaxosTransitFacet(
-            deploy(type(PaxosTransitFacet).creationCode)
-        );
+        deployed =
+            PaxosTransitFacet(deploy(type(PaxosTransitFacet).creationCode));
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(root, "/config/paxosTransit.json");
 
         address transitStation = _getConfigContractAddress(
-            path,
-            string.concat(".transitStation.", network)
+            path, string.concat(".transitStation.", network)
         );
 
         return abi.encode(transitStation);

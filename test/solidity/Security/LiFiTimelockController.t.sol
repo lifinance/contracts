@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { LiFiTimelockController } from "lifi/Security/LiFiTimelockController.sol";
+import {
+    LiFiTimelockController
+} from "lifi/Security/LiFiTimelockController.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { InvalidConfig } from "lifi/Errors/GenericErrors.sol";
 
@@ -33,14 +35,10 @@ contract LiFiTimelockControllerTest is Test {
 
     // Events
     event RoleGranted(
-        bytes32 indexed role,
-        address indexed account,
-        address indexed sender
+        bytes32 indexed role, address indexed account, address indexed sender
     );
     event RoleRevoked(
-        bytes32 indexed role,
-        address indexed account,
-        address indexed sender
+        bytes32 indexed role, address indexed account, address indexed sender
     );
     event DiamondAddressUpdated(address indexed diamond);
 
@@ -154,12 +152,7 @@ contract LiFiTimelockControllerTest is Test {
         vm.expectRevert(InvalidConfig.selector);
         // Then deploy timelock with correct mockDiamond address
         timelock = new LiFiTimelockController(
-            MIN_DELAY,
-            proposers,
-            executors,
-            deployerWallet,
-            admin,
-            address(0)
+            MIN_DELAY, proposers, executors, deployerWallet, admin, address(0)
         );
     }
 
@@ -283,18 +276,11 @@ contract LiFiTimelockControllerTest is Test {
 
         vm.startPrank(proposer);
 
-        bytes memory data = abi.encodeWithSelector(
-            timelock.updateDelay.selector,
-            2 days
-        );
+        bytes memory data =
+            abi.encodeWithSelector(timelock.updateDelay.selector, 2 days);
 
         timelock.schedule(
-            address(timelock),
-            0,
-            data,
-            bytes32(0),
-            bytes32(0),
-            MIN_DELAY
+            address(timelock), 0, data, bytes32(0), bytes32(0), MIN_DELAY
         );
 
         vm.stopPrank();
@@ -317,5 +303,5 @@ contract LiFiTimelockControllerTest is Test {
         vm.stopPrank();
     }
 
-    receive() external payable {}
+    receive() external payable { }
 }

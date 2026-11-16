@@ -880,6 +880,25 @@ describe('summarizeProposalDoc', () => {
     expect(summary.nonce).toBe(7)
   })
 
+  it('shows a non-Date timestamp as the stored value', () => {
+    const iso = '2026-06-12T11:00:00.000Z'
+    expect(
+      summarizeProposalDoc(
+        buildSummaryDoc({ timestamp: Date.parse(iso) as unknown as Date })
+      ).timestamp
+    ).toBe(iso)
+    expect(
+      summarizeProposalDoc(
+        buildSummaryDoc({ timestamp: { $date: iso } as unknown as Date })
+      ).timestamp
+    ).toBe(`{"$date":"${iso}"}`)
+    expect(
+      summarizeProposalDoc(
+        buildSummaryDoc({ timestamp: null as unknown as Date })
+      ).timestamp
+    ).toBe('')
+  })
+
   it('defaults missing nested fields without throwing', () => {
     const doc = buildSummaryDoc({ timestamp: undefined as unknown as Date })
     ;(doc as unknown as Record<string, unknown>).safeTx = {}

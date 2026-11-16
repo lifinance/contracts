@@ -138,7 +138,7 @@ main() {
     if ! [ -t 1 ]; then
       echo "Safe Mongo tunnel (localhost:${port}) is down and this is a non-interactive shell." >&2
       echo "Opening a prod tunnel is a human-only step — start it yourself:" >&2
-      echo "  lifi-connect prod smart-contracts   (see docs/Setup.md)" >&2
+      echo "  bun run safe:tunnel   (see docs/Setup.md)" >&2
       exit 1
     fi
     echo "Safe Mongo tunnel (localhost:${port}) is down — starting lifi-connect prod smart-contracts…"

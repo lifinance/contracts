@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { InsufficientBalance, NativeAssetTransferFailed } from "lifi/Errors/GenericErrors.sol";
+import {
+    InsufficientBalance,
+    NativeAssetTransferFailed
+} from "lifi/Errors/GenericErrors.sol";
 import { ERC20, SafeTransferLib } from "solmate/utils/SafeTransferLib.sol";
 
 // this contract is used for testing purposes and mocks the behaviour of a Uniswap-like DEX but
@@ -23,8 +26,9 @@ contract MockUniswapDEX {
         uint256 balance = address(_outputToken) == address(0)
             ? address(this).balance
             : _outputToken.balanceOf(address(this));
-        if (balance < _outputAmount)
+        if (balance < _outputAmount) {
             revert InsufficientBalance(_outputAmount, balance);
+        }
 
         // store token and amounts
         inputAmount = _inputAmount;
@@ -47,50 +51,45 @@ contract MockUniswapDEX {
         bool isNativeInput = path[0] == address(0);
 
         // pull input token
-        uint256 amountToPull = inputAmount == 0
-            ? amountInIfNotPreset
-            : inputAmount;
+        uint256 amountToPull =
+            inputAmount == 0 ? amountInIfNotPreset : inputAmount;
         if (isNativeInput) {
             // Pull NATIVE
             if (
-                inputAmount > 0 && inputAmount != msg.value
-            ) // for native we will just refund some of the msg.value in case inputAmount is set
-            {
+                inputAmount > 0 && inputAmount != msg.value // for native we will just refund some of the msg.value in case inputAmount is set
+            ) {
                 // calculate diff
                 uint256 unusedNativeAsset = msg.value - inputAmount;
 
                 // send unused tokens back to msg.sender           // solhint-disable-next-line avoid-low-level-calls
-                (bool success, ) = msg.sender.call{ value: unusedNativeAsset }(
-                    ""
-                );
+                (bool success,) =
+                    msg.sender.call{ value: unusedNativeAsset }("");
                 if (!success) revert NativeAssetTransferFailed();
             }
         }
         // Pull ERC20
-        else
-            ERC20(path[0]).safeTransferFrom(
-                msg.sender,
-                address(this),
-                amountToPull
-            );
+        else {
+            ERC20(path[0])
+                .safeTransferFrom(msg.sender, address(this), amountToPull);
+        }
 
         // make sure that the contract is sufficiently funded
         bool isNativeOutput = address(outputToken) == address(0);
 
-        uint256 amountToReturn = outputAmount == 0
-            ? amountOutIfNotPreset
-            : outputAmount;
+        uint256 amountToReturn =
+            outputAmount == 0 ? amountOutIfNotPreset : outputAmount;
         uint256 balance = isNativeOutput
             ? address(this).balance
             : ERC20(path[1]).balanceOf(address(this));
-        if (balance < outputAmount)
+        if (balance < outputAmount) {
             revert InsufficientBalance(outputAmount, balance);
+        }
 
         // return preset output token and amount
         if (isNativeOutput) {
             // NATIVE
             // solhint-disable-next-line avoid-low-level-calls
-            (bool success, ) = to.call{ value: amountToReturn }("");
+            (bool success,) = to.call{ value: amountToReturn }("");
             if (!success) revert NativeAssetTransferFailed();
         } else {
             //ERC20
@@ -99,9 +98,10 @@ contract MockUniswapDEX {
     }
 
     // d'oh :)
-    function mockSwapWillRevertWithReason(
-        string calldata reason
-    ) external payable {
+    function mockSwapWillRevertWithReason(string calldata reason)
+        external
+        payable
+    {
         revert(reason);
     }
 
@@ -182,10 +182,7 @@ contract MockUniswapDEX {
 
         // execute the swap
         mockSwapWithPresetInputAndOutput(
-            amountInMax,
-            amountOut,
-            adjustedPath,
-            to
+            amountInMax, amountOut, adjustedPath, to
         );
     }
 }

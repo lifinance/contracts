@@ -5,7 +5,7 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("DiamondCutFacet") {}
+    constructor() DeployScriptBase("DiamondCutFacet") { }
 
     function run() public returns (DiamondCutFacet deployed) {
         deployed = DiamondCutFacet(deploy(type(DiamondCutFacet).creationCode));

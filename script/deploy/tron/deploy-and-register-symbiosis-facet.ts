@@ -301,8 +301,8 @@ async function deployAndRegisterSymbiosisFacet(options: { dryRun?: boolean }) {
       dryRun
         ? '\nDry run completed successfully! (no Safe tx created)'
         : deferCut
-        ? '\nDeployment completed successfully! (diamondCut proposal deferred)'
-        : '\nDeployment and proposal completed successfully!'
+          ? '\nDeployment completed successfully! (diamondCut proposal deferred)'
+          : '\nDeployment and proposal completed successfully!'
     )
   } catch (error: any) {
     consola.error('Deployment failed:', error.message)

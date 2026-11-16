@@ -152,8 +152,8 @@ export function resolveBroadcastCall(
     sameArity.length === 1
       ? sameArity[0]
       : asTyped.length === 1
-      ? asTyped[0]
-      : undefined
+        ? asTyped[0]
+        : undefined
 
   if (chosen === undefined)
     throw new Error(

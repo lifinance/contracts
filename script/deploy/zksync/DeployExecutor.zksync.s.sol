@@ -8,7 +8,7 @@ import { Executor } from "lifi/Periphery/Executor.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("Executor") {}
+    constructor() DeployScriptBase("Executor") { }
 
     function run()
         public
@@ -21,29 +21,21 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
 
         address erc20Proxy = _getConfigContractAddress(path, ".ERC20Proxy");
 
         // get path of global config file
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         // read file into json variable
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
         // extract withdrawWallet address
-        address withdrawWalletAddress = globalConfigJson.readAddress(
-            ".withdrawWallet"
-        );
+        address withdrawWalletAddress =
+            globalConfigJson.readAddress(".withdrawWallet");
 
         return abi.encode(erc20Proxy, withdrawWalletAddress);
     }

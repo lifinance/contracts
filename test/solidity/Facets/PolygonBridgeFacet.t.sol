@@ -4,17 +4,18 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { PolygonBridgeFacet } from "lifi/Facets/PolygonBridgeFacet.sol";
 import { IRootChainManager } from "lifi/Interfaces/IRootChainManager.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub PolygonBridgeFacet Contract
 contract TestPolygonBridgeFacet is
     PolygonBridgeFacet,
     TestWhitelistManagerBase
 {
-    constructor(
-        IRootChainManager _rootChainManager,
-        address _erc20Predicate
-    ) PolygonBridgeFacet(_rootChainManager, _erc20Predicate) {}
+    constructor(IRootChainManager _rootChainManager, address _erc20Predicate)
+        PolygonBridgeFacet(_rootChainManager, _erc20Predicate)
+    { }
 }
 
 contract PolygonBridgeFacetTest is TestBaseFacet {
@@ -32,40 +33,32 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         initTestBase();
 
         polygonBridgeFacet = new TestPolygonBridgeFacet(
-            IRootChainManager(ROOT_CHAIN_MANAGER),
-            ERC20_PREDICATE
+            IRootChainManager(ROOT_CHAIN_MANAGER), ERC20_PREDICATE
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = polygonBridgeFacet
-            .startBridgeTokensViaPolygonBridge
-            .selector;
-        functionSelectors[1] = polygonBridgeFacet
-            .swapAndStartBridgeTokensViaPolygonBridge
-            .selector;
-        functionSelectors[2] = polygonBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = polygonBridgeFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        polygonBridgeFacet.startBridgeTokensViaPolygonBridge.selector;
+        functionSelectors[1] =
+        polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge.selector;
+        functionSelectors[2] =
+        polygonBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        polygonBridgeFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(polygonBridgeFacet), functionSelectors);
 
         polygonBridgeFacet = TestPolygonBridgeFacet(address(diamond));
 
         polygonBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         polygonBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
 
         setFacetAddressInTestBase(
-            address(polygonBridgeFacet),
-            "PolygonBridgeFacet"
+            address(polygonBridgeFacet), "PolygonBridgeFacet"
         );
 
         bridgeData.bridge = "polygon";
@@ -75,23 +68,27 @@ contract PolygonBridgeFacetTest is TestBaseFacet {
         if (isNative) {
             polygonBridgeFacet.startBridgeTokensViaPolygonBridge{
                 value: bridgeData.minAmount
-            }(bridgeData);
+            }(
+                bridgeData
+            );
         } else {
             polygonBridgeFacet.startBridgeTokensViaPolygonBridge(bridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData);
+            }(
+                bridgeData, swapData
+            );
         } else {
             polygonBridgeFacet.swapAndStartBridgeTokensViaPolygonBridge(
-                bridgeData,
-                swapData
+                bridgeData, swapData
             );
         }
     }

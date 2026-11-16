@@ -8,7 +8,7 @@ import { stdJson } from "forge-std/Script.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("Permit2Proxy") {}
+    constructor() DeployScriptBase("Permit2Proxy") { }
 
     function run()
         public
@@ -22,12 +22,7 @@ contract DeployScript is DeployScriptBase {
     function getConstructorArgs() internal override returns (bytes memory) {
         // get the address of the LiFiDiamond for the given network
         string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
 
         address diamond = _getConfigContractAddress(path, ".LiFiDiamond");
@@ -35,22 +30,17 @@ contract DeployScript is DeployScriptBase {
         // get the Permit2 contract address for the given network
         path = string.concat(root, "/config/permit2Proxy.json");
 
-        address permit2Address = _getConfigContractAddress(
-            path,
-            string.concat(".", network)
-        );
+        address permit2Address =
+            _getConfigContractAddress(path, string.concat(".", network));
 
         // refundWallet becomes contract owner for potential fund withdrawals
-        string memory globalConfigPath = string.concat(
-            root,
-            "/config/global.json"
-        );
+        string memory globalConfigPath =
+            string.concat(root, "/config/global.json");
 
         string memory globalConfigJson = vm.readFile(globalConfigPath);
 
-        address refundWalletAddress = globalConfigJson.readAddress(
-            ".refundWallet"
-        );
+        address refundWalletAddress =
+            globalConfigJson.readAddress(".refundWallet");
 
         return abi.encode(diamond, permit2Address, refundWalletAddress);
     }

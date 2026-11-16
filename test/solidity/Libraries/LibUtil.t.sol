@@ -6,18 +6,16 @@ import { LibUtil } from "lifi/Libraries/LibUtil.sol";
 
 contract MainContract {
     function topLevelFunction1(address callTo) public {
-        (bool success, bytes memory data) = callTo.call(
-            abi.encodeWithSignature("callMe()")
-        );
+        (bool success, bytes memory data) =
+            callTo.call(abi.encodeWithSignature("callMe()"));
         if (!success) {
             LibUtil.revertWith(data);
         }
     }
 
     function topLevelFunction2(address callTo) public {
-        (bool success, bytes memory data) = callTo.call(
-            abi.encodeWithSignature("callMeAlso()")
-        );
+        (bool success, bytes memory data) =
+            callTo.call(abi.encodeWithSignature("callMeAlso()"));
         if (!success) {
             LibUtil.revertWith(data);
         }
@@ -67,18 +65,12 @@ contract LibUtilTest is Test {
     function test_getRevertMsg_SilentRevertReturnsFallback() public {
         bytes memory silent = hex"1234";
 
-        assertEq(
-            LibUtil.getRevertMsg(silent),
-            "Transaction reverted silently"
-        );
+        assertEq(LibUtil.getRevertMsg(silent), "Transaction reverted silently");
     }
 
     function test_getRevertMsg_DecodesRevertString() public {
         bytes4 errorSelector = bytes4(keccak256("Error(string)"));
-        bytes memory revertData = abi.encodeWithSelector(
-            errorSelector,
-            "boom"
-        );
+        bytes memory revertData = abi.encodeWithSelector(errorSelector, "boom");
 
         assertEq(LibUtil.getRevertMsg(revertData), "boom");
     }
@@ -90,17 +82,15 @@ contract LibUtilTest is Test {
 
     function test_revertWithMessage() public {
         bytes memory revertData = abi.encodeWithSelector(
-            CustomErrorWithMessage.selector,
-            "Custom error message"
+            CustomErrorWithMessage.selector, "Custom error message"
         );
         vm.expectRevert(revertData);
         implementer.revertWith(revertData);
     }
 
     function test_forwardRevertMsgFromExternalCall() public {
-        bytes memory revertData = abi.encodeWithSelector(
-            CalledContract.CallMeError.selector
-        );
+        bytes memory revertData =
+            abi.encodeWithSelector(CalledContract.CallMeError.selector);
 
         vm.expectRevert(revertData);
         mainContract.topLevelFunction1(address(calledContract));
@@ -108,8 +98,7 @@ contract LibUtilTest is Test {
 
     function test_forwardRevertMsgWithMessageFromExternalCall() public {
         bytes memory revertData = abi.encodeWithSelector(
-            CalledContract.CallMeErrorWithMessage.selector,
-            "Don't call me!"
+            CalledContract.CallMeErrorWithMessage.selector, "Don't call me!"
         );
         vm.expectRevert(revertData);
         mainContract.topLevelFunction2(address(calledContract));

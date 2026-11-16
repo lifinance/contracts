@@ -6,13 +6,19 @@ pragma solidity ^0.8.17;
 import { stdJson } from "forge-std/StdJson.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
-import { NotInitialized, OnlyContractOwner, InvalidConfig } from "lifi/Errors/GenericErrors.sol";
+import {
+    NotInitialized,
+    OnlyContractOwner,
+    InvalidConfig
+} from "lifi/Errors/GenericErrors.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 // Stub DeBridgeDlnFacet Contract
 contract TestDeBridgeDlnFacet is DeBridgeDlnFacet, TestWhitelistManagerBase {
-    constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) {}
+    constructor(IDlnSource _dlnSource) DeBridgeDlnFacet(_dlnSource) { }
 }
 
 contract DeBridgeDlnFacetTest is TestBaseFacet {
@@ -42,15 +48,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         deBridgeDlnFacet = new TestDeBridgeDlnFacet(DLN_SOURCE);
         bytes4[] memory functionSelectors = new bytes4[](6);
-        functionSelectors[0] = deBridgeDlnFacet
-            .startBridgeTokensViaDeBridgeDln
-            .selector;
-        functionSelectors[1] = deBridgeDlnFacet
-            .swapAndStartBridgeTokensViaDeBridgeDln
-            .selector;
-        functionSelectors[2] = deBridgeDlnFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln.selector;
+        functionSelectors[1] =
+        deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln.selector;
+        functionSelectors[2] =
+        deBridgeDlnFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = deBridgeDlnFacet.setDeBridgeChainId.selector;
         functionSelectors[4] = deBridgeDlnFacet.getDeBridgeChainId.selector;
         functionSelectors[5] = DeBridgeDlnFacet.initDeBridgeDln.selector;
@@ -61,37 +64,29 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         deBridgeDlnFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         deBridgeDlnFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         deBridgeDlnFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
         // Initialize
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/debridgedln.json"
-        );
+        string memory path =
+            string.concat(vm.projectRoot(), "/config/debridgedln.json");
         string memory json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");
-        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = abi.decode(
-            rawChains,
-            (DeBridgeDlnFacet.ChainIdConfig[])
-        );
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg =
+            abi.decode(rawChains, (DeBridgeDlnFacet.ChainIdConfig[]));
 
         deBridgeDlnFacet.initDeBridgeDln(cidCfg);
 
         vm.stopPrank();
 
         setFacetAddressInTestBase(
-            address(deBridgeDlnFacet),
-            "DeBridgeDlnFacet"
+            address(deBridgeDlnFacet), "DeBridgeDlnFacet"
         );
 
         // adjust bridgeData
@@ -116,25 +111,34 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         if (isNative) {
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
                 value: bridgeData.minAmount + fixedFee
-            }(bridgeData, validDeBridgeDlnData);
+            }(
+                bridgeData, validDeBridgeDlnData
+            );
         } else {
             deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{
                 value: fixedFee
-            }(bridgeData, validDeBridgeDlnData);
+            }(
+                bridgeData, validDeBridgeDlnData
+            );
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
                 value: defaultNativeAmount + fixedFee
-            }(bridgeData, swapData, validDeBridgeDlnData);
+            }(
+                bridgeData, swapData, validDeBridgeDlnData
+            );
         } else {
             deBridgeDlnFacet.swapAndStartBridgeTokensViaDeBridgeDln{
                 value: fixedFee
-            }(bridgeData, swapData, validDeBridgeDlnData);
+            }(
+                bridgeData, swapData, validDeBridgeDlnData
+            );
         }
     }
 
@@ -154,16 +158,12 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         // Initialize
-        string memory path = string.concat(
-            vm.projectRoot(),
-            "/config/debridgedln.json"
-        );
+        string memory path =
+            string.concat(vm.projectRoot(), "/config/debridgedln.json");
         string memory json = vm.readFile(path);
         bytes memory rawChains = json.parseRaw(".mappings");
-        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = abi.decode(
-            rawChains,
-            (DeBridgeDlnFacet.ChainIdConfig[])
-        );
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg =
+            abi.decode(rawChains, (DeBridgeDlnFacet.ChainIdConfig[]));
 
         vm.expectEmit(true, true, true, true);
         emit DeBridgeInitialized(cidCfg);
@@ -309,13 +309,13 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         );
 
         // This is just a random Solana Address for testing
-        validDeBridgeDlnData
-            .receiver = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
-        validDeBridgeDlnData
-            .orderAuthorityDst = hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
+        validDeBridgeDlnData.receiver =
+            hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
+        validDeBridgeDlnData.orderAuthorityDst =
+            hex"e275bc4764effea023f35f3c60b2260c93248b74ec8d63ee215d40317e98b014"; // [pre-commit-checker: not a secret]
         // SOL Token
-        validDeBridgeDlnData
-            .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
+        validDeBridgeDlnData.receivingAssetId =
+            hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
 
         // Setup to bridge to Solana
         bridgeData.destinationChainId = 1151111081099710;
@@ -386,8 +386,8 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         // This is just a random Solana Address for testing
         validDeBridgeDlnData.receiver = ""; // [pre-commit-checker: not a secret]
         // SOL Token
-        validDeBridgeDlnData
-            .receivingAssetId = hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
+        validDeBridgeDlnData.receivingAssetId =
+            hex"0000000000000000000000000000000000000000000000000000000000000000"; // [pre-commit-checker: not a secret]
 
         // Setup to bridge to Solana
         bridgeData.destinationChainId = 137;
@@ -408,10 +408,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         deBridgeDlnFacet.setDeBridgeChainId(chainId, deBridgeChainId);
 
-        assertEq(
-            deBridgeDlnFacet.getDeBridgeChainId(chainId),
-            deBridgeChainId
-        );
+        assertEq(deBridgeDlnFacet.getDeBridgeChainId(chainId), deBridgeChainId);
 
         vm.stopPrank();
     }
@@ -432,9 +429,8 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
     function testRevert_FailsToSetDeBridgeChainIdIfNotInitialized() public {
         vm.startPrank(address(0)); // address zero because facet is not set in the diamond so current contract owner is address zero
 
-        TestDeBridgeDlnFacet uninitializedFacet = new TestDeBridgeDlnFacet(
-            DLN_SOURCE
-        );
+        TestDeBridgeDlnFacet uninitializedFacet =
+            new TestDeBridgeDlnFacet(DLN_SOURCE);
 
         vm.expectRevert(NotInitialized.selector);
 
@@ -480,8 +476,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         vm.expectRevert(EmptyNonEVMAddress.selector);
 
         deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
-            bridgeData,
-            validDeBridgeDlnData
+            bridgeData, validDeBridgeDlnData
         );
 
         vm.stopPrank();
@@ -497,8 +492,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         vm.expectRevert(EmptyOrderAuthorityDst.selector);
 
         deBridgeDlnFacet.startBridgeTokensViaDeBridgeDln{ value: fixedFee }(
-            bridgeData,
-            validDeBridgeDlnData
+            bridgeData, validDeBridgeDlnData
         );
 
         vm.stopPrank();
@@ -513,9 +507,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         // store the test value in the computed slot
         vm.store(
-            address(deBridgeDlnFacet),
-            storageSlot,
-            bytes32(expectedValue)
+            address(deBridgeDlnFacet), storageSlot, bytes32(expectedValue)
         );
 
         uint256 storedValue = deBridgeDlnFacet.getDeBridgeChainId(chainIdKey);

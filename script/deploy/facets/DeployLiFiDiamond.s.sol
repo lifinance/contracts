@@ -8,7 +8,7 @@ import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("LiFiDiamond") {}
+    constructor() DeployScriptBase("LiFiDiamond") { }
 
     function run()
         public
@@ -21,17 +21,10 @@ contract DeployScript is DeployScriptBase {
 
     function getConstructorArgs() internal override returns (bytes memory) {
         string memory path = string.concat(
-            root,
-            "/deployments/",
-            network,
-            ".",
-            fileSuffix,
-            "json"
+            root, "/deployments/", network, ".", fileSuffix, "json"
         );
-        address diamondCut = _getConfigContractAddress(
-            path,
-            ".DiamondCutFacet"
-        );
+        address diamondCut =
+            _getConfigContractAddress(path, ".DiamondCutFacet");
 
         return abi.encode(deployerAddress, diamondCut);
     }

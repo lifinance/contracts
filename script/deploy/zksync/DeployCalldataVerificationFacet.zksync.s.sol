@@ -2,10 +2,12 @@
 pragma solidity ^0.8.17;
 
 import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
-import { CalldataVerificationFacet } from "lifi/Facets/CalldataVerificationFacet.sol";
+import {
+    CalldataVerificationFacet
+} from "lifi/Facets/CalldataVerificationFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("CalldataVerificationFacet") {}
+    constructor() DeployScriptBase("CalldataVerificationFacet") { }
 
     function run() public returns (CalldataVerificationFacet deployed) {
         deployed = CalldataVerificationFacet(

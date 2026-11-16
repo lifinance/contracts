@@ -57,7 +57,7 @@ import {
   getUniswapDataERC20toExactERC20,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // #region ABIs
 const ECO_FACET_ABI = ecoFacetArtifact.abi as Narrow<

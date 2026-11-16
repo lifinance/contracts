@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { IFraxHopV2, IFraxOFT, ITipFeeManager } from "lifi/Interfaces/IFraxHopV2.sol";
+import {
+    IFraxHopV2,
+    IFraxOFT,
+    ITipFeeManager
+} from "lifi/Interfaces/IFraxHopV2.sol";
 
 /// @title IERC20Like
 /// @notice Minimal ERC20 surface used by the Tempo mock hop to pull tokens
 interface IERC20Like {
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount)
+        external
+        returns (bool);
 
     function balanceOf(address account) external view returns (uint256);
 }
@@ -84,21 +86,19 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
         feePull = _feePull;
     }
 
-    function removeDust(
-        address,
-        uint256 amountLD
-    ) external view returns (uint256) {
+    function removeDust(address, uint256 amountLD)
+        external
+        view
+        returns (uint256)
+    {
         return (amountLD / DUST_RATE) * DUST_RATE;
     }
 
-    function quote(
-        address,
-        uint32,
-        bytes32,
-        uint256,
-        uint128,
-        bytes calldata
-    ) external view returns (uint256) {
+    function quote(address, uint32, bytes32, uint256, uint128, bytes calldata)
+        external
+        view
+        returns (uint256)
+    {
         return feePull;
     }
 
@@ -126,23 +126,13 @@ contract MockFraxHopV2Tempo is IFraxHopV2 {
         if (msg.value != 0) revert NativeValueNotAllowed();
 
         address token = IFraxOFT(oft).token();
-        if (
-            !IERC20Like(token).transferFrom(
-                msg.sender,
-                address(this),
-                amountLD
-            )
-        ) revert BridgedTokenPullFailed();
+        if (!IERC20Like(token)
+                .transferFrom(msg.sender, address(this), amountLD)) revert BridgedTokenPullFailed();
         lastAmountPulled = amountLD;
 
         if (feePull != 0) {
-            if (
-                !IERC20Like(feeToken).transferFrom(
-                    msg.sender,
-                    address(this),
-                    feePull
-                )
-            ) revert FeeTokenPullFailed();
+            if (!IERC20Like(feeToken)
+                    .transferFrom(msg.sender, address(this), feePull)) revert FeeTokenPullFailed();
         }
     }
 }

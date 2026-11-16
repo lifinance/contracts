@@ -5,7 +5,7 @@
  * It uses viem to interact with the blockchain and citty for command line argument parsing.
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'

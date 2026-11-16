@@ -28,7 +28,7 @@
  *   occupied by a pending/submitted proposal.
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import * as fs from 'fs'
 import * as path from 'path'

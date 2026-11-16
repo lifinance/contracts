@@ -39,7 +39,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 // ==========================================================================================================
 // AcrossV4SwapFacet demo script (calldata-focused)
@@ -754,7 +754,7 @@ Examples (print only):
         args: readonly [
           IBridgeData,
           readonly ISwapData[],
-          IAcrossV4SwapFacetData
+          IAcrossV4SwapFacetData,
         ],
         options: { value: bigint }
       ) => Promise<Hex>

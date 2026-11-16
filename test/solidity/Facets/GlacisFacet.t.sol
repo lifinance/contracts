@@ -5,9 +5,23 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
-import { IGlacisAirlift, QuoteSendInfo } from "lifi/Interfaces/IGlacisAirlift.sol";
-import { TransferFromFailed, InvalidReceiver, InvalidAmount, CannotBridgeToSameNetwork, NativeAssetNotSupported, InvalidConfig, InvalidCallData, InvalidNonEVMReceiver } from "lifi/Errors/GenericErrors.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    IGlacisAirlift,
+    QuoteSendInfo
+} from "lifi/Interfaces/IGlacisAirlift.sol";
+import {
+    TransferFromFailed,
+    InvalidReceiver,
+    InvalidAmount,
+    CannotBridgeToSameNetwork,
+    NativeAssetNotSupported,
+    InvalidConfig,
+    InvalidCallData,
+    InvalidNonEVMReceiver
+} from "lifi/Errors/GenericErrors.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 
 /// @notice Test suite for GlacisFacet with multibridge routing support
 /// @dev Tests include the new outputToken parameter for multibridge routing of tokens like USDT & LBTC
@@ -16,7 +30,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 
 // Stub GlacisFacet Contract
 contract TestGlacisFacet is GlacisFacet, TestWhitelistManagerBase {
-    constructor(IGlacisAirlift _airlift) GlacisFacet(_airlift) {}
+    constructor(IGlacisAirlift _airlift) GlacisFacet(_airlift) { }
 }
 
 abstract contract GlacisFacetTestBase is TestBaseFacet {
@@ -41,11 +55,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         defaultSrcTokenAmount = 1_000 * 10 ** srcToken.decimals();
 
         // Deal tokens to all necessary addresses
-        deal(
-            addressSrcToken,
-            USER_SENDER,
-            500_000 * 10 ** srcToken.decimals()
-        );
+        deal(addressSrcToken, USER_SENDER, 500_000 * 10 ** srcToken.decimals());
 
         // Deal tokens to the facet/diamond for potential transfers
         deal(
@@ -62,27 +72,22 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         glacisFacet = new TestGlacisFacet(airliftContract);
         bytes4[] memory functionSelectors = new bytes4[](4);
         functionSelectors[0] = glacisFacet.startBridgeTokensViaGlacis.selector;
-        functionSelectors[1] = glacisFacet
-            .swapAndStartBridgeTokensViaGlacis
-            .selector;
+        functionSelectors[1] =
+        glacisFacet.swapAndStartBridgeTokensViaGlacis.selector;
         functionSelectors[2] = glacisFacet.addAllowedContractSelector.selector;
-        functionSelectors[3] = glacisFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[3] =
+        glacisFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(glacisFacet), functionSelectors);
         glacisFacet = TestGlacisFacet(address(diamond));
         glacisFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
         glacisFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapTokensForExactETH.selector
+            ADDRESS_UNISWAP, uniswap.swapTokensForExactETH.selector
         );
         glacisFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapETHForExactTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
         _facetTestContractAddress = address(glacisFacet);
         vm.label(address(glacisFacet), "GlacisFacet");
@@ -121,8 +126,9 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         // we’re just on the safe side of overestimation to prevent the function
         // from reverting.
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(
-            address(airliftContract)
-        ).quoteSend(
+                address(airliftContract)
+            )
+            .quoteSend(
                 bridgeData.sendingAssetId,
                 bridgeData.minAmount,
                 bytes32(uint256(uint160(bridgeData.receiver))),
@@ -131,9 +137,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
                 payableAmount
             );
 
-        addToMessageValue =
-            quoteSendInfo.gmpFee.nativeFee +
-            quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
+        addToMessageValue = quoteSendInfo.gmpFee.nativeFee
+            + quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
 
         // produce valid GlacisData
         glacisData = GlacisFacet.GlacisData({
@@ -159,15 +164,16 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool) internal virtual override {
         glacisFacet.startBridgeTokensViaGlacis{ value: addToMessageValue }(
-            bridgeData,
-            glacisData
+            bridgeData, glacisData
         );
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal virtual override {
         glacisFacet.swapAndStartBridgeTokensViaGlacis{
             value: addToMessageValue
-        }(bridgeData, swapData, glacisData);
+        }(
+            bridgeData, swapData, glacisData
+        );
     }
 
     function testBase_CanBridgeNativeTokens() public virtual override {
@@ -179,9 +185,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         virtual
         override
         assertBalanceChange(
-            addressSrcToken,
-            USER_SENDER,
-            -int256(defaultSrcTokenAmount)
+            addressSrcToken, USER_SENDER, -int256(defaultSrcTokenAmount)
         )
         assertBalanceChange(addressSrcToken, USER_RECEIVER, 0)
         assertBalanceChange(ADDRESS_DAI, USER_SENDER, 0)
@@ -200,12 +204,14 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testBase_CanBridgeTokens_fuzzed(
-        uint256 amount
-    ) public virtual override {
+    function testBase_CanBridgeTokens_fuzzed(uint256 amount)
+        public
+        virtual
+        override
+    {
         vm.assume(
-            amount > fuzzingAmountMinValue * 10 ** srcToken.decimals() &&
-                amount < fuzzingAmountMaxValue * 10 ** srcToken.decimals()
+            amount > fuzzingAmountMinValue * 10 ** srcToken.decimals()
+                && amount < fuzzingAmountMaxValue * 10 ** srcToken.decimals()
         );
         bridgeData.minAmount = amount;
 
@@ -215,8 +221,9 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         srcToken.approve(address(glacisFacet), bridgeData.minAmount);
 
         QuoteSendInfo memory quoteSendInfo = IGlacisAirlift(
-            address(airliftContract)
-        ).quoteSend(
+                address(airliftContract)
+            )
+            .quoteSend(
                 bridgeData.sendingAssetId,
                 bridgeData.minAmount,
                 bytes32(uint256(uint160(bridgeData.receiver))),
@@ -224,9 +231,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
                 REFUND_WALLET,
                 payableAmount
             );
-        addToMessageValue =
-            quoteSendInfo.gmpFee.nativeFee +
-            quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
+        addToMessageValue = quoteSendInfo.gmpFee.nativeFee
+            + quoteSendInfo.airliftFeeInfo.airliftFee.nativeFee;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(glacisFacet));
@@ -383,8 +389,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         // send all available source token balance to different account to ensure sending wallet has no source token funds
@@ -409,8 +414,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         vm.expectRevert(abi.encodeWithSelector(InvalidCallData.selector));
@@ -463,8 +467,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         vm.expectRevert(InvalidReceiver.selector);
@@ -519,8 +522,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         vm.expectRevert(InvalidNonEVMReceiver.selector);
@@ -563,9 +565,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Set different receiver addresses
-        address differentReceiver = address(
-            0x1234567890123456789012345678901234567890
-        );
+        address differentReceiver =
+            address(0x1234567890123456789012345678901234567890);
         bridgeData.receiver = differentReceiver;
         glacisData = GlacisFacet.GlacisData({
             refundAddress: REFUND_WALLET,
@@ -577,8 +578,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         vm.expectRevert(InvalidReceiver.selector);
@@ -595,9 +595,8 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         vm.startPrank(USER_SENDER);
 
         // Set different receiver addresses
-        address differentReceiver = address(
-            0x1234567890123456789012345678901234567890
-        );
+        address differentReceiver =
+            address(0x1234567890123456789012345678901234567890);
         bridgeData.receiver = differentReceiver;
         bridgeData.hasSourceSwaps = true;
         glacisData = GlacisFacet.GlacisData({
@@ -639,8 +638,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         // Expect the BridgeToNonEVMChainBytes32 event to be emitted
@@ -715,8 +713,7 @@ abstract contract GlacisFacetTestBase is TestBaseFacet {
         });
 
         srcToken.approve(
-            address(_facetTestContractAddress),
-            defaultSrcTokenAmount
+            address(_facetTestContractAddress), defaultSrcTokenAmount
         );
 
         // Expect only the LiFiTransferStarted event to be emitted (no non-EVM event)
@@ -767,9 +764,8 @@ contract GlacisFacetOpenUSDTTest is GlacisFacetTestBase {
         customRpcUrlForForking = "ETH_NODE_URI_OPTIMISM";
         customBlockNumberForForking = 144628286; // Specific block for testing multibridge routing
 
-        airliftContract = IGlacisAirlift(
-            0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663
-        );
+        airliftContract =
+            IGlacisAirlift(0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663);
 
         addressSrcToken = 0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189; // OpenUSDT on Optimism
         outputToken = 0x1217BfE6c773EEC6cc4A38b5Dc45B92292B6E189; // Output token for multibridge routing
@@ -786,9 +782,8 @@ contract GlacisFacetUSDT0Test is GlacisFacetTestBase {
         customRpcUrlForForking = "ETH_NODE_URI_OPTIMISM";
         customBlockNumberForForking = 144628286; // Specific block for testing multibridge routing
 
-        airliftContract = IGlacisAirlift(
-            0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663
-        );
+        airliftContract =
+            IGlacisAirlift(0x568c2c0C94B85B23E1C3Cf3E79D51b1566C8F663);
 
         addressSrcToken = 0x01bFF41798a0BcF287b996046Ca68b395DbC1071; // USDT0 on Optimism
         outputToken = 0x9151434b16b9763660705744891fA906F660EcC5; // Output token for multibridge routing

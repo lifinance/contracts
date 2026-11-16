@@ -14,9 +14,7 @@ contract MockRelayDepository is IRelayDepository {
     error MockRevert();
 
     event DepositNative(
-        address indexed depositor,
-        bytes32 indexed id,
-        uint256 amount
+        address indexed depositor, bytes32 indexed id, uint256 amount
     );
     event DepositErc20(
         address indexed depositor,
@@ -33,10 +31,11 @@ contract MockRelayDepository is IRelayDepository {
         shouldRevert = _shouldRevert;
     }
 
-    function depositNative(
-        address depositor,
-        bytes32 id
-    ) external payable override {
+    function depositNative(address depositor, bytes32 id)
+        external
+        payable
+        override
+    {
         if (shouldRevert) {
             revert MockRevert();
         }
@@ -59,11 +58,10 @@ contract MockRelayDepository is IRelayDepository {
         emit DepositErc20(depositor, token, amount, id);
     }
 
-    function depositErc20(
-        address depositor,
-        address token,
-        bytes32 id
-    ) external override {
+    function depositErc20(address depositor, address token, bytes32 id)
+        external
+        override
+    {
         if (shouldRevert) {
             revert MockRevert();
         }

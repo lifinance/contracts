@@ -374,7 +374,7 @@ export const persistSignedSetRecord = async (
     consola.warn(
       'Failed to store the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
       redactUrls(
-        error instanceof Error ? error.stack ?? error.message : String(error)
+        error instanceof Error ? (error.stack ?? error.message) : String(error)
       )
     )
     return false

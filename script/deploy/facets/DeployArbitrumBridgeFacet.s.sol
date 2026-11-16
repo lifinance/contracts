@@ -8,7 +8,7 @@ import { ArbitrumBridgeFacet } from "lifi/Facets/ArbitrumBridgeFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("ArbitrumBridgeFacet") {}
+    constructor() DeployScriptBase("ArbitrumBridgeFacet") { }
 
     function run()
         public
@@ -22,19 +22,14 @@ contract DeployScript is DeployScriptBase {
     }
 
     function getConstructorArgs() internal override returns (bytes memory) {
-        string memory path = string.concat(
-            root,
-            "/config/arbitrumBridge.json"
-        );
+        string memory path = string.concat(root, "/config/arbitrumBridge.json");
 
         address gatewayRouter = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".gatewayRouter")
+            path, string.concat(".", network, ".gatewayRouter")
         );
 
         address inbox = _getConfigContractAddress(
-            path,
-            string.concat(".", network, ".inbox")
+            path, string.concat(".", network, ".inbox")
         );
 
         return abi.encode(gatewayRouter, inbox);

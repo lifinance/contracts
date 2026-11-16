@@ -6,7 +6,9 @@ import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
 import { TestWrappedToken as ERC20 } from "../utils/TestWrappedToken.sol";
 import { TestWrappedConverter } from "../utils/TestWrappedConverter.sol";
 import { TestBasicToken } from "../utils/TestBasicToken.sol";
-import { TestConverterWithDecimals } from "../utils/TestConverterWithDecimals.sol";
+import {
+    TestConverterWithDecimals
+} from "../utils/TestConverterWithDecimals.sol";
 
 contract TokenWrapperTest is Test {
     TokenWrapper private tokenWrapper;
@@ -29,9 +31,7 @@ contract TokenWrapperTest is Test {
     function setUp() public {
         wrappedToken = new ERC20("TestWrappedToken", "WTST", 18);
         tokenWrapper = new TokenWrapper(
-            address(wrappedToken),
-            address(0),
-            address(this)
+            address(wrappedToken), address(0), address(this)
         );
         vm.deal(address(this), 100 ether);
 
@@ -39,9 +39,7 @@ contract TokenWrapperTest is Test {
         basicToken = new TestBasicToken("BasicToken", "BASIC", 18);
         converter = new TestWrappedConverter(address(basicToken));
         tokenWrapperWithConverter = new TokenWrapper(
-            address(basicToken),
-            address(converter),
-            address(this)
+            address(basicToken), address(converter), address(this)
         );
 
         // Fund the converter with basic tokens and ETH for testing
@@ -50,13 +48,10 @@ contract TokenWrapperTest is Test {
 
         // Setup decimal converter test scenario (simulates GasUSDT0Converter)
         token6Decimals = new TestBasicToken("USDT", "USDT", 6);
-        decimalConverter = new TestConverterWithDecimals(
-            address(token6Decimals)
-        );
+        decimalConverter =
+            new TestConverterWithDecimals(address(token6Decimals));
         tokenWrapperWithDecimalConverter = new TokenWrapper(
-            address(token6Decimals),
-            address(decimalConverter),
-            address(this)
+            address(token6Decimals), address(decimalConverter), address(this)
         );
 
         // Fund the decimal converter with 6-decimal tokens and ETH
@@ -65,7 +60,7 @@ contract TokenWrapperTest is Test {
     }
 
     // Needed to receive ETH
-    receive() external payable {}
+    receive() external payable { }
 
     function test_CanDeposit() public {
         assert(wrappedToken.balanceOf(address(this)) == 0);
@@ -75,15 +70,11 @@ contract TokenWrapperTest is Test {
 
     function test_CanWithdrawToken() public {
         // Send some ETH to the contract
-        (bool success, ) = address(tokenWrapper).call{ value: 1 ether }("");
+        (bool success,) = address(tokenWrapper).call{ value: 1 ether }("");
         if (!success) revert ETHTransferFailed();
 
         uint256 initialBalance = address(this).balance;
-        tokenWrapper.withdrawToken(
-            address(0),
-            payable(address(this)),
-            1 ether
-        );
+        tokenWrapper.withdrawToken(address(0), payable(address(this)), 1 ether);
         assertEq(address(this).balance - initialBalance, 1 ether);
     }
 
@@ -133,8 +124,7 @@ contract TokenWrapperTest is Test {
         // (TokenWrapper approves converter once during deployment for gas efficiency)
         assertEq(
             basicToken.allowance(
-                address(tokenWrapperWithConverter),
-                address(converter)
+                address(tokenWrapperWithConverter), address(converter)
             ),
             type(uint256).max
         );
@@ -160,8 +150,7 @@ contract TokenWrapperTest is Test {
 
         // Approve TokenWrapper to spend tokens
         token6Decimals.approve(
-            address(tokenWrapperWithDecimalConverter),
-            ONE_USDT
+            address(tokenWrapperWithDecimalConverter), ONE_USDT
         );
 
         // User withdraws 1 USDT (6 decimals)
@@ -184,8 +173,7 @@ contract TokenWrapperTest is Test {
 
         // Approve and withdraw all USDT
         token6Decimals.approve(
-            address(tokenWrapperWithDecimalConverter),
-            5 * ONE_USDT
+            address(tokenWrapperWithDecimalConverter), 5 * ONE_USDT
         );
 
         uint256 balanceBefore = address(this).balance;

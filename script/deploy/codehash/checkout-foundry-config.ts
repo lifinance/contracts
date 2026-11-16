@@ -23,7 +23,8 @@
  * here, which is loud; a denylist would pass the executable-selecting key
  * nobody listed.
  * `ffi` is allowed: it gates cheatcodes in tests and scripts, and `forge build`
- * runs neither.
+ * runs neither. `fmt` is allowed with the keys `foundry.toml` uses: `forge
+ * build` never reads the formatter settings.
  */
 
 import { parse } from 'smol-toml'
@@ -33,10 +34,21 @@ const ALLOWED_TOP_LEVEL = new Set([
   'rpc_endpoints',
   'etherscan',
   'lint',
+  'fmt',
   'external',
 ])
 
 const ALLOWED_ETHERSCAN_KEYS = new Set(['key', 'url', 'chain', 'verifier'])
+
+/** `[fmt]` keys and the type each value must have (`ignore` is a string list). */
+const ALLOWED_FMT_KEYS: Record<string, 'number' | 'string' | 'boolean'> = {
+  line_length: 'number',
+  tab_width: 'number',
+  quote_style: 'string',
+  bracket_spacing: 'boolean',
+  int_types: 'string',
+  number_underscore: 'string',
+}
 
 const ALLOWED_PROFILE_KEYS = new Set([
   'auto_detect_solc',
@@ -110,6 +122,22 @@ const vetZksyncTable = (
   }
 }
 
+/** Holds `[fmt]` to the keys in `ALLOWED_FMT_KEYS` plus `ignore`, each with its type. */
+const vetFmtTable = (value: unknown, refuse: (where: string) => void): void => {
+  if (!isTable(value)) {
+    refuse('fmt')
+    return
+  }
+  for (const [key, inner] of Object.entries(value)) {
+    const ok =
+      key === 'ignore'
+        ? Array.isArray(inner) &&
+          inner.every((glob) => typeof glob === 'string')
+        : typeof inner === ALLOWED_FMT_KEYS[key]
+    if (!ok) refuse(`fmt.${key}`)
+  }
+}
+
 /**
  * Holds each non-profile section to what it has carried on `main`, because
  * forge would read any of them as a profile's keys.
@@ -121,7 +149,7 @@ const vetSections = (
   const refuse = (where: string): void => {
     problems.push(`${where} is not a value the rebuild allows`)
   }
-  const { lint, external, rpc_endpoints: rpc, etherscan } = doc
+  const { lint, fmt, external, rpc_endpoints: rpc, etherscan } = doc
 
   if (lint !== undefined) {
     if (!isTable(lint)) refuse('lint')
@@ -130,6 +158,8 @@ const vetSections = (
         if (key !== 'lint_on_build' || typeof value !== 'boolean')
           refuse(`lint.${key}`)
   }
+
+  if (fmt !== undefined) vetFmtTable(fmt, refuse)
 
   if (external !== undefined) {
     if (!isTable(external)) refuse('external')

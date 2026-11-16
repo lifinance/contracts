@@ -529,14 +529,15 @@ const main = defineCommand({
       )
       await pollBridgeStatus(txHash, srcNet.chainId, dstNet.chainId)
     } else {
-      const bal = await (toToken.isNative
-        ? publicClient.getBalance({ address: wallet.address })
-        : (publicClient.readContract({
-            address: toToken.address,
-            abi: ERC20_MIN_ABI,
-            functionName: 'balanceOf',
-            args: [wallet.address],
-          }) as Promise<bigint>)
+      const bal = await (
+        toToken.isNative
+          ? publicClient.getBalance({ address: wallet.address })
+          : (publicClient.readContract({
+              address: toToken.address,
+              abi: ERC20_MIN_ABI,
+              functionName: 'balanceOf',
+              args: [wallet.address],
+            }) as Promise<bigint>)
       ).catch(() => undefined)
       if (bal !== undefined)
         consola.success(

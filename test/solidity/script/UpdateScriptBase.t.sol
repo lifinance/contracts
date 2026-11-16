@@ -2,7 +2,9 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { UpdateScriptBase } from "../../../script/deploy/facets/utils/UpdateScriptBase.sol";
+import {
+    UpdateScriptBase
+} from "../../../script/deploy/facets/utils/UpdateScriptBase.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
 import { DiamondLoupeFacet } from "lifi/Facets/DiamondLoupeFacet.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
@@ -18,9 +20,10 @@ import { DiamondTest } from "test/solidity/utils/DiamondTest.sol";
 ///      Note that this includes PRIVATE_KEY, which `ScriptBase` requires — any future suite that
 ///      instantiates a script base in the same run inherits these values.
 contract UpdateScriptBaseHarness is UpdateScriptBase {
-    function runUpdate(
-        string memory _name
-    ) public returns (address[] memory facets, bytes memory cutData) {
+    function runUpdate(string memory _name)
+        public
+        returns (address[] memory facets, bytes memory cutData)
+    {
         return update(_name);
     }
 
@@ -276,8 +279,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         vm.setEnv("NO_BROADCAST", "true");
         vm.setEnv("TEST_DEPLOYMENTS_JSON", _deploymentsJson(address(diamond)));
         vm.setEnv(
-            "TEST_CODELESS_DEPLOYMENTS_JSON",
-            _deploymentsJson(codelessDiamond)
+            "TEST_CODELESS_DEPLOYMENTS_JSON", _deploymentsJson(codelessDiamond)
         );
         vm.setEnv("TEST_DIAMOND", vm.toString(address(diamond)));
         vm.setEnv("TEST_CODELESS_DIAMOND", vm.toString(codelessDiamond));
@@ -287,8 +289,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         // The recompute options carry the values a real verification run would pass, so the
         // env-driven cases below fail if a variable name in `_readCutOptions` is ever mistyped.
         vm.setEnv(
-            "FACET_ADDRESS_OVERRIDE",
-            vm.toString(attestedOwnershipFacet)
+            "FACET_ADDRESS_OVERRIDE", vm.toString(attestedOwnershipFacet)
         );
         vm.setEnv("EXPECTED_DIAMOND_ADDRESS", vm.toString(address(diamond)));
         vm.setEnv("SELECTOR_ARTIFACTS_DIR", BOGUS_ARTIFACTS_DIR);
@@ -329,9 +330,8 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         // other harness does not hit isolates SELECTOR_ARTIFACTS_DIR to the env read.
         envHarness.runUpdate("OwnershipFacet");
 
-        (bool success, bytes memory reason) = address(harness).call(
-            abi.encodeCall(harness.runUpdate, ("OwnershipFacet"))
-        );
+        (bool success, bytes memory reason) = address(harness)
+            .call(abi.encodeCall(harness.runUpdate, ("OwnershipFacet")));
 
         assertFalse(success);
         assertTrue(
@@ -375,9 +375,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         assertEq(
             cutData,
             _expectedCutData(
-                withdrawFacet,
-                LibDiamond.FacetCutAction.Add,
-                expectedSelectors
+                withdrawFacet, LibDiamond.FacetCutAction.Add, expectedSelectors
             )
         );
     }
@@ -396,9 +394,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         staleSelectors[0] = EXECUTE_CALL_AND_WITHDRAW;
         staleSelectors[1] = WITHDRAW;
 
-        LibDiamond.FacetCut[] memory expectedCut = new LibDiamond.FacetCut[](
-            2
-        );
+        LibDiamond.FacetCut[] memory expectedCut = new LibDiamond.FacetCut[](2);
         expectedCut[0] = LibDiamond.FacetCut({
             facetAddress: newOwnershipFacet,
             action: LibDiamond.FacetCutAction.Replace,
@@ -418,14 +414,12 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         whenSelectorArtifactExists("OwnershipFacet")
     {
         DefaultCutOptionsHarness baseline = new DefaultCutOptionsHarness();
-        (, bytes memory baselineCutData) = baseline.runUpdate(
-            "OwnershipFacet"
-        );
+        (, bytes memory baselineCutData) = baseline.runUpdate("OwnershipFacet");
 
-        ExplicitDefaultsHarness explicitDefaults = new ExplicitDefaultsHarness();
-        (, bytes memory explicitCutData) = explicitDefaults.runUpdate(
-            "OwnershipFacet"
-        );
+        ExplicitDefaultsHarness explicitDefaults =
+            new ExplicitDefaultsHarness();
+        (, bytes memory explicitCutData) =
+            explicitDefaults.runUpdate("OwnershipFacet");
 
         assertEq(explicitCutData, baselineCutData);
         assertEq(baseline.isNoBroadcast(), explicitDefaults.isNoBroadcast());
@@ -492,9 +486,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
     }
 
     function testRevert_VerificationModeWithoutFacetOverride() public {
-        vm.expectRevert(
-            UpdateScriptBase.FacetAddressOverrideRequired.selector
-        );
+        vm.expectRevert(UpdateScriptBase.FacetAddressOverrideRequired.selector);
 
         new VerificationMissingFacetOverrideHarness();
     }
@@ -522,8 +514,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
     function testRevert_VerificationModeAgainstCodelessDiamond() public {
         vm.expectRevert(
             abi.encodeWithSelector(
-                UpdateScriptBase.DiamondHasNoCode.selector,
-                codelessDiamond
+                UpdateScriptBase.DiamondHasNoCode.selector, codelessDiamond
             )
         );
 
@@ -549,8 +540,8 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
     ///      updating OwnershipFacet has selectors to drop, which is the only way to reach
     ///      buildDiamondCut's Remove branch.
     function _registerStaleSelectorsOnOwnershipFacet() internal {
-        address currentOwnershipFacet = DiamondLoupeFacet(address(diamond))
-            .facetAddress(OWNER);
+        address currentOwnershipFacet =
+            DiamondLoupeFacet(address(diamond)).facetAddress(OWNER);
 
         bytes4[] memory staleSelectors = new bytes4[](2);
         staleSelectors[0] = EXECUTE_CALL_AND_WITHDRAW;
@@ -569,18 +560,14 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
     }
 
     /// @dev Mirrors the layout `contract-selectors.sh` resolves: `<dir>/<name>.sol/<name>.json`.
-    function _artifactPath(
-        string memory _facetName
-    ) internal pure returns (string memory) {
-        return
-            string.concat(
-                ARTIFACTS_DIR,
-                "/",
-                _facetName,
-                ".sol/",
-                _facetName,
-                ".json"
-            );
+    function _artifactPath(string memory _facetName)
+        internal
+        pure
+        returns (string memory)
+    {
+        return string.concat(
+            ARTIFACTS_DIR, "/", _facetName, ".sol/", _facetName, ".json"
+        );
     }
 
     function _ownershipSelectors()
@@ -595,9 +582,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         selectors[3] = TRANSFER_OWNERSHIP;
     }
 
-    function _deploymentsJson(
-        address _diamond
-    ) internal returns (string memory) {
+    function _deploymentsJson(address _diamond)
+        internal
+        returns (string memory)
+    {
         string memory obj = "deployments";
         vm.serializeAddress(obj, "LiFiDiamond", _diamond);
         vm.serializeAddress(obj, "OwnershipFacet", newOwnershipFacet);
@@ -610,9 +598,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         LibDiamond.FacetCutAction _action,
         bytes4[] memory _selectors
     ) internal pure returns (bytes memory) {
-        LibDiamond.FacetCut[] memory expectedCut = new LibDiamond.FacetCut[](
-            1
-        );
+        LibDiamond.FacetCut[] memory expectedCut = new LibDiamond.FacetCut[](1);
         expectedCut[0] = LibDiamond.FacetCut({
             facetAddress: _facet,
             action: _action,
@@ -622,15 +608,13 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         return _encodeCut(expectedCut);
     }
 
-    function _encodeCut(
-        LibDiamond.FacetCut[] memory _cut
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSelector(
-                DiamondCutFacet.diamondCut.selector,
-                _cut,
-                address(0),
-                bytes("")
-            );
+    function _encodeCut(LibDiamond.FacetCut[] memory _cut)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodeWithSelector(
+            DiamondCutFacet.diamondCut.selector, _cut, address(0), bytes("")
+        );
     }
 }

@@ -17,7 +17,7 @@ import { type Collection } from 'mongodb'
 
 import { isEntrypoint } from '../../utils/is-entrypoint'
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import {
   getParkedTasksCollection,

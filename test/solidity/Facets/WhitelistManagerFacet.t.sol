@@ -4,33 +4,45 @@ pragma solidity ^0.8.17;
 import { DiamondTest, LiFiDiamond } from "../utils/DiamondTest.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { AccessManagerFacet } from "lifi/Facets/AccessManagerFacet.sol";
-import { InvalidContract, InvalidCallData, CannotAuthoriseSelf, UnAuthorized } from "lifi/Errors/GenericErrors.sol";
+import {
+    InvalidContract,
+    InvalidCallData,
+    CannotAuthoriseSelf,
+    UnAuthorized
+} from "lifi/Errors/GenericErrors.sol";
 import { LibAllowList } from "lifi/Libraries/LibAllowList.sol";
-import { DeployScript } from "../../../script/deploy/facets/UpdateWhitelistManagerFacet.s.sol";
+import {
+    DeployScript
+} from "../../../script/deploy/facets/UpdateWhitelistManagerFacet.s.sol";
 
-contract Foo {}
+contract Foo { }
 
 /// @title Mock Swapper Facet
 /// @notice Mock facet that simulates SwapperV2 allow list logic for testing
 contract MockSwapperFacet {
-    function isContractSelectorAllowed(
-        address _contract,
-        bytes4 _selector
-    ) external view returns (bool) {
+    function isContractSelectorAllowed(address _contract, bytes4 _selector)
+        external
+        view
+        returns (bool)
+    {
         return LibAllowList.contractSelectorIsAllowed(_contract, _selector);
     }
 
     /// @notice [Backward Compatibility] Checks if a contract is on the global V1 allow list.
-    function isContractAllowedLegacy(
-        address _contract
-    ) external view returns (bool) {
+    function isContractAllowedLegacy(address _contract)
+        external
+        view
+        returns (bool)
+    {
         return LibAllowList.contractIsAllowed(_contract);
     }
 
     /// @notice [Backward Compatibility] Checks if a selector is on the global V1 allow list.
-    function isSelectorAllowedLegacy(
-        bytes4 _selector
-    ) external view returns (bool) {
+    function isSelectorAllowedLegacy(bytes4 _selector)
+        external
+        view
+        returns (bool)
+    {
         return LibAllowList.selectorIsAllowed(_selector);
     }
 }
@@ -65,21 +77,16 @@ contract WhitelistManagerFacetTest is DiamondTest {
         c5 = new Foo();
 
         bytes4[] memory functionSelectors = new bytes4[](5);
-        functionSelectors[0] = WhitelistManagerFacet
-            .setContractSelectorWhitelist
-            .selector;
-        functionSelectors[1] = WhitelistManagerFacet
-            .batchSetContractSelectorWhitelist
-            .selector;
-        functionSelectors[2] = WhitelistManagerFacet
-            .isContractSelectorWhitelisted
-            .selector;
-        functionSelectors[3] = WhitelistManagerFacet
-            .getWhitelistedSelectorsForContract
-            .selector;
-        functionSelectors[4] = WhitelistManagerFacet
-            .getAllContractSelectorPairs
-            .selector;
+        functionSelectors[0] =
+        WhitelistManagerFacet.setContractSelectorWhitelist.selector;
+        functionSelectors[1] =
+        WhitelistManagerFacet.batchSetContractSelectorWhitelist.selector;
+        functionSelectors[2] =
+        WhitelistManagerFacet.isContractSelectorWhitelisted.selector;
+        functionSelectors[3] =
+        WhitelistManagerFacet.getWhitelistedSelectorsForContract.selector;
+        functionSelectors[4] =
+        WhitelistManagerFacet.getAllContractSelectorPairs.selector;
 
         addFacet(diamond, address(whitelistMgr), functionSelectors);
 
@@ -102,12 +109,10 @@ contract WhitelistManagerFacetTest is DiamondTest {
         emit ContractSelectorWhitelistChanged(address(c1), 0xDEADDEAD, true);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xDEADDEAD,
-            true
+            address(c1), 0xDEADDEAD, true
         );
-        bytes4[] memory selectors = whitelistMgr
-            .getWhitelistedSelectorsForContract(address(c1));
+        bytes4[] memory selectors =
+            whitelistMgr.getWhitelistedSelectorsForContract(address(c1));
         assertEq(selectors.length, 1);
         assertTrue(selectors[0] == 0xDEADDEAD);
 
@@ -118,51 +123,43 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xDEADDEAD,
-            true
+            address(c1), 0xDEADDEAD, true
         );
 
         vm.expectEmit(true, true, true, true);
         emit ContractSelectorWhitelistChanged(address(c1), 0xDEADDEAD, false);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xDEADDEAD,
-            false
+            address(c1), 0xDEADDEAD, false
         );
 
         vm.stopPrank();
 
-        bytes4[] memory selectors = whitelistMgr
-            .getWhitelistedSelectorsForContract(address(c1));
+        bytes4[] memory selectors =
+            whitelistMgr.getWhitelistedSelectorsForContract(address(c1));
         assertEq(selectors.length, 0);
     }
 
-    function _batchSetContractSelectorWhitelist(
-        address[] memory addresses
-    ) internal {
+    function _batchSetContractSelectorWhitelist(address[] memory addresses)
+        internal
+    {
         // Create selectors array with same length as addresses
         bytes4[] memory selectors = new bytes4[](addresses.length);
         for (uint256 i = 0; i < addresses.length; i++) {
             selectors[i] = 0xDEADDEAD;
             vm.expectEmit(true, true, true, true);
             emit ContractSelectorWhitelistChanged(
-                addresses[i],
-                0xDEADDEAD,
-                true
+                addresses[i], 0xDEADDEAD, true
             );
         }
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         // Check each contract has the selector whitelisted
         for (uint256 i = 0; i < addresses.length; i++) {
-            bytes4[] memory contractSelectors = whitelistMgr
-                .getWhitelistedSelectorsForContract(addresses[i]);
+            bytes4[] memory contractSelectors =
+                whitelistMgr.getWhitelistedSelectorsForContract(addresses[i]);
             assertEq(contractSelectors.length, 1);
             assertTrue(contractSelectors[0] == 0xDEADDEAD);
         }
@@ -200,9 +197,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         selectors[1] = 0xDEADDEAD;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            remove,
-            selectors,
-            false
+            remove, selectors, false
         );
 
         vm.stopPrank();
@@ -242,15 +237,12 @@ contract WhitelistManagerFacetTest is DiamondTest {
         contracts[4] = address(c1);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            selectors,
-            true
+            contracts, selectors, true
         );
-        for (uint256 i = 0; i < 5; ) {
+        for (uint256 i = 0; i < 5;) {
             assertTrue(
                 whitelistMgr.isContractSelectorWhitelisted(
-                    address(c1),
-                    selectors[i]
+                    address(c1), selectors[i]
                 )
             );
             unchecked {
@@ -266,11 +258,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         vm.expectRevert(InvalidCallData.selector);
 
-        whitelistMgr.setContractSelectorWhitelist(
-            address(0),
-            0xDEADDEAD,
-            true
-        );
+        whitelistMgr.setContractSelectorWhitelist(address(0), 0xDEADDEAD, true);
 
         vm.stopPrank();
     }
@@ -281,9 +269,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(InvalidContract.selector);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(1337),
-            0xDEADDEAD,
-            true
+            address(1337), 0xDEADDEAD, true
         );
 
         vm.stopPrank();
@@ -305,9 +291,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(InvalidCallData.selector);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -331,9 +315,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(InvalidContract.selector);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -345,9 +327,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(UnAuthorized.selector);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xDEADDEAD,
-            true
+            address(c1), 0xDEADDEAD, true
         );
 
         vm.stopPrank();
@@ -366,9 +346,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(UnAuthorized.selector);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -388,9 +366,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(CannotAuthoriseSelf.selector);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -400,9 +376,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.prank(USER_DIAMOND_OWNER);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xDEADDEAD,
-            true
+            address(c1), 0xDEADDEAD, true
         );
 
         vm.stopPrank();
@@ -411,9 +385,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         vm.prank(NOT_DIAMOND_OWNER);
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xDEADDEAD,
-            false
+            address(c1), 0xDEADDEAD, false
         );
     }
 
@@ -428,18 +400,14 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         vm.prank(USER_DIAMOND_OWNER);
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.expectRevert(UnAuthorized.selector);
 
         vm.prank(NOT_DIAMOND_OWNER);
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            false
+            addresses, selectors, false
         );
     }
 
@@ -471,9 +439,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         vm.prank(NOT_DIAMOND_OWNER);
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            selectors,
-            true
+            contracts, selectors, true
         );
     }
 
@@ -487,11 +453,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
             whitelistMgr.isContractSelectorWhitelisted(address(c1), selector)
         );
 
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector,
-            false
-        );
+        whitelistMgr.setContractSelectorWhitelist(address(c1), selector, false);
         assertFalse(
             whitelistMgr.isContractSelectorWhitelisted(address(c1), selector)
         );
@@ -513,29 +475,23 @@ contract WhitelistManagerFacetTest is DiamondTest {
         contracts[2] = address(c1);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            selectors,
-            true
+            contracts, selectors, true
         );
         for (uint256 i = 0; i < 3; i++) {
             assertTrue(
                 whitelistMgr.isContractSelectorWhitelisted(
-                    address(c1),
-                    selectors[i]
+                    address(c1), selectors[i]
                 )
             );
         }
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            selectors,
-            false
+            contracts, selectors, false
         );
         for (uint256 i = 0; i < 3; i++) {
             assertFalse(
                 whitelistMgr.isContractSelectorWhitelisted(
-                    address(c1),
-                    selectors[i]
+                    address(c1), selectors[i]
                 )
             );
         }
@@ -561,9 +517,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         // Add contract-selector pairs
         whitelistMgr.batchSetContractSelectorWhitelist(
-            testContracts,
-            testSelectors,
-            true
+            testContracts, testSelectors, true
         );
 
         // Add additional selectors for c1
@@ -576,16 +530,12 @@ contract WhitelistManagerFacetTest is DiamondTest {
         c1AdditionalSelectors[1] = 0x87654321;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            c1Contracts,
-            c1AdditionalSelectors,
-            true
+            c1Contracts, c1AdditionalSelectors, true
         );
 
         // Call getAllContractSelectorPairs
-        (
-            address[] memory contracts,
-            bytes4[][] memory selectors
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory contracts, bytes4[][] memory selectors) =
+            whitelistMgr.getAllContractSelectorPairs();
 
         // Verify contracts array
         assertEq(contracts.length, 3, "Should return 3 contracts");
@@ -617,15 +567,13 @@ contract WhitelistManagerFacetTest is DiamondTest {
         // Verify c2 has 1 selector (0xBEEFBEEF)
         assertEq(selectors[1].length, 1, "c2 should have 1 selector");
         assertTrue(
-            selectors[1][0] == 0xBEEFBEEF,
-            "c2 should have 0xBEEFBEEF selector"
+            selectors[1][0] == 0xBEEFBEEF, "c2 should have 0xBEEFBEEF selector"
         );
 
         // Verify c3 has 1 selector (0xFACEFACE)
         assertEq(selectors[2].length, 1, "c3 should have 1 selector");
         assertTrue(
-            selectors[2][0] == 0xFACEFACE,
-            "c3 should have 0xFACEFACE selector"
+            selectors[2][0] == 0xFACEFACE, "c3 should have 0xFACEFACE selector"
         );
 
         vm.stopPrank();
@@ -637,10 +585,8 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         // Call getAllContractSelectorPairs with no whitelisted contracts
-        (
-            address[] memory contracts,
-            bytes4[][] memory selectors
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory contracts, bytes4[][] memory selectors) =
+            whitelistMgr.getAllContractSelectorPairs();
 
         // Verify empty arrays
         assertEq(contracts.length, 0, "Should return empty contracts array");
@@ -656,16 +602,12 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         // Add a contract with ApproveTo-Only Selector (0xffffffff)
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xffffffff,
-            true
+            address(c1), 0xffffffff, true
         );
 
         // Call getAllContractSelectorPairs
-        (
-            address[] memory contracts,
-            bytes4[][] memory selectors
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory contracts, bytes4[][] memory selectors) =
+            whitelistMgr.getAllContractSelectorPairs();
 
         // Verify single contract
         assertEq(contracts.length, 1, "Should return 1 contract");
@@ -697,30 +639,22 @@ contract WhitelistManagerFacetTest is DiamondTest {
         c1Selectors[1] = 0xBEEFBEEF;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            c1Contracts,
-            c1Selectors,
-            true
+            c1Contracts, c1Selectors, true
         );
 
         // Contract 2: ApproveTo-Only Selector only (no function calls allowed)
         whitelistMgr.setContractSelectorWhitelist(
-            address(c2),
-            0xffffffff,
-            true
+            address(c2), 0xffffffff, true
         );
 
         // Contract 3: Single real selector
         whitelistMgr.setContractSelectorWhitelist(
-            address(c3),
-            0xFACEFACE,
-            true
+            address(c3), 0xFACEFACE, true
         );
 
         // Call getAllContractSelectorPairs
-        (
-            address[] memory contracts,
-            bytes4[][] memory selectors
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory contracts, bytes4[][] memory selectors) =
+            whitelistMgr.getAllContractSelectorPairs();
 
         // Verify 3 contracts
         assertEq(contracts.length, 3, "Should return 3 contracts");
@@ -797,9 +731,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         selectors[4] = 0x87654321;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            selectors,
-            true
+            contracts, selectors, true
         );
 
         // Add additional selectors for some contracts
@@ -814,9 +746,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         additionalSelectors[2] = 0x33333333;
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            additionalContracts,
-            additionalSelectors,
-            true
+            additionalContracts, additionalSelectors, true
         );
 
         // Call getAllContractSelectorPairs
@@ -828,9 +758,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         // Verify all contracts are returned
         assertEq(returnedContracts.length, 5, "Should return all 5 contracts");
         assertEq(
-            returnedSelectors.length,
-            5,
-            "Should return 5 selector arrays"
+            returnedSelectors.length, 5, "Should return 5 selector arrays"
         );
 
         // Verify c1 has 3 selectors (0xDEADDEAD, 0x11111111, 0x22222222)
@@ -842,9 +770,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
             }
         }
         assertEq(
-            returnedSelectors[c1Index].length,
-            3,
-            "c1 should have 3 selectors"
+            returnedSelectors[c1Index].length, 3, "c1 should have 3 selectors"
         );
 
         // Verify c2 has 2 selectors (0xBEEFBEEF, 0x33333333)
@@ -856,9 +782,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
             }
         }
         assertEq(
-            returnedSelectors[c2Index].length,
-            2,
-            "c2 should have 2 selectors"
+            returnedSelectors[c2Index].length, 2, "c2 should have 2 selectors"
         );
 
         vm.stopPrank();
@@ -880,14 +804,12 @@ contract WhitelistManagerFacetTest is DiamondTest {
         contracts[2] = address(c1);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            contracts,
-            testSelectors,
-            true
+            contracts, testSelectors, true
         );
 
         // Get selectors for specific contract
-        bytes4[] memory returnedSelectors = whitelistMgr
-            .getWhitelistedSelectorsForContract(address(c1));
+        bytes4[] memory returnedSelectors =
+            whitelistMgr.getWhitelistedSelectorsForContract(address(c1));
 
         assertEq(returnedSelectors.length, 3);
 
@@ -897,12 +819,15 @@ contract WhitelistManagerFacetTest is DiamondTest {
         bool foundSelector2 = false;
 
         for (uint256 i = 0; i < returnedSelectors.length; i++) {
-            if (returnedSelectors[i] == testSelectors[0])
+            if (returnedSelectors[i] == testSelectors[0]) {
                 foundSelector0 = true;
-            if (returnedSelectors[i] == testSelectors[1])
+            }
+            if (returnedSelectors[i] == testSelectors[1]) {
                 foundSelector1 = true;
-            if (returnedSelectors[i] == testSelectors[2])
+            }
+            if (returnedSelectors[i] == testSelectors[2]) {
                 foundSelector2 = true;
+            }
         }
 
         assertTrue(foundSelector0, "Selector 0 should be in returned array");
@@ -918,10 +843,8 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.startPrank(USER_DIAMOND_OWNER);
 
         // Test getAllContractSelectorPairs with empty state
-        (
-            address[] memory emptyContracts,
-            bytes4[][] memory emptySelectors
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory emptyContracts, bytes4[][] memory emptySelectors) =
+            whitelistMgr.getAllContractSelectorPairs();
         assertEq(
             emptyContracts.length,
             0,
@@ -937,22 +860,12 @@ contract WhitelistManagerFacetTest is DiamondTest {
         bytes4 selector1 = bytes4(hex"faceface");
         bytes4 selector2 = bytes4(hex"deadbeef");
 
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector1,
-            true
-        );
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c2),
-            selector2,
-            true
-        );
+        whitelistMgr.setContractSelectorWhitelist(address(c1), selector1, true);
+        whitelistMgr.setContractSelectorWhitelist(address(c2), selector2, true);
 
         // Test getAllContractSelectorPairs returns all contract-selector pairs
-        (
-            address[] memory allContracts,
-            bytes4[][] memory allSelectors
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory allContracts, bytes4[][] memory allSelectors) =
+            whitelistMgr.getAllContractSelectorPairs();
         assertEq(allContracts.length, 2, "Should return 2 contracts");
 
         // Verify both contracts and their selectors are present
@@ -962,24 +875,18 @@ contract WhitelistManagerFacetTest is DiamondTest {
             if (allContracts[i] == address(c1)) {
                 foundC1 = true;
                 assertEq(
-                    allSelectors[i].length,
-                    1,
-                    "c1 should have 1 selector"
+                    allSelectors[i].length, 1, "c1 should have 1 selector"
                 );
                 assertTrue(
-                    allSelectors[i][0] == selector1,
-                    "c1 should have selector1"
+                    allSelectors[i][0] == selector1, "c1 should have selector1"
                 );
             } else if (allContracts[i] == address(c2)) {
                 foundC2 = true;
                 assertEq(
-                    allSelectors[i].length,
-                    1,
-                    "c2 should have 1 selector"
+                    allSelectors[i].length, 1, "c2 should have 1 selector"
                 );
                 assertTrue(
-                    allSelectors[i][0] == selector2,
-                    "c2 should have selector2"
+                    allSelectors[i][0] == selector2, "c2 should have selector2"
                 );
             }
         }
@@ -997,11 +904,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         );
 
         // Make redundant call - this should hit the early return
-        whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector1,
-            true
-        );
+        whitelistMgr.setContractSelectorWhitelist(address(c1), selector1, true);
 
         // Verify state is unchanged (proving early return worked)
         assertTrue(
@@ -1010,14 +913,10 @@ contract WhitelistManagerFacetTest is DiamondTest {
         );
 
         // Verify contract-selector pairs are unchanged
-        (
-            address[] memory contractsAfter,
-            bytes4[][] memory selectorsAfter
-        ) = whitelistMgr.getAllContractSelectorPairs();
+        (address[] memory contractsAfter, bytes4[][] memory selectorsAfter) =
+            whitelistMgr.getAllContractSelectorPairs();
         assertEq(
-            contractsAfter.length,
-            2,
-            "Contract count should be unchanged"
+            contractsAfter.length, 2, "Contract count should be unchanged"
         );
         assertEq(
             selectorsAfter.length,
@@ -1027,9 +926,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         // Test redundant removal operation
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector1,
-            false
+            address(c1), selector1, false
         );
         assertFalse(
             whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1),
@@ -1038,9 +935,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         // Try to remove again (redundant operation)
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            selector1,
-            false
+            address(c1), selector1, false
         );
         assertFalse(
             whitelistMgr.isContractSelectorWhitelisted(address(c1), selector1),
@@ -1065,9 +960,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(abi.encodeWithSignature("InvalidConfig()"));
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -1080,9 +973,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(CannotAuthoriseSelf.selector);
 
         whitelistMgr.setContractSelectorWhitelist(
-            address(whitelistMgr),
-            0xDEADDEAD,
-            true
+            address(whitelistMgr), 0xDEADDEAD, true
         );
 
         vm.stopPrank();
@@ -1102,9 +993,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(CannotAuthoriseSelf.selector);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -1126,9 +1015,7 @@ contract WhitelistManagerFacetTest is DiamondTest {
         vm.expectRevert(UnAuthorized.selector);
 
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         vm.stopPrank();
@@ -1137,17 +1024,15 @@ contract WhitelistManagerFacetTest is DiamondTest {
     function test_SucceedsIfNonOwnerWithAccessCanBatchSet() public {
         // Test that line 138 (LibAccess.enforceAccessControl()) is executed
         // and allows authorized non-owner to call the function
-        address authorizedUser = address(
-            0xA17401230000000000000000000000000000000d
-        );
+        address authorizedUser =
+            address(0xA17401230000000000000000000000000000000d);
 
         // First, owner grants access to the authorized user
         vm.startPrank(USER_DIAMOND_OWNER);
 
         // Grant access to batchSetContractSelectorWhitelist function
-        bytes4 selector = whitelistMgr
-            .batchSetContractSelectorWhitelist
-            .selector;
+        bytes4 selector =
+            whitelistMgr.batchSetContractSelectorWhitelist.selector;
         accessMgr.setCanExecute(selector, authorizedUser, true);
 
         vm.stopPrank();
@@ -1163,16 +1048,13 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         // This should succeed because authorizedUser has access
         whitelistMgr.batchSetContractSelectorWhitelist(
-            addresses,
-            selectors,
-            true
+            addresses, selectors, true
         );
 
         // Verify it worked
         assertTrue(
             whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                0xDEADDEAD
+                address(c1), 0xDEADDEAD
             ),
             "Contract-selector should be whitelisted"
         );
@@ -1182,9 +1064,8 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
     function test_SucceedsIfNonOwnerWithAccessCanSetSingle() public {
         // Test line 138 for single setter too
-        address authorizedUser = address(
-            0xA17401230000000000000000000000000000000d
-        );
+        address authorizedUser =
+            address(0xA17401230000000000000000000000000000000d);
 
         // First, owner grants access to the authorized user
         vm.startPrank(USER_DIAMOND_OWNER);
@@ -1200,16 +1081,13 @@ contract WhitelistManagerFacetTest is DiamondTest {
 
         // This should succeed because authorizedUser has access
         whitelistMgr.setContractSelectorWhitelist(
-            address(c1),
-            0xBEEFBEEF,
-            true
+            address(c1), 0xBEEFBEEF, true
         );
 
         // Verify it worked
         assertTrue(
             whitelistMgr.isContractSelectorWhitelisted(
-                address(c1),
-                0xBEEFBEEF
+                address(c1), 0xBEEFBEEF
             ),
             "Contract-selector should be whitelisted"
         );

@@ -96,7 +96,7 @@ describe('the operation refusal sits on every operation-bearing route of the cli
   })
 
   it('renders the refused operation through the sanitiser, never raw', () => {
-    // Whitespace-insensitive: the call spans lines, and how prettier wraps it
+    // Whitespace-insensitive: the call spans lines, and how oxfmt wraps it
     // is not what this asserts.
     const packed = CONFIRM.replace(/\s+/gu, '')
 

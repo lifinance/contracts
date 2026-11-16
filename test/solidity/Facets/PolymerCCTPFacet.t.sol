@@ -4,10 +4,21 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { PolymerCCTPFacet } from "lifi/Facets/PolymerCCTPFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../utils/TestWhitelistManagerBase.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { LiFiDiamond } from "../utils/DiamondTest.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, InvalidSendingToken, NotInitialized, OnlyContractOwner, UnsupportedChainId } from "lifi/Errors/GenericErrors.sol";
+import {
+    InvalidCallData,
+    InvalidConfig,
+    InvalidNonEVMReceiver,
+    InvalidReceiver,
+    InvalidSendingToken,
+    NotInitialized,
+    OnlyContractOwner,
+    UnsupportedChainId
+} from "lifi/Errors/GenericErrors.sol";
 import { ITokenMessenger } from "lifi/Interfaces/ITokenMessenger.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -17,19 +28,16 @@ contract TestPolymerCCTPFacet is PolymerCCTPFacet, TestWhitelistManagerBase {
         address _tokenMessenger,
         address _usdc,
         address _polymerFeeReceiver
-    ) PolymerCCTPFacet(_tokenMessenger, _usdc, _polymerFeeReceiver) {}
+    ) PolymerCCTPFacet(_tokenMessenger, _usdc, _polymerFeeReceiver) { }
 }
 
 contract PolymerCCTPFacetTest is TestBaseFacet {
     event PolymerCCTPFeeSent(
-        uint256 bridgeAmount,
-        uint256 polymerFee,
-        uint32 minFinalityThreshold
+        uint256 bridgeAmount, uint256 polymerFee, uint32 minFinalityThreshold
     );
 
-    event PolymerCCTPChainMappingsInitialized(
-        PolymerCCTPFacet.ChainIdConfig[] chainIdConfigs
-    );
+    event PolymerCCTPChainMappingsInitialized(PolymerCCTPFacet
+                .ChainIdConfig[] chainIdConfigs);
 
     event ChainIdToDomainIdSet(uint256 indexed chainId, uint32 domainId);
 
@@ -81,28 +89,24 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         mappings[17] = ChainMapping({ chainId: 98866, domainId: 22 }); // Plume
         mappings[18] = ChainMapping({ chainId: 5042, domainId: 26 }); // Arc
         mappings[19] = ChainMapping({ chainId: 1672, domainId: 31 }); // Pharos
-        mappings[20] = ChainMapping({
-            chainId: LIFI_CHAIN_ID_HYPERCORE,
-            domainId: 19
-        }); // HyperCore (same CCTP domain as HyperEVM)
+        mappings[20] =
+            ChainMapping({ chainId: LIFI_CHAIN_ID_HYPERCORE, domainId: 19 }); // HyperCore (same CCTP domain as HyperEVM)
         mappings[21] = ChainMapping({
-            chainId: LIFI_CHAIN_ID_STELLAR,
-            domainId: STELLAR_CCTP_DOMAIN
+            chainId: LIFI_CHAIN_ID_STELLAR, domainId: STELLAR_CCTP_DOMAIN
         }); // Stellar
     }
 
-    function _toChainIdConfigs(
-        ChainMapping[] memory mappings
-    ) internal pure returns (PolymerCCTPFacet.ChainIdConfig[] memory) {
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory configs = new PolymerCCTPFacet.ChainIdConfig[](
-                mappings.length
-            );
+    function _toChainIdConfigs(ChainMapping[] memory mappings)
+        internal
+        pure
+        returns (PolymerCCTPFacet.ChainIdConfig[] memory)
+    {
+        PolymerCCTPFacet.ChainIdConfig[] memory configs =
+            new PolymerCCTPFacet.ChainIdConfig[](mappings.length);
 
         for (uint256 i = 0; i < mappings.length; i++) {
             configs[i] = PolymerCCTPFacet.ChainIdConfig({
-                chainId: mappings[i].chainId,
-                domainId: mappings[i].domainId
+                chainId: mappings[i].chainId, domainId: mappings[i].domainId
             });
         }
 
@@ -120,27 +124,20 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         initTestBase();
 
         polymerCCTPFacet = new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_V2_MAINNET,
-            ADDRESS_USDC,
-            polymerFeeReceiver
+            TOKEN_MESSENGER_V2_MAINNET, ADDRESS_USDC, polymerFeeReceiver
         );
 
         bytes4[] memory functionSelectors = new bytes4[](7);
-        functionSelectors[0] = polymerCCTPFacet
-            .startBridgeTokensViaPolymerCCTP
-            .selector;
-        functionSelectors[1] = polymerCCTPFacet
-            .swapAndStartBridgeTokensViaPolymerCCTP
-            .selector;
-        functionSelectors[2] = polymerCCTPFacet
-            .addAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        polymerCCTPFacet.startBridgeTokensViaPolymerCCTP.selector;
+        functionSelectors[1] =
+        polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP.selector;
+        functionSelectors[2] =
+        polymerCCTPFacet.addAllowedContractSelector.selector;
         functionSelectors[3] = polymerCCTPFacet.getChainIdToDomainId.selector;
         functionSelectors[4] = polymerCCTPFacet.initPolymerCCTP.selector;
         functionSelectors[5] = polymerCCTPFacet.setChainIdToDomainId.selector;
-        functionSelectors[6] = polymerCCTPFacet
-            .unsetChainIdToDomainId
-            .selector;
+        functionSelectors[6] = polymerCCTPFacet.unsetChainIdToDomainId.selector;
 
         addFacet(diamond, address(polymerCCTPFacet), functionSelectors);
         polymerCCTPFacet = TestPolymerCCTPFacet(address(diamond));
@@ -149,13 +146,11 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
 
         polymerCCTPFacet.addAllowedContractSelector(
-            ADDRESS_UNISWAP,
-            uniswap.swapExactTokensForTokens.selector
+            ADDRESS_UNISWAP, uniswap.swapExactTokensForTokens.selector
         );
 
         setFacetAddressInTestBase(
-            address(polymerCCTPFacet),
-            "PolymerCCTPFacet"
+            address(polymerCCTPFacet), "PolymerCCTPFacet"
         );
 
         bridgeData.bridge = "polymercctp";
@@ -181,16 +176,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     function initiateBridgeTxWithFacet(bool) internal override {
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            validPolymerData
+            bridgeData, validPolymerData
         );
     }
 
     function initiateSwapAndBridgeTxWithFacet(bool) internal override {
         polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            swapData,
-            validPolymerData
+            bridgeData, swapData, validPolymerData
         );
     }
 
@@ -202,8 +194,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     {
         ILiFi.BridgeData memory adjustedBridgeData = bridgeData;
         adjustedBridgeData.minAmount =
-            bridgeData.minAmount -
-            validPolymerData.polymerTokenFee;
+            bridgeData.minAmount - validPolymerData.polymerTokenFee;
         return adjustedBridgeData;
     }
 
@@ -221,8 +212,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        ILiFi.BridgeData
-            memory adjustedBridgeData = getBridgeDataWithAdjustedAmount();
+        ILiFi.BridgeData memory adjustedBridgeData =
+            getBridgeDataWithAdjustedAmount();
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(adjustedBridgeData);
 
@@ -243,8 +234,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         uint256 polymerFee = amount / 100;
         // Recalculate maxCCTPFee as 10% of the fuzzed amount (or 0 for no limit)
         uint256 maxCCTPFee = amount / 10;
-        PolymerCCTPFacet.PolymerCCTPData
-            memory fuzzedPolymerData = PolymerCCTPFacet.PolymerCCTPData({
+        PolymerCCTPFacet.PolymerCCTPData memory fuzzedPolymerData =
+            PolymerCCTPFacet.PolymerCCTPData({
                 polymerTokenFee: polymerFee,
                 maxCCTPFee: maxCCTPFee,
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
@@ -263,8 +254,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         // Use the fuzzed polymer data instead of the default
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            fuzzedPolymerData
+            bridgeData, fuzzedPolymerData
         );
         vm.stopPrank();
     }
@@ -282,8 +272,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         // Recalculate polymer fee as 1% of the swap output amount
         uint256 swapOutputAmount = defaultUSDCAmount;
         uint256 polymerFee = swapOutputAmount / 100;
-        PolymerCCTPFacet.PolymerCCTPData
-            memory swapPolymerData = PolymerCCTPFacet.PolymerCCTPData({
+        PolymerCCTPFacet.PolymerCCTPData memory swapPolymerData =
+            PolymerCCTPFacet.PolymerCCTPData({
                 polymerTokenFee: polymerFee,
                 maxCCTPFee: swapOutputAmount / 10, // 10% of swap output
                 nonEVMReceiver: validPolymerData.nonEVMReceiver,
@@ -313,9 +303,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         // Use the swap-specific polymer data
         polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            swapData,
-            swapPolymerData
+            bridgeData, swapData, swapPolymerData
         );
         vm.stopPrank();
     }
@@ -369,9 +357,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidConfig.selector);
 
         new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_V2_MAINNET,
-            address(0),
-            polymerFeeReceiver
+            TOKEN_MESSENGER_V2_MAINNET, address(0), polymerFeeReceiver
         );
     }
 
@@ -379,9 +365,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidConfig.selector);
 
         new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_V2_MAINNET,
-            ADDRESS_USDC,
-            address(0)
+            TOKEN_MESSENGER_V2_MAINNET, ADDRESS_USDC, address(0)
         );
     }
 
@@ -426,8 +410,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             validPolymerData.minFinalityThreshold
         );
 
-        ILiFi.BridgeData
-            memory adjustedBridgeData = getBridgeDataWithAdjustedAmount();
+        ILiFi.BridgeData memory adjustedBridgeData =
+            getBridgeDataWithAdjustedAmount();
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(adjustedBridgeData);
 
@@ -441,15 +425,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
-                _buildHyperCoreHookData(bridgeData.receiver)
-            );
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(_buildHyperCoreHookData(bridgeData.receiver));
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        uint256 bridgeAmount = bridgeData.minAmount -
-            polymerDataWithHook.polymerTokenFee;
+        uint256 bridgeAmount =
+            bridgeData.minAmount - polymerDataWithHook.polymerTokenFee;
         vm.expectCall(
             TOKEN_MESSENGER_V2_MAINNET,
             abi.encodeCall(
@@ -480,8 +462,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(adjustedBridgeData);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -493,16 +474,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
         // destinationChainId stays Base (8453) from setUp
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
-                _buildHyperCoreHookData(bridgeData.receiver)
-            );
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(_buildHyperCoreHookData(bridgeData.receiver));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -516,18 +494,15 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
-                _buildHyperCoreHookData(USER_RECEIVER)
-            );
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(_buildHyperCoreHookData(USER_RECEIVER));
         polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0x1234));
         polymerDataWithHook.solanaReceiverATA = bytes32(uint256(0x5678));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -541,17 +516,14 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
-                _buildHyperCoreHookData(USER_RECEIVER)
-            );
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(_buildHyperCoreHookData(USER_RECEIVER));
         polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0x1234));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -567,8 +539,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            validPolymerData
+            bridgeData, validPolymerData
         );
 
         vm.stopPrank();
@@ -581,16 +552,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
-                _buildHyperCoreHookData(address(0xDEADBEEF))
-            );
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(_buildHyperCoreHookData(address(0xDEADBEEF)));
 
         vm.expectRevert(InvalidReceiver.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -603,14 +571,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(hex"01");
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(hex"01");
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -624,14 +591,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
 
         // 51 bytes: one below the minimum that contains a full recipient
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(new bytes(51));
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(new bytes(51));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -644,13 +610,10 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         // Exactly 52 bytes: header + recipient, no destinationId
         bytes memory hookData = abi.encodePacked(
-            bytes24("cctp-forward"),
-            uint32(0),
-            uint32(20),
-            bridgeData.receiver
+            bytes24("cctp-forward"), uint32(0), uint32(20), bridgeData.receiver
         );
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(hookData);
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(hookData);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
@@ -662,8 +625,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         );
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -671,47 +633,47 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
     /// @dev CctpForwarder hook data: magic (24) + version (4) + payload length (4)
     ///      + recipient (20) + destination dex (4, 0xFFFFFFFF = spot balance)
-    function _buildHyperCoreHookData(
-        address recipient
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                bytes24("cctp-forward"),
-                uint32(0),
-                uint32(24),
-                recipient,
-                uint32(0xFFFFFFFF)
-            );
+    function _buildHyperCoreHookData(address recipient)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(
+            bytes24("cctp-forward"),
+            uint32(0),
+            uint32(24),
+            recipient,
+            uint32(0xFFFFFFFF)
+        );
     }
 
     /// @dev Stellar CctpForwarder hook data: magic (24) + version (4)
     ///      + strkey length L (4) + strkey (L). The length field must equal the
     ///      actual strkey length or the facet rejects the hook.
-    function _buildStellarHookData(
-        bytes memory strkey
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                bytes24("cctp-forward"),
-                uint32(0),
-                uint32(strkey.length),
-                strkey
-            );
+    function _buildStellarHookData(bytes memory strkey)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(
+            bytes24("cctp-forward"), uint32(0), uint32(strkey.length), strkey
+        );
     }
 
-    function _polymerDataWithHook(
-        bytes memory hookData
-    ) internal view returns (PolymerCCTPFacet.PolymerCCTPData memory) {
-        return
-            PolymerCCTPFacet.PolymerCCTPData({
-                polymerTokenFee: validPolymerData.polymerTokenFee,
-                maxCCTPFee: validPolymerData.maxCCTPFee,
-                nonEVMReceiver: validPolymerData.nonEVMReceiver,
-                solanaReceiverATA: validPolymerData.solanaReceiverATA,
-                minFinalityThreshold: validPolymerData.minFinalityThreshold,
-                refundRecipient: validPolymerData.refundRecipient,
-                hookData: hookData
-            });
+    function _polymerDataWithHook(bytes memory hookData)
+        internal
+        view
+        returns (PolymerCCTPFacet.PolymerCCTPData memory)
+    {
+        return PolymerCCTPFacet.PolymerCCTPData({
+            polymerTokenFee: validPolymerData.polymerTokenFee,
+            maxCCTPFee: validPolymerData.maxCCTPFee,
+            nonEVMReceiver: validPolymerData.nonEVMReceiver,
+            solanaReceiverATA: validPolymerData.solanaReceiverATA,
+            minFinalityThreshold: validPolymerData.minFinalityThreshold,
+            refundRecipient: validPolymerData.refundRecipient,
+            hookData: hookData
+        });
     }
 
     function test_CanBridgeToStellarWithHookData() public {
@@ -722,8 +684,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(
                 _buildStellarHookData(
                     bytes(
                         "GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX"
@@ -732,8 +694,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             );
         polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
 
-        uint256 bridgeAmount = bridgeData.minAmount -
-            polymerDataWithHook.polymerTokenFee;
+        uint256 bridgeAmount =
+            bridgeData.minAmount - polymerDataWithHook.polymerTokenFee;
 
         // Stellar (CCTP domain 27) is not yet registered on the forked mainnet
         // TokenMessengerV2, so mock the burn to isolate the facet's dispatch/calldata.
@@ -782,8 +744,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         emit LiFiTransferStarted(adjustedBridgeData);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -797,8 +758,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         // receiver left as the default EVM address instead of NON_EVM_ADDRESS
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(
                 _buildStellarHookData(
                     bytes(
                         "GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX"
@@ -810,8 +771,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -826,8 +786,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
 
         // nonEVMReceiver left as zero
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(
                 _buildStellarHookData(
                     bytes(
                         "GDUKMGUGDZQK6YHYA5Z6AY2G4XDSZPSZ3SW5UN3ARVMO6QSRDWP5YLEX"
@@ -838,8 +798,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -871,15 +830,14 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
 
         // 31 bytes: one below the 32-byte header holding the length field
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(new bytes(31));
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(new bytes(31));
         polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -895,20 +853,16 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         // Declared strkey length (56) disagrees with the 10 trailing bytes present
         bytes memory badHook = abi.encodePacked(
-            bytes24("cctp-forward"),
-            uint32(0),
-            uint32(56),
-            new bytes(10)
+            bytes24("cctp-forward"), uint32(0), uint32(56), new bytes(10)
         );
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(badHook);
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(badHook);
         polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -924,9 +878,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = 8453; // Base (EVM)
-        validPolymerData.nonEVMReceiver = bytes32(
-            uint256(uint160(address(0xBEEF)))
-        );
+        validPolymerData.nonEVMReceiver =
+            bytes32(uint256(uint160(address(0xBEEF))));
 
         vm.expectRevert(InvalidReceiver.selector);
 
@@ -966,20 +919,16 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
 
         // 32 bytes: magic (24) + version (4) + length (4, = 0), no strkey
-        bytes memory zeroLenHook = abi.encodePacked(
-            bytes24("cctp-forward"),
-            uint32(0),
-            uint32(0)
-        );
-        PolymerCCTPFacet.PolymerCCTPData
-            memory polymerDataWithHook = _polymerDataWithHook(zeroLenHook);
+        bytes memory zeroLenHook =
+            abi.encodePacked(bytes24("cctp-forward"), uint32(0), uint32(0));
+        PolymerCCTPFacet.PolymerCCTPData memory polymerDataWithHook =
+            _polymerDataWithHook(zeroLenHook);
         polymerDataWithHook.nonEVMReceiver = bytes32(uint256(0xABCD));
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.startBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            polymerDataWithHook
+            bridgeData, polymerDataWithHook
         );
 
         vm.stopPrank();
@@ -1035,8 +984,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             validPolymerData.minFinalityThreshold
         );
 
-        ILiFi.BridgeData
-            memory adjustedBridgeData = getBridgeDataWithAdjustedAmount();
+        ILiFi.BridgeData memory adjustedBridgeData =
+            getBridgeDataWithAdjustedAmount();
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(adjustedBridgeData);
 
@@ -1059,8 +1008,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             validPolymerData.minFinalityThreshold
         );
 
-        ILiFi.BridgeData
-            memory adjustedBridgeData = getBridgeDataWithAdjustedAmount();
+        ILiFi.BridgeData memory adjustedBridgeData =
+            getBridgeDataWithAdjustedAmount();
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(adjustedBridgeData);
 
@@ -1086,11 +1035,10 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         uint256 chainId = 5042002;
         uint32 domainId = 26;
 
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](1);
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            new PolymerCCTPFacet.ChainIdConfig[](1);
         chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
-            chainId: chainId,
-            domainId: domainId
+            chainId: chainId, domainId: domainId
         });
 
         vm.expectEmit(true, true, true, true);
@@ -1106,16 +1054,12 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     function test_CanSetMultipleChainIdsToDomainId() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](2);
-        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
-            chainId: 5042002,
-            domainId: 26
-        });
-        chainIdConfigs[1] = PolymerCCTPFacet.ChainIdConfig({
-            chainId: 5042003,
-            domainId: 27
-        });
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            new PolymerCCTPFacet.ChainIdConfig[](2);
+        chainIdConfigs[0] =
+            PolymerCCTPFacet.ChainIdConfig({ chainId: 5042002, domainId: 26 });
+        chainIdConfigs[1] =
+            PolymerCCTPFacet.ChainIdConfig({ chainId: 5042003, domainId: 27 });
 
         polymerCCTPFacet.setChainIdToDomainId(chainIdConfigs);
 
@@ -1128,12 +1072,10 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     function testRevert_FailToSetChainIdToDomainIdFromNotOwner() public {
         vm.startPrank(USER_SENDER);
 
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](1);
-        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
-            chainId: 5042002,
-            domainId: 26
-        });
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            new PolymerCCTPFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] =
+            PolymerCCTPFacet.ChainIdConfig({ chainId: 5042002, domainId: 26 });
 
         vm.expectRevert(OnlyContractOwner.selector);
 
@@ -1146,17 +1088,13 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.startPrank(address(0));
 
         TestPolymerCCTPFacet uninitializedFacet = new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_V2_MAINNET,
-            ADDRESS_USDC,
-            polymerFeeReceiver
+            TOKEN_MESSENGER_V2_MAINNET, ADDRESS_USDC, polymerFeeReceiver
         );
 
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](1);
-        chainIdConfigs[0] = PolymerCCTPFacet.ChainIdConfig({
-            chainId: 5042,
-            domainId: 26
-        });
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            new PolymerCCTPFacet.ChainIdConfig[](1);
+        chainIdConfigs[0] =
+            PolymerCCTPFacet.ChainIdConfig({ chainId: 5042, domainId: 26 });
 
         vm.expectRevert(NotInitialized.selector);
 
@@ -1168,8 +1106,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     function testRevert_SetChainIdToDomainIdWithEmptyConfig() public {
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory chainIdConfigs = new PolymerCCTPFacet.ChainIdConfig[](0);
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            new PolymerCCTPFacet.ChainIdConfig[](0);
 
         vm.expectRevert(InvalidConfig.selector);
 
@@ -1215,9 +1153,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.startPrank(address(0));
 
         TestPolymerCCTPFacet uninitializedFacet = new TestPolymerCCTPFacet(
-            TOKEN_MESSENGER_V2_MAINNET,
-            ADDRESS_USDC,
-            polymerFeeReceiver
+            TOKEN_MESSENGER_V2_MAINNET, ADDRESS_USDC, polymerFeeReceiver
         );
 
         vm.expectRevert(NotInitialized.selector);
@@ -1256,15 +1192,11 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
     }
 
     function test_InitPolymerCCTP() public {
-        LiFiDiamond testDiamond = createDiamond(
-            USER_DIAMOND_OWNER,
-            USER_PAUSER
-        );
+        LiFiDiamond testDiamond =
+            createDiamond(USER_DIAMOND_OWNER, USER_PAUSER);
 
         PolymerCCTPFacet actualFacet = new PolymerCCTPFacet(
-            TOKEN_MESSENGER_V2_MAINNET,
-            ADDRESS_USDC,
-            polymerFeeReceiver
+            TOKEN_MESSENGER_V2_MAINNET, ADDRESS_USDC, polymerFeeReceiver
         );
 
         bytes4[] memory functionSelectors = new bytes4[](2);
@@ -1272,22 +1204,19 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         functionSelectors[1] = actualFacet.getChainIdToDomainId.selector;
         addFacet(testDiamond, address(actualFacet), functionSelectors);
 
-        PolymerCCTPFacet.ChainIdConfig[]
-            memory chainIdConfigs = _toChainIdConfigs(_defaultChainMappings());
+        PolymerCCTPFacet.ChainIdConfig[] memory chainIdConfigs =
+            _toChainIdConfigs(_defaultChainMappings());
 
         vm.startPrank(USER_DIAMOND_OWNER);
         PolymerCCTPFacet(address(testDiamond)).initPolymerCCTP(chainIdConfigs);
 
         assertEq(
-            IERC20(ADDRESS_USDC).allowance(
-                address(testDiamond),
-                TOKEN_MESSENGER_V2_MAINNET
-            ),
+            IERC20(ADDRESS_USDC)
+                .allowance(address(testDiamond), TOKEN_MESSENGER_V2_MAINNET),
             type(uint256).max
         );
         assertEq(
-            PolymerCCTPFacet(address(testDiamond)).getChainIdToDomainId(1),
-            0
+            PolymerCCTPFacet(address(testDiamond)).getChainIdToDomainId(1), 0
         );
         vm.stopPrank();
     }
@@ -1302,10 +1231,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         path[0] = ADDRESS_DAI;
         path[1] = ADDRESS_USDC;
 
-        uint256[] memory amounts = uniswap.getAmountsIn(
-            bridgeData.minAmount,
-            path
-        );
+        uint256[] memory amounts =
+            uniswap.getAmountsIn(bridgeData.minAmount, path);
         uint256 amountIn = amounts[0];
 
         swapData.push(
@@ -1340,8 +1267,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
             block.timestamp
         );
 
-        ILiFi.BridgeData
-            memory adjustedBridgeData = getBridgeDataWithAdjustedAmount();
+        ILiFi.BridgeData memory adjustedBridgeData =
+            getBridgeDataWithAdjustedAmount();
         vm.expectEmit(true, true, true, true, _facetTestContractAddress);
         emit LiFiTransferStarted(adjustedBridgeData);
 
@@ -1361,16 +1288,14 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         setDefaultSwapDataSingleDAItoUSDC();
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
-        PolymerCCTPFacet.PolymerCCTPData
-            memory zeroRefundData = _polymerDataWithHook("");
+        PolymerCCTPFacet.PolymerCCTPData memory zeroRefundData =
+            _polymerDataWithHook("");
         zeroRefundData.refundRecipient = address(0);
 
         vm.expectRevert(InvalidCallData.selector);
 
         polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            swapData,
-            zeroRefundData
+            bridgeData, swapData, zeroRefundData
         );
 
         vm.stopPrank();
@@ -1390,8 +1315,8 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
 
         uint256 swapOutputAmount = defaultUSDCAmount;
-        PolymerCCTPFacet.PolymerCCTPData
-            memory swapPolymerData = PolymerCCTPFacet.PolymerCCTPData({
+        PolymerCCTPFacet.PolymerCCTPData memory swapPolymerData =
+            PolymerCCTPFacet.PolymerCCTPData({
                 polymerTokenFee: swapOutputAmount / 100,
                 maxCCTPFee: swapOutputAmount / 10,
                 nonEVMReceiver: bytes32(0),
@@ -1407,7 +1332,9 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
 
         polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP{
             value: excessNative
-        }(bridgeData, swapData, swapPolymerData);
+        }(
+            bridgeData, swapData, swapPolymerData
+        );
 
         assertEq(USER_REFUND.balance, refundBalanceBefore + excessNative);
 
@@ -1430,9 +1357,7 @@ contract PolymerCCTPFacetTest is TestBaseFacet {
         vm.expectRevert(InvalidSendingToken.selector);
 
         polymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP(
-            bridgeData,
-            swapData,
-            _polymerDataWithHook("")
+            bridgeData, swapData, _polymerDataWithHook("")
         );
 
         vm.stopPrank();

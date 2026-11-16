@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { AcrossV4SwapFacetSponsoredTestBase } from "./AcrossV4SwapFacet.SponsoredBase.t.sol";
+import {
+    AcrossV4SwapFacetSponsoredTestBase
+} from "./AcrossV4SwapFacet.SponsoredBase.t.sol";
 import { AcrossV4SwapFacet } from "lifi/Facets/AcrossV4SwapFacet.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
-import { ISponsoredOFTSrcPeriphery } from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
+import {
+    ISponsoredOFTSrcPeriphery
+} from "lifi/Interfaces/ISponsoredOFTSrcPeriphery.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { InformationMismatch } from "lifi/Errors/GenericErrors.sol";
 
@@ -15,9 +19,8 @@ contract AcrossV4SwapFacetSponsoredOftTest is
         ISponsoredOFTSrcPeriphery.Quote memory quote;
         quote.signedParams.dstEid = 999; // mismatch for chainId=1 (30101)
         quote.signedParams.amountLD = 123;
-        quote.signedParams.finalRecipient = bytes32(
-            uint256(uint160(USER_RECEIVER))
-        );
+        quote.signedParams.finalRecipient =
+            bytes32(uint256(uint160(USER_RECEIVER)));
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
             transactionId: "tx",
@@ -42,9 +45,8 @@ contract AcrossV4SwapFacetSponsoredOftTest is
         facet.startBridgeTokensViaAcrossV4Swap(
             bridgeData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredOFTSrcPeriphery,
                 callData: abi.encode(quote, bytes("")),
                 signature: ""
             })
@@ -58,17 +60,14 @@ contract AcrossV4SwapFacetSponsoredOftTest is
         uint256 quotedAmount = 100;
         uint256 swapOutputAmount = quotedAmount + 1;
 
-        LibSwap.SwapData[] memory swapData = _swapDataDaiToTokenOut(
-            quotedAmount,
-            swapOutputAmount
-        );
+        LibSwap.SwapData[] memory swapData =
+            _swapDataDaiToTokenOut(quotedAmount, swapOutputAmount);
 
         ISponsoredOFTSrcPeriphery.Quote memory quote;
         quote.signedParams.dstEid = 30101; // chainId=1
         quote.signedParams.amountLD = quotedAmount;
-        quote.signedParams.finalRecipient = bytes32(
-            uint256(uint160(USER_RECEIVER))
-        );
+        quote.signedParams.finalRecipient =
+            bytes32(uint256(uint160(USER_RECEIVER)));
         quote.unsignedParams.refundRecipient = USER_RECEIVER;
 
         ILiFi.BridgeData memory bridgeData = ILiFi.BridgeData({
@@ -93,9 +92,8 @@ contract AcrossV4SwapFacetSponsoredOftTest is
             bridgeData,
             swapData,
             AcrossV4SwapFacet.AcrossV4SwapFacetData({
-                swapApiTarget: AcrossV4SwapFacet
-                    .SwapApiTarget
-                    .SponsoredOFTSrcPeriphery,
+                swapApiTarget: AcrossV4SwapFacet.SwapApiTarget
+                .SponsoredOFTSrcPeriphery,
                 callData: abi.encode(quote, bytes("")),
                 signature: ""
             })

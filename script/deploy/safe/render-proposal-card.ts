@@ -10,7 +10,7 @@
  * collection. Acceptable while this runs once per proposal batch.
  */
 
-import 'dotenv/config'
+import '../../utils/loadEnv'
 
 import { writeFileSync } from 'fs'
 

@@ -4,14 +4,15 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../../utils/TestBaseFacet.sol";
 import { OmniBridgeFacet } from "lifi/Facets/OmniBridgeFacet.sol";
 import { IOmniBridge } from "lifi/Interfaces/IOmniBridge.sol";
-import { TestWhitelistManagerBase } from "../../utils/TestWhitelistManagerBase.sol";
+import {
+    TestWhitelistManagerBase
+} from "../../utils/TestWhitelistManagerBase.sol";
 
 // Stub OmniBridgeFacet Contract
 contract TestOmniBridgeFacet is OmniBridgeFacet, TestWhitelistManagerBase {
-    constructor(
-        IOmniBridge _foreignOmniBridge,
-        IOmniBridge _wethOmniBridge
-    ) OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge) {}
+    constructor(IOmniBridge _foreignOmniBridge, IOmniBridge _wethOmniBridge)
+        OmniBridgeFacet(_foreignOmniBridge, _wethOmniBridge)
+    { }
 }
 
 contract OmniBridgeFacetTest is TestBaseFacet {
@@ -29,39 +30,31 @@ contract OmniBridgeFacetTest is TestBaseFacet {
         initTestBase();
 
         omniBridgeFacet = new TestOmniBridgeFacet(
-            IOmniBridge(FOREIGN_BRIDGE),
-            IOmniBridge(WETH_BRIDGE)
+            IOmniBridge(FOREIGN_BRIDGE), IOmniBridge(WETH_BRIDGE)
         );
 
         bytes4[] memory functionSelectors = new bytes4[](4);
-        functionSelectors[0] = omniBridgeFacet
-            .startBridgeTokensViaOmniBridge
-            .selector;
-        functionSelectors[1] = omniBridgeFacet
-            .swapAndStartBridgeTokensViaOmniBridge
-            .selector;
-        functionSelectors[2] = omniBridgeFacet
-            .addAllowedContractSelector
-            .selector;
-        functionSelectors[3] = omniBridgeFacet
-            .removeAllowedContractSelector
-            .selector;
+        functionSelectors[0] =
+        omniBridgeFacet.startBridgeTokensViaOmniBridge.selector;
+        functionSelectors[1] =
+        omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge.selector;
+        functionSelectors[2] =
+        omniBridgeFacet.addAllowedContractSelector.selector;
+        functionSelectors[3] =
+        omniBridgeFacet.removeAllowedContractSelector.selector;
 
         addFacet(diamond, address(omniBridgeFacet), functionSelectors);
 
         omniBridgeFacet = TestOmniBridgeFacet(address(diamond));
 
         omniBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapExactTokensForTokens.selector
+            address(uniswap), uniswap.swapExactTokensForTokens.selector
         );
         omniBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapETHForExactTokens.selector
+            address(uniswap), uniswap.swapETHForExactTokens.selector
         );
         omniBridgeFacet.addAllowedContractSelector(
-            address(uniswap),
-            uniswap.swapTokensForExactETH.selector
+            address(uniswap), uniswap.swapTokensForExactETH.selector
         );
 
         setFacetAddressInTestBase(address(omniBridgeFacet), "OmniBridgeFacet");
@@ -73,23 +66,27 @@ contract OmniBridgeFacetTest is TestBaseFacet {
         if (isNative) {
             omniBridgeFacet.startBridgeTokensViaOmniBridge{
                 value: bridgeData.minAmount
-            }(bridgeData);
+            }(
+                bridgeData
+            );
         } else {
             omniBridgeFacet.startBridgeTokensViaOmniBridge(bridgeData);
         }
     }
 
-    function initiateSwapAndBridgeTxWithFacet(
-        bool isNative
-    ) internal override {
+    function initiateSwapAndBridgeTxWithFacet(bool isNative)
+        internal
+        override
+    {
         if (isNative) {
             omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge{
                 value: swapData[0].fromAmount
-            }(bridgeData, swapData);
+            }(
+                bridgeData, swapData
+            );
         } else {
             omniBridgeFacet.swapAndStartBridgeTokensViaOmniBridge(
-                bridgeData,
-                swapData
+                bridgeData, swapData
             );
         }
     }

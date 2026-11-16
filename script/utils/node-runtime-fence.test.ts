@@ -7,7 +7,8 @@
  * written into the tree.
  */
 
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { join, relative } from 'path'
 
 import {
@@ -17,7 +18,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { withholdCredentials } from '../deploy/safe/spawn-env'
+import { freshChildEnv } from '../deploy/safe/spawn-env'
 
 import { findViolations } from './fence-runner'
 import { NODE_RUNTIME_FENCE } from './node-runtime-fence'
@@ -26,14 +27,8 @@ const REPO_ROOT = join(import.meta.dir, '..', '..')
 const FENCE_SCRIPT = 'script/utils/node-runtime-fence.ts'
 const SHIPPED_PATH = 'script/tasks/someCli.ts'
 
-/** 90 seconds: a tsx run plus a cold bun start, well short of a hang. */
+/** 90 seconds: a cold Node start under the tsx loader, well short of a hang. */
 const TIMEOUT_MS = 90_000
-
-const spawnEnv = (): Record<string, string> => {
-  const env = { ...process.env } as Record<string, string>
-  withholdCredentials(env)
-  return env
-}
 
 /** Fragment every refusal message of the fence starts with. */
 const REFUSAL = 'Shipped modules run on Node via `bunx tsx`'
@@ -193,6 +188,44 @@ describe('the Node-runtime fence runs where it has to run', () => {
   })
 
   it(
+    'runs where no IPC socket can be bound',
+    () => {
+      if (!staged)
+        throw new Error('package.json lint-staged has no node-runtime entry')
+
+      // Longer than a Unix socket path may be (108 bytes on Linux; recent Node on
+      // macOS binds up to ~250): a launcher that binds a socket under TMPDIR
+      // fails here, as in a sandbox.
+      const parent = mkdtempSync(join(tmpdir(), 'no-socket-'))
+      const longTmp = join(parent, 'a'.repeat(200))
+      mkdirSync(longTmp)
+      try {
+        const result = Bun.spawnSync(
+          [...staged.split(' '), 'script/utils/is-entrypoint.ts'],
+          {
+            cwd: REPO_ROOT,
+            // `bun test` sets NODE_ENV=test, under which consola drops the
+            // success summary asserted below.
+            env: freshChildEnv({ TMPDIR: longTmp, NODE_ENV: 'development' }),
+            stdout: 'pipe',
+            stderr: 'pipe',
+            timeout: TIMEOUT_MS,
+          }
+        )
+
+        expect(result.stderr.toString()).not.toContain('listen')
+        expect(result.exitCode).toBe(0)
+        expect(
+          `${result.stdout.toString()}${result.stderr.toString()}`
+        ).toMatch(/1 file\(s\) checked, 0 refused/)
+      } finally {
+        rmSync(parent, { recursive: true, force: true })
+      }
+    },
+    TIMEOUT_MS
+  )
+
+  it(
     'exits non-zero through that command on a refused module',
     () => {
       if (!staged)
@@ -209,7 +242,9 @@ describe('the Node-runtime fence runs where it has to run', () => {
           [...staged.split(' '), relative(REPO_ROOT, file)],
           {
             cwd: REPO_ROOT,
-            env: spawnEnv(),
+            // Outside NODE_ENV=test consola's fancy reporter strips the
+            // backticks REFUSAL carries.
+            env: freshChildEnv({ NODE_ENV: 'test' }),
             stdout: 'pipe',
             stderr: 'pipe',
             timeout: TIMEOUT_MS,

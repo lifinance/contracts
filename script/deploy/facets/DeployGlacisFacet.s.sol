@@ -8,7 +8,7 @@ import { GlacisFacet } from "lifi/Facets/GlacisFacet.sol";
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
 
-    constructor() DeployScriptBase("GlacisFacet") {}
+    constructor() DeployScriptBase("GlacisFacet") { }
 
     function run()
         public
@@ -23,8 +23,7 @@ contract DeployScript is DeployScriptBase {
         string memory path = string.concat(root, "/config/glacis.json");
 
         address airlift = _getConfigContractAddress(
-            path,
-            string.concat(".airlift.", network)
+            path, string.concat(".airlift.", network)
         );
 
         return abi.encode(airlift);

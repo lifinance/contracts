@@ -58,7 +58,7 @@ import {
   setupEnvironment,
 } from './utils/demoScriptHelpers'
 
-config()
+config({ quiet: true })
 
 type Scenario =
   | 'base-to-unichain'
@@ -414,7 +414,7 @@ const cli = defineCommand({
                 args: [
                   ILiFi.BridgeDataStruct,
                   LibSwap.SwapDataStruct[],
-                  SupersetFacet.SupersetDataStruct
+                  SupersetFacet.SupersetDataStruct,
                 ],
                 options?: { value: bigint }
               ) => Promise<Hex>

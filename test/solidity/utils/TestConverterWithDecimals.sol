@@ -30,25 +30,27 @@ contract TestConverterWithDecimals {
     function deposit() public payable {
         if (msg.value % 1e12 != 0) revert InvalidAmount();
         uint256 amountOut = convertToWrapped(msg.value);
-        if (!WRAPPED_TOKEN.transfer(msg.sender, amountOut))
+        if (!WRAPPED_TOKEN.transfer(msg.sender, amountOut)) {
             revert TransferFailed();
+        }
     }
 
     /// @notice Pulls wrapped tokens from caller and sends native tokens back
     /// @dev Simulates 1e6 -> 1e18 conversion
     function withdraw(uint256 amount) public {
         // Pull wrapped tokens from caller
-        if (!WRAPPED_TOKEN.transferFrom(msg.sender, address(this), amount))
+        if (!WRAPPED_TOKEN.transferFrom(msg.sender, address(this), amount)) {
             revert TransferFromFailed();
+        }
 
         // Send native tokens to caller (with decimal conversion)
         uint256 amountOut = convertToNative(amount);
-        (bool success, ) = payable(msg.sender).call{ value: amountOut }("");
+        (bool success,) = payable(msg.sender).call{ value: amountOut }("");
         if (!success) {
             revert WithdrawError();
         }
     }
 
     // Needs to receive ETH for testing
-    receive() external payable {}
+    receive() external payable { }
 }

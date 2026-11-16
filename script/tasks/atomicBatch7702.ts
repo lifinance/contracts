@@ -38,7 +38,7 @@
  *     ]
  *   }
  */
-import 'dotenv/config'
+import '../utils/loadEnv'
 import { readFileSync } from 'node:fs'
 
 import {

@@ -25,15 +25,11 @@ contract DeployScript is UpdateScriptBase {
         path = string.concat(root, "/config/superset.json");
         json = vm.readFile(path);
         bytes memory rawMappings = json.parseRaw(".mappings");
-        SupersetFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
-            rawMappings,
-            (SupersetFacet.ChainIdConfig[])
-        );
+        SupersetFacet.ChainIdConfig[] memory chainIdConfigs =
+            abi.decode(rawMappings, (SupersetFacet.ChainIdConfig[]));
 
-        return
-            abi.encodeWithSelector(
-                SupersetFacet.initSuperset.selector,
-                chainIdConfigs
-            );
+        return abi.encodeWithSelector(
+            SupersetFacet.initSuperset.selector, chainIdConfigs
+        );
     }
 }

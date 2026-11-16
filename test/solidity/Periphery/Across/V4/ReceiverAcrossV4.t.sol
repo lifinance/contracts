@@ -8,10 +8,16 @@ import { ReceiverAcrossV4 } from "lifi/Periphery/ReceiverAcrossV4.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { ERC20Proxy } from "lifi/Periphery/ERC20Proxy.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
-import { MockUniswapDEX, NonETHReceiver } from "../../../utils/TestHelpers.sol";
-import { DeployPeripheryHelpers } from "../../../utils/DeployPeripheryHelpers.sol";
+import {
+    MockUniswapDEX,
+    NonETHReceiver
+} from "../../../utils/TestHelpers.sol";
+import {
+    DeployPeripheryHelpers
+} from "../../../utils/DeployPeripheryHelpers.sol";
 
-address constant SPOKEPOOL_MAINNET = 0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
+address constant SPOKEPOOL_MAINNET =
+    0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5;
 
 contract ReceiverAcrossV4Test is TestBase {
     using stdJson for string;
@@ -30,12 +36,12 @@ contract ReceiverAcrossV4Test is TestBase {
         customBlockNumberForForking = 22989702;
         initTestBase();
 
-        (erc20Proxy, executor) = DeployPeripheryHelpers
-            .deployERC20ProxyAndExecutor(address(this), USER_DIAMOND_OWNER);
+        (erc20Proxy, executor) =
+            DeployPeripheryHelpers.deployERC20ProxyAndExecutor(
+                address(this), USER_DIAMOND_OWNER
+            );
         receiver = new ReceiverAcrossV4(
-            USER_DIAMOND_OWNER,
-            address(executor),
-            SPOKEPOOL_MAINNET
+            USER_DIAMOND_OWNER, address(executor), SPOKEPOOL_MAINNET
         );
         vm.label(address(receiver), "ReceiverAcrossV4");
         vm.label(address(executor), "Executor");
@@ -58,9 +64,7 @@ contract ReceiverAcrossV4Test is TestBase {
 
     function test_contractIsSetUpCorrectly() public {
         receiver = new ReceiverAcrossV4(
-            address(this),
-            address(executor),
-            SPOKEPOOL_MAINNET
+            address(this), address(executor), SPOKEPOOL_MAINNET
         );
 
         assertEq(address(receiver.EXECUTOR()) == address(executor), true);
@@ -106,9 +110,7 @@ contract ReceiverAcrossV4Test is TestBase {
         vm.expectRevert(abi.encodeWithSignature("ExternalCallFailed()"));
 
         receiver.withdrawToken(
-            address(0),
-            payable(address(nonETHReceiver)),
-            1 ether
+            address(0), payable(address(nonETHReceiver)), 1 ether
         );
     }
 
@@ -127,10 +129,7 @@ contract ReceiverAcrossV4Test is TestBase {
         vm.expectRevert(UnAuthorized.selector);
 
         receiver.handleV3AcrossMessage(
-            ADDRESS_USDC,
-            defaultUSDCAmount,
-            address(0),
-            abi.encode("payload")
+            ADDRESS_USDC, defaultUSDCAmount, address(0), abi.encode("payload")
         );
 
         // call from owner of user
@@ -138,10 +137,7 @@ contract ReceiverAcrossV4Test is TestBase {
         vm.expectRevert(UnAuthorized.selector);
 
         receiver.handleV3AcrossMessage(
-            ADDRESS_USDC,
-            defaultUSDCAmount,
-            address(0),
-            abi.encode("payload")
+            ADDRESS_USDC, defaultUSDCAmount, address(0), abi.encode("payload")
         );
     }
 
@@ -150,27 +146,18 @@ contract ReceiverAcrossV4Test is TestBase {
         deal(ADDRESS_USDC, address(receiver), defaultUSDCAmount);
 
         // encode payload with mock data like Stargate would according to:
-        (
-            bytes memory payload,
-            uint256 amountOutMin
-        ) = _getValidAcrossV4Payload(ADDRESS_USDC, ADDRESS_DAI);
+        (bytes memory payload, uint256 amountOutMin) =
+            _getValidAcrossV4Payload(ADDRESS_USDC, ADDRESS_DAI);
 
         // fake a sendCompose from USDC pool on ETH mainnet
         vm.startPrank(SPOKEPOOL_MAINNET);
 
         vm.expectEmit();
         emit LiFiTransferCompleted(
-            guid,
-            ADDRESS_USDC,
-            receiverAddress,
-            amountOutMin,
-            block.timestamp
+            guid, ADDRESS_USDC, receiverAddress, amountOutMin, block.timestamp
         );
         receiver.handleV3AcrossMessage(
-            ADDRESS_USDC,
-            defaultUSDCAmount,
-            address(0),
-            payload
+            ADDRESS_USDC, defaultUSDCAmount, address(0), payload
         );
 
         assertTrue(dai.balanceOf(receiverAddress) == amountOutMin);
@@ -192,8 +179,7 @@ contract ReceiverAcrossV4Test is TestBase {
             receivingAssetId: ADDRESS_USDC,
             fromAmount: defaultUSDCAmount,
             callData: abi.encodeWithSelector(
-                mockDEX.mockSwapWillRevertWithReason.selector,
-                revertReason
+                mockDEX.mockSwapWillRevertWithReason.selector, revertReason
             ),
             requiresDeposit: false
         });
@@ -211,10 +197,7 @@ contract ReceiverAcrossV4Test is TestBase {
             block.timestamp
         );
         receiver.handleV3AcrossMessage(
-            ADDRESS_USDC,
-            defaultUSDCAmount,
-            address(0),
-            payload
+            ADDRESS_USDC, defaultUSDCAmount, address(0), payload
         );
 
         assertTrue(usdc.balanceOf(receiverAddress) == defaultUSDCAmount);

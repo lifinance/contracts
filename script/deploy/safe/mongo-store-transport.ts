@@ -44,7 +44,7 @@ const isLoopbackHost = (host: string): boolean => {
   const hostname = (
     host.startsWith('[')
       ? host.slice(1, host.indexOf(']'))
-      : host.split(':')[0] ?? host
+      : (host.split(':')[0] ?? host)
   ).toLowerCase()
   return (
     hostname === 'localhost' ||
