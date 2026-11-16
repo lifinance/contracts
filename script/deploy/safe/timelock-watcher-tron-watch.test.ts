@@ -53,6 +53,8 @@ const TIMELOCK_HEX = getAddress('0x161f35951702e93ffee662ed16fb538c283462a5')
 const DIAMOND_BASE58 = 'TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD'
 const DIAMOND_HEX = getAddress('0x156cebba59deb2cb23742f70dcb0a11cc775591f')
 const ZERO32: Hex = `0x${'0'.repeat(64)}`
+/** Checksum-valid base58 under version byte 0x42, not Tron's 0x41. */
+const OTHER_VERSION_BASE58 = 'TbKcWzjyNreUq3ub5hQFKUbCX7wyoDAGww'
 /**
  * Main's Tron wallets share their bytes with the EVM ones, so a gate handed the
  * EVM config would still pass; the test pauser differs to tell them apart.
@@ -95,6 +97,17 @@ describe('expectedWhitelist on Tron', () => {
       whitelistNaming('Tnotanaddress')
     )
     expect('reason' in read && read.reason).toContain('not a Tron address')
+  })
+
+  it('reports an entry under another version byte', async () => {
+    const read = await expectedWhitelist(
+      'tron',
+      {},
+      whitelistNaming(OTHER_VERSION_BASE58)
+    )
+    expect('reason' in read && read.reason).toContain(
+      'version byte is not 0x41'
+    )
   })
 })
 
@@ -247,10 +260,11 @@ describe('watchNetwork on Tron', () => {
   const callsOf = (method: string): IRpcCall[] =>
     calls.filter((c) => c.method === method)
 
-  const watchTron = async () => {
+  const watchTron = async (safeAddress?: string) => {
     const tron = (networks as unknown as INetworksObject)['tron']
     if (!tron) throw new Error('config/networks.json has no tron')
-    return watchNetwork(tron, await runContext())
+    const network = safeAddress ? { ...tron, safeAddress } : tron
+    return watchNetwork(network, await runContext())
   }
 
   const onlyOperation = (report: Awaited<ReturnType<typeof watchNetwork>>) => {
@@ -292,6 +306,14 @@ describe('watchNetwork on Tron', () => {
     })
     expect(operation.detailOf('targets')).toBe('LiFiDiamond')
     expect(operation.verdict).toBe('unverified')
+  })
+
+  it('leaves Tron unreadable when its Safe is under another version byte', async () => {
+    const report = await watchTron(OTHER_VERSION_BASE58)
+
+    expect(report.status).toBe('unreadable')
+    expect(report.reason).toContain('version byte is not 0x41')
+    expect(report.operations).toEqual([])
   })
 
   it('fails the delay gate for a Tron operation scheduled below the agreed minimum', async () => {

@@ -22,8 +22,13 @@ const isBase58 = (value: unknown): value is string =>
  * The 20-byte hex of a Tron address. The conversion drops the version byte
  * unchecked, so a checksum-valid string under another version byte would
  * otherwise convert to a different account's hex.
+ *
+ * @param network - Tron network name.
+ * @param base58 - A base58 Tron address.
+ * @returns Its checksummed 20-byte hex.
+ * @throws When the checksum fails or the version byte is not 0x41.
  */
-const tronHex = (network: string, base58: string): Address => {
+export const tronHex = (network: string, base58: string): Address => {
   const hex = normalizeAddressForNetwork(network, base58)
   const tronWeb = getTronWebCodecOnlyForNetwork(network)
   if (evm20HexStringToTronBase58(tronWeb, hex) !== base58)

@@ -855,6 +855,13 @@ describe('parseDeployLogHistory', () => {
     const patch = '+  "Executor": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhv",'
     expect(() => parseDeployLogHistory(patch, 'tron')).toThrow()
   })
+
+  it('throws on a Tron entry under another version byte', () => {
+    const patch = '+  "Executor": "TbKcWzjyNreUq3ub5hQFKUbCX7wyoDAGww",'
+    expect(() => parseDeployLogHistory(patch, 'tron')).toThrow(
+      'version byte is not 0x41'
+    )
+  })
 })
 
 describe('isSettled', () => {

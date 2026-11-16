@@ -42,7 +42,6 @@ import timelockConfig from '../../../config/timelockController.json'
 import type { INetworksObject, IWhitelistConfig } from '../../common/types'
 import { isEntrypoint } from '../../utils/is-entrypoint'
 import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
-import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { redactUrls } from '../../utils/redactUrls'
 import { SlackNotifier, isUnattendedRun } from '../../utils/slack-notifier'
 import {
@@ -121,7 +120,11 @@ import {
   type INetworkScanState,
   type IScannedOperation,
 } from './timelock-watcher-scan'
-import { tronDeploymentsAsHex, withTronWallets } from './timelock-watcher-tron'
+import {
+  tronDeploymentsAsHex,
+  tronHex,
+  withTronWallets,
+} from './timelock-watcher-tron'
 import {
   buildWatcherCancelInput,
   classifyOperation,
@@ -650,7 +653,8 @@ const DEPLOY_LOG_ENTRY =
  * @param patch - The log's patch text, oldest commit first.
  * @param network - Network the log belongs to.
  * @returns Name → lowercased hex address → first position.
- * @throws When a Tron entry is base58-shaped but fails its checksum.
+ * @throws When a Tron entry is base58-shaped but fails its checksum
+ *   or its version byte is not 0x41.
  */
 export const parseDeployLogHistory = (
   patch: string,
@@ -665,9 +669,7 @@ export const parseDeployLogHistory = (
       if (!name || !address) continue
       const base58 = !address.startsWith('0x')
       if (base58 && !tron) continue
-      const key = (
-        base58 ? normalizeAddressForNetwork(network, address) : address
-      ).toLowerCase()
+      const key = (base58 ? tronHex(network, address) : address).toLowerCase()
       const addresses = firstListed.get(name) ?? new Map<string, number>()
       if (!addresses.has(key)) addresses.set(key, position)
       firstListed.set(name, addresses)
@@ -967,7 +969,7 @@ export const expectedWhitelist = async (
     let contract = p.contract
     if (tron)
       try {
-        contract = normalizeAddressForNetwork(network, p.contract)
+        contract = tronHex(network, p.contract)
       } catch (error) {
         return {
           reason: `main's config/whitelist.json lists ${p.contract}, which is not a Tron address: ${describe(error)}`,
@@ -1109,7 +1111,7 @@ export const watchNetwork = async (
       : (globalConfig as unknown as Record<string, unknown>)
     safe =
       tron && network.safeAddress
-        ? normalizeAddressForNetwork(name, network.safeAddress)
+        ? tronHex(name, network.safeAddress)
         : network.safeAddress
   } catch (error) {
     return unreadable(
