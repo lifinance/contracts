@@ -99,6 +99,17 @@ describe('expectedWhitelist on Tron', () => {
     expect('reason' in read && read.reason).toContain('not a Tron address')
   })
 
+  it('keys an entry already spelled as hex by that hex', async () => {
+    const read = await expectedWhitelist(
+      'tron',
+      {},
+      whitelistNaming(TIMELOCK_HEX)
+    )
+    expect(read).toEqual({
+      pairs: new Set([`${TIMELOCK_HEX.toLowerCase()}:0x12345678`]),
+    })
+  })
+
   it('reports an entry under another version byte', async () => {
     const read = await expectedWhitelist(
       'tron',
@@ -314,6 +325,13 @@ describe('watchNetwork on Tron', () => {
     expect(report.status).toBe('unreadable')
     expect(report.reason).toContain('version byte is not 0x41')
     expect(report.operations).toEqual([])
+  })
+
+  it('watches Tron when its Safe is already spelled as hex', async () => {
+    const report = await watchTron(TRON_PAUSER_HEX)
+
+    expect(report.status).toBe('watched')
+    expect(onlyOperation(report).statuses['targets']).toBe('pass')
   })
 
   it('fails the delay gate for a Tron operation scheduled below the agreed minimum', async () => {

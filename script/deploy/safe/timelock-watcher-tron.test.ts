@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test'
+import { getAddress } from 'viem'
 
-import { tronDeploymentsAsHex, withTronWallets } from './timelock-watcher-tron'
+import {
+  tronDeploymentsAsHex,
+  tronHex,
+  withTronWallets,
+} from './timelock-watcher-tron'
 
 const TIMELOCK_BASE58 = 'TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu'
 const TIMELOCK_HEX = '0x161f35951702e93ffee662ed16fb538c283462a5'
@@ -8,6 +13,22 @@ const REFUND_BASE58 = 'TBvVg3Aam5QP2XE3XCatgatjefXvsYf6yD'
 const REFUND_HEX = '0x156cebba59deb2cb23742f70dcb0a11cc775591f'
 /** Checksum-valid base58 under version byte 0x42, not Tron's 0x41. */
 const OTHER_VERSION_BASE58 = 'TbKcWzjyNreUq3ub5hQFKUbCX7wyoDAGww'
+
+describe('tronHex', () => {
+  it('converts base58 to checksummed hex', () => {
+    expect(tronHex('tron', TIMELOCK_BASE58).toLowerCase()).toBe(TIMELOCK_HEX)
+  })
+
+  it('passes an address already spelled as hex through, checksummed', () => {
+    expect(tronHex('tron', REFUND_HEX)).toBe(getAddress(REFUND_HEX))
+  })
+
+  it('throws on a checksum-valid address under another version byte', () => {
+    expect(() => tronHex('tron', OTHER_VERSION_BASE58)).toThrow(
+      'version byte is not 0x41'
+    )
+  })
+})
 
 describe('tronDeploymentsAsHex', () => {
   it('spells every base58 address as hex and leaves other values alone', () => {

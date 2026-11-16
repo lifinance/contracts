@@ -8,7 +8,7 @@ import {
   evm20HexStringToTronBase58,
   getTronWebCodecOnlyForNetwork,
 } from '@lifi/tron-devkit'
-import type { Address } from 'viem'
+import { getAddress, type Address } from 'viem'
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
@@ -24,16 +24,17 @@ const isBase58 = (value: unknown): value is string =>
  * otherwise convert to a different account's hex.
  *
  * @param network - Tron network name.
- * @param base58 - A base58 Tron address.
+ * @param address - A base58 Tron address, or one already spelled as 0x hex.
  * @returns Its checksummed 20-byte hex.
- * @throws When the checksum fails or the version byte is not 0x41.
+ * @throws When a base58 checksum fails or its version byte is not 0x41.
  */
-export const tronHex = (network: string, base58: string): Address => {
-  const hex = normalizeAddressForNetwork(network, base58)
+export const tronHex = (network: string, address: string): Address => {
+  if (EVM_HEX.test(address)) return getAddress(address)
+  const hex = normalizeAddressForNetwork(network, address)
   const tronWeb = getTronWebCodecOnlyForNetwork(network)
-  if (evm20HexStringToTronBase58(tronWeb, hex) !== base58)
+  if (evm20HexStringToTronBase58(tronWeb, hex) !== address)
     throw new Error(
-      `${base58} is not a Tron account address: its version byte is not 0x41`
+      `${address} is not a Tron account address: its version byte is not 0x41`
     )
   return hex
 }
