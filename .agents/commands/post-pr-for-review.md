@@ -1,11 +1,13 @@
 ---
 name: post-pr-for-review
-description: Posts a `lifinance/contracts` PR to `#dev-sc-review`, tagging `@smartcontract_core` for SC-critical paths else `@api_expansion-squad`, and enables squash auto-merge unless the PR is already mergeable. Use for "post PR for review", "send for review", or a contracts PR URL with review intent. Requires the Slack MCP server.
+description: Posts a `lifinance/contracts` or `lifinance/contracts-tron` PR to `#dev-sc-review`, tagging `@smartcontract_core` for contracts-tron and for SC-critical contracts paths else `@api_expansion-squad`, and enables squash auto-merge unless the PR is already mergeable or is a contracts-tron sync PR. Use for "post PR for review", "send for review", or a contracts / contracts-tron PR URL with review intent. Requires the Slack MCP server.
 ---
 
 # Post PR for Review (Smart Contracts)
 
-Scope: `lifinance/contracts` → `#dev-sc-review` only. For any other repo, stop and tell the user which skill or channel to use — never guess a channel, and don't extend this skill to other repos.
+Scope: `lifinance/contracts` and `lifinance/contracts-tron` → `#dev-sc-review` only. For any other repo, stop and tell the user which skill or channel to use — never guess a channel, and don't extend this skill to other repos.
+
+`<REPO>` below is the PR's own `owner/repo` (`<OWNER>` / `<NAME>` its parts). Every `gh` call, the GraphQL query and the Aikido fetch target it — never hard-code `lifinance/contracts` for a contracts-tron PR.
 
 ## Inputs
 
@@ -15,15 +17,17 @@ PR URL (optional). Else resolve from the current branch with `gh pr view --json 
 
 Channel: `#dev-sc-review` (`C088UJWC8PR`).
 
-The tag follows the `main protection` ruleset: every PR needs one API Expansion approval; PRs touching SC-critical paths also need one from Smart Contract Core. Classify from the PR's files:
+**`lifinance/contracts-tron`**: always `critical` (tag `@smartcontract_core`), whatever files the PR touches — that repo's `main protection` ruleset requires one Smart Contract Core approval on `**`. Still run the files lookup below: the 3,000-file stop and the Aikido scan need it.
+
+**`lifinance/contracts`**: the tag follows the `main protection` ruleset: every PR needs one API Expansion approval; PRs touching SC-critical paths also need one from Smart Contract Core. Classify from the PR's files:
 
 ```bash
-files=$(gh api repos/lifinance/contracts/pulls/<N>/files --paginate \
+files=$(gh api repos/<REPO>/pulls/<N>/files --paginate \
   --jq '.[] | .filename, (.previous_filename // empty)') && [ -n "$files" ] || { echo "files lookup failed"; exit 1; }
 grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo critical || echo routine
 ```
 
-`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`. The endpoint lists at most 3,000 files, so the post also stops when `gh pr view <N> --repo lifinance/contracts --json changedFiles` exceeds that (routing and the Aikido scan both read this list).
+`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`. The endpoint lists at most 3,000 files, so the post also stops when `gh pr view <N> --repo <REPO> --json changedFiles` exceeds that (routing and the Aikido scan both read this list).
 
 | Result     | Group                  | Thread tag (`GROUP_TAG`) |
 | ---------- | ---------------------- | ------------------------ |
@@ -42,7 +46,7 @@ Thread reply, sent immediately after: `<GROUP_TAG> please review 🙏`
 
 ### 1. Resolve PR
 
-Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply the scope guard. Pick `GROUP_TAG`.
+Parse `owner/repo/pull/N` into `<REPO>` and `<N>`; extract `title`, `url`, `number`, `headRefName`, `isDraft` (`gh pr view <N> --repo <REPO> --json …`). Apply the scope guard. Pick `GROUP_TAG`.
 
 ### 2. Pre-flight
 
@@ -56,28 +60,28 @@ Parse `owner/repo/pull/N`; extract `title`, `url`, `number`, `isDraft`. Apply th
           reviewThreads(first:100){
             nodes{ isResolved isOutdated
               comments(first:1){ nodes{ author{login} body url path } } } } } } }' \
-    -f owner=lifinance -f repo=contracts -F num=<N> \
+    -f owner=<OWNER> -f repo=<NAME> -F num=<N> \
     --jq '.data.repository.pullRequest.reviewThreads.nodes
           | map(select(.isResolved == false and .isOutdated == false))'
   ```
 
   Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view --json reviewDecision,comments` and treat resolution state as unknown: don't post unless the user explicitly says to go ahead.
 
-- **Failing CI** (blocking, `gh pr checks <N> --repo lifinance/contracts --json name,state,link`): a check passes only on `SUCCESS` / `SKIPPED` / `NEUTRAL` and is in progress only on `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`; any other state (`FAILURE`, `STARTUP_FAILURE`, `CANCELLED`, an unknown one…) blocks. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+- **Failing CI** (blocking, `gh pr checks <N> --repo <REPO> --json name,state,link`): a check passes only on `SUCCESS` / `SKIPPED` / `NEUTRAL` and is in progress only on `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`; any other state (`FAILURE`, `STARTUP_FAILURE`, `CANCELLED`, an unknown one…) blocks. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
 
-- **Audit checks are non-blocking** — `audit-verification` / `audit-*` failing or pending, in either form, does not block: peer review precedes the audit (rule `503-sc-feature-pr-lifecycle`).
+- **Audit checks are non-blocking** — `audit-verification` / `audit-*` failing or pending, in either form and in either repo, does not block: peer review precedes the audit (rule `503-sc-feature-pr-lifecycle`).
 
 - **Aikido scan** (soft gate):
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files, skipping deletions (`gh api repos/lifinance/contracts/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: `gh pr view <N> --repo lifinance/contracts --json headRefOid`, `git fetch origin pull/<N>/head` (works for fork PRs too), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
+  3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: `gh pr view <N> --repo <REPO> --json headRefOid`, `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
   4. Real findings remain → run `/aikido-address-findings` and stop; don't post until clean.
 
 ### 3. Gate
 
 - **Unresolved threads or failing CI** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
 - **CI in progress, nothing failing** → tell the user; default to waiting.
-- **Draft + clean** → offer `gh pr ready <N>`; confirm first.
+- **Draft + clean** → offer `gh pr ready <N> --repo <REPO>`; confirm first.
 
 ### 4. Confirm
 
@@ -92,12 +96,13 @@ Skip if the invoking message already says to post ("post for review", "ship it",
 Only after both sends succeeded; otherwise skip it and report. Check merge state first — `--auto` merges a fully-approved green PR immediately, before reviewers act on the post:
 
 ```bash
-state=$(gh pr view <N> --repo lifinance/contracts \
+state=$(gh pr view <N> --repo <REPO> \
   --json mergeStateStatus --jq '.mergeStateStatus')
 ```
 
 - `CLEAN` → don't enable; tell the user "PR is already mergeable; not enabling auto-merge so reviewers can still see it. Merge now instead?"
-- Otherwise → `gh pr merge <N> --repo lifinance/contracts --auto --squash`.
+- contracts-tron sync PR (`<REPO>` is `lifinance/contracts-tron` and `headRefName` starts with `sync/upstream-`) → never `--squash`: a sync PR must merge with a merge commit, or the fork's merge-base falls behind upstream (`docs/TronFork.md`). Ask the user: skip auto-merge, or enable it with `gh pr merge <N> --repo <REPO> --auto --merge`.
+- Otherwise → `gh pr merge <N> --repo <REPO> --auto --squash`.
 
 Already enabled → no-op. "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
 
