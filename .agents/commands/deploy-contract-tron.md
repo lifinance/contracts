@@ -53,7 +53,7 @@ A normal session is rooted in `contracts`, but every step in this skill except P
 
    A failed pull means local `main` diverged — report it, don't merge or reset. A version mismatch prints the fix (`foundryup --install <fork's .foundry-version>`); after the deploy, switch back with `foundryup --install "$(cat <this checkout>/.foundry-version)"` and re-run the checker in this checkout.
 
-3. **Check the fork is synced for the contract you're about to deploy.** If upstream `contracts:main` has changes to `<Contract>` (or to `LibAsset`/`WithdrawablePeriphery`) not yet in the fork, stop and merge the pending `sync/upstream-YYYY-MM-DD` PR first (or open one) — do not deploy stale code. The scripts need the sync too: a fork whose Phase 3 `deploy-and-register-*.ts` script predates the ticket gate deploys without checking for a ticket and has no `--proposeOnly`:
+3. **Check the fork is synced for the contract you're about to deploy.** If upstream `contracts:main` has changes to `<Contract>` (or to `LibAsset`/`WithdrawablePeriphery`) not yet in the fork, stop and merge the pending `sync/upstream-YYYY-MM-DD` PR first (or open one) — do not deploy stale code. The scripts need the sync too: a fork whose Phase 3 `deploy-and-register-*.ts` script predates the ticket gate deploys without checking for a ticket and has no `--proposeOnly`. Skip this check for the core-facet path (`deploy-core-facets.ts`): it proposes nothing, so it carries no ticket gate, and `propose-to-safe-tron.ts` refuses the cut proposal without a ticket.
 
    ```bash
    grep -q assertTicketPresent script/deploy/tron/<script>.ts || { echo "fork scripts predate the ticket gate — merge the upstream sync first"; exit 1; }
