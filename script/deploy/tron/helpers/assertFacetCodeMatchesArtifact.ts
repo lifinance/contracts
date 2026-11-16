@@ -15,8 +15,10 @@ import {
 
 /** The parts of a Forge artifact that identify its runtime code. */
 export interface IRuntimeArtifact {
-  deployedBytecode?: { object?: string }
-  immutableReferences?: ImmutableReferences
+  deployedBytecode?: {
+    object?: string
+    immutableReferences?: ImmutableReferences
+  }
 }
 
 /** Reads a contract's runtime code, `0x`-prefixed, or undefined when there is none. */
@@ -64,7 +66,10 @@ export const describeCodeMismatch = (
       (onChain.length - 2) / 2
     } bytes, the artifact's ${(built.length - 2) / 2}`
 
-  const masked = maskImmutables(onChain, artifact.immutableReferences)
+  const masked = maskImmutables(
+    onChain,
+    artifact.deployedBytecode?.immutableReferences
+  )
   if (!masked.ok) return `cannot mask immutables: ${masked.reason}`
 
   const deployed = stripMetadataTrailer(masked.code).code.toLowerCase()
