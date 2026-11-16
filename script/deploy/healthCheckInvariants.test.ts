@@ -3,13 +3,22 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
+  mock,
+  spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { consola } from 'consola'
-import { getAddress, type Address, type Hex, type PublicClient } from 'viem'
+import {
+  getAddress,
+  toFunctionSelector,
+  type Address,
+  type Hex,
+  type PublicClient,
+} from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -53,6 +62,7 @@ import { type IPendingRegistration } from './safe/pending-registrations'
 import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
 import { collectImmutableBindingChecks } from './shared/immutableBindings'
+import * as tronUtils from './tron/tronUtils'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
 function makeCtx(): IHealthCheckContext {
@@ -4513,5 +4523,357 @@ describe('facet-versions-match-target-state', () => {
       expect(ctx.warnings).toEqual([])
       expect(consulted).toBe(false)
     })
+  })
+})
+
+describe('bridge-attester-not-allowlisted', () => {
+  const ATTESTER = getAddress('0xa77e57e200000000000000000000000000000001')
+  const SECRET_RPC = 'https://rpc.example.invalid/v2/SYNTHETIC_PROVIDER_SECRET'
+
+  function makeAttesterCtx(
+    registered: string,
+    readSelectors: () => Promise<readonly string[]>
+  ): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      diamondAddress: '0x9999999999999999999999999999999999999999',
+      peripheryRegistryCache: new Map(),
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args: readonly unknown[]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            expect(args).toEqual(['BridgeAttester'])
+            return registered
+          }
+          if (functionName === 'getWhitelistedSelectorsForContract') {
+            expect(args).toEqual([ATTESTER])
+            return readSelectors()
+          }
+          throw new Error(`unexpected read ${functionName}`)
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('passes when no attester is registered', async () => {
+    const ctx = makeAttesterCtx(ZERO, async () => {
+      throw new Error('must not read the allowlist')
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('passes when the registered attester has no allowlisted selector', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => [])
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('fails when the registered attester has any allowlisted selector', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => ['0x12345678'])
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('0x12345678')
+    expect(ctx.errors[0]).toContain(ATTESTER)
+  })
+
+  it('warns, without failing, when the allowlist read fails transiently', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => {
+      throw new Error('fetch failed')
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain(
+      'could not read its allowlisted selectors'
+    )
+  })
+
+  it('redacts the RPC URL when the allowlist read fails', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => {
+      throw new Error(`fetch failed: ${SECRET_RPC}`)
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('[redacted-url]')
+    expect(ctx.warnings[0]).not.toContain('SYNTHETIC_PROVIDER_SECRET')
+  })
+
+  it('redacts the RPC URL when the registry read fails', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => [])
+    Object.assign(ctx, {
+      publicClient: {
+        readContract: async () => {
+          throw new Error(`fetch failed: ${SECRET_RPC}`)
+        },
+      },
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('could not read the PeripheryRegistry')
+    expect(ctx.warnings[0]).toContain('[redacted-url]')
+    expect(ctx.warnings[0]).not.toContain('SYNTHETIC_PROVIDER_SECRET')
+  })
+
+  it('warns when no EVM client is configured', async () => {
+    const ctx = makeAttesterCtx(ATTESTER, async () => [])
+    // The registry read is served from the cache, so only the allowlist read needs the client.
+    const cache = new Map([
+      [
+        `${ctx.diamondAddress.toLowerCase()}:BridgeAttester`,
+        Promise.resolve(ATTESTER),
+      ],
+    ])
+    Object.assign(ctx, {
+      peripheryRegistryCache: cache,
+      publicClient: undefined,
+    })
+    await invariant('bridge-attester-not-allowlisted').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no EVM client configured')
+  })
+
+  describe('on Tron', () => {
+    const TRON_DIAMOND = 'TDiamond11111111111111111111111111'
+    const TRON_ATTESTER = 'TAttester1111111111111111111111111'
+
+    const TRON_RPC = 'http://tron.invalid'
+
+    afterEach(() => {
+      mock.restore()
+    })
+
+    function makeTronAttesterCtx(tronRpcUrl?: string): IHealthCheckContext {
+      return Object.assign(makeCtx(), {
+        isTron: true,
+        diamondAddress: TRON_DIAMOND,
+        peripheryRegistryCache: new Map([
+          [
+            `${TRON_DIAMOND.toLowerCase()}:BridgeAttester`,
+            Promise.resolve(TRON_ATTESTER),
+          ],
+        ]),
+        tronRpcUrl,
+      } as unknown as IHealthCheckContext)
+    }
+
+    function troncastReturning(read: () => Promise<string>): void {
+      spyOn(tronUtils, 'callTronContract').mockImplementation(
+        async (contract, signature, params, returnType, rpcUrl) => {
+          expect([contract, signature, params, returnType, rpcUrl]).toEqual([
+            TRON_DIAMOND,
+            'getWhitelistedSelectorsForContract(address)',
+            [TRON_ATTESTER],
+            'bytes4[]',
+            TRON_RPC,
+          ])
+          return read()
+        }
+      )
+    }
+
+    it('fails when the attester has any allowlisted selector', async () => {
+      troncastReturning(
+        async () => '⚙ Initializing TronWeb...\n[0x12345678 0x9abcdef0]'
+      )
+      const ctx = makeTronAttesterCtx(TRON_RPC)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toHaveLength(1)
+      expect(ctx.errors[0]).toContain('0x12345678, 0x9abcdef0')
+      expect(ctx.errors[0]).toContain(TRON_ATTESTER)
+    })
+
+    it('passes on an empty selector list', async () => {
+      troncastReturning(async () => '⚙ Initializing TronWeb...\n[]')
+      const ctx = makeTronAttesterCtx(TRON_RPC)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toEqual([])
+    })
+
+    it('fails on a revert, which is deterministic', async () => {
+      troncastReturning(async () => {
+        throw new Error('execution reverted')
+      })
+      const ctx = makeTronAttesterCtx(TRON_RPC)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toHaveLength(1)
+      expect(ctx.errors[0]).toContain(
+        'could not read its allowlisted selectors'
+      )
+    })
+
+    it('warns on output that is not a list', async () => {
+      troncastReturning(async () => '⚙ Initializing TronWeb...\n0x12345678')
+      const ctx = makeTronAttesterCtx(TRON_RPC)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('Expected array format')
+    })
+
+    it('warns when no Tron RPC URL is configured', async () => {
+      const ctx = makeTronAttesterCtx(undefined)
+      await invariant('bridge-attester-not-allowlisted').run(ctx)
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toHaveLength(1)
+      expect(ctx.warnings[0]).toContain('no Tron RPC URL configured')
+    })
+  })
+})
+
+describe('attestable-selectors-match-config', () => {
+  const GATEWAY_FACET = '0x6a7e000000000000000000000000000000000001'
+  const ACROSS_FACET = '0xac20000000000000000000000000000000000002'
+  const IS_ATTESTABLE = '0xc8f3924f' as Hex
+  const START_BRIDGE_ATTESTED = '0xbe3d05be' as Hex
+  const SET_ATTESTABLE = '0xcb82a010' as Hex
+  const ACROSS = '0xa1f1ce43' as Hex
+  const ACROSS_SWAP = '0x1794958f' as Hex
+  const SECRET_RPC = 'https://rpc.example.invalid/v2/SYNTHETIC_PROVIDER_SECRET'
+  const ACROSS_ENTRY =
+    'AcrossFacetV4.startBridgeTokensViaAcrossV4((bytes32,string,string,address,address,address,uint256,uint256,bool,bool),(bytes32,bytes32,bytes32,bytes32,uint256,uint128,bytes32,uint32,uint32,uint32,bytes))'
+
+  function makeGatewayCtx(options: {
+    attestable?: (selector: Hex) => Promise<boolean>
+    networks?: string[]
+    selectors?: Record<string, string>
+    facets?: Array<{ address: string; selectors: string[] }>
+  }): { ctx: IHealthCheckContext; probed: Hex[] } {
+    const probed: Hex[] = []
+    const ctx = Object.assign(makeCtx(), {
+      diamondAddress: '0x9999999999999999999999999999999999999999',
+      deployedContracts: { AcrossFacetV4: ACROSS_FACET },
+      globalConfig: {
+        attestableSelectors: {
+          networks: options.networks ?? ['testnet1'],
+          selectors: options.selectors ?? { [ACROSS]: ACROSS_ENTRY },
+        },
+      },
+      onChainFacets: options.facets ?? [
+        {
+          address: GATEWAY_FACET,
+          selectors: [START_BRIDGE_ATTESTED, SET_ATTESTABLE, IS_ATTESTABLE],
+        },
+        { address: ACROSS_FACET, selectors: [ACROSS, ACROSS_SWAP] },
+      ],
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args: readonly [Hex]
+        }) => {
+          if (functionName !== 'isAttestableSelector')
+            throw new Error(`unexpected read ${functionName}`)
+          probed.push(args[0])
+          return (options.attestable ?? (async (s) => s === ACROSS))(args[0])
+        },
+      },
+    } as unknown as IHealthCheckContext)
+    return { ctx, probed }
+  }
+
+  it('selector constants match their signatures', () => {
+    expect(IS_ATTESTABLE).toBe(
+      toFunctionSelector('isAttestableSelector(bytes4)')
+    )
+    expect(START_BRIDGE_ATTESTED).toBe(
+      toFunctionSelector('startBridgeAttested(bytes,bytes)')
+    )
+    expect(SET_ATTESTABLE).toBe(
+      toFunctionSelector('setAttestableSelector(bytes4,bool)')
+    )
+  })
+
+  it('passes and probes every routed and listed selector except the gateway own', async () => {
+    const { ctx, probed } = makeGatewayCtx({})
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+    expect([...probed].sort()).toEqual([ACROSS, ACROSS_SWAP].sort())
+  })
+
+  it('fails an enabled selector on a network config does not list', async () => {
+    const { ctx } = makeGatewayCtx({ networks: [] })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(ctx.errors).toEqual([
+      `${ACROSS} is attestable but not listed in attestableSelectors for this network`,
+    ])
+  })
+
+  it('probes a listed selector the diamond no longer routes', async () => {
+    const { ctx, probed } = makeGatewayCtx({
+      facets: [
+        {
+          address: GATEWAY_FACET,
+          selectors: [START_BRIDGE_ATTESTED, SET_ATTESTABLE, IS_ATTESTABLE],
+        },
+      ],
+    })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(probed).toEqual([ACROSS])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('no facet routes it')
+  })
+
+  it('does nothing when AttestedBridgeFacet is not cut', async () => {
+    const { ctx, probed } = makeGatewayCtx({
+      facets: [{ address: ACROSS_FACET, selectors: [ACROSS] }],
+    })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(probed).toEqual([])
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('warns when the on-chain facet list is unavailable', async () => {
+    const { ctx } = makeGatewayCtx({ facets: [] })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(ctx.warnings).toEqual([
+      'On-chain facet list unavailable - attestable selectors not checked',
+    ])
+  })
+
+  it('warns on Tron instead of reading', async () => {
+    const { ctx, probed } = makeGatewayCtx({})
+    ctx.isTron = true
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(probed).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('EVM networks only')
+  })
+
+  it('fails on a malformed config block', async () => {
+    const { ctx, probed } = makeGatewayCtx({
+      selectors: { [ACROSS]: 'transfer(address,uint256)' },
+    })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(probed).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('must read "<Facet>.<signature>"')
+  })
+
+  it('warns, redacting the RPC URL, when a read fails transiently', async () => {
+    const { ctx } = makeGatewayCtx({
+      attestable: async () => {
+        throw new Error(`fetch failed: ${SECRET_RPC}`)
+      },
+    })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('could not read isAttestableSelector')
+    expect(ctx.warnings[0]).toContain('[redacted-url]')
+    expect(ctx.warnings[0]).not.toContain('SYNTHETIC_PROVIDER_SECRET')
   })
 })

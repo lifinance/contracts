@@ -515,7 +515,14 @@ signer sees:
    (`selector-registry.ts`), then one batched `api.4byte.sourcify.dev` lookup
    for the rest, which supplies the full signature instead. A selector none
    of them names reads "no name for this selector". The name is stated, not
-   graded. A call whose arguments decode is re-encoded in the standard ABI
+   graded. A `setAttestableSelector(selector, enabled)` call reads "Enable"
+   or "Disable for attested dispatch" with the selector and its name, and
+   says whether `config/global.json` → `attestableSelectors` lists the
+   selector. The name there is `<Facet>.<function>` from that entry, shown
+   only when the facet's artifact under `out/` has the selector; otherwise it
+   comes from the local selector registry, then 4byte. The listing is stated,
+   not graded.
+   A call whose arguments decode is re-encoded in the standard ABI
    layout and compared with its calldata (`unreadBytes`): extra bytes after
    the arguments add a red `N BYTES AFTER THE ARGUMENTS ARE NOT SHOWN` line
    with a preview of those bytes, and any other difference (an offset that

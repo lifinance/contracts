@@ -788,6 +788,14 @@
       "auditReportPath": "./audit/reports/2026.10.30_FeeForwarder(v2.1.0).pdf",
       "auditCommitHash": "b1d029d2524a50f9d602459c606241ca36de13f8",
       "finalCommitHash": "ba8f295b55b91a4047a0dbe465b2dea495387532"
+    },
+    "audit20261113": {
+      "auditCompletedOn": "13.11.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.11.13_AttestedBridgeFacet(v1.0.0).pdf",
+      "auditCommitHash": "54e39d0a9a7e785c662d71dc9bc6b443b41e7f97",
+      "finalCommitHash": "532515f6f66e2e9b88326f6900afbb05d618320c"
     }
   },
   "auditedContracts": {
@@ -832,6 +840,9 @@
     },
     "ArbitrumBridgeFacet": {
       "1.0.0": ["audit20250508"]
+    },
+    "AttestedBridgeFacet": {
+      "1.0.0": ["audit20261113"]
     },
     "CalldataVerificationFacet": {
       "1.2.0": ["audit20240902", "audit20250508"],
@@ -951,6 +962,9 @@
     },
     "HopFacetPacked": {
       "1.0.6": ["audit20250508"]
+    },
+    "IAttester": {
+      "1.0.0": ["audit20261113"]
     },
     "ICentrifugeTokenBridge": {
       "1.0.0": ["audit20260923"]

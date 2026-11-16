@@ -12,6 +12,7 @@
 - [Across V4 Swap Facet](./AcrossV4SwapFacet.md)
 - [AllBridge Facet](./AllBridgeFacet.md)
 - [Arbitrum Bridge Facet](./ArbitrumBridgeFacet.md)
+- [Attested Bridge Facet](./AttestedBridgeFacet.md)
 - [CalldataVerification Facet](./CalldataVerificationFacet.md)
 - [Celer Circle Bridge Facet](./CelerCircleBridgeFacet.md)
 - [Chainflip Facet](./ChainflipFacet.md)
