@@ -46,11 +46,11 @@ Thread reply, sent immediately after: `<GROUP_TAG> please review 🙏`
 
 ### 1. Resolve PR
 
-Parse `owner/repo/pull/N` into `<REPO>` and `<N>`; extract `title`, `url`, `number`, `headRefName`, `isDraft` (`gh pr view <N> --repo <REPO> --json …`). Apply the scope guard. Pick `GROUP_TAG`.
+Parse `owner/repo/pull/N` into `<REPO>` and `<N>`; extract `title`, `url`, `number`, `headRefName`, `isDraft` (`gh pr view <N> --repo <REPO> --json …`). Apply the scope guard. Record `HEAD_OID` and `BASE_REF` (`gh pr view <N> --repo <REPO> --json headRefOid,baseRefName`), then pick `GROUP_TAG` with the files lookup and 3,000-file check in "Channel and tag". Re-read both values after the lookup; if either changed, record the new values and redo the lookup, so the tag matches the recorded PR state.
 
 ### 2. Pre-flight
 
-Record `HEAD_OID` (`gh pr view <N> --repo <REPO> --json headRefOid`) before any check, even when the Aikido scan is skipped; every check below runs against that head.
+Every check below runs against `HEAD_OID`, even when the Aikido scan is skipped.
 
 - **Unresolved review threads** (blocking) — REST lacks `isResolved`; use GraphQL:
 
@@ -77,7 +77,7 @@ Record `HEAD_OID` (`gh pr view <N> --repo <REPO> --json headRefOid`) before any 
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
   3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: read `gh pr view <N> --repo <REPO> --json headRefOid` before and after the file list and retry until both match, so the list and the contents come from the same head; then `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
-  4. Real findings remain → stop; don't post until clean. Run `/aikido-address-findings` from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR.
+  4. Real findings remain → stop; don't post until clean. Run `/aikido-address-findings` from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR. It reads only the PR's `aikido-pr-checks[bot]` comments, so a finding the MCP scan reports without a matching bot comment must be fixed by hand.
 
 ### 3. Gate
 
@@ -91,7 +91,7 @@ Skip if the invoking message already says to post ("post for review", "ship it",
 
 ### 5. Post
 
-Re-read `gh pr view <N> --repo <REPO> --json headRefOid` first. If it differs from `HEAD_OID` (a push during the checks, the gate or the confirm wait), redo the classification in "Channel and tag" (re-pick `GROUP_TAG`), step 2 and the gate on the new head, then compare again. Post only when the current head equals the `HEAD_OID` the last step 2 recorded; if the head changes again on the second rerun, stop and ask the user instead of posting.
+Re-read `gh pr view <N> --repo <REPO> --json headRefOid,baseRefName` first. If either differs from `HEAD_OID` / `BASE_REF` (a push or base change during the checks, the gate or the confirm wait), redo step 1's recording and `GROUP_TAG` classification, step 2 and the gate on the new state, then compare again. Post only when both equal the values the last step 1 recorded; if either changes again on the second rerun, stop and ask the user instead of posting.
 
 `slack_send_message` to `C088UJWC8PR` (if it fails, confirm the non-archived channel via `slack_search_channels` — it may have been renamed) with the top-level text; capture `ts`. Then `slack_send_message` with `thread_ts = <ts>` and the thread reply.
 
