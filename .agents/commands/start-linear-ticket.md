@@ -18,7 +18,7 @@ Guarantees: the ticket is assigned, estimated and in a cycle, it is In Progress,
 
 ## 1. Resolve the ticket
 
-- **Description**: first run the branch-mode checks that don't need the ticket — default mode's dirty-tree check (step 3, item 1); existing-branch mode's `main`/detached HEAD and upstream/open-PR guards (step 3) — so a run that will stop does so before a ticket exists. Then run `/create-linear-ticket` with the description. In existing-branch mode also give it `git diff origin/main...HEAD` as context. If the user picks an existing duplicate there, continue with that ID as an existing ticket (repair in step 4, guards in step 2).
+- **Description**: first run the branch-mode checks that don't need the ticket — default mode's dirty-tree check (step 3, item 1); existing-branch mode's `main`/detached HEAD guard (step 3) — so a run that will stop does so before a ticket exists. Then run `/create-linear-ticket` with the description. In existing-branch mode also give it the branch's work as context, committed or not: `git diff $(git merge-base origin/main HEAD)` plus the untracked files from `git status --porcelain`. If the user picks an existing duplicate there, continue with that ID as an existing ticket (repair in step 4, guards in step 2).
 - **ID**: `get_issue` with `fields: ["title", "status", "statusType", "assignee", "labels", "url"]`. Not found → report the error verbatim and stop.
 
 ## 2. Guards (read-only)
@@ -28,7 +28,7 @@ Check in order:
 1. **Branch exists**: a branch containing `exsc-<N>-` exists locally (`git branch --list '*exsc-<N>-*'`) or on origin (`git ls-remote --heads origin '*exsc-<N>-*'`), whatever the ticket's status. Linear's `gitBranchName` is not evidence: it is always set. Never create a second branch for the ticket.
    - That branch is current → keep it.
    - It is checked out in another worktree (`git worktree list --porcelain`) → report that worktree's path and stop.
-   - Otherwise offer to switch (unattended: report it and stop): `git switch <branch>` then `git merge --ff-only '@{u}'` if it has an upstream; else `git switch --track origin/<branch>`. Declined → stop.
+   - Otherwise offer to switch (unattended: report it and stop). Local branch: `git switch <branch>`, then `git merge --ff-only '@{u}'` only if it has an upstream. Remote-only: `git switch --track origin/<branch>`. Declined → stop.
 
    Then skip step 3: status already In Progress → report and stop; otherwise continue with the remaining guards and step 4.
 2. **Assigned to someone else**: ask before reassigning. Declined → continue without changing the assignee.
@@ -65,7 +65,7 @@ Then `git branch -m <name>` (never `-M`).
 Run only after the branch exists or the rename succeeded:
 
 1. Existing ticket: `/create-linear-ticket` repair mode with the ID and the step 2 reassignment answer (so it doesn't ask again), so the ticket ends assigned, estimated and in a cycle. Skip when step 1 just created or repaired it.
-2. `save_issue` with `id`, `state: "In Progress"` (skip if already there) and `assignee: "me"` (skip if already the current user; omit if the user declined a reassignment in step 2). If the state name doesn't resolve, `list_issue_statuses` for the team and ask which to use.
+2. `save_issue` with `id`, `state: "In Progress"` (skip if already there) and `assignee: "me"` (skip if already the current user; omit if the user declined a reassignment in step 2). If the state name doesn't resolve, `list_issue_statuses` for the team and ask which to use (unattended: stop with that reason).
 
 A Linear failure here is partial success: keep the branch, report which write failed with its error.
 
