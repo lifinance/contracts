@@ -57,6 +57,12 @@ case "$FILE" in
       FINDINGS=$(actionlint "$REL" 2>&1)
     fi
     ;;
+  # actionlint rejects action.yml as an argument; lint the workflows that may use the action
+  */.github/actions/*/action.yml | */.github/actions/*/action.yaml)
+    if command -v actionlint > /dev/null; then
+      FINDINGS=$(actionlint 2>&1)
+    fi
+    ;;
 esac
 
 if [[ -n "${FINDINGS//[[:space:]]/}" ]]; then

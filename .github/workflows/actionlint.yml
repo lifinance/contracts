@@ -1,8 +1,11 @@
 # actionlint
 # - lints every workflow file under .github/workflows/ with actionlint: YAML syntax, workflow
 #   schema, `${{ }}` expressions, and the shellcheck findings in each `run:` script
-# - runs on pull requests that change a workflow file; GitHub records an unparseable workflow
-#   only as a 0-second failed push run, never as a PR check, so this job is what surfaces it
+# - runs on every pull request and on push to main, with no path filter, so it always reports a
+#   status and can be a required check; GitHub records an unparseable workflow only as a
+#   0-second failed push run, never as a PR check, so this job is what surfaces it
+# - also covers .github/actions/*/action.yml: actionlint checks each workflow's inputs against
+#   the local actions it uses (it does not shellcheck a composite action's own run: scripts)
 # - installs actionlint from a pinned release tarball and checks its sha256 before running it;
 #   to bump, change ACTIONLINT_VERSION and ACTIONLINT_SHA256 together (the digest of
 #   actionlint_<version>_linux_amd64.tar.gz in that release's checksums.txt)
@@ -15,16 +18,18 @@ name: actionlint
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    paths:
-      - '.github/workflows/**'
+  push:
+    branches:
+      - main
 
 # Default-deny at the workflow level; grant only what each job needs at the job level.
 permissions: {}
 
-# Cancel superseded in-progress runs on the same PR (force-push / rapid commits).
+# Cancel superseded in-progress runs on the same PR (force-push / rapid commits); runs on main
+# always complete.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   actionlint:

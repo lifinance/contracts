@@ -4,7 +4,13 @@
 # check, so a workflow that does not parse cannot be committed unlinted.
 #
 # Usage: actionlint-files.sh FILE...
-#   FILE - Workflow file path; with no files the script does nothing
+#   FILE - Workflow file or local action metadata file (.github/actions/*/action.yml);
+#          with no files the script does nothing
+#
+# Routing/Behavior:
+#   - Only workflow files: actionlint lints exactly those files
+#   - Any action metadata file: actionlint lints every workflow in the repo, since it rejects
+#     action.yml as an argument and a changed action can break any workflow that uses it
 #
 # Returns: actionlint's exit code, 1 if actionlint is not installed, 0 with no files
 # Example: bash script/utils/actionlint-files.sh .github/workflows/markdownlint.yml
@@ -20,5 +26,11 @@ if ! command -v actionlint > /dev/null 2>&1; then
   echo "Install it with: brew install actionlint" >&2
   exit 1
 fi
+
+for FILE in "$@"; do
+  if [[ "$FILE" == *.github/actions/* ]]; then
+    exec actionlint
+  fi
+done
 
 exec actionlint "$@"

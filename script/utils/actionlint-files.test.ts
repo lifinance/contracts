@@ -38,7 +38,10 @@ interface IJob {
 }
 
 interface IWorkflow {
-  on: { pull_request?: { paths?: string[] } }
+  on: {
+    pull_request?: { paths?: string[]; 'paths-ignore'?: string[] }
+    push?: { branches?: string[]; paths?: string[] }
+  }
   permissions: Record<string, string>
   jobs: Record<string, IJob>
 }
@@ -51,6 +54,7 @@ const { YAML } = Bun as unknown as {
 const REPO_ROOT = join(import.meta.dir, '..', '..')
 const SCRIPT = join(REPO_ROOT, 'script/utils/actionlint-files.sh')
 const LINT_STAGED_GLOB = '.github/workflows/*.{yml,yaml}'
+const LINT_STAGED_ACTIONS_GLOB = '.github/actions/**/action.{yml,yaml}'
 const REAL_ACTIONLINT = Bun.which('actionlint')
 // Resolved from the full PATH: the filtered child PATH can drop bash's own
 // directory when actionlint is installed beside it (e.g. /usr/bin)
@@ -172,6 +176,19 @@ describe('actionlint-files.sh', () => {
     ])
   })
 
+  it('lints every workflow when a local action metadata file is passed', () => {
+    const { dir, argsFile } = actionlintStub(4)
+    const { status } = runScript(
+      [
+        writeWorkflow(VALID_WORKFLOW),
+        '.github/actions/setup-foundry/action.yml',
+      ],
+      `${dir}:${pathWithoutActionlint()}`
+    )
+    expect(status).toBe(4)
+    expect(readFileSync(argsFile, 'utf8').trim()).toBe('')
+  })
+
   it.skipIf(!REAL_ACTIONLINT)(
     'fails on a workflow with a YAML syntax error (real actionlint)',
     () => {
@@ -205,6 +222,12 @@ describe('lint-staged wiring', () => {
       'bash script/utils/actionlint-files.sh',
     ])
   })
+
+  it('runs the script on staged local action metadata files', () => {
+    expect(pkg['lint-staged'][LINT_STAGED_ACTIONS_GLOB]).toEqual([
+      'bash script/utils/actionlint-files.sh',
+    ])
+  })
 })
 
 describe('actionlint.yml workflow', () => {
@@ -217,8 +240,15 @@ describe('actionlint.yml workflow', () => {
   const install = steps.find((step) => step.name === 'Install actionlint')
   if (!install?.run) throw new Error('actionlint.yml has no install step')
 
-  it('runs on pull requests that change a workflow file', () => {
-    expect(workflow.on.pull_request?.paths).toEqual(['.github/workflows/**'])
+  it('runs on every pull request so it can be a required check', () => {
+    expect(workflow.on.pull_request).toBeDefined()
+    expect(workflow.on.pull_request?.paths).toBeUndefined()
+    expect(workflow.on.pull_request?.['paths-ignore']).toBeUndefined()
+  })
+
+  it('runs on push to main', () => {
+    expect(workflow.on.push?.branches).toEqual(['main'])
+    expect(workflow.on.push?.paths).toBeUndefined()
   })
 
   it('denies all permissions at the top and grants contents: read to the job', () => {
