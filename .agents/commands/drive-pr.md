@@ -64,8 +64,8 @@ the scratchpad and run it as a file.
    CodeRabbit run before a re-review): read the newest by `started_at`. No run yet means not
    started, never "doesn't apply".
    - Always `CodeRabbit`: settled when `completed`. `success` / `Finished` = reviewed;
-     `neutral` / `Review rate limited` = **not** reviewed, though `gh pr checks` shows it
-     passing.
+     `neutral` / `Review rate limited` and `skipped` / `Review paused` (auto-paused after
+     several reviewed commits) = **not** reviewed, though `gh pr checks` shows them passing.
    - Phase B: `Aikido Security: check code`, plus `version-control` and `verify-signed-commits`
      when the base is `main` (they don't run otherwise): settled when `completed` and not
      `skipped`.
@@ -96,11 +96,11 @@ Actions run is a failure not caused by the diff (step 3).
 
 ### 4. CodeRabbit
 
-**Rate limited**: comment `@coderabbitai review` once per head SHA, with the marker
-`<!-- drive-pr head <SHA> -->` on its own line; skip if a PR comment already carries that
-marker. Then wait as in step 1
-until the newest run is not rate limited. Still rate limited once all else is clean → carry on
-and report "CodeRabbit not reviewed (rate limited)". Never count it as reviewed.
+**Not reviewed** (rate limited or paused): comment `@coderabbitai review` once per head SHA, with
+the marker `<!-- drive-pr head <SHA> -->` on its own line; skip if a PR comment already carries
+that marker. It runs one review without un-pausing. Then wait as in step 1 until the newest run
+is reviewed. Still not reviewed once all else is clean → carry on and report
+"CodeRabbit not reviewed (<title>)". Never count it as reviewed.
 
 **Threads**: the `main protection` ruleset requires every review thread resolved, outdated ones
 too. Read all of them via GraphQL `reviewThreads` (paginated). For each unresolved thread whose
@@ -172,7 +172,7 @@ Report what failed, what was tried and the PR link when:
 ```text
 <PR URL> — clean | stopped: <reason> | rollout, not marked ready (draft | ready)
 CI:          N passing, ignored: audit-* (expected before audit), protect-critical-code: <state>
-CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited)
+CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited | paused)
 Aikido:      I ignored, F fixed, M manual review | clean scan
 Zeus:        approved | changes requested — F fixed, R replied | not reviewed
 Open threads by people: <url list or none>
