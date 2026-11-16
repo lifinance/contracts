@@ -1,8 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { getAssociatedTokenAddressSync } from '@solana/spl-token'
-import { Keypair, PublicKey } from '@solana/web3.js'
 import bs58 from 'bs58'
 import { consola } from 'consola'
 import '../../utils/loadEnv'
@@ -116,27 +114,6 @@ export const leftPadAddressToBytes32 = (address: string): string => {
 }
 
 /**
- * Derives a Solana address from an Ethereum private key
- * Uses the first 32 bytes of the EVM private key as seed for Ed25519 keypair generation
- * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
- * @returns Solana address in base58 format
- */
-export const deriveSolanaAddress = (ethPrivateKey: string): string => {
-  // Remove '0x' prefix if present
-  const seed = ethPrivateKey.replace('0x', '')
-
-  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
-  const seedBytes = new Uint8Array(32)
-  for (let i = 0; i < 32; i++) {
-    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
-  }
-
-  // Create Solana keypair from seed
-  const keypair = Keypair.fromSeed(seedBytes)
-  return keypair.publicKey.toBase58()
-}
-
-/**
  * Converts a Solana base58 address to bytes32 format for non-EVM address fields
  * Solana addresses are 32-byte Ed25519 public keys encoded in base58
  * @param solanaAddress - Solana address in base58 format
@@ -176,25 +153,6 @@ export const bytes32ToSolanaAddress = (bytes32Hex: string): string => {
     bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
   }
   return bs58.encode(bytes)
-}
-
-/**
- * Computes the Associated Token Account (ATA) for a Solana address and token mint, returns bytes32 hex.
- * Used when bridging to Solana (e.g. Polymer CCTP) where CCTP v2 requires mintRecipient to be the ATA.
- * @param solanaAddress - Solana wallet address in base58 format
- * @param tokenMint - Token mint address in base58 format (e.g. USDC on Solana)
- * @returns ATA address as bytes32 hex string
- */
-export async function computeSolanaATABytes32(
-  solanaAddress: string,
-  tokenMint: string
-): Promise<`0x${string}`> {
-  const ownerPublicKey = new PublicKey(solanaAddress)
-  const mintPublicKey = new PublicKey(tokenMint)
-  const ata = getAssociatedTokenAddressSync(mintPublicKey, ownerPublicKey)
-  const ataBytes = ata.toBytes()
-  const ataHex = '0x' + Buffer.from(ataBytes).toString('hex').padStart(64, '0')
-  return ataHex as `0x${string}`
 }
 
 /**

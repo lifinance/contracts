@@ -58,7 +58,6 @@ import { getEnvVar } from '../utils/utils'
 
 import {
   createContractObject,
-  deriveSolanaAddress,
   ensureAllowance,
   ensureBalance,
   executeTransaction,
@@ -68,6 +67,7 @@ import {
   setupEnvironment,
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
+import { deriveSolanaAddress } from './utils/solanaAddress'
 
 config({ quiet: true })
 
