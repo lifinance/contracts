@@ -22,8 +22,8 @@ changed files with `gh api repos/lifinance/contracts/pulls/<N>/files --paginate`
   the first push unless the user said to drive it.
 - **Local branch**: on the PR's head branch with a clean tree (`gh pr checkout`; dirty tree →
   ask), then `git pull --ff-only`.
-- **Rollout PR** (every changed file under `deployments/`): never marked ready. Run Phase A only
-  and report it was left as a draft.
+- **Rollout PR** (every changed file under `deployments/`): this skill never marks it ready and
+  skips step 7. Run Phase A rounds only and report its actual draft or ready state.
 
 ## Pushing rules
 
@@ -96,8 +96,9 @@ Actions run is a failure not caused by the diff (step 3).
 
 ### 4. CodeRabbit
 
-**Rate limited**: comment `@coderabbitai review` once per head SHA (skip if you already have
-such a comment with `createdAt` after the head commit's `committer.date`), then wait as in step 1
+**Rate limited**: comment `@coderabbitai review` once per head SHA, with the marker
+`<!-- drive-pr head <SHA> -->` on its own line; skip if a PR comment already carries that
+marker. Then wait as in step 1
 until the newest run is not rate limited. Still rate limited once all else is clean → carry on
 and report "CodeRabbit not reviewed (rate limited)". Never count it as reviewed.
 
@@ -132,11 +133,13 @@ Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews the PR against its Linear 
 up ready PRs on its own after a few hours; add the `Agent Review Request` label to run it now
 (`qa-review-trigger.yml`). A push dismisses its approval, so it goes last.
 
-1. If the newest `lifi-qa-agent[bot]` review is not on the head SHA, add the label. Wait in the
-   background (bounded, 30 min) until `QA AI Reviewing` is gone and `QA AI Approved` or
-   `QA AI Changes Requested` is set.
-2. **Approved** → clean.
-3. **Changes requested**: its sticky comment (`<!-- zeus:contracts-review -->`) lists the gating
+1. If the newest `lifi-qa-agent[bot]` review is not on the head SHA, add the label and note the
+   time. Wait in the background (bounded, 30 min) for a `lifi-qa-agent[bot]` review with
+   `commit_id` equal to the head SHA and `submitted_at` after that time. The labels alone can
+   show a stale verdict from an earlier review. If `Agent Review Request` is back on the PR
+   (the trigger restores it when its dispatch fails), report it and stop.
+2. **Approved** (`APPROVED`) → clean.
+3. **Changes requested** (`CHANGES_REQUESTED`): its sticky comment (`<!-- zeus:contracts-review -->`) lists the gating
    findings, each an inline thread by `lifi-qa-agent`. Each needs a code fix or a
    finding-specific reply. Check every claim against the code as in step 4:
    - Correct → fix it, push, reply `Fixed in <sha>: <what changed>` and resolve.
@@ -163,7 +166,7 @@ Report what failed, what was tried and the PR link when:
 ## Final report
 
 ```text
-<PR URL> — clean | stopped: <reason> | left as draft (deployments-only)
+<PR URL> — clean | stopped: <reason> | rollout, not marked ready (draft | ready)
 CI:          N passing, ignored: audit-* (expected before audit), protect-critical-code: <state>
 CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited)
 Aikido:      I ignored, F fixed, M manual review | clean scan
