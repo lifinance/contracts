@@ -89,6 +89,8 @@ Skip if the invoking message already says to post ("post for review", "ship it",
 
 ### 5. Post
 
+Re-read `gh pr view <N> --repo <REPO> --json headRefOid` first; if it differs from the head step 2 checked (a push during the gate or confirm wait), rerun step 2 and the gate on the new head before posting.
+
 `slack_send_message` to `C088UJWC8PR` (if it fails, confirm the non-archived channel via `slack_search_channels` — it may have been renamed) with the top-level text; capture `ts`. Then `slack_send_message` with `thread_ts = <ts>` and the thread reply.
 
 ### 6. Auto-merge
