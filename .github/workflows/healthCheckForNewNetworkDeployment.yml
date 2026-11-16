@@ -29,10 +29,10 @@ jobs:
         run: |
           if git diff --name-only origin/main...HEAD | grep -q "config/networks.json"; then
             echo "config/networks.json has been modified in this branch"
-            echo "CONTINUE=true" >> $GITHUB_ENV
+            echo "CONTINUE=true" >> "$GITHUB_ENV"
           else
             echo "No changes in config/networks.json detected in this branch"
-            echo "CONTINUE=false" >> $GITHUB_ENV
+            echo "CONTINUE=false" >> "$GITHUB_ENV"
           fi
 
       - name: Detect Newly Added Networks
@@ -57,17 +57,17 @@ jobs:
 
           if [[ "$ADDED_NETWORKS" == "[]" ]]; then
             echo "No new networks detected."
-            echo "SKIP_CHECK=true" >> $GITHUB_ENV
+            echo "SKIP_CHECK=true" >> "$GITHUB_ENV"
           else
             echo "New networks detected: $ADDED_NETWORKS"
-            echo "added_networks=$(echo $ADDED_NETWORKS | jq -c .)" >> $GITHUB_ENV
+            echo "added_networks=$(echo "$ADDED_NETWORKS" | jq -c .)" >> "$GITHUB_ENV"
           fi
 
       - name: Validate Network Deployment Files
         if: env.CONTINUE == 'true' && env.SKIP_CHECK != 'true'
         run: |
           echo "Validating required files for new networks..."
-          for network in $(echo $added_networks | jq -r '.[]'); do
+          for network in $(echo "$added_networks" | jq -r '.[]'); do
             echo "🔍 Checking files for network: $network"
 
             # Check if network exists in _targetState.json
@@ -121,7 +121,7 @@ jobs:
         run: |
           echo "Running health check for new networks..."
           set -e
-          for network in $(echo $added_networks | jq -r '.[]'); do
+          for network in $(echo "$added_networks" | jq -r '.[]'); do
             echo "🔍 Checking network: $network"
             if bunx tsx script/deploy/healthCheck.ts --network "$network"; then
               echo "✅ $network is fine."
