@@ -1,6 +1,6 @@
 # CCTP Facet
 
-CCTP Facet bridges native USDC through Circle's Cross-Chain Transfer Protocol v2 (CCTP). It burns USDC on the source chain by calling Circle's `TokenMessengerV2` directly, and Circle mints the same amount on the destination chain. The facet takes no fee of its own.
+CCTP Facet bridges native USDC through Circle's Cross-Chain Transfer Protocol v2 (CCTP). It burns USDC on the source chain by calling Circle's `TokenMessengerV2` directly, and Circle mints the burned amount minus the CCTP fee it executes (at most `maxCCTPFee`) on the destination chain. The facet takes no fee of its own.
 
 The facet does not custody user funds: USDC enters the diamond and is burned within the same call.
 
@@ -23,7 +23,7 @@ The facet is derived from `PolymerCCTPFacet` v3.1.0 and differs as follows:
 - No Polymer fee (`polymerTokenFee`, `POLYMER_FEE_RECEIVER`, `PolymerCCTPFeeSent` are removed).
 - `hookData` is accepted for every destination (see [Circle Forwarding Service](#circle-forwarding-service)). `PolymerCCTPFacet` rejects a hook outside HyperCore and Stellar.
 - All facet-specific selectors carry `CCTP` in their name, and the facet uses its own storage namespace (`com.lifi.facets.cctp`). Both facets can live on the same diamond.
-- The HyperCore and Stellar checks are the same as in `PolymerCCTPFacet` v3.1.0, plus the `"cctp-forward"` header check, which here applies to every non-empty hook.
+- The HyperCore and Stellar checks are the same as in `PolymerCCTPFacet` v3.1.0, plus two: the `"cctp-forward"` header check, which here applies to every non-empty hook, and a check that the forwarder hook version is `0`.
 - A zero `solanaReceiverATA` reverts with `InvalidReceiver` (`PolymerCCTPFacet`: `InvalidConfig`).
 
 ## Circle Forwarding Service
@@ -33,13 +33,13 @@ For every destination other than HyperCore and Stellar, `hookData` is optional:
 - **Empty hook** → `depositForBurn`. Someone has to complete the mint on the destination chain (the user, a relayer, or LI.FI).
 - **Non-empty hook** → `depositForBurnWithHook` with the same `mintRecipient` and `destinationCaller = bytes32(0)`. This asks Circle's Forwarding Service to complete the mint (deliver the transfer).
 
-A non-empty hook must start with the 24-byte header `"cctp-forward"` (ASCII, right-padded with zero bytes), otherwise the call reverts with `InvalidCallData`. This applies to every destination, including HyperCore and Stellar. Circle's composable (version 1) format, the Solana account-creation format and both forwarder formats start with that header. For destinations other than HyperCore and Stellar, the facet does not check anything after the header.
+A non-empty hook must start with the 24-byte header `"cctp-forward"` (ASCII, right-padded with zero bytes), otherwise the call reverts with `InvalidCallData`. This applies to every destination, including HyperCore and Stellar. The header is what asks Circle's Forwarding Service to relay the transfer; the on-chain HyperCore and Stellar forwarders do not read it. For destinations other than HyperCore and Stellar, the facet does not check anything after the header: a version 1 (composable) hook may carry further frames, including custom frames that a destination application could read.
 
 ### Trust assumptions
 
 - **A hook cannot redirect funds.** The mint always goes to `mintRecipient`, which the facet sets from validated data: `_bridgeData.receiver` for EVM destinations and `solanaReceiverATA` for Solana. The hook only travels with the burn message.
 - **A bad hook only costs delivery.** If Circle cannot use the hook, it does not deliver the transfer. Because `destinationCaller = bytes32(0)`, anyone can still complete the mint with the attested message.
-- **The hook is not a destination call.** The header check limits the hook to a delivery request, so `hasDestinationCall` stays `false` and `doesNotContainDestinationCalls` applies.
+- **The hook is not a LI.FI destination call.** `hasDestinationCall` stays `false` and `doesNotContainDestinationCalls` applies: the facet never executes anything on the destination chain. The header check does not restrict the rest of the hook, so the hook can carry frames that a destination application reads; it still cannot change who receives the mint.
 - **The forwarding fee comes out of `maxCCTPFee`.** When the backend attaches a hook, it quotes Circle's fee API right before the transfer and sets `maxCCTPFee` to cover the CCTP fee plus the forwarding fee. If `maxCCTPFee` is too low, Circle still delivers, but moves the transfer from Fast to Standard.
 - **Not every chain is served.** Circle's Forwarding Service delivers to Ethereum, Optimism, Arbitrum, Base, Polygon, Avalanche, Sonic and Solana, but not to Pharos. For transfers into Pharos the backend leaves `hookData` empty and the mint has to be completed by someone else.
 
@@ -62,7 +62,8 @@ Same checks as `PolymerCCTPFacet` v3.1.0 plus the header check; `config/cctp.jso
 
 HyperCore (LI.FI chain ID `1337`) has no CCTP domain of its own: the burn targets HyperEVM's domain (`19`) and [Circle's `CctpForwarder` on HyperEVM](https://developers.circle.com/cctp/concepts/forwarding-service) deposits the USDC into HyperCore.
 
-- `hookData` is required and must be at least 52 bytes. The recipient at `hookData[32:52]` must equal `BridgeData.receiver` (`InvalidReceiver` otherwise).
+- `hookData` is required and must be at least 52 bytes, with version `0` at `hookData[24:28]` (`InvalidCallData` otherwise). The recipient at `hookData[32:52]` must equal `BridgeData.receiver` (`InvalidReceiver` otherwise).
+- Circle's `CctpForwarder` is the only allowed `destinationCaller` and reverts on any other version, so the version check prevents a burn that could never be minted.
 - `mintRecipient` and `destinationCaller` are both the hardcoded `HYPERCORE_CCTP_FORWARDER`. Rotating the forwarder requires a facet upgrade.
 
 See [PolymerCCTPFacet.md](./PolymerCCTPFacet.md#hypercore-deposits) for the forwarder's trust assumptions; they apply unchanged.
@@ -74,7 +75,7 @@ Same checks as `PolymerCCTPFacet` v3.1.0 plus the header check; `config/cctp.jso
 Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM. The recipient travels as a strkey inside `hookData`, and every deposit mints to the hardcoded `STELLAR_CCTP_FORWARDER`, which forwards the USDC to the strkey.
 
 - `BridgeData.receiver` must be `NON_EVM_ADDRESS` and `nonEVMReceiver` must be non-zero.
-- Hook layout: magic (24) + version (4) + strkey length `L` (4) + strkey (`L`). `L` must be non-zero and equal the actual trailing length.
+- Hook layout: magic (24) + version (4) + strkey length `L` (4) + strkey (`L`). The version must be `0`, and `L` must be non-zero and equal the actual trailing length. The Stellar forwarder is the only allowed `destinationCaller` and rejects any other version, so these checks prevent a burn that could never be minted.
 
 ### Trust assumptions
 
@@ -139,7 +140,7 @@ The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
 Some methods accept a `BridgeData _bridgeData` parameter.
 
-This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
+In this facet `BridgeData` is not only for analytics: `minAmount` is the amount burned, `receiver` is the mint recipient for EVM destinations (and the HyperCore recipient the hook is checked against), and `destinationChainId` selects the CCTP domain. It is also used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 ## Getting Sample Calls to interact with the Facet
 

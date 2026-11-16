@@ -62,11 +62,15 @@ contract CCTPFacet is
     /// @notice bytes32(0) allows any address to complete the CCTP transfer on destination chain
     bytes32 private constant UNRESTRICTED_DESTINATION_CALLER = bytes32(0);
 
-    /// @notice Header every Circle hook starts with (Forwarding Service, HyperCore and Stellar
-    ///         forwarders), and so every non-empty hookData must start with: "cctp-forward",
+    /// @notice Header that asks Circle's Forwarding Service to relay a transfer; every non-empty
+    ///         hookData must start with it: "cctp-forward",
     ///         right-padded with zero bytes to 24 bytes.
     ///         https://developers.circle.com/cctp/concepts/forwarding-service
     bytes24 internal constant CCTP_FORWARD_HEADER = bytes24("cctp-forward");
+
+    /// @notice The only hook version Circle's HyperCore and Stellar forwarders accept (bytes
+    ///         [24:28] of the hook).
+    bytes4 internal constant FORWARDER_HOOK_VERSION = bytes4(0);
 
     /// @notice Circle's CctpForwarder on HyperEVM (0xb21D281DEdb17AE5B501F6AA8256fe38C4e45757),
     ///         pre-encoded as the bytes32 mintRecipient/destinationCaller. HyperCore hook flows
@@ -402,10 +406,8 @@ contract CCTPFacet is
     ) internal pure {
         uint256 destinationChainId = _bridgeData.destinationChainId;
 
-        // Every Circle hook format (Forwarding Service, HyperCore and Stellar forwarders) starts
-        // with this header. Elsewhere it keeps the hook a delivery request, never an arbitrary
-        // payload for a destination contract. On HyperCore and Stellar the forwarder is the only
-        // allowed destinationCaller, so a hook it rejects would strand the burned USDC.
+        // The header asks Circle's Forwarding Service to relay the transfer. The facet only
+        // accepts hooks in that format, so every hook it sends is a request Circle recognises.
         if (
             _cctpData.hookData.length > 0 &&
             (_cctpData.hookData.length < 24 ||
@@ -444,10 +446,12 @@ contract CCTPFacet is
         }
     }
 
-    /// @dev PolymerCCTPFacet v3.1.0 checks; the caller also enforces the header. Without a valid
-    ///      hook the USDC would mint on HyperEVM and never reach HyperCore. Hook layout: magic (24)
-    ///      + version (4) + payload length (4), then the recipient address at [32:52]. The
-    ///      forwarder credits the account encoded there, so it must equal the declared receiver.
+    /// @dev PolymerCCTPFacet v3.1.0 checks plus a version check; the caller enforces the header.
+    ///      Without a valid hook the USDC would mint on HyperEVM and never reach HyperCore. Hook
+    ///      layout: magic (24) + version (4) + payload length (4), then the recipient address at
+    ///      [32:52]. The forwarder credits the account encoded there, so it must equal the
+    ///      declared receiver. The forwarder is the only allowed destinationCaller and reverts on
+    ///      a version other than 0, so a non-zero version would leave the USDC unmintable.
     /// @param _bridgeData The core information needed for bridging
     /// @param _cctpData Data specific to CCTP
     function _validateHyperCore(
@@ -456,7 +460,8 @@ contract CCTPFacet is
     ) private pure {
         if (
             _bridgeData.receiver == NON_EVM_ADDRESS ||
-            _cctpData.hookData.length < 52
+            _cctpData.hookData.length < 52 ||
+            bytes4(_cctpData.hookData[24:28]) != FORWARDER_HOOK_VERSION
         ) {
             revert InvalidCallData();
         }
@@ -469,12 +474,12 @@ contract CCTPFacet is
         }
     }
 
-    /// @dev PolymerCCTPFacet v3.1.0 checks; the caller also enforces the header. Hook layout:
-    ///      magic (24) + version (4) + strkey length L (4) + strkey (L). hookData.length must
-    ///      exceed the 32-byte prefix
-    ///      (L == 0 leaves the USDC burned but stuck), and L must equal the trailing size so a
-    ///      truncated or padded hook cannot reach the forwarder. The version bytes [24:28] are
-    ///      intentionally not validated; Circle's Stellar forwarder rejects a wrong version.
+    /// @dev PolymerCCTPFacet v3.1.0 checks plus a version check; the caller enforces the header.
+    ///      Hook layout: magic (24) + version (4) + strkey length L (4) + strkey (L).
+    ///      hookData.length must exceed the 32-byte prefix (L == 0 leaves the USDC burned but
+    ///      stuck), and L must equal the trailing size so a truncated or padded hook cannot reach
+    ///      the forwarder. The forwarder is the only allowed destinationCaller and rejects a
+    ///      version other than 0, so a non-zero version would leave the USDC unmintable.
     /// @param _bridgeData The core information needed for bridging
     /// @param _cctpData Data specific to CCTP
     function _validateStellar(
@@ -484,7 +489,8 @@ contract CCTPFacet is
         if (
             _bridgeData.receiver != NON_EVM_ADDRESS ||
             _cctpData.nonEVMReceiver == bytes32(0) ||
-            _cctpData.hookData.length <= 32
+            _cctpData.hookData.length <= 32 ||
+            bytes4(_cctpData.hookData[24:28]) != FORWARDER_HOOK_VERSION
         ) {
             revert InvalidCallData();
         }
