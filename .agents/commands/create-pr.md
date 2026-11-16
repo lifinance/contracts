@@ -1,6 +1,6 @@
 ---
 name: create-pr
-description: "Commits, pushes and opens a PR for the current branch from .github/pull_request_template.md, creating a branch if needed. Requires an assigned, estimated EXSC Linear ticket — resolves or creates one unless the user opts out. Use for \"create PR\", \"open PR\", \"push and PR\"."
+description: "Commits, pushes and opens a PR for the current branch from .github/pull_request_template.md, creating a branch if needed. Requires an assigned, estimated EXSC Linear ticket in a cycle — resolves or creates one unless the user opts out. Use for \"create PR\", \"open PR\", \"push and PR\"."
 ---
 
 # Create PR
@@ -10,7 +10,7 @@ description: "Commits, pushes and opens a PR for the current branch from .github
 - **Branch name** (optional). If omitted, derive from staged changes or task context.
 - **Commit message** (optional). If omitted, derive from the diff.
 - **Draft** (optional). When the user or a delegating skill asks for a draft PR, pass `--draft` in step 10. All other steps apply unchanged.
-- **Linear task link or ID** (required unless the user explicitly opts out). Must be a **SmartContract-team ticket (EXSC prefix)** that is **assigned** and has an **estimate**. "Explicitly opts out" means the user said in this session that this PR needs no ticket (or chose `s` at the step 4 prompt) — the absence of a known ticket is never an opt-out.
+- **Linear task link or ID** (required unless the user explicitly opts out). Must be a **SmartContract-team ticket (EXSC prefix)** that is **assigned**, has an **estimate** and sits in a **cycle**. "Explicitly opts out" means the user said in this session that this PR needs no ticket (or chose `s` at the step 4 prompt) — the absence of a known ticket is never an opt-out.
 
 To **edit** an existing PR's title/body, follow `.agents/context.md` → "Creating and editing PRs via gh".
 
@@ -50,8 +50,7 @@ Resolve in order:
 **Validation** (routes 1–3) — `get_issue` and check:
 
 - **Team**: must be SmartContract (EXSC). A ticket from another team doesn't satisfy the requirement — keep it as an extra `Ref <ID>` line if relevant and fall through to route 4.
-- **Assignee**: if unassigned, plan to assign the current user (`assignee: "me"`). Never reassign an assigned ticket.
-- **Estimate**: if none, propose one scaled to the diff (default **1** for small changes).
+- **Required fields**: plan the repairs `/create-linear-ticket` repair mode makes (its steps 5–6): a missing assignee or estimate; a missing or past cycle; and `InCursu` only when the repair moves the ticket into a cycle (a ticket already in the current or next cycle keeps its label as is). Size a missing estimate to the diff (default **1** for small changes). Never reassign an assigned ticket.
 
 Do not write to Linear yet — planned repairs go in the step 8 pre-flight and run in step 9. Unattended runs apply the proposed values in step 9.
 
@@ -61,6 +60,7 @@ Do not write to Linear yet — planned repairs go in the step 8 pre-flight and r
    No Linear ticket found — one is required. Create in EXSC and rename branch?
      • Ticket: team=SmartContract, title="<derived title>"
      • Assignee: <current user>   • Estimate: <proposed, default 1>
+     • Cycle: <Cycle N>   • InCursu: <yes/no>
      • Branch: <current-branch>  →  <type>/<id-after-creation>-<slug>
    ```
 
@@ -69,7 +69,7 @@ Do not write to Linear yet — planned repairs go in the step 8 pre-flight and r
    - `s` — explicit opt-out: no ticket, branch unchanged, body line `<!-- No Linear task -->`; never fabricate a link. If the change is genuinely trivial (typo / doc-only / dep-bump / single-line fix), suggest the `trivial` label so the ticket-linkage metric counts it.
    - Unattended: plan the ticket with the derived title — never proceed without one.
 
-   On `y` / `e`, record the planned ticket. Step 9 creates it with `save_issue`: `team: "SmartContract"`, the title, a short body summarizing the change plus a PR-URL placeholder, `assignee: "me"`, and the confirmed `estimate`.
+   On `y` / `e`, record the planned ticket and run `/create-linear-ticket` up to its save, as its "Called from `/create-pr`" input describes: template, body drafted from the diff (with a PR-URL placeholder), facts check, estimate, cycle and `InCursu`. The step 8 pre-flight shows the result and is that skill's preview; step 9 saves the body exactly as shown.
 
 ### 5. Build the PR body
 
@@ -115,8 +115,9 @@ Self-review:
   • Findings: <none / concerns>
   • Single-concern: <yes / no — why>
 
-Linear: <EXSC-ID> — assignee <name>, estimate <n>   (planned repairs: <none / assign / set estimate>)
+Linear: <EXSC-ID> — assignee <name>, estimate <n>   (planned repairs: <none / assign / estimate / cycle / InCursu>)
   ↑ or: new ticket "<title>", estimate <n>, branch → <new-branch>   (created in step 9)
+        body: <ticket body>   findings: <step 4 findings / none>
   ↑ or: no ticket (explicit user opt-out)
 
 Checks run:
@@ -138,7 +139,7 @@ On **n**: ask what to change and loop back — no push, no Linear writes.
 
 ### 9. Apply Linear changes, then push
 
-Run the planned Linear writes (create the ticket, or apply assignee/estimate repairs), fill the ticket link into the body, and rename the branch (`git branch -m <type>/<lowercase-id>-<slug>`) if planned — the user consented in step 4. Then `git push -u origin <branch-name>`.
+Run the planned Linear writes (create the ticket, or apply the planned repairs, both via `/create-linear-ticket`'s save and verify steps, with no new questions), fill the ticket link into the body, and rename the branch (`git branch -m <type>/<lowercase-id>-<slug>`) if planned — the user consented in step 4. Then `git push -u origin <branch-name>`.
 
 ### 10. Create the PR
 

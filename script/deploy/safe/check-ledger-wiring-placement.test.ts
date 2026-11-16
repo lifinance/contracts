@@ -649,14 +649,14 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
 })
 
 /**
- * The two scope notes a Tron proposal carries reach the recorder together.
+ * The Tron executability scope note reaches the recorder.
  *
- * Each is what turns an unmade read into a named, acknowledgeable limit; a
+ * It is what turns an unmade simulation into a named, acknowledgeable limit; a
  * note that stopped reaching `proposalCheckResults` would silently fall back
- * to "no read was made", which is the row this exists to replace.
+ * to "no simulation was attempted", which is the row this exists to replace.
  */
-describe('the Tron scope notes reach the recorder', () => {
-  it('passes both out-of-scope reasons beside the verdicts', () => {
+describe('the Tron scope note reaches the recorder', () => {
+  it('passes the executability out-of-scope reason beside the verdicts', () => {
     const body = perProposal()
     const call = body.indexOf('proposalCheckResults({')
     expect(call).toBeGreaterThan(-1)
@@ -664,7 +664,26 @@ describe('the Tron scope notes reach the recorder', () => {
     expect(end).toBeGreaterThan(call)
     const args = body.slice(call, end)
     expect(args).toContain('executabilityOutOfScope:')
-    expect(args).toContain('rpcQuorumOutOfScope:')
+    expect(args).not.toContain('rpcQuorumOutOfScope')
+  })
+})
+
+/**
+ * Gate J runs on Tron too, reading the code at `latest` there.
+ *
+ * Tron is not simulated, so a quorum read left behind the simulator's guard
+ * would never run there and the row would fall back to "no read was made".
+ */
+describe('gate J reads Tron at latest', () => {
+  it('guards the quorum read on endpoints alone and picks latest for Tron', () => {
+    const body = perProposal()
+    const call = body.indexOf('readCodeQuorumPastTipReorgs(')
+    expect(call).toBeGreaterThan(-1)
+    const guard = body.lastIndexOf('if (', call)
+    expect(body.slice(guard, call)).not.toContain('evmSimulatable')
+    const args = body.slice(call, body.indexOf('catch', call))
+    expect(args).toContain('isTronNetworkKey(')
+    expect(args).toContain("'latest'")
   })
 })
 

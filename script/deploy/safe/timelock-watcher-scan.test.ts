@@ -42,7 +42,8 @@ const logsOf = (
 const scheduledAt = (
   blockNumber: bigint,
   opId: Hex,
-  index = 0n
+  index = 0n,
+  logIndex = 0
 ): IScheduledCallLog => ({
   id: opId,
   index,
@@ -52,7 +53,14 @@ const scheduledAt = (
   predecessor: ZERO32,
   delay: 10_800n,
   blockNumber,
+  logIndex,
 })
+
+const cancelAt = (
+  blockNumber: bigint,
+  opId: Hex,
+  logIndex = 0
+): ICancelledLog => ({ id: opId, blockNumber, logIndex })
 
 /**
  * A chain whose endpoint refuses ranges wider than `maxSpan`, recording every
@@ -187,7 +195,7 @@ describe('mergeScheduledLogs', () => {
   it('proves a cancel only when it follows the latest schedule', () => {
     const cancelled = mergeScheduledLogs(
       {},
-      logsOf([scheduledAt(10n, id(6))], [], [{ id: id(6), blockNumber: 15n }])
+      logsOf([scheduledAt(10n, id(6))], [], [cancelAt(15n, id(6))])
     )
     expect(isProvenCancelled(opIn(cancelled, id(6)))).toBe(true)
     const rescheduled = mergeScheduledLogs(
@@ -205,7 +213,7 @@ describe('mergeScheduledLogs', () => {
       floor: 0n,
       maxSpan: 1_000n,
       logs: [scheduledAt(500n, id(3))],
-      cancels: [{ id: id(3), blockNumber: 9_500n }],
+      cancels: [cancelAt(9_500n, id(3))],
     })
     const start = {
       ...initialScanState(undefined, TIMELOCK),
@@ -219,7 +227,73 @@ describe('mergeScheduledLogs', () => {
     const second = await advanceScan(first.state, deps, 100)
     const op = opIn(second.state.operations, id(3))
     expect(isProvenCancelled(op)).toBe(false)
-    expect(isProvenCancelled(op, second.state.cancels)).toBe(true)
+    expect(isProvenCancelled(op, second.state)).toBe(true)
+  })
+
+  it('leaves an operation cancelled and scheduled again in one block pending', () => {
+    const first = { ...scheduledAt(10n, id(6)), delay: 604_800n }
+    const again = { ...scheduledAt(20n, id(6), 0n, 5), delay: 60n }
+    const logs = logsOf([first, again], [], [cancelAt(20n, id(6), 2)])
+    const op = opIn(mergeScheduledLogs({}, logs), id(6))
+    expect(isProvenCancelled(op)).toBe(false)
+    expect(op.delay).toBe('60')
+    const fromState = { ...op, cancelledInBlock: undefined }
+    const state = {
+      cancels: { [id(6)]: '20' },
+      cancelLogIndexes: { [id(6)]: 2 },
+    }
+    expect(isProvenCancelled(fromState, state)).toBe(false)
+  })
+
+  it('proves a cancel that follows its schedule within one block', () => {
+    const logs = logsOf(
+      [scheduledAt(20n, id(6), 0n, 3), scheduledAt(20n, id(6), 1n, 4)],
+      [],
+      [cancelAt(20n, id(6), 6)]
+    )
+    const op = opIn(mergeScheduledLogs({}, logs), id(6))
+    expect(op.logIndex).toBe(4)
+    expect(isProvenCancelled(op)).toBe(true)
+    const state = {
+      cancels: { [id(6)]: '20' },
+      cancelLogIndexes: { [id(6)]: 6 },
+    }
+    expect(
+      isProvenCancelled({ ...op, cancelledInBlock: undefined }, state)
+    ).toBe(true)
+  })
+
+  it('proves no same-block cancel for a position saved without a log index', () => {
+    const legacy: IScannedOperation = {
+      ...opIn(mergeScheduledLogs({}, logsOf([scheduledAt(20n, id(6))])), id(6)),
+      logIndex: undefined,
+      cancelledInBlock: '20',
+      cancelledLogIndex: undefined,
+    }
+    expect(isProvenCancelled(legacy)).toBe(false)
+    expect(isProvenCancelled({ ...legacy, cancelledInBlock: '21' })).toBe(true)
+    expect(
+      isProvenCancelled(
+        { ...legacy, cancelledInBlock: undefined },
+        { cancels: { [id(6)]: '20' } }
+      )
+    ).toBe(false)
+  })
+
+  it('keeps the latest cancel within a block in the scan state', async () => {
+    const deps = chain({
+      head: 1_000n,
+      floor: 0n,
+      logs: [scheduledAt(500n, id(3))],
+      cancels: [cancelAt(600n, id(3), 7), cancelAt(600n, id(3), 2)],
+    })
+    const outcome = await advanceScan(
+      { ...initialScanState(undefined, TIMELOCK), floor: '0', high: '0' },
+      deps,
+      10
+    )
+    expect(outcome.state.cancels?.[id(3)]).toBe('600')
+    expect(outcome.state.cancelLogIndexes?.[id(3)]).toBe(7)
   })
 
   it('keeps the latest cancel, and ignores one for an unknown id', () => {
@@ -228,11 +302,7 @@ describe('mergeScheduledLogs', () => {
       logsOf(
         [scheduledAt(10n, id(8))],
         [],
-        [
-          { id: id(8), blockNumber: 30n },
-          { id: id(8), blockNumber: 12n },
-          { id: id(9), blockNumber: 40n },
-        ]
+        [cancelAt(30n, id(8)), cancelAt(12n, id(8)), cancelAt(40n, id(9))]
       )
     )
     expect(merged[id(8)]?.cancelledInBlock).toBe('30')
@@ -300,6 +370,84 @@ describe('advanceScan', () => {
     expect(outcome.state.operations[id(1)]).toBeDefined()
     expect(covers(deps.served, 0n, 100_000n)).toBe(true)
     expect(BigInt(outcome.state.span ?? '0')).toBeLessThanOrEqual(1_000n)
+  })
+
+  describe('vouched floor', () => {
+    /** Scanned down to `low` from 100_000, on a timelock created at block 0. */
+    const scannedDownTo = (low: bigint) => ({
+      ...initialScanState(undefined, TIMELOCK),
+      floor: '0',
+      low: low.toString(),
+      high: '100000',
+    })
+
+    it('completes history at a vouched floor the endpoints cannot read below', async () => {
+      const deps = chain({ head: 100_000n, floor: 0n, logs: [] })
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10, {
+        vouchedFloor: 50_000n,
+      })
+      expect(outcome.historyComplete).toBe(true)
+      expect(deps.served.every(([from]) => from >= 50_000n)).toBe(true)
+      expect(outcome.state.floor).toBe('0')
+      expect(outcome.historyFloor).toBe(50_000n)
+    })
+
+    it('ignores a vouched floor above the head rather than vouching for unscanned blocks', async () => {
+      const deps = chain({ head: 100_000n, floor: 0n, logs: [] })
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10, {
+        vouchedFloor: 1_000_000n,
+      })
+      expect(outcome.historyFloor).toBe(0n)
+      const history = deps.served.filter(([from]) => from < 50_000n)
+      expect(history.length).toBeGreaterThan(0)
+    })
+
+    it('reads history down to a vouched floor that is below what was scanned', async () => {
+      const deps = chain({
+        head: 100_000n,
+        floor: 0n,
+        logs: [scheduledAt(45_000n, id(1)), scheduledAt(35_000n, id(2))],
+      })
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10, {
+        vouchedFloor: 40_000n,
+      })
+      expect(outcome.historyComplete).toBe(true)
+      const history = deps.served.filter(([from]) => from < 50_000n)
+      expect(covers(history, 40_000n, 49_999n)).toBe(true)
+      expect(deps.served.every(([from]) => from >= 40_000n)).toBe(true)
+      expect(Object.keys(outcome.state.operations)).toEqual([id(1)])
+    })
+
+    it('ignores a vouched floor below the creation block', async () => {
+      const deps = chain({
+        head: 1_000n,
+        floor: 100n,
+        logs: [scheduledAt(50n, id(9))],
+      })
+      const outcome = await advanceScan(
+        initialScanState(undefined, TIMELOCK),
+        deps,
+        10,
+        { vouchedFloor: 10n }
+      )
+      expect(outcome.historyComplete).toBe(true)
+      expect(deps.served.every(([from]) => from >= 100n)).toBe(true)
+      expect(outcome.state.floor).toBe('100')
+    })
+
+    it('leaves history incomplete without one when the endpoints refuse older blocks', async () => {
+      const base = chain({ head: 100_000n, floor: 0n, logs: [] })
+      const deps: IScanDependencies = {
+        ...base,
+        getLogs: async (from, to) => {
+          if (from < 50_000n) throw new Error('fromBlock is too far')
+          return base.getLogs(from, to)
+        },
+      }
+      const outcome = await advanceScan(scannedDownTo(50_000n), deps, 10)
+      expect(outcome.historyComplete).toBe(false)
+      expect(outcome.historyError).toContain('fromBlock is too far')
+    })
   })
 
   it('reports a history range no endpoint serves as incomplete, not covered', async () => {
@@ -658,6 +806,27 @@ describe('advanceScan', () => {
     const outcome = await advanceScan(previous, deps, 0)
     expect(outcome.state.operations[id(6)]).toBeDefined()
     expect(deps.served[0]?.[0]).toBe(10_000n - REORG_MARGIN_BLOCKS)
+  })
+
+  it('never tries a range wider than the network cap', async () => {
+    const capped = chain({
+      head: 20_000n,
+      floor: 0n,
+      maxSpan: 5_000n,
+      logs: [],
+    })
+    const first = await advanceScan(
+      initialScanState(undefined, TIMELOCK),
+      capped,
+      10,
+      { maxSpan: 5_000n }
+    )
+    expect(first.state.span).toBe('5000')
+    const next = await advanceScan(first.state, capped, 10, {
+      maxSpan: 5_000n,
+    })
+    expect(next.state.span).toBe('5000')
+    expect(capped.refused).toBe(0)
   })
 
   it('starts at the widest span and reuses the span that worked', async () => {

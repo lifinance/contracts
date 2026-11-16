@@ -1493,6 +1493,26 @@ describe('rpcQuorumCheckResult', () => {
     expect(result.anchor).toBe('A-CHAIN')
   })
 
+  it('carries the verdict detail onto a pass, so a latest-code read is disclosed', () => {
+    const detail =
+      '2 independent providers return the same code read at latest, and their chains match at block 100'
+    const result = rpcQuorumCheckResult(
+      quorumVerdict({ detail, valueReadAt: 'latest' }),
+      NETWORK
+    )
+    expect(result.status).toBe('pass')
+    expect(result.detail).toBe(detail)
+  })
+
+  it('adds no detail to a pass read at the pinned block', () => {
+    const result = rpcQuorumCheckResult(
+      quorumVerdict({ detail: '2 independent providers agree at block 100' }),
+      NETWORK
+    )
+    expect(result.status).toBe('pass')
+    expect(result.detail).toBeUndefined()
+  })
+
   // Report-only: the fleet still has single-endpoint production chains, and
   // enforcing the quorum there would turn missing redundancy into a refusal.
   it('never records a mismatch, whatever the shortfall', () => {
@@ -1789,53 +1809,11 @@ describe('gate G when no storage-authority read was made', () => {
   })
 })
 
-describe('gate J on a chain whose providers cannot be compared', () => {
+describe('gate J with no quorum read', () => {
   const rowOf = (ledger: ICheckLedger) =>
     ledger.results.find((result) => result.checkId === RPC_QUORUM_CHECK_ID)
 
-  // The Tron path: TronGrid rejects `eth_getCode` at a pinned block, so no
-  // two providers can be read at one height. A declared limit the signer
-  // acknowledges, with the chain named, rather than "no read was made".
-  it('acknowledges the documented limit, naming the chain', () => {
-    const ledger = runLedger()
-    recordInto(
-      ledger,
-      verdicts({
-        rpcQuorum: undefined,
-        rpcQuorumOutOfScope:
-          'tron cannot serve a code read at a pinned block, so its providers cannot be compared at one height',
-      })
-    )
-
-    const row = rowOf(ledger)
-    expect(row?.status).toBe('needs-ack')
-    expect(row?.anchor).toBe('A-DOCUMENTED')
-    expect(row?.actual).toContain('tron')
-    expect(row?.actual).not.toContain('no quorum read was made')
-
-    const verdict = summariseLedger(ledger)
-    expect(verdict.hardBlocked).toBe(false)
-    expect(
-      verdict.requiresAcknowledgement.map((result) => result.checkId)
-    ).toContain(RPC_QUORUM_CHECK_ID)
-  })
-
-  // The scope note never replaces a read that was made.
-  it('does not soften a quorum read that ran', () => {
-    const ledger = runLedger()
-    recordInto(
-      ledger,
-      verdicts({
-        rpcQuorumOutOfScope: 'tron cannot be compared at one height',
-      })
-    )
-    expect(rowOf(ledger)?.status).toBe('pass')
-    expect(rowOf(ledger)?.anchor).toBe('A-CHAIN')
-  })
-
-  // An unmade read on a covered chain keeps its own wording, so the two
-  // absences stay apart on the signer's screen.
-  it('keeps the unmade-read row distinct from the documented limit', () => {
+  it('records an unmade read as an unresolved acknowledgement', () => {
     const ledger = runLedger()
     recordInto(ledger, verdicts({ rpcQuorum: undefined }))
     expect(rowOf(ledger)?.status).toBe('needs-ack')

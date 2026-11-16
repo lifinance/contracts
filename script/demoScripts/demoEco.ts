@@ -12,8 +12,6 @@
 
 import { randomBytes } from 'crypto'
 
-import { getAssociatedTokenAddressSync } from '@solana/spl-token'
-import { Keypair, PublicKey } from '@solana/web3.js'
 import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
 import {
@@ -56,6 +54,10 @@ import {
   setupEnvironment,
   getUniswapDataERC20toExactERC20,
 } from './utils/demoScriptHelpers'
+import {
+  computeSolanaATABytes32,
+  deriveSolanaAddress,
+} from './utils/solanaAddress'
 
 config({ quiet: true })
 
@@ -122,60 +124,6 @@ console.log('Eco API Configuration:')
 console.log('  API URL:', ECO_API_URL)
 console.log('  DAPP ID:', DAPP_ID)
 console.log('  Set ECO_API_URL and ECO_DAPP_ID env vars to override defaults\n')
-
-/**
- * Derives a Solana address from an Ethereum private key
- * Uses the Ethereum private key as a seed for Ed25519 keypair generation
- *
- * @param ethPrivateKey - Ethereum private key (with or without 0x prefix)
- * @returns Solana address in base58 format
- */
-function deriveSolanaAddress(ethPrivateKey: string): string {
-  // Remove '0x' prefix if present
-  const seed = ethPrivateKey.replace('0x', '')
-
-  // Use first 32 bytes (64 hex chars) of the private key as seed for Ed25519
-  const seedBytes = new Uint8Array(32)
-  for (let i = 0; i < 32; i++)
-    seedBytes[i] = parseInt(seed.slice(i * 2, i * 2 + 2), 16)
-
-  // Create Solana keypair from seed
-  const keypair = Keypair.fromSeed(seedBytes)
-
-  return keypair.publicKey.toBase58()
-}
-
-/**
- * Computes the Associated Token Account (ATA) for a Solana address and token mint
- *
- * @param solanaAddress - Solana address in base58 format
- * @param tokenMint - Token mint address in base58 format
- * @returns ATA address as bytes32 hex string
- */
-async function computeSolanaATA(
-  solanaAddress: string,
-  tokenMint: string
-): Promise<`0x${string}`> {
-  try {
-    const ownerPublicKey = new PublicKey(solanaAddress)
-    const mintPublicKey = new PublicKey(tokenMint)
-
-    // Compute the Associated Token Account
-    const ata = getAssociatedTokenAddressSync(mintPublicKey, ownerPublicKey)
-
-    // Convert to bytes32 (32 bytes) - take the first 32 bytes of the public key
-    const ataBytes = ata.toBytes()
-    const ataHex =
-      '0x' + Buffer.from(ataBytes).toString('hex').padStart(64, '0')
-
-    return ataHex as `0x${string}`
-  } catch (error) {
-    console.error('Error computing Solana ATA:', error)
-    throw new Error(
-      `Failed to compute ATA for ${solanaAddress} and mint ${tokenMint}`
-    )
-  }
-}
 
 /**
  * Checks if a chain is Solana
@@ -539,9 +487,6 @@ async function main(args: {
   // For now, we'll encode basic route information
   const encodedRoute = getEncodedRoute(quote)
 
-  // For Solana destinations, compute the solanaATA using web3.js
-  // ATA (Associated Token Account) is deterministically derived from the recipient address and token mint
-  // Formula: findProgramAddress([ownerPublicKey, tokenMint, "associated_token_account"], associatedTokenProgramId)
   let solanaATA: `0x${string}` =
     '0x0000000000000000000000000000000000000000000000000000000000000000'
   if (isDestinationSolana) {
@@ -552,7 +497,7 @@ async function main(args: {
     const usdcMint = USDC_ADDRESSES['solana']
     if (!usdcMint) throw new Error('USDC mint address not found for Solana')
 
-    solanaATA = await computeSolanaATA(solanaAddress, usdcMint)
+    solanaATA = await computeSolanaATABytes32(solanaAddress, usdcMint)
     console.log('Computed Solana ATA:', solanaATA)
     console.log('  For recipient:', solanaAddress)
     console.log('  For token mint:', usdcMint)

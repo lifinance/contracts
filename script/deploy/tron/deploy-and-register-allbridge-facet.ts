@@ -27,7 +27,8 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
@@ -37,19 +38,26 @@ import {
   parseAllBridgeMappings,
 } from './helpers/allBridgeInit'
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
-import { deployContractWithLogging, validateBalance } from './tronUtils'
+import {
+  deployContractWithLogging,
+  tronExistingDeploymentMode,
+  validateBalance,
+} from './tronUtils'
 
 /**
  * Deploy and register AllBridgeFacet to Tron
  */
-async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
+async function deployAndRegisterAllBridgeFacet(options: {
+  dryRun?: boolean
+  proposeOnly?: boolean
+}) {
   consola.start('TRON AllBridgeFacet Deployment & Registration')
+  const dryRun = options.dryRun ?? false
+  const proposeOnly = options.proposeOnly ?? false
+  if (!dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
-
-  // Load environment variables
-  const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
@@ -93,7 +101,6 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
@@ -116,7 +123,7 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
 
     // Use new utility for balance validation
     // Pre-flight balance check: warn on low balances but do not abort here
-    await validateBalance(tronWeb, 0)
+    if (!proposeOnly) await validateBalance(tronWeb, 0)
     // Load AllBridge configuration. Kept as raw text as well, because the
     // chain-id mappings must be revived from the JSON source (see allBridgeInit)
     const allbridgeConfigJson = await readFile('config/allbridge.json', 'utf8')
@@ -157,7 +164,8 @@ async function deployAndRegisterAllBridgeFacet(options: { dryRun?: boolean }) {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'AllBridgeFacet',
-      dryRun
+      dryRun,
+      tronExistingDeploymentMode(proposeOnly, 'AllBridgeFacet', tronWeb)
     )
 
     let facetAddress: string
@@ -267,10 +275,19 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
     },
+    proposeOnly: {
+      type: 'boolean',
+      description:
+        'Skip the deploy and propose the address recorded for the network',
+    },
   },
   async run({ args }) {
     await deployAndRegisterAllBridgeFacet({
       dryRun: flagIsOn(args.dryRun),
+      proposeOnly: readBooleanFlag(process.argv, {
+        camel: 'proposeOnly',
+        kebab: 'propose-only',
+      }),
     })
   },
 })

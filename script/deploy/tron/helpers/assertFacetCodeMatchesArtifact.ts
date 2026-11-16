@@ -15,14 +15,36 @@ import {
 
 /** The parts of a Forge artifact that identify its runtime code. */
 export interface IRuntimeArtifact {
-  deployedBytecode?: { object?: string }
-  immutableReferences?: ImmutableReferences
+  deployedBytecode?: {
+    object?: string
+    immutableReferences?: ImmutableReferences
+  }
 }
 
 /** Reads a contract's runtime code, `0x`-prefixed, or undefined when there is none. */
 export type TRuntimeCodeReader = (
   address: string
 ) => Promise<string | undefined>
+
+/**
+ * Builds a runtime-code reader on TronWeb's `getContractInfo`. A failed read throws rather
+ * than reading as "no code", so an RPC outage is never mistaken for a missing contract.
+ *
+ * @param tronWeb - Any client exposing `trx.getContractInfo`.
+ * @returns A reader for `assertFacetCodeMatchesArtifacts`.
+ */
+export const tronRuntimeCodeReader =
+  (tronWeb: {
+    trx: {
+      getContractInfo: (
+        address: string
+      ) => Promise<{ runtimecode?: string } | null | undefined>
+    }
+  }): TRuntimeCodeReader =>
+  async (address) => {
+    const info = await tronWeb.trx.getContractInfo(address)
+    return info?.runtimecode ? `0x${info.runtimecode}` : undefined
+  }
 
 /**
  * Compares on-chain runtime code with an artifact, ignoring immutable values and the
@@ -44,7 +66,10 @@ export const describeCodeMismatch = (
       (onChain.length - 2) / 2
     } bytes, the artifact's ${(built.length - 2) / 2}`
 
-  const masked = maskImmutables(onChain, artifact.immutableReferences)
+  const masked = maskImmutables(
+    onChain,
+    artifact.deployedBytecode?.immutableReferences
+  )
   if (!masked.ok) return `cannot mask immutables: ${masked.reason}`
 
   const deployed = stripMetadataTrailer(masked.code).code.toLowerCase()

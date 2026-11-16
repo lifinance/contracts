@@ -13,13 +13,14 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import type { PublicClient } from 'viem'
+import { InvalidParamsRpcError, RpcRequestError, type PublicClient } from 'viem'
 
 import {
   LogEndpointsFailedError,
   createDeployLogHistoryReader,
   createLogRangeReader,
   findingsOf,
+  isSettled,
   jobFails,
   loadWatcherState,
   logScanFailureReason,
@@ -27,6 +28,7 @@ import {
   parseDeployLogHistory,
   readTimelockLogs,
   unreadableReport,
+  vouchedFloorOf,
   watchNetworkWithin,
   type ILogEndpoint,
   type INetworkFindings,
@@ -244,15 +246,10 @@ describe('jobFails', () => {
     ).toBe(true)
   })
 
-  it('fails when no network could be read, ignoring skipped and uncovered ones', () => {
+  it('fails when no network could be read, ignoring skipped ones', () => {
     const skipped = report({ network: 'zksync', status: 'skipped' })
-    const uncovered = report({
-      network: 'tron',
-      status: 'uncovered',
-      verdict: 'unverified',
-    })
-    expect(jobFails([unreadable, skipped, uncovered], false)).toBe(true)
-    expect(jobFails([skipped, uncovered], false)).toBe(false)
+    expect(jobFails([unreadable, skipped], false)).toBe(true)
+    expect(jobFails([skipped], false)).toBe(false)
     expect(jobFails([], false)).toBe(false)
   })
 
@@ -695,6 +692,64 @@ describe('createLogRangeReader', () => {
       'the log scan failed: every endpoint failed blocks 644-653: lb.drpc.org: Invalid parameters were provided; rpc.example.org: eth_getLogs does not exist'
     )
   })
+
+  it("names the provider's own reason behind viem's generic RPC error, without the URL", async () => {
+    const providerError = new InvalidParamsRpcError(
+      new RpcRequestError({
+        body: { method: 'eth_getLogs' },
+        url: 'https://rpc.example.org/v1/SECRETKEY',
+        error: {
+          code: -32602,
+          message:
+            'PARAM_VERIFY_ERROR: fromBlock is too far from the latest block',
+        },
+      })
+    )
+    const read = createLogRangeReader(
+      [
+        endpoint('rpc.example.org', 1_000n, () => {
+          throw providerError
+        }),
+      ],
+      TIMELOCK
+    )
+    const reason = logScanFailureReason(await rejectionOf(read(1n, 10n)))
+    expect(reason).toContain(
+      'rpc.example.org: Invalid parameters were provided to the RPC method. (PARAM_VERIFY_ERROR: fromBlock is too far from the latest block)'
+    )
+    expect(reason).not.toContain('SECRETKEY')
+  })
+})
+
+describe('vouchedFloorOf', () => {
+  const floors = {
+    jovay: { block: '12921411', reason: 'checked by hand' },
+    badBlock: { block: '0x10', reason: 'checked by hand' },
+    noBlock: { reason: 'checked by hand' },
+    noReason: { block: '5' },
+    blankReason: { block: '5', reason: '  ' },
+  }
+
+  it('reads a configured floor', () => {
+    expect(vouchedFloorOf('jovay', floors)).toEqual({
+      block: 12_921_411n,
+      reason: 'checked by hand',
+    })
+  })
+
+  it('has none for a network the config omits, or without a config', () => {
+    expect(vouchedFloorOf('mainnet', floors)).toBeUndefined()
+    expect(vouchedFloorOf('mainnet', undefined)).toBeUndefined()
+  })
+
+  it.each([
+    ['badBlock', 'block must be a decimal'],
+    ['noBlock', 'block must be a decimal'],
+    ['noReason', 'reason must say'],
+    ['blankReason', 'reason must say'],
+  ])('rejects a malformed %s entry', (network, message) => {
+    expect(() => vouchedFloorOf(network, floors)).toThrow(message)
+  })
 })
 
 describe('readTimelockLogs', () => {
@@ -738,7 +793,7 @@ describe('parseDeployLogHistory', () => {
       '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
       ' "Executor": "0x0000000000000000000000000000000000005555",',
     ].join('\n')
-    expect(parseDeployLogHistory(patch)).toEqual(
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
       new Map([
         [
           'FeeForwarder',
@@ -755,7 +810,7 @@ describe('parseDeployLogHistory', () => {
     const patch =
       '+{"Executor":"0x0000000000000000000000000000000000005555",' +
       '"ERC20Proxy":"0x0000000000000000000000000000000000006666"}'
-    expect(parseDeployLogHistory(patch)).toEqual(
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
       new Map([
         [
           'Executor',
@@ -767,6 +822,69 @@ describe('parseDeployLogHistory', () => {
         ],
       ])
     )
+  })
+
+  it('keys a Tron base58 entry by its hex, and ignores base58 off Tron', () => {
+    const patch = [
+      '+  "LiFiTimelockController": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu",',
+      '+  "Executor": "0x0000000000000000000000000000000000005555",',
+    ].join('\n')
+    expect(parseDeployLogHistory(patch, 'tron')).toEqual(
+      new Map([
+        [
+          'LiFiTimelockController',
+          new Map([['0x161f35951702e93ffee662ed16fb538c283462a5', 0]]),
+        ],
+        [
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 1]]),
+        ],
+      ])
+    )
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
+      new Map([
+        [
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 0]]),
+        ],
+      ])
+    )
+  })
+
+  it('throws on a Tron entry whose checksum fails', () => {
+    const patch = '+  "Executor": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhv",'
+    expect(() => parseDeployLogHistory(patch, 'tron')).toThrow()
+  })
+
+  it('throws on a Tron entry under another version byte', () => {
+    const patch = '+  "Executor": "TbKcWzjyNreUq3ub5hQFKUbCX7wyoDAGww",'
+    expect(() => parseDeployLogHistory(patch, 'tron')).toThrow(
+      'version byte is not 0x41'
+    )
+  })
+})
+
+describe('isSettled', () => {
+  it('drops an executed operation on any network', () => {
+    expect(isSettled('xlayer', 'done', 0, false)).toBe(true)
+    expect(isSettled('tron', 'done', 0, false)).toBe(true)
+  })
+
+  it('keeps a pending or unread operation', () => {
+    expect(isSettled('xlayer', 'pending', 0, false)).toBe(false)
+    expect(isSettled('tron', undefined, 5, true)).toBe(false)
+  })
+
+  it('drops an unset operation proven cancelled on any network', () => {
+    expect(isSettled('xlayer', 'unset', 1, true)).toBe(true)
+    expect(isSettled('tron', 'unset', 1, true)).toBe(true)
+  })
+
+  it('drops an unproven unset operation after three runs off Tron only', () => {
+    expect(isSettled('xlayer', 'unset', 2, false)).toBe(false)
+    expect(isSettled('xlayer', 'unset', 3, false)).toBe(true)
+    expect(isSettled('tron', 'unset', 3, false)).toBe(false)
+    expect(isSettled('tron', 'unset', 50, false)).toBe(false)
   })
 })
 
