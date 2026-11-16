@@ -154,32 +154,73 @@ export const readQuorumPastTipReorgs = async (
 }
 
 /**
- * Reads the code at one address from every endpoint, at a pinned height, and
- * grades it with {@link readQuorumPastTipReorgs}.
+ * Which block the code itself is read at.
+ *
+ * `pinned` asks every provider for the code at the pinned height. `latest` is
+ * for a chain whose JSON-RPC serves `eth_getCode` only at `latest` (Tron): the
+ * block, and so each provider's hash at the pinned height, is still read there,
+ * and only the code read moves. Code changes only on a deploy or a selfdestruct,
+ * so for a long-deployed target, code read at `latest` from providers whose
+ * chains match at the pin is still a comparison of one thing.
+ */
+export type TCodeAt = 'pinned' | 'latest'
+
+/**
+ * Marks a verdict as read at `latest`, so neither the operator line nor a
+ * consumer of `blockNumber` takes the code to have been read at the pinned block.
+ * The status is kept: different code stays a `disagreement`.
+ */
+const describeLatestCodeRead = (
+  verdict: IRpcQuorumVerdict
+): IRpcQuorumVerdict => {
+  const marked: IRpcQuorumVerdict = { ...verdict, valueReadAt: 'latest' }
+  if (verdict.status === 'agreed')
+    return {
+      ...marked,
+      detail: `${verdict.agreeingProviders} independent providers return the same code read at latest, and their chains match at block ${verdict.blockNumber}`,
+    }
+  if (verdict.status === 'disagreement')
+    return {
+      ...marked,
+      detail: `providers returned different code read at latest, though their chains match at block ${verdict.blockNumber} (largest agreeing group: ${verdict.largestAgreeingGroup} provider(s) of ${verdict.respondingProviders} that answered): one of them is wrong or behind a recent deploy, and this read cannot say which`,
+    }
+  return {
+    ...marked,
+    detail: `${verdict.detail} (code read at latest; chains compared at the pinned block)`,
+  }
+}
+
+/**
+ * Reads the code at one address from every endpoint and grades it with
+ * {@link readQuorumPastTipReorgs}. Each provider's chain is compared at one
+ * pinned height; the code is read there too unless `codeAt` is `latest`.
  *
  * @param address - The address whose code is read.
  * @param endpointUrls - Every endpoint configured for the network.
  * @param chainId - The chain they must serve.
- * @param budgetMs - The per-endpoint read budget.
+ * @param codeAt - The block the code is read at; see {@link TCodeAt}.
  * @returns The verdict, re-read behind the head when the tip shows a fork.
  */
-export const readCodeQuorumPastTipReorgs = (
+export const readCodeQuorumPastTipReorgs = async (
   address: Address,
   endpointUrls: readonly string[],
   chainId: number,
-  budgetMs: number = ENDPOINT_READ_BUDGET_MS
-): Promise<IRpcQuorumVerdict> =>
-  readQuorumPastTipReorgs((behindHead) =>
+  codeAt: TCodeAt = 'pinned'
+): Promise<IRpcQuorumVerdict> => {
+  const verdict = await readQuorumPastTipReorgs((behindHead) =>
     collectProviderObservations(
       endpointUrls,
       createCodeReader(
         address,
         chainId,
-        budgetMs,
-        createPinnedBlock(endpointUrls, chainId, behindHead)
+        ENDPOINT_READ_BUDGET_MS,
+        createPinnedBlock(endpointUrls, chainId, behindHead),
+        codeAt
       )
     )
   )
+  return codeAt === 'latest' ? describeLatestCodeRead(verdict) : verdict
+}
 
 /**
  * Names the read a quorum verdict is about, for the operator's line.
@@ -377,19 +418,24 @@ export const createPinnedValueReader =
   }
 
 /**
- * Reads the code at one address, at a named block, from a single endpoint.
+ * Reads the code at one address from a single endpoint, at the block the
+ * observation names, or at `latest` when `codeAt` says so. The block, and so
+ * the hash the quorum compares chains by, is fetched at the pinned height
+ * either way.
  *
  * @param address - The address whose code is read.
  * @param chainId - The chain the endpoints serve, so a misrouted endpoint fails loudly.
  * @param budgetMs - The whole-read budget; lowered by tests, which cannot wait out the default.
  * @param pinnedBlock - The shared height, from {@link createPinnedBlock}.
+ * @param codeAt - The block the code is read at; see {@link TCodeAt}.
  * @returns A reader for {@link collectProviderObservations}.
  */
 export const createCodeReader = (
   address: Address,
   chainId: number,
   budgetMs: number = ENDPOINT_READ_BUDGET_MS,
-  pinnedBlock?: () => Promise<bigint>
+  pinnedBlock?: () => Promise<bigint>,
+  codeAt: TCodeAt = 'pinned'
 ): TEndpointReader =>
   createPinnedValueReader(
     chainId,
@@ -398,7 +444,9 @@ export const createCodeReader = (
       // `undefined` for an address that holds no code, and an endpoint that
       // could not answer at all throws and is recorded as an `error`
       // observation instead of reaching this return.
-      (await client.getCode({ address, blockNumber })) ?? '0x',
+      (await client.getCode(
+        codeAt === 'latest' ? { address } : { address, blockNumber }
+      )) ?? '0x',
     budgetMs,
     pinnedBlock
   )
