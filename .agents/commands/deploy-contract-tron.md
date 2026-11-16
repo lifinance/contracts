@@ -1,7 +1,7 @@
 ---
 name: deploy-contract-tron
 description: "Deploys a facet/periphery contract to Tron (tron/tronshasta) from the contracts-tron fork with the TronWeb scripts, verifies on Tronscan, and brings the deploy log back to upstream lifinance/contracts, never the fork. Use for \"deploy <Contract> to tron\". EVM → deploy-contract."
-usage: /deploy-contract-tron <ContractName> <tron|tronshasta...>
+usage: /deploy-contract-tron <ContractName> <tron|tronshasta...> [--from-rollout]
 ---
 
 # Deploy Contract to Tron
@@ -10,7 +10,7 @@ Tron has no Foundry support (no `deployContractToNetworks.sh`, no CREATE3): it u
 
 `main` in `lifinance/contracts` carries zero Tron branching; the Tron USDT fix (a bypass in `LibAsset.transferERC20` + a `WithdrawablePeriphery` re-route) lives only in the fork. Code flows one-way `contracts` → `contracts-tron`; deploy logs flow back via a PR against upstream — never a direct commit to the fork. Rationale, exact delta, sync mechanism: `docs/TronFork.md`.
 
-**Production (`tron`) runs inside `/multisig-rollout`.** This skill deploys, proposes and verifies; the signing hand-off, signature check and `#dev-sc-multisig-proposals` thread are `/multisig-rollout` Phases 4–8. Invoked directly for `tron`, stop and start `/multisig-rollout <Contract>` instead; it calls back here and resumes at its Phase 4 after Phase 5. A `tronshasta` run stays here end to end.
+**Production (`tron`) runs inside `/multisig-rollout`.** This skill deploys, proposes and verifies; the signing hand-off, signature check and `#dev-sc-multisig-proposals` thread are `/multisig-rollout` Phases 4–8. `/multisig-rollout` calls this skill with `--from-rollout`. A `tron` run without it is a direct invocation: stop and start `/multisig-rollout <Contract>` instead; it calls back here with the marker and resumes at its Phase 4 after Phase 5. A `tronshasta` run stays here end to end.
 
 ## Phase 0 — Locate the `contracts-tron` checkout
 
@@ -41,7 +41,7 @@ A normal session is rooted in `contracts`, but every step in this skill except P
 
    ```bash
    git remote get-url origin | grep -q 'contracts-tron' || { echo "not in contracts-tron — abort"; exit 1; }
-   git rev-parse --abbrev-ref HEAD   # must be main for a production deploy
+   [ "$(git rev-parse --abbrev-ref HEAD)" = main ] || { echo "contracts-tron is not on main — abort"; exit 1; }
    ```
 
 2. **Fast-forward `main`, then check Foundry.** Stop if either fails:
@@ -120,7 +120,13 @@ bunx tsx script/deploy/tron/deploy-and-register-lifi-intent-escrow-facet-v2.ts
 
 Each script reads the network config, deploys via `TronContractDeployer` (CREATE-equivalent, not CREATE3 — Tron has no CREATE3 factory support here), estimates Energy/Bandwidth with the devkit's default safety margin, and updates `deployments/tron.json` / `deployments/tron.diamond.json` in the working tree.
 
-**Never run `deploy-core-facets.ts` or `register-facets-to-diamond.ts` in a rollout.** They bootstrap a new diamond the deployer still owns: `register-facets-to-diamond.ts` sends `diamondCut` straight from the deployer, with no ticket and no Safe proposal. On a timelock-owned diamond the cut reverts after the Energy is spent; on one an EOA still owns it changes the diamond outside the multisig flow.
+**Never run `register-facets-to-diamond.ts` in a rollout, nor `deploy-core-facets.ts` outside the core-facet case below.** They bootstrap a new diamond the deployer still owns: `register-facets-to-diamond.ts` sends `diamondCut` straight from the deployer, with no ticket and no Safe proposal. On a timelock-owned diamond the cut reverts after the Energy is spent; on one an EOA still owns it changes the diamond outside the multisig flow.
+
+**Core facets (e.g. EmergencyPauseFacet) are the one exception: deploy only.** They have no `deploy-and-register-*` script. Run `deploy-core-facets.ts` and answer **Yes** to "Redeploy?" for `<Contract>` alone, **No** for every other facet and for `LiFiDiamond`. Never follow it with `register-facets-to-diamond.ts`; propose the cut through the Tron Safe + Timelock instead:
+
+```bash
+bunx tsx script/deploy/tron/propose-to-safe-tron.ts --to <LiFiDiamond base58> --calldata <diamondCut calldata> --timelock
+```
 
 **Already deployed, only the proposal missing** (the propose step failed, or a Safe proposal was deleted): re-run the facet script with `--proposeOnly`. It skips the Redeploy prompt and the balance check, still shows the network confirmation, and proposes the address recorded for the network. It refuses when no address is recorded, when a `tronshasta` address would come from the `tron.json` fallback, and when the runtime code at the address doesn't match this checkout's artifact in `out/` (an older build left in the log, or no code). A failed read refuses with the RPC error; retry it rather than redeploying. Never answer the interactive "Redeploy?" prompt to get there — `Yes` starts another full deploy. Periphery uses `deploy-and-register-periphery.ts --registerOnly --only <Contract>` instead.
 
@@ -154,9 +160,12 @@ The histories are unrelated enough that cherry-picking is the wrong tool — **c
 TRON_COMMIT=$(git -C <fork> rev-parse HEAD)
 
 # back in the contracts checkout (this repo), in the rollout's working tree
-cp <fork>/deployments/tron.json deployments/tron.json
-git diff deployments/tron.json   # only <Contract>'s entry should change
+jq --arg c <Contract> --slurpfile fork <fork>/deployments/tron.json \
+  '.[$c] = $fork[0][$c]' deployments/tron.json > tron.json.tmp && mv tron.json.tmp deployments/tron.json
+git diff deployments/tron.json   # only <Contract>'s entry may change
 ```
+
+Copy only `<Contract>`'s key, never the whole file: the fork's `tron.json` lags upstream until the next sync, so a full copy would revert another rollout's newer entries.
 
 **Don't open a PR here.** `/multisig-rollout` Phase 5 stages `deployments/tron.json` with the EVM networks' logs and opens one draft PR for the whole rollout, the PR `/finish-rollout` later finishes. Hand back `$TRON_COMMIT` for its body: the fork commit flows into MongoDB via deploy-log ingestion and lets someone re-verify the bytecode later from that exact commit.
 

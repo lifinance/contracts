@@ -226,8 +226,7 @@ propose, through `sendsDirectly`, the predicate `sendOrPropose` routes on.
 
 The Tron deploy-and-register scripts (`script/deploy/tron/deploy-and-register-*.ts`,
 seven of them) pay the same way, in TRX, so each calls `assertTicketPresent()` as its
-first step, before its `forge build`. `--dryRun` needs no ticket, nor does the Symbiosis
-script under `DEFER_CUT=true`, which proposes nothing. They take no `--ticket` flag:
+first step, before its `forge build`. `--dryRun` alone needs no ticket. They take no `--ticket` flag:
 `SAFE_PROPOSAL_TICKET` is their only channel, and it is the one `runPropose` and the
 store read when these scripts propose.
 

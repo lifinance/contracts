@@ -440,14 +440,17 @@ single source of truth for deploy logs on every chain, Tron included.
 2. **Deploy from `contracts-tron`.** With the fork synced, run the Tron
    deploy scripts (see
    [Running the deployment scripts](#running-the-deployment-scripts)
-   below) from that repo. This writes the deploy logs —
-   `deployments/tron.json` and `deployments/tron.diamond.json` — in that
-   working tree.
-3. **PR the deploy logs back here, not to the fork.** Open a PR with the
-   updated deploy logs directly against `lifinance/contracts` `main` — _not_
-   against `contracts-tron`. Authoring the PR against this repo directly is
-   why the fork still never "pushes back": the logs land in the canonical
-   repo, not via a fork branch.
+   below) from that repo, inside `/multisig-rollout` for production. This
+   writes `deployments/tron.json` and `deployments/tron.diamond.json` in
+   that working tree.
+3. **Bring the deploy log back here, not to the fork.** Copy only the
+   deployed contract's entry of `deployments/tron.json` into this repo; the
+   rollout PR that `/multisig-rollout` opens against `lifinance/contracts`
+   `main` carries it — _not_ a PR against `contracts-tron`. Never copy the
+   fork's `tron.diamond.json`: here it mirrors the loupe, so `/finish-rollout`
+   regenerates it once the timelock op executes. This is why the fork still
+   never "pushes back": the logs land in the canonical repo, not via a fork
+   branch.
 4. **Let the logs flow back to the fork.** Once merged here, those deploy
    logs reach `contracts-tron` on the next upstream→fork sync (step 1 of
    the next deploy) — usually a direct push to the fork's `main`, or via a
@@ -598,8 +601,7 @@ bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
 ```
 
 Each `deploy-and-register-*.ts` script proposes what it deploys, so it refuses to start
-without `SAFE_PROPOSAL_TICKET`, before it builds or spends TRX; `--dryRun` (and the Symbiosis script's `DEFER_CUT=true`,
-which proposes nothing) is exempt.
+without `SAFE_PROPOSAL_TICKET`, before it builds or spends TRX; only `--dryRun` is exempt.
 When a facet is deployed but its proposal is missing, re-run its script with
 `--proposeOnly`: it proposes the address recorded for the network without deploying, and
 refuses when none is recorded, when a `tronshasta` run would take it from `tron.json`, or

@@ -33,9 +33,19 @@ const SCRIPTS = readdirSync(import.meta.dir)
 const DEFAULT_GUARD = '!dryRun'
 const GUARDS: Record<string, string> = {
   'deploy-and-register-periphery.ts': '!options.dryRun',
-  // DEFER_CUT=true deploys without proposing, so there is no proposal to ticket.
-  'deploy-and-register-symbiosis-facet.ts': '!dryRun && !deferCut',
 }
+
+/** The facet each facet script deploys, which `--proposeOnly` must check the build of. */
+const FACETS: Record<string, string> = {
+  'deploy-and-register-allbridge-facet.ts': 'AllBridgeFacet',
+  'deploy-and-register-eco-facet.ts': 'EcoFacet',
+  'deploy-and-register-layerswap-facet.ts': 'LayerSwapFacet',
+  'deploy-and-register-lifi-intent-escrow-facet-v2.ts':
+    'LiFiIntentEscrowFacetV2',
+  'deploy-and-register-near-intents-facet.ts': 'NEARIntentsFacet',
+  'deploy-and-register-symbiosis-facet.ts': 'SymbiosisFacet',
+}
+const FACET_SCRIPTS = SCRIPTS.filter((script) => script in FACETS)
 
 /** Calls that spend TRX or come before anything that does. */
 const SPENDING_CALLS = [
@@ -46,8 +56,12 @@ const SPENDING_CALLS = [
 interface ICall {
   name: string
   position: number
-  /** The conditions of every enclosing `if`, innermost first, so a nested bypass shows too. */
+  /**
+   * The conditions of every `if` whose branch holds the call, innermost first, so a nested
+   * bypass shows too. A call inside an `if`'s own condition is not guarded by it.
+   */
   guards: string[]
+  node: ts.CallExpression
 }
 
 const enclosingIfConditions = (
@@ -55,20 +69,28 @@ const enclosingIfConditions = (
   source: ts.SourceFile
 ): string[] => {
   const conditions: string[] = []
-  for (let parent = node.parent; parent; parent = parent.parent)
-    if (ts.isIfStatement(parent))
+  for (
+    let child = node, parent = node.parent;
+    parent;
+    child = parent, parent = parent.parent
+  )
+    if (ts.isIfStatement(parent) && child !== parent.expression)
       conditions.push(parent.expression.getText(source))
   return conditions
 }
 
-const callsIn = (script: string): ICall[] => {
+const parse = (script: string): ts.SourceFile => {
   const path = join(import.meta.dir, script)
-  const source = ts.createSourceFile(
+  return ts.createSourceFile(
     path,
     readFileSync(path, 'utf8'),
     ts.ScriptTarget.Latest,
     true
   )
+}
+
+const callsIn = (script: string): ICall[] => {
+  const source = parse(script)
   const calls: ICall[] = []
   const visit = (node: ts.Node): void => {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
@@ -76,12 +98,40 @@ const callsIn = (script: string): ICall[] => {
         name: node.expression.text,
         position: node.getStart(source),
         guards: enclosingIfConditions(node, source),
+        node,
       })
     }
     ts.forEachChild(node, visit)
   }
   visit(source)
   return calls
+}
+
+/**
+ * The string an argument names: a literal, or an identifier bound to a `const` string literal
+ * in the same file.
+ */
+const stringValueOf = (
+  arg: ts.Expression | undefined,
+  script: string
+): string | undefined => {
+  if (!arg) return undefined
+  if (ts.isStringLiteral(arg)) return arg.text
+  if (!ts.isIdentifier(arg)) return undefined
+  let value: string | undefined
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isVariableDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === arg.text &&
+      node.initializer &&
+      ts.isStringLiteral(node.initializer)
+    )
+      value = node.initializer.text
+    ts.forEachChild(node, visit)
+  }
+  visit(parse(script))
+  return value
 }
 
 describe('Tron deploy-and-register scripts check the ticket first', () => {
@@ -107,16 +157,45 @@ describe('Tron deploy-and-register scripts check the ticket first', () => {
     }
   )
 
-  it.each(SCRIPTS)(
+  it('knows every facet script', () => {
+    expect(FACET_SCRIPTS).toEqual(Object.keys(FACETS).sort())
+  })
+
+  it.each(FACET_SCRIPTS)(
     '%s shows the network confirmation on every run, --proposeOnly included',
     (script) => {
       const confirmations = callsIn(script).filter(
         (c) => c.name === 'confirmDeployment'
       )
 
-      for (const confirmation of confirmations)
-        for (const guard of confirmation.guards)
-          expect(guard).not.toContain('proposeOnly')
+      expect(confirmations).toHaveLength(1)
+      expect((confirmations[0] as ICall).guards).toEqual([])
+    }
+  )
+
+  it.each(FACET_SCRIPTS)(
+    '%s passes --proposeOnly to the deployment-mode check for the facet it deploys',
+    (script) => {
+      const calls = callsIn(script)
+      const modes = calls.filter((c) => c.name === 'tronExistingDeploymentMode')
+
+      expect(modes).toHaveLength(1)
+      const [flag, contract] = (modes[0] as ICall).node.arguments
+      expect(flag?.getText()).toBe('proposeOnly')
+      expect(stringValueOf(contract, script)).toBe(FACETS[script])
+
+      const reads = calls.filter(({ name, node }) => {
+        const { parent } = node
+        return (
+          name === 'readBooleanFlag' &&
+          ts.isPropertyAssignment(parent) &&
+          parent.name.getText() === 'proposeOnly'
+        )
+      })
+      expect(reads).toHaveLength(1)
+      expect((reads[0] as ICall).node.arguments[1]?.getText()).toContain(
+        "camel: 'proposeOnly'"
+      )
     }
   )
 })

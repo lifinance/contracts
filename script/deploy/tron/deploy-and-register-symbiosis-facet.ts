@@ -58,7 +58,7 @@ async function deployAndRegisterSymbiosisFacet(options: {
     throw new Error(
       '--proposeOnly cannot be combined with FORCE_REDEPLOY=true or DEFER_CUT=true; unset them'
     )
-  if (!dryRun && !deferCut) assertTicketPresent()
+  if (!dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
