@@ -36,6 +36,7 @@ export const deriveSolanaAddress = (ethPrivateKey: string): string => {
  * @param tokenMint - Token mint address in base58 format (e.g. USDC on Solana)
  * @returns ATA address as bytes32 hex string
  * @throws If either address is not a 32-byte base58 key, or the owner is off the ed25519 curve
+ * @remarks Derives under the classic SPL Token program only; a Token-2022 mint gets a wrong ATA.
  */
 export async function computeSolanaATABytes32(
   solanaAddress: string,

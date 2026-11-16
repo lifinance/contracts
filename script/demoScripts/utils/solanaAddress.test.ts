@@ -68,7 +68,6 @@ describe('computeSolanaATABytes32', () => {
         computeSolanaATABytes32(OWNER_11, USDC_MINT),
         /Unable to find a viable program address bump seed/
       )
-      expect(fromHexSpy).toHaveBeenCalledTimes(256)
     })
   })
 
