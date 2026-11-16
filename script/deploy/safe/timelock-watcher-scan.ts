@@ -90,6 +90,9 @@ interface ILogPosition {
  * Whether `a` comes after `b`. Within one block the log index decides, so a
  * batch that cancels an operation and schedules it again in the same block
  * leaves it scheduled. Without both indexes, neither is after the other.
+ * TronGrid numbers `logIndex` across the block, as EVM nodes do, and keeps that
+ * numbering under an address filter: block 88049211's filtered logs skip the
+ * index another contract's log holds.
  */
 const isAfter = (a: ILogPosition, b: ILogPosition): boolean => {
   if (a.blockNumber !== b.blockNumber) return a.blockNumber > b.blockNumber

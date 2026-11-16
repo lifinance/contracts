@@ -23,6 +23,7 @@ import {
   parseAbiParameters,
   toFunctionSelector,
   toHex,
+  type Address,
   type Hex,
 } from 'viem'
 
@@ -102,31 +103,40 @@ describe('watchNetwork on Tron', () => {
   const SCHEDULED_IN = 5_000n
   const TRON_LOG_SPAN = 5_000n
   const CALL_DATA: Hex = '0x12345678'
-  const opId = computeOperationIdBatch(
-    [DIAMOND_HEX],
-    [0n],
-    [CALL_DATA],
-    ZERO32,
-    ZERO32
+  const AGREED_DELAY = 10_800n // 3 hours, config/timelockController.json minDelay
+  const UNKNOWN_TARGET = getAddress(
+    '0x00000000000000000000000000000000000000bb'
   )
-  const scheduledLog = {
-    address: TIMELOCK_HEX,
-    topics: encodeEventTopics({
-      abi: [CALL_SCHEDULED_EVENT],
-      eventName: 'CallScheduled',
-      args: { id: opId, index: 0n },
-    }),
-    data: encodeAbiParameters(
-      parseAbiParameters('address, uint256, bytes, bytes32, uint256'),
-      [DIAMOND_HEX, 0n, CALL_DATA, ZERO32, 10_800n]
-    ),
-    blockNumber: toHex(SCHEDULED_IN),
-    logIndex: '0x3',
-    transactionIndex: '0x0',
-    transactionHash: ZERO32,
-    blockHash: ZERO32,
-    removed: false,
+
+  const scheduledOperation = (target: Address, delay: bigint) => {
+    const id = computeOperationIdBatch(
+      [target],
+      [0n],
+      [CALL_DATA],
+      ZERO32,
+      ZERO32
+    )
+    const log = {
+      address: TIMELOCK_HEX,
+      topics: encodeEventTopics({
+        abi: [CALL_SCHEDULED_EVENT],
+        eventName: 'CallScheduled',
+        args: { id, index: 0n },
+      }),
+      data: encodeAbiParameters(
+        parseAbiParameters('address, uint256, bytes, bytes32, uint256'),
+        [target, 0n, CALL_DATA, ZERO32, delay]
+      ),
+      blockNumber: toHex(SCHEDULED_IN),
+      logIndex: '0x3',
+      transactionIndex: '0x0',
+      transactionHash: ZERO32,
+      blockHash: ZERO32,
+      removed: false,
+    }
+    return { id, log }
   }
+  let scheduled = scheduledOperation(DIAMOND_HEX, AGREED_DELAY)
   const selector = (signature: string): string =>
     toFunctionSelector(signature).toLowerCase()
   const word = (value: bigint): Hex => pad(toHex(value), { size: 32 })
@@ -172,7 +182,7 @@ describe('watchNetwork on Tron', () => {
       const inRange =
         SCHEDULED_IN >= BigInt(range.fromBlock) &&
         SCHEDULED_IN <= BigInt(range.toBlock)
-      return inRange ? [scheduledLog] : []
+      return inRange ? [scheduled.log] : []
     }
     if (method === 'eth_call')
       return ethCall(String((params[0] as { data?: Hex }).data).toLowerCase())
@@ -181,6 +191,7 @@ describe('watchNetwork on Tron', () => {
 
   beforeEach(() => {
     calls.length = 0
+    scheduled = scheduledOperation(DIAMOND_HEX, AGREED_DELAY)
     process.env['ETH_NODE_URI_TRON'] = 'https://tron.rpc.invalid/jsonrpc'
     globalConfig.tronWallets.pauserWallet = TRON_PAUSER_BASE58
     globalThis.fetch = (async (_url: unknown, init?: { body?: unknown }) => {
@@ -236,29 +247,79 @@ describe('watchNetwork on Tron', () => {
   const callsOf = (method: string): IRpcCall[] =>
     calls.filter((c) => c.method === method)
 
-  it('reads base58 deployments as hex, and the history from genesis', async () => {
+  const watchTron = async () => {
     const tron = (networks as unknown as INetworksObject)['tron']
     if (!tron) throw new Error('config/networks.json has no tron')
-    const report = await watchNetwork(tron, await runContext())
+    return watchNetwork(tron, await runContext())
+  }
+
+  const onlyOperation = (report: Awaited<ReturnType<typeof watchNetwork>>) => {
+    expect(report.operations.map((o) => o.id)).toEqual([scheduled.id])
+    const [operation] = report.operations
+    if (!operation) throw new Error('no operation reported')
+    return {
+      verdict: operation.verdict,
+      statuses: Object.fromEntries(
+        operation.checks.map((c) => [c.check, c.status])
+      ),
+      detailOf: (check: string) =>
+        operation.checks.find((c) => c.check === check)?.detail ?? '',
+    }
+  }
+
+  it('reads base58 deployments as hex, and the history from genesis', async () => {
+    const report = await watchTron()
 
     expect(report.status).toBe('watched')
     expect(report.timelock).toBe(TIMELOCK_HEX)
     expect(report.notes.join('\n')).not.toContain('LiFiDiamond is owned by')
     expect(report.scan?.floor).toBe('0')
     expect(report.scan?.historyComplete).toBe(true)
-    expect(report.operations.map((o) => o.id)).toEqual([opId])
     for (const read of callsOf('eth_getCode'))
       expect(read.params[1]).toBe('latest')
-    const authorities = report.operations[0]?.checks.find(
-      (c) => c.check === 'authorities'
+
+    const operation = onlyOperation(report)
+    expect(operation.statuses).toEqual({
+      'op-id': 'pass',
+      state: 'pass',
+      delay: 'pass',
+      targets: 'pass',
+      delegatecall: 'pass',
+      authority: 'unknown',
+      authorities: 'pass',
+      codehash: 'unknown',
+      rollback: 'pass',
+    })
+    expect(operation.detailOf('targets')).toBe('LiFiDiamond')
+    expect(operation.verdict).toBe('unverified')
+  })
+
+  it('fails the delay gate for a Tron operation scheduled below the agreed minimum', async () => {
+    scheduled = scheduledOperation(DIAMOND_HEX, AGREED_DELAY - 1n)
+
+    const operation = onlyOperation(await watchTron())
+
+    expect(operation.statuses['delay']).toBe('fail')
+    expect(operation.detailOf('delay')).toContain(
+      `below the agreed ${AGREED_DELAY}s`
     )
-    expect(authorities?.status).toBe('pass')
+    expect(operation.statuses['targets']).toBe('pass')
+    expect(operation.verdict).toBe('mismatch')
+  })
+
+  it('fails the targets gate for a Tron call to an address main does not know', async () => {
+    scheduled = scheduledOperation(UNKNOWN_TARGET, AGREED_DELAY)
+
+    const operation = onlyOperation(await watchTron())
+
+    expect(operation.statuses['targets']).toBe('fail')
+    expect(operation.detailOf('targets')).toContain(UNKNOWN_TARGET)
+    expect(operation.statuses['delay']).toBe('pass')
+    expect(operation.verdict).toBe('mismatch')
   })
 
   it('keeps every log range within the Tron cap and leaves getTimestamp unpinned', async () => {
-    const tron = (networks as unknown as INetworksObject)['tron']
-    if (!tron) throw new Error('config/networks.json has no tron')
-    await watchNetwork(tron, await runContext())
+    await watchTron()
 
     const ranges = callsOf('eth_getLogs').map((c) => c.params[0] as IBlockRange)
     expect(ranges.length).toBeGreaterThan(0)
