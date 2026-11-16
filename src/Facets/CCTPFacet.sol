@@ -62,7 +62,8 @@ contract CCTPFacet is
     /// @notice bytes32(0) allows any address to complete the CCTP transfer on destination chain
     bytes32 private constant UNRESTRICTED_DESTINATION_CALLER = bytes32(0);
 
-    /// @notice Header every Circle Forwarding Service hook starts with: "cctp-forward",
+    /// @notice Header every Circle hook starts with (Forwarding Service, HyperCore and Stellar
+    ///         forwarders), and so every non-empty hookData must start with: "cctp-forward",
     ///         right-padded with zero bytes to 24 bytes.
     ///         https://developers.circle.com/cctp/concepts/forwarding-service
     bytes24 internal constant CCTP_FORWARD_HEADER = bytes24("cctp-forward");
@@ -116,7 +117,7 @@ contract CCTPFacet is
         // may be a relayer or the Permit2Proxy, so refunds must route to an explicit address
         // rather than the caller. Only consumed by swapAndStartBridgeTokensViaCCTP.
         address refundRecipient;
-        // Hook data appended to the burn message.
+        // Hook data appended to the burn message. Must start with CCTP_FORWARD_HEADER if non-empty.
         // HyperCore: required, CctpForwarder hook encoding bridgeData.receiver at [32:52].
         // Stellar: required, magic (24) + version (4) + strkey length L (4) + strkey (L).
         // Any other destination: optional; if non-empty it must start with
@@ -176,7 +177,8 @@ contract CCTPFacet is
     ///         domain ID mappings
     /// @param _chainIdConfigs Chain ID configuration data
     /// @dev Max approval is safe since the diamond is designed to not hold funds.
-    ///      Re-initialization is idempotent for approval and overwrites mappings.
+    ///      Re-initialization is idempotent for approval and adds or overwrites the given
+    ///      mappings; it never removes one (use unsetCCTPChainIdToDomainId).
     /// @dev https://developers.circle.com/cctp/cctp-supported-blockchains#cctp-v2-supported-domains
     function initCCTP(ChainIdConfig[] calldata _chainIdConfigs) external {
         if (_chainIdConfigs.length == 0) revert InvalidConfig();
@@ -400,6 +402,18 @@ contract CCTPFacet is
     ) internal pure {
         uint256 destinationChainId = _bridgeData.destinationChainId;
 
+        // Every Circle hook format (Forwarding Service, HyperCore and Stellar forwarders) starts
+        // with this header. Elsewhere it keeps the hook a delivery request, never an arbitrary
+        // payload for a destination contract. On HyperCore and Stellar the forwarder is the only
+        // allowed destinationCaller, so a hook it rejects would strand the burned USDC.
+        if (
+            _cctpData.hookData.length > 0 &&
+            (_cctpData.hookData.length < 24 ||
+                bytes24(_cctpData.hookData[0:24]) != CCTP_FORWARD_HEADER)
+        ) {
+            revert InvalidCallData();
+        }
+
         if (destinationChainId == LIFI_CHAIN_ID_HYPERCORE) {
             _validateHyperCore(_bridgeData, _cctpData);
             return;
@@ -408,16 +422,6 @@ contract CCTPFacet is
         if (destinationChainId == LIFI_CHAIN_ID_STELLAR) {
             _validateStellar(_bridgeData, _cctpData);
             return;
-        }
-
-        // Any other destination: a hook may only be a Circle Forwarding Service delivery
-        // request, never an arbitrary payload for a destination contract.
-        if (
-            _cctpData.hookData.length > 0 &&
-            (_cctpData.hookData.length < 24 ||
-                bytes24(_cctpData.hookData[0:24]) != CCTP_FORWARD_HEADER)
-        ) {
-            revert InvalidCallData();
         }
 
         // The receiver kind must match the destination kind: the NON_EVM_ADDRESS sentinel is
@@ -433,15 +437,15 @@ contract CCTPFacet is
                 revert InvalidNonEVMReceiver();
             }
             if (_cctpData.solanaReceiverATA == bytes32(0)) {
-                revert InvalidConfig();
+                revert InvalidReceiver();
             }
         } else if (isSolanaDestination || _bridgeData.receiver == address(0)) {
             revert InvalidReceiver();
         }
     }
 
-    /// @dev Same checks as PolymerCCTPFacet v3.1.0. Without a valid hook the USDC would
-    ///      mint on HyperEVM and never reach HyperCore. CctpForwarder hook layout: magic (24)
+    /// @dev PolymerCCTPFacet v3.1.0 checks; the caller also enforces the header. Without a valid
+    ///      hook the USDC would mint on HyperEVM and never reach HyperCore. Hook layout: magic (24)
     ///      + version (4) + payload length (4), then the recipient address at [32:52]. The
     ///      forwarder credits the account encoded there, so it must equal the declared receiver.
     /// @param _bridgeData The core information needed for bridging
@@ -465,8 +469,9 @@ contract CCTPFacet is
         }
     }
 
-    /// @dev Same checks as PolymerCCTPFacet v3.1.0. Hook layout: magic (24) + version (4)
-    ///      + strkey length L (4) + strkey (L). hookData.length must exceed the 32-byte header
+    /// @dev PolymerCCTPFacet v3.1.0 checks; the caller also enforces the header. Hook layout:
+    ///      magic (24) + version (4) + strkey length L (4) + strkey (L). hookData.length must
+    ///      exceed the 32-byte prefix
     ///      (L == 0 leaves the USDC burned but stuck), and L must equal the trailing size so a
     ///      truncated or padded hook cannot reach the forwarder. The version bytes [24:28] are
     ///      intentionally not validated; Circle's Stellar forwarder rejects a wrong version.

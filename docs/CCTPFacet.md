@@ -23,7 +23,8 @@ The facet is derived from `PolymerCCTPFacet` v3.1.0 and differs as follows:
 - No Polymer fee (`polymerTokenFee`, `POLYMER_FEE_RECEIVER`, `PolymerCCTPFeeSent` are removed).
 - `hookData` is accepted for every destination (see [Circle Forwarding Service](#circle-forwarding-service)). `PolymerCCTPFacet` rejects a hook outside HyperCore and Stellar.
 - All facet-specific selectors carry `CCTP` in their name, and the facet uses its own storage namespace (`com.lifi.facets.cctp`). Both facets can live on the same diamond.
-- The HyperCore and Stellar checks are the same as in `PolymerCCTPFacet` v3.1.0.
+- The HyperCore and Stellar checks are the same as in `PolymerCCTPFacet` v3.1.0, plus the `"cctp-forward"` header check, which here applies to every non-empty hook.
+- A zero `solanaReceiverATA` reverts with `InvalidReceiver` (`PolymerCCTPFacet`: `InvalidConfig`).
 
 ## Circle Forwarding Service
 
@@ -32,7 +33,7 @@ For every destination other than HyperCore and Stellar, `hookData` is optional:
 - **Empty hook** → `depositForBurn`. Someone has to complete the mint on the destination chain (the user, a relayer, or LI.FI).
 - **Non-empty hook** → `depositForBurnWithHook` with the same `mintRecipient` and `destinationCaller = bytes32(0)`. This asks Circle's Forwarding Service to complete the mint (deliver the transfer).
 
-A non-empty hook must start with the 24-byte header `"cctp-forward"` (ASCII, right-padded with zero bytes), otherwise the call reverts with `InvalidCallData`. Circle's composable (version 1) format and the Solana account-creation format both start with that header. The facet does not check anything after the header.
+A non-empty hook must start with the 24-byte header `"cctp-forward"` (ASCII, right-padded with zero bytes), otherwise the call reverts with `InvalidCallData`. This applies to every destination, including HyperCore and Stellar. Circle's composable (version 1) format, the Solana account-creation format and both forwarder formats start with that header. For destinations other than HyperCore and Stellar, the facet does not check anything after the header.
 
 ### Trust assumptions
 
@@ -49,7 +50,7 @@ Solana (`LIFI_CHAIN_ID_SOLANA`, CCTP domain `5`) is non-EVM: `BridgeData.receive
 - `solanaReceiverATA`: the recipient's USDC Associated Token Account. This is the CCTP `mintRecipient`, because CCTP mints SPL tokens into a token account, not into a wallet.
 - `nonEVMReceiver`: the recipient **owner wallet**. The facet emits it as the receiver in `BridgeToNonEVMChainBytes32`.
 
-Both must be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `InvalidConfig` for a zero `solanaReceiverATA`). A Forwarding Service hook is allowed, as for EVM destinations.
+Both must be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `InvalidReceiver` for a zero `solanaReceiverATA`). A Forwarding Service hook is allowed, as for EVM destinations.
 
 ### Trust assumptions
 
@@ -57,7 +58,7 @@ Both must be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `Inv
 
 ## HyperCore deposits
 
-Copied unchanged from `PolymerCCTPFacet` v3.1.0; no listed network uses it yet.
+Same checks as `PolymerCCTPFacet` v3.1.0 plus the header check; `config/cctp.json` has no HyperCore mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
 
 HyperCore (LI.FI chain ID `1337`) has no CCTP domain of its own: the burn targets HyperEVM's domain (`19`) and [Circle's `CctpForwarder` on HyperEVM](https://developers.circle.com/cctp/concepts/forwarding-service) deposits the USDC into HyperCore.
 
@@ -68,7 +69,7 @@ See [PolymerCCTPFacet.md](./PolymerCCTPFacet.md#hypercore-deposits) for the forw
 
 ## Stellar deposits
 
-Copied unchanged from `PolymerCCTPFacet` v3.1.0; no listed network uses it yet.
+Same checks as `PolymerCCTPFacet` v3.1.0 plus the header check; `config/cctp.json` has no Stellar mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
 
 Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM. The recipient travels as a strkey inside `hookData`, and every deposit mints to the hardcoded `STELLAR_CCTP_FORWARDER`, which forwards the USDC to the strkey.
 
@@ -95,7 +96,7 @@ Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM. The recipient tr
 - `function initCCTP(ChainIdConfig[] calldata _chainIdConfigs)`
   - Sets the max USDC approval for `TokenMessengerV2` and writes the chain ID → CCTP domain mappings from `config/cctp.json` (owner-only). Called by the update script when the facet is cut in.
 - `function setCCTPChainIdToDomainId(ChainIdConfig[] calldata _chainIdConfigs)`
-  - Adds or updates mappings after initialization (owner-only).
+  - Adds or updates mappings after initialization (owner-only). Like `initCCTP`, it never removes a mapping.
 - `function unsetCCTPChainIdToDomainId(uint256 _chainId)`
   - Removes a mapping (owner-only).
 

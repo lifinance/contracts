@@ -528,7 +528,7 @@ contract CCTPFacetTest is TestBaseFacet {
         _setSolanaDestination();
         validCCTPData.solanaReceiverATA = bytes32(0);
 
-        vm.expectRevert(InvalidConfig.selector);
+        vm.expectRevert(InvalidReceiver.selector);
 
         initiateBridgeTxWithFacet(false);
 
@@ -652,8 +652,30 @@ contract CCTPFacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
-        // 51 bytes: one below the minimum that contains a full recipient
-        validCCTPData.hookData = new bytes(51);
+        // 51 bytes with a valid header: one below the minimum that contains a full recipient
+        validCCTPData.hookData =
+            abi.encodePacked(bytes24("cctp-forward"), new bytes(27));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_HyperCoreHookWithWrongHeader() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
+        // Recipient and length are valid; only the header is wrong
+        validCCTPData.hookData = abi.encodePacked(
+            bytes24("cctp-forwarx"),
+            uint32(0),
+            uint32(24),
+            bridgeData.receiver,
+            uint32(0xFFFFFFFF)
+        );
 
         vm.expectRevert(InvalidCallData.selector);
 
@@ -771,6 +793,28 @@ contract CCTPFacetTest is TestBaseFacet {
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
         validCCTPData.hookData =
             abi.encodePacked(bytes24("cctp-forward"), uint32(0), uint32(0));
+        validCCTPData.nonEVMReceiver = bytes32(uint256(0xABCD));
+
+        vm.expectRevert(InvalidCallData.selector);
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+    }
+
+    function testRevert_StellarHookWithWrongHeader() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
+        // Strkey length matches the payload; only the header is wrong
+        validCCTPData.hookData = abi.encodePacked(
+            bytes24("cctp-forwarx"),
+            uint32(0),
+            uint32(STELLAR_STRKEY.length),
+            STELLAR_STRKEY
+        );
         validCCTPData.nonEVMReceiver = bytes32(uint256(0xABCD));
 
         vm.expectRevert(InvalidCallData.selector);
