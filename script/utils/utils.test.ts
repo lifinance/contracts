@@ -47,6 +47,7 @@ mock.module('fs', () => ({
 }))
 
 const {
+  checkExistingDeployment,
   displayNetworkInfo,
   getContractAddress,
   getFacetAddressFromDiamondLog,
@@ -851,5 +852,148 @@ describe('getFacetSelectors artifact lookup', () => {
       getFacetSelectors('NoSuchFacetEverBuilt'),
       "Build artifact not found for NoSuchFacetEverBuilt. Run 'forge build' first."
     )
+  })
+})
+
+describe('checkExistingDeployment', () => {
+  const ADDRESS = 'TRecordedFacetAddress'
+
+  /**
+   * Runs `assertions` from a throwaway `<base>/ws` holding `logs` under
+   * `deployments/`, so no deployment root the lookup considers is the checkout.
+   */
+  const withLogs = async (
+    production: boolean,
+    logs: Record<string, Record<string, string>>,
+    assertions: () => Promise<void>
+  ) => {
+    const base = realFs.mkdtempSync(join(tmpdir(), 'existing-deployment-'))
+    const workspace = join(base, 'ws')
+    realFs.mkdirSync(join(workspace, 'deployments'), { recursive: true })
+    for (const [file, contents] of Object.entries(logs))
+      realFs.writeFileSync(
+        join(workspace, 'deployments', file),
+        JSON.stringify(contents)
+      )
+    const previousCwd = process.cwd()
+    const previousProduction = process.env.PRODUCTION
+    try {
+      process.env.PRODUCTION = String(production)
+      process.chdir(workspace)
+      await assertions()
+    } finally {
+      process.chdir(previousCwd)
+      if (previousProduction === undefined) {
+        delete process.env.PRODUCTION
+      } else {
+        process.env.PRODUCTION = previousProduction
+      }
+      realFs.rmSync(base, { recursive: true, force: true })
+    }
+  }
+
+  /** A propose-only mode whose build check throws `failure` when given, recording each address. */
+  const proposeOnly = (failure?: Error) => {
+    const checked: string[] = []
+    return {
+      checked,
+      mode: {
+        kind: 'proposeOnly' as const,
+        assertThisBuild: async (address: string) => {
+          checked.push(address)
+          if (failure) throw failure
+        },
+      },
+    }
+  }
+
+  it('proposes the address recorded for the network once it has code', async () => {
+    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const { checked, mode } = proposeOnly()
+
+      const result = await checkExistingDeployment(
+        'tron',
+        'EcoFacet',
+        false,
+        mode
+      )
+
+      expect(result).toEqual({
+        exists: true,
+        address: ADDRESS,
+        shouldRedeploy: false,
+      })
+      expect(checked).toEqual([ADDRESS])
+    })
+  })
+
+  it('proposes a tronshasta address from its own log', async () => {
+    await withLogs(
+      false,
+      {
+        'tronshasta.staging.json': { EcoFacet: ADDRESS },
+        'tron.json': { EcoFacet: 'TMainnetAddress' },
+      },
+      async () => {
+        const result = await checkExistingDeployment(
+          'tronshasta',
+          'EcoFacet',
+          false,
+          proposeOnly().mode
+        )
+
+        expect(result.address).toBe(ADDRESS)
+      }
+    )
+  })
+
+  it('refuses to propose when no address is recorded', async () => {
+    await withLogs(true, { 'tron.json': {} }, async () => {
+      const { checked, mode } = proposeOnly()
+
+      await expectRejects(
+        checkExistingDeployment('tron', 'EcoFacet', false, mode),
+        '--proposeOnly: no EcoFacet address is recorded for tron'
+      )
+      expect(checked).toEqual([])
+    })
+  })
+
+  it('refuses a tronshasta address that only the tron.json fallback records', async () => {
+    await withLogs(false, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const { checked, mode } = proposeOnly()
+
+      await expectRejects(
+        checkExistingDeployment('tronshasta', 'EcoFacet', false, mode),
+        /recorded for tronshasta only through another network's log/
+      )
+      expect(checked).toEqual([])
+    })
+  })
+
+  it('refuses a recorded address that is not this build, naming why', async () => {
+    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const { checked, mode } = proposeOnly(new Error('on-chain code differs'))
+
+      await expectRejects(
+        checkExistingDeployment('tron', 'EcoFacet', false, mode),
+        `--proposeOnly: could not confirm that EcoFacet at ${ADDRESS} on tron is this checkout's build, so nothing was proposed. on-chain code differs`
+      )
+      expect(checked).toEqual([ADDRESS])
+    })
+  })
+
+  it('deploys without asking in redeploy mode', async () => {
+    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const result = await checkExistingDeployment('tron', 'EcoFacet', false, {
+        kind: 'redeploy',
+      })
+
+      expect(result).toEqual({
+        exists: false,
+        address: null,
+        shouldRedeploy: true,
+      })
+    })
   })
 })
