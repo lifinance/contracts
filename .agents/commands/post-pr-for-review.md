@@ -1,6 +1,6 @@
 ---
 name: post-pr-for-review
-description: Posts a `lifinance/contracts` or `lifinance/contracts-tron` PR to `#dev-sc-review`, tagging `@smartcontract_core` for contracts-tron and for SC-critical contracts paths else `@api_expansion-squad`, and enables squash auto-merge unless the PR is already mergeable or is a contracts-tron sync PR. Use for "post PR for review", "send for review", or a contracts / contracts-tron PR URL with review intent. Requires the Slack MCP server.
+description: Posts a `lifinance/contracts` or `lifinance/contracts-tron` PR to `#dev-sc-review`, tagging `@smartcontract_core` for SC-critical paths else `@api_expansion-squad`, and enables squash auto-merge unless the PR is already mergeable or is a contracts-tron sync PR. Use for "post PR for review", "send for review", or a contracts / contracts-tron PR URL with review intent. Requires the Slack MCP server.
 ---
 
 # Post PR for Review (Smart Contracts)
@@ -17,9 +17,7 @@ PR URL (optional). Else resolve from the current branch with `gh pr view --json 
 
 Channel: `#dev-sc-review` (`C088UJWC8PR`).
 
-**`lifinance/contracts-tron`**: always `critical` (tag `@smartcontract_core`), whatever files the PR touches — that repo's `main protection` ruleset requires one Smart Contract Core approval on `**`. Still run the files lookup below: the 3,000-file stop and the Aikido scan need it.
-
-**`lifinance/contracts`**: the tag follows the `main protection` ruleset: every PR needs one API Expansion approval; PRs touching SC-critical paths also need one from Smart Contract Core. Classify from the PR's files:
+The tag follows the `main protection` ruleset, which has the same `required_reviewers` in both repos: every PR needs one API Expansion approval; PRs touching SC-critical paths also need one from Smart Contract Core. Classify from the PR's files:
 
 ```bash
 files=$(gh api repos/<REPO>/pulls/<N>/files --paginate \
@@ -34,7 +32,7 @@ grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo cri
 | `critical` | `@smartcontract_core`  | `<!subteam^S096X6MCB0C>` |
 | `routine`  | `@api_expansion-squad` | `<!subteam^S0ADCJQC9F0>` |
 
-A `critical` PR tags SC Core alone: every SC Core member is also in `api-expansion`, so one SC Core approval meets both rules. If that stops holding (`gh api orgs/lifinance/teams/<slug>/members`), tag both groups. Keep the patterns in sync with the ruleset's `required_reviewers`. Tags must use `<!subteam^…>` form — plain `@…` does not notify.
+A `critical` PR tags SC Core alone: every SC Core member is also in `api-expansion`, so one SC Core approval meets both rules. If that stops holding (`gh api orgs/lifinance/teams/<slug>/members`), tag both groups. Keep the patterns in sync with the ruleset's `required_reviewers` (`gh api repos/<REPO>/rulesets`); if the two repos' rulesets diverge, classify per repo. Tags must use `<!subteam^…>` form — plain `@…` does not notify.
 
 ## Post format
 
@@ -76,7 +74,7 @@ Every check below runs against `HEAD_OID`, even when the Aikido scan is skipped.
 - **Aikido scan** (soft gate):
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: read `gh pr view <N> --repo <REPO> --json headRefOid` before and after the file list and retry until both match, so the list and the contents come from the same head; then `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
+  3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: read `gh pr view <N> --repo <REPO> --json headRefOid` before and after the file list and retry until both match, so the list and the contents come from the same head — at most two retries, then stop and ask the user; then `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
   4. Real findings remain → stop; don't post until clean. Run `/aikido-address-findings` from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR. It reads only the PR's `aikido-pr-checks[bot]` comments, so a finding the MCP scan reports without a matching bot comment must be fixed by hand.
 
 ### 3. Gate
@@ -91,7 +89,7 @@ Skip if the invoking message already says to post ("post for review", "ship it",
 
 ### 5. Post
 
-Re-read `gh pr view <N> --repo <REPO> --json headRefOid,baseRefName` first. If either differs from `HEAD_OID` / `BASE_REF` (a push or base change during the checks, the gate or the confirm wait), redo step 1's recording and `GROUP_TAG` classification, step 2 and the gate on the new state, then compare again. Post only when both equal the values the last step 1 recorded; if either changes again on the second rerun, stop and ask the user instead of posting.
+Re-read `gh pr view <N> --repo <REPO> --json headRefOid,baseRefName` first. If either differs from `HEAD_OID` / `BASE_REF` (a push or base change during the checks, the gate or the confirm wait), redo step 1's recording and `GROUP_TAG` classification, step 2 and the gate on the new state, then compare again. Post only when both equal the values the last step 1 recorded; if either changes again on the second rerun, stop and ask the user instead of posting. If the rerun changed `GROUP_TAG`, show the new thread text and wait for go again, even when step 4 was skipped.
 
 `slack_send_message` to `C088UJWC8PR` (if it fails, confirm the non-archived channel via `slack_search_channels` — it may have been renamed) with the top-level text; capture `ts`. Then `slack_send_message` with `thread_ts = <ts>` and the thread reply.
 
@@ -104,15 +102,17 @@ state=$(gh pr view <N> --repo <REPO> \
   --json mergeStateStatus --jq '.mergeStateStatus')
 ```
 
-- `CLEAN` → don't enable; tell the user "PR is already mergeable; not enabling auto-merge so reviewers can still see it. Merge now instead?"
-- contracts-tron sync PR (`<REPO>` is `lifinance/contracts-tron` and `headRefName` starts with `sync/upstream-`) → never `--squash`: a sync PR must merge with a merge commit, or the fork's merge-base falls behind upstream (`docs/TronFork.md`). Ask the user: skip auto-merge, or enable it with `gh pr merge <N> --repo <REPO> --auto --merge`.
-- Otherwise → `gh pr merge <N> --repo <REPO> --auto --squash`.
+A contracts-tron sync PR (`<REPO>` is `lifinance/contracts-tron` and `headRefName` starts with `sync/upstream-`) must merge with a merge commit, never squash, or the fork's merge-base falls behind upstream (`docs/TronFork.md`). `MERGE_FLAG` is `--merge` for a sync PR, else `--squash`.
 
-Already enabled → no-op, except on a contracts-tron sync PR: read `gh pr view <N> --repo <REPO> --json autoMergeRequest --jq '.autoMergeRequest.mergeMethod'`, and if it is `SQUASH`, ask the user to disable it (`gh pr merge <N> --repo <REPO> --disable-auto`) and then skip auto-merge or re-enable it with `--merge`. "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
+- Sync PR, checked first and regardless of `state` → read `gh pr view <N> --repo <REPO> --json autoMergeRequest --jq '.autoMergeRequest.mergeMethod'`. If it is `SQUASH`, run `gh pr merge <N> --repo <REPO> --disable-auto` (tell the user it was on and is now off). Then continue below with `MERGE_FLAG=--merge`; the "Otherwise" branch asks the user to skip auto-merge or enable it, instead of enabling it directly.
+- `CLEAN` → don't enable; tell the user "PR is already mergeable; not enabling auto-merge so reviewers can still see it. Merge now instead?" — on yes, `gh pr merge <N> --repo <REPO> <MERGE_FLAG>`.
+- Otherwise → `gh pr merge <N> --repo <REPO> --auto <MERGE_FLAG>`.
+
+Already enabled → no-op (a sync PR's squash auto-merge was already turned off above). "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
 
 ### 7. Report
 
-`Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge was not changed by this run` with the parent link instead.
+`Posted to #<channel> ✓ — auto-merge: <enabled (<squash | merge>) | already on | skipped: <reason>>` only when both sends succeeded; append `; squash auto-merge disabled` when step 6 turned one off. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge was not changed by this run` with the parent link instead.
 
 ## Failure modes
 
