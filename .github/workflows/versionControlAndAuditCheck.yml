@@ -334,7 +334,7 @@ jobs:
           echo "BASE_TITLE: $BASE_TITLE"
 
           ##### Step 2: Trim leading and trailing whitespace from the base title
-          BASE_TITLE="$(echo -e "${BASE_TITLE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+          BASE_TITLE="$(printf '%s\n' "$BASE_TITLE" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 
           ##### Step 3: Construct the new title only if there are updated contracts
           if [[ -n "$UPDATED_CONTRACTS" ]]; then
@@ -346,7 +346,7 @@ jobs:
           fi
 
           ##### Step 4: Trim whitespace from the updated title
-          PR_TITLE_UPDATED="$(echo -e "${PR_TITLE_UPDATED}" | sed 's/[[:space:]]*$//')"
+          PR_TITLE_UPDATED="$(printf '%s\n' "$PR_TITLE_UPDATED" | sed 's/[[:space:]]*$//')"
 
           ##### Step 5: Log current and new titles and check if an update is needed
           echo "Current PR Title: '$PR_TITLE'"
@@ -354,8 +354,15 @@ jobs:
 
           if [[ "$PR_TITLE" != "$PR_TITLE_UPDATED" ]]; then
             echo "Updating PR title from '$PR_TITLE' to '$PR_TITLE_UPDATED'."
-            echo "PR_TITLE_UPDATED=$PR_TITLE_UPDATED" >> "$GITHUB_ENV"
-            echo "CONTINUE=true" >> "$GITHUB_ENV"
+            # The title is author-controlled: a random delimiter stops it from adding its own
+            # lines (e.g. BASH_ENV) to the env file
+            DELIMITER="EOF_$(openssl rand -hex 16)"
+            {
+              echo "PR_TITLE_UPDATED<<$DELIMITER"
+              printf '%s\n' "$PR_TITLE_UPDATED"
+              echo "$DELIMITER"
+              echo "CONTINUE=true"
+            } >> "$GITHUB_ENV"
           else
             echo -e "\033[32mNo PR title updates are required. This Github action will end here.\033[0m"
             echo "CONTINUE=false" >> "$GITHUB_ENV"
@@ -378,7 +385,7 @@ jobs:
             exit 1
           fi
           ##### update the PR title
-          if ! gh pr edit ${{ github.event.pull_request.number }} --title "${{ env.PR_TITLE_UPDATED }}"; then
+          if ! gh pr edit ${{ github.event.pull_request.number }} --title "$PR_TITLE_UPDATED"; then
             echo "::error::Failed to update PR title"
             echo -e "\033[31mFailed to update PR title. Git action cannot continue\033[0m"
             exit 1
