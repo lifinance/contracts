@@ -15,7 +15,7 @@ Guarantees: the ticket is assigned, estimated and in a cycle, it is In Progress,
 
 ## 1. Resolve the ticket
 
-- **Description**: first run the branch checks that need no ticket (default mode's dirty tree; existing-branch mode's `main`/detached HEAD), so a run that will stop does so before a ticket exists. Then run `/create-linear-ticket`. In existing-branch mode give it the branch's work against `origin/main` as context, including uncommitted and untracked files. A duplicate the user picks there continues as an existing ticket.
+- **Description**: first run the branch checks that need no ticket (default mode's dirty tree; existing-branch mode's `main`/detached HEAD), so a run that will stop does so before a ticket exists. Then run `/create-linear-ticket`. In existing-branch mode give it the branch's work against `origin/main` as context, including uncommitted changes and the contents of untracked files. If the user picks a duplicate there, end that run before its repair (repair writes to Linear, and the step 2 guards must run first) and continue with that ID as an existing ticket.
 - **ID**: fetch the issue; if Linear can't find it, report the error verbatim and stop.
 
 ## 2. Guards (read-only)
@@ -47,7 +47,7 @@ A dirty tree: offer to carry the changes onto the new branch (git keeps uncommit
 
 Only after the branch exists or the rename succeeded:
 
-1. An existing ticket goes through `/create-linear-ticket` repair mode, passing the step 2 reassignment answer so it doesn't ask again. Skip when step 1 already created or repaired it.
+1. An existing ticket goes through `/create-linear-ticket` repair mode, passing the step 2 reassignment answer so it doesn't ask again. Skip when step 1 created it.
 2. Set the status to In Progress and the assignee to `"me"`, skipping each when already so, and the assignee when a reassignment was declined. If In Progress doesn't resolve for the team, list its statuses and ask.
 
 A Linear failure here is partial success: keep the branch and report which write failed, with the error.
