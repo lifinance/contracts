@@ -75,7 +75,7 @@ Parse `owner/repo/pull/N` into `<REPO>` and `<N>`; extract `title`, `url`, `numb
   1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
   2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
   3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: `gh pr view <N> --repo <REPO> --json headRefOid`, `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
-  4. Real findings remain → run `/aikido-address-findings` and stop; don't post until clean.
+  4. Real findings remain → stop; don't post until clean. Run `/aikido-address-findings` from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR.
 
 ### 3. Gate
 
@@ -104,7 +104,7 @@ state=$(gh pr view <N> --repo <REPO> \
 - contracts-tron sync PR (`<REPO>` is `lifinance/contracts-tron` and `headRefName` starts with `sync/upstream-`) → never `--squash`: a sync PR must merge with a merge commit, or the fork's merge-base falls behind upstream (`docs/TronFork.md`). Ask the user: skip auto-merge, or enable it with `gh pr merge <N> --repo <REPO> --auto --merge`.
 - Otherwise → `gh pr merge <N> --repo <REPO> --auto --squash`.
 
-Already enabled → no-op. "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
+Already enabled → no-op, except on a contracts-tron sync PR: read `gh pr view <N> --repo <REPO> --json autoMergeRequest --jq '.autoMergeRequest.mergeMethod'`, and if it is `SQUASH`, ask the user to disable it (`gh pr merge <N> --repo <REPO> --disable-auto`) and then skip auto-merge or re-enable it with `--merge`. "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
 
 ### 7. Report
 
