@@ -47,7 +47,7 @@ on drafts.
 
 ### 1. Wait
 
-Wait in the background (never a foreground poll), bounded at 30 min per stage; continue when it
+Wait in the background (never a foreground poll), bounded at 30 min for each of the waits below; continue when it
 reports. In a worktree session Claude Code refuses inline multi-line Bash, so save the script to
 the scratchpad and run it as a file.
 
@@ -80,7 +80,7 @@ Actions run is a failure not caused by the diff (step 3).
 ### 2. Classify every check
 
 - **Pass**: `SUCCESS` / `SKIPPED` / `NEUTRAL`. Anything not pass, in progress or ignored blocks.
-- **Ignored**: every `audit-*` check (red until the audit is filed, stage 9), and checks whose
+- **Ignored**: every `audit-*` check (red until the audit is filed), and checks whose
   `event` is `pull_request_review` (they run once a reviewer acts).
 - **Human gate**: `protect-critical-code`. Report its state; never try to fix it.
 - `version-control` is not exempt: a missing contract version bump is a real failure.
@@ -134,10 +134,12 @@ up ready PRs on its own after a few hours; add the `Agent Review Request` label 
 (`qa-review-trigger.yml`). A push dismisses its approval, so it goes last.
 
 1. If the newest `lifi-qa-agent[bot]` review is not on the head SHA, add the label and note the
-   time. Wait in the background (bounded, 30 min) for a `lifi-qa-agent[bot]` review with
+   time. The trigger fires only on `labeled`, so if the label is already on the PR, remove it
+   first. Wait in the background (bounded, 30 min) for a `lifi-qa-agent[bot]` review with
    `commit_id` equal to the head SHA and `submitted_at` after that time. The labels alone can
    show a stale verdict from an earlier review. If `Agent Review Request` is back on the PR
-   (the trigger restores it when its dispatch fails), report it and stop.
+   (the trigger restores it when its dispatch fails), report it and stop. No review at the bound
+   → stop with `Zeus: not reviewed`; never report clean.
 2. **Approved** (`APPROVED`) → clean.
 3. **Changes requested** (`CHANGES_REQUESTED`): its sticky comment (`<!-- zeus:contracts-review -->`) lists the gating
    findings, each an inline thread by `lifi-qa-agent`. Each needs a code fix or a
@@ -161,6 +163,7 @@ Report what failed, what was tried and the PR link when:
 
 - the same failure comes back after a fix attempt,
 - a finding needs a user decision,
+- Zeus has not reviewed the head SHA within 30 min of the request,
 - 5 rounds have run (Phase A and B together; each Zeus request counts as one).
 
 ## Final report
