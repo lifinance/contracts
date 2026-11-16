@@ -30,12 +30,16 @@ updates:
           - 'minor'
           - 'patch'
     # Held back: @typechain/ethers-v5 11 breaks the published lifi-contract-types
-    # API, and TypeScript 7 drops the compiler API the node-runtime and placement
-    # fences use. prettier and prettier-plugin-solidity format only the audited
-    # src/ contracts and are pinned so their output never changes; any update can
-    # reformat src/ and change audit source hashes, so none is proposed.
+    # API; ethers 6 needs the typechain target and the scripts moved off the v5
+    # API first (tracked in EXSC-1337); and TypeScript 7 drops the compiler API
+    # the node-runtime and placement fences use. prettier and
+    # prettier-plugin-solidity format only the audited src/ contracts and are
+    # pinned so their output never changes; any update can reformat src/ and
+    # change audit source hashes, so none is proposed.
     ignore:
       - dependency-name: '@typechain/ethers-v5'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'ethers'
         update-types: ['version-update:semver-major']
       - dependency-name: 'prettier'
       - dependency-name: 'prettier-plugin-solidity'
