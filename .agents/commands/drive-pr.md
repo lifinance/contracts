@@ -133,8 +133,8 @@ Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews the PR against its Linear 
 up ready PRs on its own after a few hours; add the `Agent Review Request` label to run it now
 (`qa-review-trigger.yml`). A push dismisses its approval, so it goes last.
 
-1. If the newest `lifi-qa-agent[bot]` review is not on the head SHA, add the label and note the
-   time. The trigger fires only on `labeled`, so if the label is already on the PR, remove it
+1. **Request** when the newest `lifi-qa-agent[bot]` review is not on the head SHA, or after
+   reply-only answers to its findings (item 3): add the label and note the time. The trigger fires only on `labeled`, so if the label is already on the PR, remove it
    first. Wait in the background (bounded, 30 min) for a `lifi-qa-agent[bot]` review with
    `commit_id` equal to the head SHA and `submitted_at` after that time. The labels alone can
    show a stale verdict from an earlier review. If `Agent Review Request` is back on the PR
@@ -149,7 +149,8 @@ up ready PRs on its own after a few hours; add the `Agent Review Request` label 
    - Correct but to be deferred to a follow-up ticket → user decision: stop condition.
 
    After a push, run a full round (steps 1–6) on the new SHA, then this step again. Without a
-   push, re-add the label so Zeus reads the replies.
+   push, request again (item 1) so Zeus reads the replies; the earlier verdict on the same SHA
+   never counts.
 
 ## After `gh pr ready`
 
