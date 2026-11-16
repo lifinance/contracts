@@ -48,7 +48,7 @@ jobs:
       # The fence launches with `node --import`, so it needs a Node the runner
       # image does not choose (and without Node, Bun's shim would run it instead).
       - name: Set up Node
-        uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
