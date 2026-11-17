@@ -64,6 +64,7 @@ import {
   getPrivateKeyForEnvironment,
   getUniswapDataERC20toExactERC20,
   logBridgeDataStruct,
+  redactedError,
   setupEnvironment,
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
@@ -539,16 +540,21 @@ const command = defineCommand({
     },
   },
   async run({ args }) {
-    await main({
-      srcChain: (args.srcChain ?? DEFAULT_SRC_CHAIN) as SupportedChain,
-      dstChain: args.dstChain ?? DEFAULT_DST_CHAIN,
-      amount: args.amount,
-      forward: flagIsOn(args.forward),
-      createSolanaAta: flagIsOn(args.createSolanaAta),
-      standard: flagIsOn(args.standard),
-      swap: flagIsOn(args.swap),
-      send: flagIsOn(args.send),
-    })
+    try {
+      await main({
+        srcChain: (args.srcChain ?? DEFAULT_SRC_CHAIN) as SupportedChain,
+        dstChain: args.dstChain ?? DEFAULT_DST_CHAIN,
+        amount: args.amount,
+        forward: flagIsOn(args.forward),
+        createSolanaAta: flagIsOn(args.createSolanaAta),
+        standard: flagIsOn(args.standard),
+        swap: flagIsOn(args.swap),
+        send: flagIsOn(args.send),
+      })
+    } catch (error) {
+      consola.error(redactedError(error))
+      process.exit(1)
+    }
   },
 })
 

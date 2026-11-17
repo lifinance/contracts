@@ -36,6 +36,7 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV4'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { normalizeRpcUrlForNetwork } from '../../mongoDb/rpcEndpoints'
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
@@ -403,7 +404,10 @@ export const getUniswapDataERC20toExactETH = async (
       requiresDeposit,
     }
   } catch (error) {
-    console.error('Error in Uniswap contract interaction:', error)
+    console.error(
+      'Error in Uniswap contract interaction:',
+      redactedError(error)
+    )
     throw error
   }
 }
@@ -477,7 +481,10 @@ export const getUniswapDataERC20toExactERC20 = async (
       requiresDeposit,
     }
   } catch (error) {
-    console.error('Error in Uniswap contract interaction:', error)
+    console.error(
+      'Error in Uniswap contract interaction:',
+      redactedError(error)
+    )
     throw error
   }
 }
@@ -605,7 +612,7 @@ export const getAmountsOutUniswap = async (
 
     return amounts
   } catch (error: any) {
-    console.error('Error calling Uniswap contract:', error)
+    console.error('Error calling Uniswap contract:', redactedError(error))
     throw new Error(`Failed to get amounts out: ${error.message}`)
   }
 }
@@ -882,9 +889,24 @@ export const getUniswapDataExactETHToERC20 = async (
       requiresDeposit,
     }
   } catch (error) {
-    console.error('Error in Uniswap contract interaction:', error)
+    console.error(
+      'Error in Uniswap contract interaction:',
+      redactedError(error)
+    )
     throw error
   }
+}
+
+/**
+ * Renders a caught error for logging with every endpoint redacted: viem and ethers errors embed
+ * the RPC URL, which can carry a provider key in its path or query.
+ * @param error - The caught value
+ * @returns The error's stack (or string form) with `scheme://…` tokens replaced
+ */
+export function redactedError(error: unknown): string {
+  return redactUrls(
+    error instanceof Error ? (error.stack ?? error.message) : String(error)
+  )
 }
 
 export const executeTransaction = async <T>(
@@ -920,7 +942,7 @@ export const executeTransaction = async <T>(
 
     return result
   } catch (error) {
-    console.error(`${transactionDescription} failed:`, error)
+    console.error(`${transactionDescription} failed:`, redactedError(error))
     process.exit(1)
   }
 }
@@ -1036,9 +1058,12 @@ export const createContractObject = (
           args,
         })) as bigint
       } catch (error) {
-        console.error(`[${address}] Failed to read balanceOf:`, error)
+        console.error(
+          `[${address}] Failed to read balanceOf:`,
+          redactedError(error)
+        )
         throw new Error(
-          `Failed to read balanceOf for address ${args[0]}: ${error}`
+          `Failed to read balanceOf for address ${args[0]}: ${redactedError(error)}`
         )
       }
     },
@@ -1051,9 +1076,12 @@ export const createContractObject = (
           args,
         })) as bigint
       } catch (error) {
-        console.error(`[${address}] Failed to read allowance:`, error)
+        console.error(
+          `[${address}] Failed to read allowance:`,
+          redactedError(error)
+        )
         throw new Error(
-          `Failed to read allowance for owner ${args[0]} and spender ${args[1]}: ${error}`
+          `Failed to read allowance for owner ${args[0]} and spender ${args[1]}: ${redactedError(error)}`
         )
       }
     },
@@ -1068,9 +1096,9 @@ export const createContractObject = (
           args,
         } as any)
       } catch (error) {
-        console.error(`[${address}] Failed to approve:`, error)
+        console.error(`[${address}] Failed to approve:`, redactedError(error))
         throw new Error(
-          `Failed to approve spender ${args[0]} for amount ${args[1]}: ${error}`
+          `Failed to approve spender ${args[0]} for amount ${args[1]}: ${redactedError(error)}`
         )
       }
     },
