@@ -43,6 +43,7 @@ import cctpFacetArtifact from '../../out/CCTPFacet.sol/CCTPFacet.json'
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import { flagIsOn } from '../deploy/safe/cli-flags'
 import { fetchWithTimeout } from '../utils/fetchWithTimeout'
+import { redactedError } from '../utils/redactUrls'
 
 import {
   ADDRESS_UNISWAP_ARB,
@@ -64,7 +65,6 @@ import {
   getPrivateKeyForEnvironment,
   getUniswapDataERC20toExactERC20,
   logBridgeDataStruct,
-  redactedError,
   setupEnvironment,
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'

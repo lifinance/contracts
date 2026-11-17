@@ -36,7 +36,7 @@ import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV4'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { normalizeRpcUrlForNetwork } from '../../mongoDb/rpcEndpoints'
-import { redactUrls } from '../../utils/redactUrls'
+import { redactedError } from '../../utils/redactUrls'
 import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
@@ -895,18 +895,6 @@ export const getUniswapDataExactETHToERC20 = async (
     )
     throw error
   }
-}
-
-/**
- * Renders a caught error for logging with every endpoint redacted: viem and ethers errors embed
- * the RPC URL, which can carry a provider key in its path or query.
- * @param error - The caught value
- * @returns The error's stack (or string form) with `scheme://…` tokens replaced
- */
-export function redactedError(error: unknown): string {
-  return redactUrls(
-    error instanceof Error ? (error.stack ?? error.message) : String(error)
-  )
 }
 
 export const executeTransaction = async <T>(
