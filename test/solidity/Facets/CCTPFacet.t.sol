@@ -693,23 +693,48 @@ contract CCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_HyperCoreHookWithWrongHeader() public {
+    function test_CanBridgeToHyperCoreWithoutCircleRelay() public {
         vm.startPrank(USER_SENDER);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.destinationChainId = LIFI_CHAIN_ID_HYPERCORE;
-        // Recipient and length are valid; only the header is wrong
+        // Zero magic: Circle does not relay, anyone can call the forwarder's mintAndForward
         validCCTPData.hookData = abi.encodePacked(
-            bytes24("cctp-forwarx"),
+            bytes24(0),
             uint32(0),
             uint32(24),
             bridgeData.receiver,
             uint32(0xFFFFFFFF)
         );
+        uint256 senderBalanceBefore = usdc.balanceOf(USER_SENDER);
 
-        vm.expectRevert(InvalidCallData.selector);
+        vm.expectCall(
+            TOKEN_MESSENGER_V2_MAINNET,
+            abi.encodeCall(
+                ITokenMessenger.depositForBurnWithHook,
+                (
+                    bridgeData.minAmount,
+                    HYPEREVM_CCTP_DOMAIN,
+                    HYPERCORE_CCTP_FORWARDER,
+                    ADDRESS_USDC,
+                    HYPERCORE_CCTP_FORWARDER,
+                    validCCTPData.maxCCTPFee,
+                    validCCTPData.minFinalityThreshold,
+                    validCCTPData.hookData
+                )
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
+
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            senderBalanceBefore - bridgeData.minAmount
+        );
+        assertEq(usdc.balanceOf(_facetTestContractAddress), 0);
 
         vm.stopPrank();
     }
@@ -719,14 +744,7 @@ contract CCTPFacetTest is TestBaseFacet {
     // ---------------------------------------------------------------------
 
     function test_CanBridgeToStellarWithHookData() public {
-        // Stellar (CCTP domain 27) is not registered on TokenMessengerV2 at the fork block, so
-        // register it as the messenger's owner and burn through the real contract.
-        ITokenMessengerV2Admin messenger =
-            ITokenMessengerV2Admin(TOKEN_MESSENGER_V2_MAINNET);
-        vm.prank(messenger.owner());
-        messenger.addRemoteTokenMessenger(
-            STELLAR_CCTP_DOMAIN, bytes32(uint256(0x57E11A2))
-        );
+        _registerStellarDomain();
 
         vm.startPrank(USER_SENDER);
 
@@ -861,24 +879,51 @@ contract CCTPFacetTest is TestBaseFacet {
         vm.stopPrank();
     }
 
-    function testRevert_StellarHookWithWrongHeader() public {
+    function test_CanBridgeToStellarWithoutCircleRelay() public {
+        _registerStellarDomain();
+
         vm.startPrank(USER_SENDER);
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.destinationChainId = LIFI_CHAIN_ID_STELLAR;
-        // Strkey length matches the payload; only the header is wrong
+        // Zero magic: Circle does not relay, anyone can call the forwarder's mint_and_forward
         validCCTPData.hookData = abi.encodePacked(
-            bytes24("cctp-forwarx"),
+            bytes24(0),
             uint32(0),
             uint32(STELLAR_STRKEY.length),
             STELLAR_STRKEY
         );
         validCCTPData.nonEVMReceiver = bytes32(uint256(0xABCD));
+        uint256 senderBalanceBefore = usdc.balanceOf(USER_SENDER);
 
-        vm.expectRevert(InvalidCallData.selector);
+        vm.expectCall(
+            TOKEN_MESSENGER_V2_MAINNET,
+            abi.encodeCall(
+                ITokenMessenger.depositForBurnWithHook,
+                (
+                    bridgeData.minAmount,
+                    STELLAR_CCTP_DOMAIN,
+                    STELLAR_CCTP_FORWARDER,
+                    ADDRESS_USDC,
+                    STELLAR_CCTP_FORWARDER,
+                    validCCTPData.maxCCTPFee,
+                    validCCTPData.minFinalityThreshold,
+                    validCCTPData.hookData
+                )
+            )
+        );
+
+        vm.expectEmit(true, true, true, true, _facetTestContractAddress);
+        emit LiFiTransferStarted(bridgeData);
 
         initiateBridgeTxWithFacet(false);
+
+        assertEq(
+            usdc.balanceOf(USER_SENDER),
+            senderBalanceBefore - bridgeData.minAmount
+        );
+        assertEq(usdc.balanceOf(_facetTestContractAddress), 0);
 
         vm.stopPrank();
     }
@@ -1254,6 +1299,17 @@ contract CCTPFacetTest is TestBaseFacet {
         initiateBridgeTxWithFacet(false);
 
         vm.stopPrank();
+    }
+
+    /// @dev Stellar (CCTP domain 27) is not registered on TokenMessengerV2 at the fork block, so
+    ///      register it as the messenger's owner and burn through the real contract.
+    function _registerStellarDomain() internal {
+        ITokenMessengerV2Admin messenger =
+            ITokenMessengerV2Admin(TOKEN_MESSENGER_V2_MAINNET);
+        vm.prank(messenger.owner());
+        messenger.addRemoteTokenMessenger(
+            STELLAR_CCTP_DOMAIN, bytes32(uint256(0x57E11A2))
+        );
     }
 
     /// @dev Circle Forwarding Service hook with no payload: magic (24) + version (4)

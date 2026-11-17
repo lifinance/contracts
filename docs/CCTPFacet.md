@@ -23,7 +23,7 @@ The facet is derived from `PolymerCCTPFacet` v3.1.0 and differs as follows:
 - No Polymer fee (`polymerTokenFee`, `POLYMER_FEE_RECEIVER`, `PolymerCCTPFeeSent` are removed).
 - `hookData` is accepted for every destination (see [Circle Forwarding Service](#circle-forwarding-service)). `PolymerCCTPFacet` rejects a hook outside HyperCore and Stellar.
 - All facet-specific selectors carry `CCTP` in their name, and the facet uses its own storage namespace (`com.lifi.facets.cctp`). Both facets can live on the same diamond.
-- The HyperCore and Stellar checks are the same as in `PolymerCCTPFacet` v3.1.0, plus two: the `"cctp-forward"` header check, which here applies to every non-empty hook, and a check that the forwarder hook version is `0`.
+- The HyperCore and Stellar checks are the same as in `PolymerCCTPFacet` v3.1.0, plus a check that the forwarder hook version is `0`. As in `PolymerCCTPFacet`, the 24-byte magic is not checked on these routes, so Circle's relay stays optional.
 - A zero `solanaReceiverATA` reverts with `InvalidReceiver` (`PolymerCCTPFacet`: `InvalidConfig`).
 
 ## Circle Forwarding Service
@@ -33,7 +33,7 @@ For every destination other than HyperCore and Stellar, `hookData` is optional:
 - **Empty hook** → `depositForBurn`. Someone has to complete the mint on the destination chain (the user, a relayer, or LI.FI).
 - **Non-empty hook** → `depositForBurnWithHook` with the same `mintRecipient` and `destinationCaller = bytes32(0)`. This asks Circle's Forwarding Service to complete the mint (deliver the transfer).
 
-A non-empty hook must start with the 24-byte header `"cctp-forward"` (ASCII, right-padded with zero bytes), otherwise the call reverts with `InvalidCallData`. This applies to every destination, including HyperCore and Stellar. The header is what asks Circle's Forwarding Service to relay the transfer; the on-chain HyperCore and Stellar forwarders do not read it. For destinations other than HyperCore and Stellar, the facet does not check anything after the header: a version 1 (composable) hook may carry further frames, including custom frames that a destination application could read.
+A non-empty hook must start with the 24-byte header `"cctp-forward"` (ASCII, right-padded with zero bytes), otherwise the call reverts with `InvalidCallData`. The header is what asks Circle's Forwarding Service to relay the transfer. HyperCore and Stellar hooks are not checked for it: see [Relaying HyperCore and Stellar deposits](#relaying-hypercore-and-stellar-deposits). For destinations other than HyperCore and Stellar, the facet does not check anything after the header: a version 1 (composable) hook may carry further frames, including custom frames that a destination application could read.
 
 ### Trust assumptions
 
@@ -58,7 +58,7 @@ Both must be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `Inv
 
 ## HyperCore deposits
 
-Same checks as `PolymerCCTPFacet` v3.1.0 plus the header check; `config/cctp.json` has no HyperCore mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
+Same checks as `PolymerCCTPFacet` v3.1.0 plus the version check; `config/cctp.json` has no HyperCore mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
 
 HyperCore (LI.FI chain ID `1337`) has no CCTP domain of its own: the burn targets HyperEVM's domain (`19`) and [Circle's `CctpForwarder` on HyperEVM](https://developers.circle.com/cctp/concepts/forwarding-service) deposits the USDC into HyperCore.
 
@@ -68,9 +68,13 @@ HyperCore (LI.FI chain ID `1337`) has no CCTP domain of its own: the burn target
 
 See [PolymerCCTPFacet.md](./PolymerCCTPFacet.md#hypercore-deposits) for the forwarder's trust assumptions; they apply unchanged.
 
+### Relaying HyperCore and Stellar deposits
+
+On both routes the hook's first 24 bytes decide who relays. `"cctp-forward"` asks Circle's Forwarding Service to relay; any other value (for example all zeros) leaves the relay to someone else, such as LI.FI. The facet accepts either. Both forwarders' mint functions (`mintAndForward` on HyperEVM, `mint_and_forward` on Stellar) are permissionless and do not read these bytes, so whoever relays, the USDC reaches the recipient encoded in the hook.
+
 ## Stellar deposits
 
-Same checks as `PolymerCCTPFacet` v3.1.0 plus the header check; `config/cctp.json` has no Stellar mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
+Same checks as `PolymerCCTPFacet` v3.1.0 plus the version check; `config/cctp.json` has no Stellar mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
 
 Stellar (`LIFI_CHAIN_ID_STELLAR`, CCTP domain `27`) is non-EVM. The recipient travels as a strkey inside `hookData`, and every deposit mints to the hardcoded `STELLAR_CCTP_FORWARDER`, which forwards the USDC to the strkey.
 
@@ -117,8 +121,9 @@ struct CCTPData {
   uint32 minFinalityThreshold;
   // Recipient of swap leftovers and excess native on the swap entrypoint.
   address refundRecipient;
-  // HyperCore / Stellar: required forwarder hook. Any other destination: optional Circle
-  // Forwarding Service hook, which must start with the "cctp-forward" header.
+  // HyperCore / Stellar: required forwarder hook ("cctp-forward" magic = Circle relays).
+  // Any other destination: optional Circle Forwarding Service hook, which must start with
+  // the "cctp-forward" header.
   bytes hookData;
 }
 ```
