@@ -68,6 +68,10 @@
       "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
+      },
+      "0x4b2b6cEC3269fE34dB010C90360b39B6f38b5eE1": {
+        "Name": "CCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
