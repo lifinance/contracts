@@ -1217,13 +1217,13 @@ contract CCTPFacetTest is TestBaseFacet {
     // Helpers
     // ---------------------------------------------------------------------
 
-    /// @dev The networks of config/cctp.json plus Solana, HyperCore and Stellar
+    /// @dev The mappings of config/cctp.json plus Stellar
     function _defaultChainIdConfigs()
         internal
         pure
         returns (CCTPFacet.ChainIdConfig[] memory configs)
     {
-        configs = new CCTPFacet.ChainIdConfig[](11);
+        configs = new CCTPFacet.ChainIdConfig[](12);
         configs[0] = CCTPFacet.ChainIdConfig({ chainId: 1, domainId: 0 }); // Ethereum
         configs[1] = CCTPFacet.ChainIdConfig({ chainId: 43114, domainId: 1 }); // Avalanche
         configs[2] = CCTPFacet.ChainIdConfig({ chainId: 10, domainId: 2 }); // OP Mainnet
@@ -1243,6 +1243,9 @@ contract CCTPFacetTest is TestBaseFacet {
         configs[10] = CCTPFacet.ChainIdConfig({
             chainId: LIFI_CHAIN_ID_STELLAR, domainId: STELLAR_CCTP_DOMAIN
         }); // Stellar
+        configs[11] = CCTPFacet.ChainIdConfig({
+            chainId: 999, domainId: HYPEREVM_CCTP_DOMAIN
+        }); // HyperEVM
     }
 
     function _deployUninitializedFacetInNewDiamond()

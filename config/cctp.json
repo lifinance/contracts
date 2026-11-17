@@ -12,6 +12,14 @@
     { "chainId": 8453, "domainId": 6 },
     { "chainId": 137, "domainId": 7 },
     { "chainId": 146, "domainId": 13 },
+    {
+      "chainId": 999,
+      "domainId": 19
+    },
+    {
+      "chainId": 1337,
+      "domainId": 19
+    },
     { "chainId": 1672, "domainId": 31 }
   ],
   "mainnet": {

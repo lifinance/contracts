@@ -58,7 +58,7 @@ Both must be non-zero (`InvalidNonEVMReceiver` for a zero `nonEVMReceiver`, `Inv
 
 ## HyperCore deposits
 
-Same checks as `PolymerCCTPFacet` v3.1.0 plus the version check; `config/cctp.json` has no HyperCore mapping yet, so these deposits revert with `UnsupportedChainId` until one is set with `setCCTPChainIdToDomainId`.
+Same checks as `PolymerCCTPFacet` v3.1.0 plus the version check. `config/cctp.json` maps HyperCore (`1337`) and HyperEVM (`999`) to domain `19`.
 
 HyperCore (LI.FI chain ID `1337`) has no CCTP domain of its own: the burn targets HyperEVM's domain (`19`) and [Circle's `CctpForwarder` on HyperEVM](https://developers.circle.com/cctp/concepts/forwarding-service) deposits the USDC into HyperCore.
 
