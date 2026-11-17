@@ -160,7 +160,8 @@ checks hold it to the code and the chain:
   `deployments/<network>.json`. A listed selector is expected only where the Diamond routes
   it: one that is routed but not enabled yet is a warning, since config is merged before the
   timelocked `setAttestableSelector` executes, and one the Diamond does not route (e.g. a
-  bridge facet that is not cut on that network) is skipped.
+  bridge facet that is not cut on that network) is skipped. A facet the target state expects
+  on that network but the Diamond does not route is reported by `facets-registered` instead.
 
 The flag is keyed by selector, so it survives a cut of the facet that serves it, including a
 cut that removes the route; dispatch then reverts `FunctionDoesNotExist` until the selector is

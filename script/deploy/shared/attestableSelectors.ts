@@ -83,7 +83,10 @@ export function parseAttestableSelectors(
 
 /** What one network's diamond reported, for {@link evaluateAttestableSelectors}. */
 export interface IAttestableSelectorState {
-  /** The selectors config expects enabled here; empty on a network config does not list. */
+  /**
+   * The selectors config lists for this network; empty on a network config does not list. Only
+   * those the diamond routes are expected enabled.
+   */
   expected: ReadonlyMap<Hex, IAttestableSelector>
   /** `isAttestableSelector` for every probed selector: each routed one and each expected one. */
   enabled: ReadonlyMap<Hex, boolean>
