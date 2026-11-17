@@ -1271,6 +1271,66 @@
               "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
             }
           }
+        ],
+        "hyperevm": [
+          {
+            "address": "0x5281602adc446a94eb48d055f514a6d8d5bee176",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "monad": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "cronos": [
+          {
+            "address": "0x111111125421ca6dc452d289314280a0f8842a65",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
+        ],
+        "arc": [
+          {
+            "address": "0xe08cab0828a67291ec4af1fb3e7f867e206a6bda",
+            "functions": {
+              "0xfa461e33": "uniswapV3SwapCallback(int256,int256,bytes)",
+              "0x07ed2379": "swap(address,(address,address,address,address,uint256,uint256,uint256),bytes)",
+              "0xa76dfc3b": "ethUnoswap(uint256,uint256)",
+              "0x83800a8e": "unoswap(uint256,uint256,uint256,uint256)",
+              "0x8770ba91": "unoswap2(uint256,uint256,uint256,uint256,uint256)",
+              "0x19367472": "unoswap3(uint256,uint256,uint256,uint256,uint256,uint256)",
+              "0x89af926a": "ethUnoswap2(uint256,uint256,uint256)",
+              "0x188ac35d": "ethUnoswap3(uint256,uint256,uint256,uint256)"
+            }
+          }
         ]
       }
     },
