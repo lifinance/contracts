@@ -452,9 +452,10 @@ contract CCTPFacet is
     ///      would mint on HyperEVM and never reach HyperCore. Hook layout: magic (24) +
     ///      version (4) + payload length (4), then the recipient address at [32:52]. The magic
     ///      is not checked: "cctp-forward" asks Circle to relay, zero opts out, and the
-    ///      forwarder's mintAndForward is permissionless, so anyone can relay either way. The forwarder credits the account encoded there, so it must equal the
-    ///      declared receiver. The forwarder is the only allowed destinationCaller and reverts on
-    ///      a version other than 0, so a non-zero version would leave the USDC unmintable.
+    ///      forwarder's mintAndForward is permissionless, so anyone can relay either way. The
+    ///      forwarder credits the account encoded at [32:52], so it must equal the declared
+    ///      receiver. The forwarder is the only allowed destinationCaller and reverts on a
+    ///      version other than 0, so a non-zero version would leave the USDC unmintable.
     /// @param _bridgeData The core information needed for bridging
     /// @param _cctpData Data specific to CCTP
     function _validateHyperCore(
@@ -553,6 +554,7 @@ contract CCTPFacet is
     ) internal view returns (uint32) {
         uint32 storedDomainId = getStorage().cctpDomainIds[_chainId];
         if (storedDomainId == 0) revert UnsupportedChainId(_chainId);
+        // Stored as domainId + 1 so unset (0) is distinct from Ethereum domain 0
         return storedDomainId - 1;
     }
 
