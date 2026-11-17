@@ -54,7 +54,7 @@ jobs:
           exit 1
 
       # DiamondPauser team-membership gate. triggering_actor (not actor) so that a re-run by a
-      # non-member of a member's run is rejected. Passes only on HTTP 200 with state "active".
+      # non-member of a member's run is rejected. Passes only on membership state "active".
       - name: Check DiamondPauser team membership
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
         env:
@@ -62,43 +62,17 @@ jobs:
           ACTOR: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
-          MEMBERS_URL="https://github.com/orgs/lifinance/teams/diamondpauser/members"
-          RESPONSE_FILE=$(mktemp)
-
-          # --globoff: bot logins such as "name[bot]" must not be read as curl URL globs
-          CURL_EXIT=0
-          HTTP_STATUS=$(curl -sS --globoff --connect-timeout 10 --max-time 30 \
-            -o "$RESPONSE_FILE" \
-            -w '%{http_code}' \
-            -H "Authorization: Bearer $GH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/orgs/lifinance/teams/diamondpauser/memberships/$ACTOR") || CURL_EXIT=$?
-          MEMBERSHIP_STATE=$(jq -r '.state // empty' "$RESPONSE_FILE" 2>/dev/null || true)
-
-          function failGate() {
-            echo -e "\033[31m$1\033[0m"
-            echo "HTTP status: ${HTTP_STATUS:-none}"
-            echo "Response body:"
-            cat "$RESPONSE_FILE"
-            echo ""
-            echo "Ask one of the DiamondPauser team members to execute this action: $MEMBERS_URL"
+          # On a non-2xx answer gh exits non-zero and prints the error body, so RESPONSE is
+          # the membership state on success and the API error otherwise
+          RESPONSE=$(gh api "orgs/lifinance/teams/diamondpauser/memberships/$ACTOR" --jq '.state') || true
+          if [[ "$RESPONSE" != "active" ]]; then
+            echo -e "\033[31mUser $ACTOR is not an active member of diamondpauser (or the PAT cannot see the team)\033[0m"
+            echo "API response: ${RESPONSE:-none}"
+            echo "Ask one of the DiamondPauser team members to execute this action:"
+            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
             exit 1
-          }
-
-          if [[ "$CURL_EXIT" != "0" ]]; then
-            failGate "Could not check DiamondPauser membership for $ACTOR: network error (curl exit $CURL_EXIT)"
-          elif [[ "$HTTP_STATUS" == "200" && "$MEMBERSHIP_STATE" == "active" ]]; then
-            echo -e "\033[32mUser $ACTOR is an active member of the DiamondPauser team and may execute this action\033[0m"
-          elif [[ "$HTTP_STATUS" == "200" && "$MEMBERSHIP_STATE" == "pending" ]]; then
-            failGate "User $ACTOR has a pending invite to diamondpauser; it must be accepted first"
-          elif [[ "$HTTP_STATUS" == "404" ]]; then
-            failGate "User $ACTOR is not a member of diamondpauser (or the PAT cannot see the team)"
-          elif [[ "$HTTP_STATUS" == "401" || "$HTTP_STATUS" == "403" ]]; then
-            failGate "Could not check DiamondPauser membership for $ACTOR: the PAT was rejected (HTTP $HTTP_STATUS)"
-          else
-            failGate "Could not confirm active DiamondPauser membership for $ACTOR (HTTP $HTTP_STATUS, state '${MEMBERSHIP_STATE}')"
           fi
+          echo -e "\033[32mUser $ACTOR is an active member of the DiamondPauser team and may execute this action\033[0m"
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
