@@ -2820,6 +2820,71 @@ describe('createDeployedCodeReader', () => {
     expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
   })
 
+  describe('on a chain that serves eth_getCode only at latest', () => {
+    /**
+     * Answers like TronGrid when `refuseHeights` is set: a code read at a block
+     * number is an error. Returns the block each fallback code read asked for.
+     */
+    const stubFallbacks = (refuseHeights: boolean): unknown[] => {
+      const codeReadAt: unknown[] = []
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit
+      ) => {
+        if (String(input).startsWith(PRIMARY)) {
+          const error = new Error('HTTP request failed: 503')
+          error.name = 'HttpRequestError'
+          throw error
+        }
+        const body = JSON.parse(String(init?.body ?? '{}')) as {
+          method?: string
+          params?: unknown[]
+          id?: number
+        }
+        if (body.method === 'eth_getCode') codeReadAt.push(body.params?.[1])
+        const payload =
+          refuseHeights &&
+          body.method === 'eth_getCode' &&
+          body.params?.[1] !== 'latest'
+            ? { error: { code: -32602, message: 'only latest is supported' } }
+            : {
+                result:
+                  body.method === 'eth_chainId'
+                    ? '0x1'
+                    : body.method === 'eth_getBlockByNumber'
+                      ? { number: '0x64', hash: `0x${'ab'.repeat(32)}` }
+                      : '0xfeed',
+              }
+        return new Response(
+          JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, ...payload }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }) as typeof fetch
+      return codeReadAt
+    }
+
+    it('reads the fallbacks at latest on Tron', async () => {
+      const codeReadAt = stubFallbacks(true)
+      const read = createDeployedCodeReader(() =>
+        chainWith([PRIMARY, SECOND, THIRD])
+      )
+
+      expect(await read(ADDRESS, 'tron')).toBe('0xfeed')
+      expect(new Set(codeReadAt)).toEqual(new Set(['latest']))
+    })
+
+    it('reads the fallbacks at a block number elsewhere', async () => {
+      const codeReadAt = stubFallbacks(false)
+      const read = createDeployedCodeReader(() =>
+        chainWith([PRIMARY, SECOND, THIRD])
+      )
+
+      expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+      expect(codeReadAt.length).toBeGreaterThan(0)
+      expect(codeReadAt).not.toContain('latest')
+    })
+  })
+
   // Disagreement is the case the corroboration exists for.
   it('refuses when the fallbacks disagree', async () => {
     stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed', [THIRD]: '0xdead' })

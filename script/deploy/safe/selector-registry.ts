@@ -44,6 +44,7 @@ const WELL_KNOWN_SIGNATURES: readonly string[] = [
   'diamondCut((address,uint8,bytes4[])[],address,bytes)',
   'batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
   'registerPeripheryContract(string,address)',
+  'setAttestableSelector(bytes4,bool)',
   // TimelockController
   'schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
   'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',

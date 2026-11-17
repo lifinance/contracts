@@ -41,10 +41,10 @@ import {
   getUniswapDataERC20toExactERC20,
   NON_EVM_ADDRESS,
   LIFI_CHAIN_ID_SOLANA,
-  deriveSolanaAddress,
   solanaAddressToBytes32,
   receiverToBytes32,
 } from './utils/demoScriptHelpers'
+import { deriveSolanaAddress } from './utils/solanaAddress'
 
 config({ quiet: true })
 

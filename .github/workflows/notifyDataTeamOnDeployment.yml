@@ -44,16 +44,18 @@ jobs:
 
           if [ -z "$CHANGED_FILES" ]; then
             echo "No production deployment files changed"
-            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           echo "Changed deployment files:"
           echo "$CHANGED_FILES"
-          echo "changed_files<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGED_FILES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "has_changes=true" >> $GITHUB_OUTPUT
+          {
+            echo "changed_files<<EOF"
+            echo "$CHANGED_FILES"
+            echo "EOF"
+            echo "has_changes=true"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Parse Deployment Changes
         id: parse-changes
@@ -124,10 +126,12 @@ jobs:
           SLACK_MESSAGE="${SLACK_MESSAGE}---\nView changes: ${COMMIT_URL}"
 
           # Save message for next step (escape for JSON)
-          echo "slack_message<<EOF" >> $GITHUB_OUTPUT
-          echo "$SLACK_MESSAGE" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "contracts_found=$CONTRACTS_FOUND" >> $GITHUB_OUTPUT
+          {
+            echo "slack_message<<EOF"
+            echo "$SLACK_MESSAGE"
+            echo "EOF"
+            echo "contracts_found=$CONTRACTS_FOUND"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Send Slack Notification
         if: steps.get-changes.outputs.has_changes == 'true' && steps.parse-changes.outputs.contracts_found == 'true'

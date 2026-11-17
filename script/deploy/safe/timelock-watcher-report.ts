@@ -13,7 +13,7 @@ import type { ICheckOutcome, TWatcherVerdict } from './timelock-watcher-verdict'
 /** Keeps a Slack post under the webhook's text limit. */
 export const SLACK_TEXT_BUDGET = 2800
 
-export type TNetworkStatus = 'watched' | 'skipped' | 'unreadable' | 'uncovered'
+export type TNetworkStatus = 'watched' | 'skipped' | 'unreadable'
 
 export interface IOperationReport {
   id: string
@@ -30,7 +30,7 @@ export interface IOperationReport {
 export interface INetworkReport {
   network: string
   status: TNetworkStatus
-  /** Why a network is skipped, unreadable or uncovered, or what limits it. */
+  /** Why a network is skipped or unreadable, or what limits it. */
   reason?: string
   /** Set when the watcher threw on this network rather than timing out. */
   crashed?: true
@@ -87,7 +87,6 @@ export const tallyReports = (
   watched: number
   skipped: number
   unreadable: number
-  uncovered: number
   historyIncomplete: number
   operations: number
   byVerdict: Record<TWatcherVerdict, number>
@@ -104,7 +103,6 @@ export const tallyReports = (
     watched: reports.filter((r) => r.status === 'watched').length,
     skipped: reports.filter((r) => r.status === 'skipped').length,
     unreadable: reports.filter((r) => r.status === 'unreadable').length,
-    uncovered: reports.filter((r) => r.status === 'uncovered').length,
     historyIncomplete: reports.filter(
       (r) => r.scan !== undefined && !r.scan.historyComplete
     ).length,
@@ -131,7 +129,7 @@ export const renderJobSummary = (
     '',
     `${generatedAt.toISOString()} · ${t.networks} network(s): ${
       t.watched
-    } watched, ${t.unreadable} unreadable, ${t.uncovered} not covered, ${
+    } watched, ${t.unreadable} unreadable, ${
       t.skipped
     } skipped · ${t.historyIncomplete} with history still being scanned`,
     '',

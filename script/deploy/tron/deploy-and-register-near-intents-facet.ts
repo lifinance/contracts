@@ -29,22 +29,30 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
-import { deployContractWithLogging, validateBalance } from './tronUtils'
+import {
+  deployContractWithLogging,
+  tronExistingDeploymentMode,
+  validateBalance,
+} from './tronUtils'
 
 async function deployAndRegisterNEARIntentsFacet(options: {
   dryRun?: boolean
+  proposeOnly?: boolean
 }) {
   consola.start('TRON NEARIntentsFacet Deployment & Registration')
+  const dryRun = options.dryRun ?? false
+  const proposeOnly = options.proposeOnly ?? false
+  if (!dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 
-  const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
@@ -80,7 +88,6 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
@@ -98,7 +105,7 @@ async function deployAndRegisterNEARIntentsFacet(options: {
       privateKey,
     })
 
-    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
+    if (!proposeOnly) await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
     const globalConfig = JSON.parse(
       await readFile('config/global.json', 'utf8')
@@ -134,7 +141,8 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'NEARIntentsFacet',
-      dryRun
+      dryRun,
+      tronExistingDeploymentMode(proposeOnly, 'NEARIntentsFacet', tronWeb)
     )
 
     let facetAddress: string
@@ -225,10 +233,19 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
     },
+    proposeOnly: {
+      type: 'boolean',
+      description:
+        'Skip the deploy and propose the address recorded for the network',
+    },
   },
   async run({ args }) {
     await deployAndRegisterNEARIntentsFacet({
       dryRun: flagIsOn(args.dryRun),
+      proposeOnly: readBooleanFlag(process.argv, {
+        camel: 'proposeOnly',
+        kebab: 'propose-only',
+      }),
     })
   },
 })

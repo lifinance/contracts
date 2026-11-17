@@ -25,9 +25,12 @@ const IMMUTABLE_START = 5
 const body = (immutable: string): string =>
   `6080604052${immutable.padStart(64, '0')}00`
 
+// Forge nests `immutableReferences` under `deployedBytecode`, not at the top level.
 const ARTIFACT: IRuntimeArtifact = {
-  deployedBytecode: { object: `0x${body('0')}${trailer('11')}` },
-  immutableReferences: { '42': [{ start: IMMUTABLE_START, length: 32 }] },
+  deployedBytecode: {
+    object: `0x${body('0')}${trailer('11')}`,
+    immutableReferences: { '42': [{ start: IMMUTABLE_START, length: 32 }] },
+  },
 }
 
 describe('describeCodeMismatch', () => {
@@ -76,8 +79,10 @@ describe('describeCodeMismatch', () => {
 
   it('refuses when the immutable offsets do not fit the code', () => {
     const artifact = {
-      ...ARTIFACT,
-      immutableReferences: { '42': [{ start: 500, length: 32 }] },
+      deployedBytecode: {
+        ...ARTIFACT.deployedBytecode,
+        immutableReferences: { '42': [{ start: 500, length: 32 }] },
+      },
     }
 
     expect(
@@ -130,6 +135,16 @@ describe('assertFacetCodeMatchesArtifacts', () => {
     await assertFacetCodeMatchesArtifacts({
       facets: { A: 'TA', B: 'TB' },
       readRuntimeCode: chain({ TA: code, TB: code }),
+      outRoot,
+    })
+  })
+
+  it('passes a facet whose immutables hold other values than the artifact', async () => {
+    const outRoot = outWith(['A'])
+
+    await assertFacetCodeMatchesArtifacts({
+      facets: { A: 'TA' },
+      readRuntimeCode: chain({ TA: `0x${body('beef')}${trailer('22')}` }),
       outRoot,
     })
   })
