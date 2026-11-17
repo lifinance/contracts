@@ -1,13 +1,13 @@
 ---
 name: drive-pr
-description: Drives an open lifinance/contracts PR to clean without pausing — fixes failing CI, answers and resolves every CodeRabbit thread, triages Aikido, marks the draft ready, repeats on the checks that only run on ready PRs, then gets the Zeus QA review approved. Use for "drive the PR", "get the PR clean", "fix CI and CodeRabbit", after pushing reviewer fixes, or as the last step of create-pr.
+description: Drives an open lifinance/contracts PR to clean without pausing — fixes failing CI, answers and resolves every CodeRabbit thread, triages Aikido, marks the draft ready and repeats on the checks that only run on ready PRs. Use for "drive the PR", "get the PR clean", "fix CI and CodeRabbit", after pushing reviewer fixes, or as the last step of create-pr.
 usage: /drive-pr [<PR number | PR URL>] — defaults to the current branch's PR
 ---
 
 # Drive PR
 
 Takes an open PR to **clean**: CI green apart from the exempt checks, every CodeRabbit thread
-answered and resolved, Aikido triaged, PR ready for review and approved by the Zeus QA agent.
+answered and resolved, Aikido triaged, PR ready for review.
 
 Never pause for the user except on a stop condition (below) or a decision only the user can
 make. Never post to Slack.
@@ -22,8 +22,8 @@ changed files with `gh api repos/lifinance/contracts/pulls/<N>/files --paginate`
   the first push unless the user said to drive it.
 - **Local branch**: on the PR's head branch with a clean tree (`gh pr checkout`; dirty tree →
   ask), then `git pull --ff-only`.
-- **Rollout PR** (every changed file under `deployments/`): this skill never marks it ready and
-  skips step 7. Run Phase A rounds only and report its actual draft or ready state.
+- **Rollout PR** (every changed file under `deployments/`): this skill never marks it ready. Run
+  Phase A rounds only and report its actual draft or ready state.
 
 ## Pushing rules
 
@@ -39,7 +39,7 @@ and `Aikido Security: check code`.
 
 - **Phase A (draft)**: rounds until no blocking check, CodeRabbit settled and no open CodeRabbit
   thread, then `gh pr ready`. Already ready → Phase B.
-- **Phase B (ready)**: rounds on the new check runs until clean apart from Zeus, then step 7.
+- **Phase B (ready)**: rounds on the new check runs until clean.
   **Clean is judged here only**; a `skipped` run never counts as a pass for those three checks.
 
 ## One round
@@ -126,30 +126,13 @@ committed, resolve their threads, then stop.
 Push the round's commits together, reply to and resolve the threads they fix, then start the next
 round on the new SHA.
 
-### 7. Zeus QA review (Phase B, once all else is clean)
+## Zeus QA review
 
-Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews the PR against its Linear ticket. It picks
-up ready PRs on its own after a few hours; add the `Agent Review Request` label to run it now
-(`qa-review-trigger.yml`). A push dismisses its approval, so it goes last.
-
-1. **Request** when the newest `lifi-qa-agent[bot]` review is not on the head SHA, or after
-   reply-only answers to its findings (item 3): add the label and note the time. The trigger fires only on `labeled`, so if the label is already on the PR, remove it
-   first. Wait in the background (bounded, 30 min) for a `lifi-qa-agent[bot]` review with
-   `commit_id` equal to the head SHA and `submitted_at` after that time. The labels alone can
-   show a stale verdict from an earlier review. If `Agent Review Request` is back on the PR
-   (the trigger restores it when its dispatch fails), report it and stop. No review at the bound
-   → stop with `Zeus: not reviewed`; never report clean.
-2. **Approved** (`APPROVED`) → clean.
-3. **Changes requested** (`CHANGES_REQUESTED`): its sticky comment (`<!-- zeus:contracts-review -->`) lists the gating
-   findings, each an inline thread by `lifi-qa-agent`. Each needs a code fix or a
-   finding-specific reply. Check every claim against the code as in step 4:
-   - Correct → fix it, push, reply `Fixed in <sha>: <what changed>` and resolve.
-   - Wrong → reply with the evidence (file and line) and resolve.
-   - Correct but to be deferred to a follow-up ticket → user decision: stop condition.
-
-   After a push, run a full round (steps 1–6) on the new SHA, then this step again. Without a
-   push, request again (item 1) so Zeus reads the replies; the earlier verdict on the same SHA
-   never counts.
+Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews ready PRs against their Linear ticket on
+its own, hours later. Its approval is not part of clean: never request it or wait for it. When
+its review threads are open, handle them like CodeRabbit threads in step 4 (reply
+`Fixed in <sha>: <what changed>` or with evidence, then resolve); deferring a correct finding to
+a follow-up ticket is a user decision.
 
 ## After `gh pr ready`
 
@@ -175,8 +158,7 @@ Report what failed, what was tried and the PR link when:
 
 - the same failure comes back after a fix attempt,
 - a finding needs a user decision,
-- Zeus has not reviewed the head SHA within 30 min of the request,
-- 5 rounds have run (Phase A and B together; each Zeus request counts as one).
+- 5 rounds have run (Phase A and B together).
 
 ## Final report
 
@@ -186,7 +168,7 @@ CI:          N passing, ignored: audit-* (expected before audit), protect-critic
 CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited | paused)
 Aikido:      I ignored, F fixed, M manual review | clean scan
 Olympix:     D dismissed (each with reason), F fixed | no alerts | not run (no src/**/*.sol)
-Zeus:        approved | changes requested — F fixed, R replied | not reviewed
+Zeus:        F fixed, R replied | no open threads
 Open threads by people: <url list or none>
 Rounds:      <n>
 ```
