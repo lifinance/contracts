@@ -382,7 +382,7 @@
         "contractName": "CCTPFacet",
         "sourceId": "src/Facets/CCTPFacet.sol",
         "version": "1.0.0",
-        "closureHash": "0xf921c118cacc61074d95687e6ca388ef829e653402c0a90524f4cc422d24e927",
+        "closureHash": "0x35df04b142b7e6b37456b9810096fe89e43aae7c8574b471c907bd8750df74d6",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
