@@ -30,7 +30,7 @@ changed files with `gh api repos/lifinance/contracts/pulls/<N>/files --paginate`
 - Signed commits (`git commit -S`); a signing failure stops the skill.
 - Never `--no-verify`, never force-push. A failing pre-commit hook is fixed like a failing check.
 - Never add `audit/auditLog.json` entries, never set or remove `AuditRequired`,
-  `AuditNotRequired` or `AuditCompleted`, never dismiss Olympix alerts.
+  `AuditNotRequired` or `AuditCompleted`.
 
 ## Phases
 
@@ -153,9 +153,21 @@ up ready PRs on its own after a few hours; add the `Agent Review Request` label 
 
 ## After `gh pr ready`
 
-If `securityAlertsReview` turns the PR back to draft, report the Olympix alerts from its comment
-(`### 🤖 GitHub Action: Security Alerts Review 🔍`), print the PR link and stop. Never mark it
-ready again.
+`securityAlertsReview` turns the PR back to draft when an Olympix alert on it is open, dismissed
+without a comment, or dismissed as "used in tests". Its comment starts with
+`### 🤖 GitHub Action: Security Alerts Review 🔍`. Take each open alert from
+`code-scanning/alerts?pr=<N>` (`tool.name` `Olympix Integrated Security`) and check it against
+the code:
+
+- Real → fix it like a failing check.
+- False positive → dismiss it: `PATCH code-scanning/alerts/<number>` with `state=dismissed`,
+  `dismissed_reason` `false positive` (or `won't fix` when real but not reachable or not worth
+  changing) and a `dismissed_comment` naming the code that makes it safe. Never
+  `used in tests`: only production code is analysed.
+- Unsure → stop condition.
+
+Then push any fixes, `gh pr ready` again (the workflow runs only on `ready_for_review`) and wait
+for `check-security-alerts` as in step 1. Back to draft a second time → stop.
 
 ## Stop conditions
 
@@ -173,6 +185,7 @@ Report what failed, what was tried and the PR link when:
 CI:          N passing, ignored: audit-* (expected before audit), protect-critical-code: <state>
 CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited | paused)
 Aikido:      I ignored, F fixed, M manual review | clean scan
+Olympix:     D dismissed (each with reason), F fixed | no alerts | not run (no src/**/*.sol)
 Zeus:        approved | changes requested — F fixed, R replied | not reviewed
 Open threads by people: <url list or none>
 Rounds:      <n>
