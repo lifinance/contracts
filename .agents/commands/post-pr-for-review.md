@@ -105,6 +105,10 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 
 `Posted to #<channel> ✓ — auto-merge: <enabled | already on | skipped: <reason>>` only when both sends succeeded. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge was not changed by this run` with the parent link instead.
 
+### 8. Clean up
+
+Once posted, remove the session's worktree (if one was used) and any stray uncommitted files, so the next session starts clean.
+
 ## Failure modes
 
 - **Slack MCP not connected** → ask the user to connect it. Never fall back to webhooks — the MCP posts as the user, which reviewers need for attribution and thread notifications.

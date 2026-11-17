@@ -29,14 +29,13 @@ changed files with `gh api repos/lifinance/contracts/pulls/<N>/files --paginate`
 
 - Signed commits (`git commit -S`); a signing failure stops the skill.
 - Never `--no-verify`, never force-push. A failing pre-commit hook is fixed like a failing check.
-- Before each push, run the tests and linters relevant to the fix (`099-finish`).
 - Never add `audit/auditLog.json` entries, never set or remove `AuditRequired`,
   `AuditNotRequired` or `AuditCompleted`, never dismiss Olympix alerts.
 
 ## Phases
 
-`version-control`, `verify-signed-commits` and `Aikido Security: check code` report `SKIPPED`
-on drafts.
+Several checks skip drafts, including the unit tests, `version-control`, `verify-signed-commits`
+and `Aikido Security: check code`.
 
 - **Phase A (draft)**: rounds until no blocking check, CodeRabbit settled and no open CodeRabbit
   thread, then `gh pr ready`. Already ready → Phase B.

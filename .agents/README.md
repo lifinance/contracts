@@ -6,7 +6,7 @@ This directory contains rule files (markdown with YAML frontmatter) that guide t
 
 Rules are numbered for ordering by category (**numeric prefixes must be unique**):
 
-- `000-099`: Global/standards rules (000–002 and 099 always apply; 004 and 010 are scoped)
+- `000-099`: Global/standards rules (000–002 always apply; 004 and 010 are scoped)
 - `100-199`: Solidity-related rules (basics, contracts, facets, interfaces, receivers, security, gas, scripts)
 - `200-299`: TypeScript-related rules (scripts, helpers, conventions)
 - `300-399`: Bash-related rules (deployment scripts, shell utilities)
@@ -114,7 +114,6 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `002-architecture.md`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
 | `004-config-structure.md`     | Config JSON structure (key-first vs network-first), required-vs-optional value sparsity, deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
 | `010-agents-authoring.md`     | Auto-enforced constraints when editing .agents/ rules or commands | ❌ On match | `.agents/rules/*.md`, `.agents/commands/*.md`                                                                 |
-| `099-finish.md`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
 | `100-solidity-basics.md`      | Baseline rules for all Solidity files                            | ❌ On match | `**/*.sol`                                                                                                    |
 | `101-solidity-contracts.md`   | Production Solidity contracts/interfaces in src                  | ❌ On match | `src/**/*.sol`, `!src/**/*.s.sol`, `!src/**/*.t.sol`                                                          |
 | `102-facets.md`               | Facet-only requirements and validations                          | ❌ On match | `src/Facets/**/*.sol`                                                                                         |
