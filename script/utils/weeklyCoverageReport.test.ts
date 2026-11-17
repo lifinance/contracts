@@ -24,6 +24,8 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { freshChildEnv } from '../deploy/safe/spawn-env'
+
 interface IStep {
   id?: string
   run?: string
@@ -89,13 +91,13 @@ const runScript = (
   writeFileSync(outputFile, '')
   const result = Bun.spawnSync(['bash', '-c', script], {
     cwd: workDir,
-    env: {
+    env: freshChildEnv({
       PATH: `${join(workDir, 'bin')}:${process.env['PATH'] ?? ''}`,
       HOME: workDir,
       GITHUB_OUTPUT: outputFile,
       COVERAGE_SKIP,
       ...env,
-    },
+    }),
   })
   return {
     exitCode: result.exitCode,
