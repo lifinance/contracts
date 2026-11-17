@@ -128,7 +128,8 @@ contract NEARIntentsFacet is
 
     /// Modifiers ///
 
-    /// @dev Validates quote parameters (consolidated from separate helper function)
+    /// @dev Validates quote parameters and marks the quote consumed before any external call
+    ///      (a later revert rolls the mark back)
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
     modifier onlyValidQuote(
@@ -356,7 +357,9 @@ contract NEARIntentsFacet is
 
     /// Private Methods ///
 
-    /// @dev Sends `minAmount` of the sending asset from the diamond to the deposit address
+    /// @dev Sends `minAmount` of the sending asset from the diamond to the deposit address.
+    ///      Kept out of line: inlined in `swapAndStartBridgeTokensViaNEARIntents` it hits
+    ///      stack-too-deep
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
     function _transferToDepositAddress(

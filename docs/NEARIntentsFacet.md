@@ -16,8 +16,8 @@ How the tokens reach the deposit address depends on the entrypoint and asset:
 graph LR;
     U(User) -- APPROVE --> D;
     D{LiFiDiamond}-- DELEGATECALL -->NEARIntentsFacet;
-    U -- TRANSFERFROM, ERC20 no swap --> DepositAddress(Deposit Address);
-    NEARIntentsFacet -- TRANSFER, native or after swap --> DepositAddress;
+    NEARIntentsFacet -. "ERC20 no swap: transferFrom(user, depositAddress)" .-> DepositAddress(Deposit Address);
+    NEARIntentsFacet -- "native or after swap: transfer" --> DepositAddress;
     DepositAddress --> NI[NEAR Intents Protocol]
 ```
 

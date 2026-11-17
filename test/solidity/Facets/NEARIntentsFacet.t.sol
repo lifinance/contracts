@@ -408,6 +408,9 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
                     logs[i].topics[2],
                     bytes32(uint256(uint160(TEST_DEPOSIT_ADDRESS)))
                 );
+                assertEq(
+                    abi.decode(logs[i].data, (uint256)), bridgeData.minAmount
+                );
             }
         }
 
