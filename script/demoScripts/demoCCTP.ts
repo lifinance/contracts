@@ -8,6 +8,12 @@
 // - Base -> Arbitrum, 1 USDC, fast, Circle relays (--forward):
 //   src: https://basescan.org/tx/0x87b181e049e4b59763ee22b46582704eb167b871e33147c38786c817797bed40
 //   dst: https://arbiscan.io/tx/0xf161d5e5938cf6c1c1794c4f7632956deeb5647c849a09bfd8e5509609a9c6c0
+// - Base -> Solana, 1 USDC, fast, Circle relays and creates the USDC ATA (--forward --createSolanaAta):
+//   src: https://basescan.org/tx/0x7cf1e827c0b12433678e9ae42944b987affc555d3d821ecad905500279e801ad
+//   dst: https://solscan.io/tx/5Kq4D7dbudJkCZDubR3dAiXYYzymYP5xMiU49ihRR5rnAzSEqnQGuKeMLSb4GRAcei8nZre34FTaUcm1pbAiUcWb
+// - Base -> HyperCore spot, 1 USDC, fast, Circle relays (--forward):
+//   src: https://basescan.org/tx/0xe6e2ac2adb1f6f7ea40a4a711ac5bdea9be61c6dda88d0e0dcc75598836a7ed4
+//   dst: https://hyperevmscan.io/tx/0xf9bc30c04e78e4f5f8e49ee717fa4289f6b470169e7baa4648c7c43c1172f221
 
 import { randomBytes } from 'crypto'
 
