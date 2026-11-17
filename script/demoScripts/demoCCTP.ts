@@ -5,7 +5,9 @@
  */
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT
-// None yet: CCTPFacet is not deployed to a staging diamond.
+// - Base -> Arbitrum, 1 USDC, fast, Circle relays (--forward):
+//   src: https://basescan.org/tx/0x87b181e049e4b59763ee22b46582704eb167b871e33147c38786c817797bed40
+//   dst: https://arbiscan.io/tx/0xf161d5e5938cf6c1c1794c4f7632956deeb5647c849a09bfd8e5509609a9c6c0
 
 import { randomBytes } from 'crypto'
 
