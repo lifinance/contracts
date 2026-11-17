@@ -20,7 +20,7 @@ export interface IAttestableSelector {
 
 /** `attestableSelectors`, validated. */
 export interface IAttestableSelectorsConfig {
-  /** Lowercased networks where every listed selector is expected to be enabled. */
+  /** Lowercased networks where every listed selector the Diamond routes is expected enabled. */
   networks: ReadonlySet<string>
   /** Lowercased selector → its facet and signature, in config order. */
   selectors: ReadonlyMap<Hex, IAttestableSelector>
@@ -104,8 +104,9 @@ export interface IAttestableSelectorFindings {
  *
  * An enabled selector must be listed and must route to the address the deploy log records for its
  * facet: a facet cut since review, or a signature change that left the old flag set, both show up
- * here. A listed selector that is not enabled yet is only a warning, since config is merged before
- * the timelocked `setAttestableSelector` executes.
+ * here. A listed selector that is routed but not enabled yet is only a warning, since config is
+ * merged before the timelocked `setAttestableSelector` executes. A listed selector the diamond does
+ * not route is not expected on this network: `setAttestableSelector` would refuse it.
  *
  * @param state - the network's expectation and what its diamond reported
  * @returns the errors and warnings to report, empty when the diamond matches config
@@ -129,7 +130,8 @@ export function evaluateAttestableSelectors(
 
     const name = `${selector} (${entry.facet}.${entry.signature})`
     if (!isEnabled) {
-      findings.warnings.push(`${name} is listed but not attestable yet`)
+      if (route)
+        findings.warnings.push(`${name} is listed but not attestable yet`)
       continue
     }
     const deployed = state.deployedContracts[entry.facet]
