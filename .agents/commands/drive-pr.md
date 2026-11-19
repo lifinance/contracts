@@ -7,7 +7,7 @@ usage: /drive-pr [<PR number | PR URL>] — defaults to the current branch's PR
 # Drive PR
 
 Takes an open PR to **clean**: CI green apart from the exempt checks, every CodeRabbit thread
-answered and resolved, Aikido triaged, PR ready for review.
+answered and resolved, Aikido triaged, PR ready for review (a rollout PR is never marked ready).
 
 Never pause for the user except on a stop condition (below) or a decision only the user can
 make. Never post to Slack.
@@ -40,7 +40,8 @@ and `Aikido Security: check code`.
 
 - **Phase A (draft)**: rounds until no blocking check, CodeRabbit settled and no open CodeRabbit
   thread, then `gh pr ready`. Already ready → Phase B. A rollout PR (see Preflight) never leaves
-  Phase A, whether draft or ready: no `gh pr ready`, no Phase B.
+  Phase A, whether draft or ready: no `gh pr ready`, no Phase B; report Aikido and the
+  ready-only checks as not run.
 - **Phase B (ready)**: rounds on the new check runs until clean.
   **Clean is judged here only**; a `skipped` run never counts as a pass for those three checks.
 
@@ -139,8 +140,8 @@ its own, hours later. Its approval is not part of clean: never wait for it. When
 `CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4: fix, push, then reply
 in each finding's own thread (`Fixed in <sha>: <what changed>`, or with evidence when no change is
 needed) and resolve it. Deferring a correct finding to a follow-up ticket is a user decision. Once
-every finding's thread is answered and resolved,
-re-request Zeus with the `Agent Review Request` label (no need to wait for its review).
+every finding's thread is answered and resolved, run a Phase B round on the new SHA (clean is
+judged only from it) and re-request Zeus with the `Agent Review Request` label (no need to wait for its review).
 
 ## After `gh pr ready`
 
@@ -155,11 +156,15 @@ without a `dismissed_comment`, or dismissed as `used in tests`. Check each again
 - False positive, or real but unreachable → dismiss it: `PATCH code-scanning/alerts/<number>`
   with `state=dismissed`, `dismissed_reason` `false positive` (`won't fix` for the unreachable
   case) and a `dismissed_comment` naming the code that makes it safe. Never `used in tests`: only
-  production code is analysed.
+  production code is analysed. A dismissal applies on every branch: when
+  `code-scanning/alerts/<number>/instances` lists a ref other than the PR's → stop condition.
 - Unsure → stop condition.
 
-Then push any fixes, `gh pr ready` again (the workflow runs only on `ready_for_review`) and wait
-for `check-security-alerts` as in step 1. Back to draft a second time → stop.
+Then push any fixes and wait as in step 1 for the `olympixStaticAnalysis.yml` run on the new SHA
+(`gh run list --workflow olympixStaticAnalysis.yml --commit <SHA>`) to complete:
+`securityAlertsReview` reads the branch's newest completed scan whatever its SHA. Then
+`gh pr ready` again (the workflow runs only on `ready_for_review`) and wait for
+`check-security-alerts` as in step 1. Back to draft a second time → stop.
 
 ## Stop conditions
 
@@ -175,7 +180,7 @@ Report what failed, what was tried and the PR link when:
 <PR URL> — clean | stopped: <reason> | rollout, not marked ready (draft | ready)
 CI:          N passing, ignored: audit-* (expected before audit), protect-critical-code: <state>
 CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited | paused)
-Aikido:      I ignored, F fixed, M manual review | clean scan
+Aikido:      I ignored, F fixed, M manual review | clean scan | not run (rollout)
 Olympix:     D dismissed (each with reason), F fixed | no alerts | not run (no src/**/*.sol)
 Zeus:        F fixed, R replied, re-requested | no open findings
 Open threads by people: <url list or none>
