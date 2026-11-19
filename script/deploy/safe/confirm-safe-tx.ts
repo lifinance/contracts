@@ -70,6 +70,7 @@ import {
   type ICodehashSignGate,
 } from './codehash-sign-gate'
 import {
+  createPinnedCodehashSource,
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
@@ -395,6 +396,7 @@ const readPinnedTargetState = createPinnedTargetStateReader({
   anchor: pinnedAnchor,
 })
 const readPinnedBlob = createPinnedBlobReader({ anchor: pinnedAnchor })
+const pinnedCodehashFor = createPinnedCodehashSource(readPinnedBlob)
 
 // Networks the run tried to process. A network can be attempted and still
 // contribute no outcome (not an owner, ownership read failed, nothing
@@ -1145,6 +1147,7 @@ const processTxs = async (
           network,
           safe,
           safeTx: tx.safeTransaction,
+          pinnedCodehashFor,
         })
       )
     } catch (error) {

@@ -291,6 +291,23 @@ describe('collectDiamondCutTargets', () => {
     expect(collected.knownCalls).toEqual(['changeThreshold'])
   })
 
+  it.each([
+    ['requestOwnershipHandover()', 'requestOwnershipHandover'],
+    ['completeOwnershipHandover(address)', 'completeOwnershipHandover'],
+    ['cancelOwnershipHandover()', 'cancelOwnershipHandover'],
+    ['setSolver(address,bool)', 'setSolver'],
+  ])(
+    'names the external-contract admin call %s instead of reporting it unopened',
+    (signature, name) => {
+      const collected = collectDiamondCutTargets(
+        `${toFunctionSelector(signature)}${'00'.repeat(64)}` as Hex
+      )
+
+      expect(collected.unopened).toEqual([])
+      expect(collected.knownCalls).toEqual([name])
+    }
+  )
+
   it('keeps a selector no local source knows on the unopened path', () => {
     const collected = collectDiamondCutTargets(
       scheduleBatch(['0xdeadbeef00000000' as Hex])
