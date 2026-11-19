@@ -745,6 +745,22 @@ describe('a target main pins the codehash of', () => {
     expect(outcome.anchor).toBe('A-UNRESOLVED')
   })
 
+  it('keeps the RPC endpoint out of the record when the code read fails', async () => {
+    const run = await runIntegrityAsserts(
+      externalInput(),
+      pinnedDeps({
+        liveCodehash: async () => {
+          throw new Error(
+            'HTTP request failed. URL: https://rpc.example/v2/secret-key'
+          )
+        },
+      })
+    )
+    const recorded = JSON.stringify([...run.ledger.results.values()])
+    expect(recorded).not.toContain('secret-key')
+    expect(recorded).toContain('[redacted-url]')
+  })
+
   it('decides before the deployment record is consulted', async () => {
     let consulted = false
     const outcome = await statusOf(

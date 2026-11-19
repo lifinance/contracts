@@ -605,8 +605,8 @@ signer sees:
    per-immutable check (WP-2.3) can price those bytes. Calldata this decoder
    cannot open makes **no claim** — it names the frames it could not read
    instead of reporting a pass. A frame whose selector the local registry
-   (`selector-registry.ts`) names and whose arguments hold no `bytes` is read
-   to the end and installs nothing (`knownNonInstallingCall` in
+   (`selector-registry.ts`) names and whose arguments hold no `bytes` is
+   classified by its selector as installing nothing (`knownNonInstallingCall` in
    `safe-decode-utils.ts`); the registry carries Solady's ownership-handover
    calls and `setSolver(address,bool)` for the direct Safe calls to
    catapultar's IntentExecutor. And calldata that installs nothing — no cut

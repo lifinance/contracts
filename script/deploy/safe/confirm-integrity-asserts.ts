@@ -34,6 +34,7 @@ import {
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactUrls } from '../../utils/redactUrls'
 import { normalizeHash } from '../codehash/hex'
 import type { IPinnedCodehash } from '../codehash/verify-cut-targets'
 import { createDefaultCache } from '../shared/deployment-cache'
@@ -272,7 +273,7 @@ interface IAssertOutcome {
 }
 
 const errorOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
+  redactUrls(error instanceof Error ? error.message : String(error))
 
 const normalise = (network: string, value: string): Address | undefined => {
   try {
