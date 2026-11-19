@@ -18,7 +18,7 @@ import {
   type Hex,
 } from 'viem'
 
-import type { IGateReport } from '../codehash/verify-cut-targets'
+import { isPinnedMatch, type IGateReport } from '../codehash/verify-cut-targets'
 import { ZERO_ADDRESS } from '../shared/constants'
 
 import type { IPreBroadcastGateResult } from './prebroadcast-rederive'
@@ -1225,10 +1225,19 @@ export const gradeCodehash = (result: TCodehashResult): ICheckOutcome => {
         ...unverifiable.map((t) => `${t.address}: ${t.reason}`),
       ].join('; '),
     }
+  const pinned = targets.filter(isPinnedMatch).length
+  const rebuilt = targets.length - pinned
   return {
     check: 'codehash',
     status: 'pass',
-    detail: `${targets.length} address(es) match a rebuild of their recorded commit`,
+    detail: [
+      ...(rebuilt > 0
+        ? [`${rebuilt} address(es) match a rebuild of their recorded commit`]
+        : []),
+      ...(pinned > 0
+        ? [`${pinned} address(es) match a codehash pinned on main`]
+        : []),
+    ].join('; '),
   }
 }
 

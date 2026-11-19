@@ -2060,6 +2060,35 @@ describe('codehashCheckResult', () => {
     expect(result.anchor).toBe('A-AUDIT')
   })
 
+  it('names a pinned match apart from the attested builds, anchored on main', () => {
+    const attested = codehashGate().targets[0]
+    if (!attested) throw new Error('fixture has a target')
+    const pinnedTarget = {
+      ...attested,
+      address: '0x00000000000000000000000000000000000000f2',
+      matchedLineages: ['pinned: Ledger on mainnet'],
+    }
+
+    const mixed = codehashCheckResult(
+      gate({ targets: [attested, pinnedTarget] }),
+      NETWORK
+    )
+    expect(mixed.status).toBe('pass')
+    expect(mixed.actual).toBe(
+      '1 installed address(es) match an attested build; 1 registered address(es) match a codehash pinned on main'
+    )
+    expect(mixed.anchor).toBe('A-MAIN')
+
+    const pinnedOnly = codehashCheckResult(
+      gate({ targets: [pinnedTarget] }),
+      NETWORK
+    )
+    expect(pinnedOnly.actual).toBe(
+      '1 registered address(es) match a codehash pinned on main'
+    )
+    expect(pinnedOnly.anchor).toBe('A-MAIN')
+  })
+
   // The two halves of `madeNoClaim`, which is the whole reason `unopened` is
   // carried structurally. Read off the summary sentence instead, and a payload
   // nobody could open renders as a gate with nothing to do.

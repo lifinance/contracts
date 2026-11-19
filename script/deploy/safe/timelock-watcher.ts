@@ -30,6 +30,7 @@ import {
   http,
   keccak256,
   parseAbi,
+  stringToHex,
   type Address,
   type Chain,
   type Hex,
@@ -53,6 +54,7 @@ import {
   verifyCutTargets,
   type IGateReport,
 } from '../codehash/verify-cut-targets'
+import { PINNED_CODEHASHES_REPO_PATH } from '../codehash/pinned-codehashes'
 import { getExpectedPairs } from '../healthCheckInvariants'
 import { ZERO_ADDRESS } from '../shared/constants'
 
@@ -66,6 +68,7 @@ import {
   createPinnedBlobReader,
   createPinnedGitRunner,
   type PinnedAnchor,
+  type PinnedJsonRead,
 } from './pinned-target-state'
 import { runPreBroadcastGate, viemGateReaders } from './prebroadcast-gate'
 import { collectDiamondCutTargets } from './safe-decode-utils'
@@ -235,13 +238,25 @@ const DEADLINE_MARGIN_MS = 30 * 1000 // 30 seconds
 const networkTimeoutMs = (ctx: { historyMs: number }): number =>
   ctx.historyMs + REBUILD_TIMEOUT_MS + NETWORK_OVERHEAD_MS
 
+/**
+ * @param read - the pin file as `main` carries it
+ * @returns A value that changes whenever the file, or why it is unreadable, does
+ */
+export const pinsFingerprint = (read: PinnedJsonRead): string =>
+  read.ok
+    ? keccak256(stringToHex(JSON.stringify(read.value)))
+    : `unreadable: ${read.reason}`
+
 /** A cached gate K result, reused while the code it judged is unchanged. */
 interface ICodehashCacheEntry {
   status: 'pass' | 'fail' | 'unknown'
   detail: string
   /** ISO time of the rebuild, to retry an unverifiable result once it is old. */
   checkedAt?: string
-  /** keccak256 of the live code at each judged address. */
+  /**
+   * keccak256 of the live code at each judged address, plus the fingerprint of
+   * the codehashes `main` pins when the operation registers anything.
+   */
   codeHashes: Record<string, string>
 }
 
@@ -845,6 +860,14 @@ const runCodehash = async (
       )}`,
     }
   }
+
+  // A registration can pass on a codehash `main` pins, which the live code does
+  // not reflect: keying the cache on the pin file too re-judges it once main
+  // adds, corrects or removes a pin.
+  if (collected.registrations.length > 0)
+    codeHashes[PINNED_CODEHASHES_REPO_PATH] = pinsFingerprint(
+      await ctx.readPinned(PINNED_CODEHASHES_REPO_PATH)
+    )
 
   const key = findingKey(network, op.id)
   const cached = ctx.state.codehash[key]

@@ -571,6 +571,14 @@ const unreadable = (address: string, why: string): ITargetVerdict => ({
 const PINNED_LINEAGE = 'pinned: '
 
 /**
+ * @param target - one address's verdict
+ * @returns True when its MATCH rests on a codehash `main` pins, not a rebuild
+ */
+export const isPinnedMatch = (target: ITargetVerdict): boolean =>
+  target.verdict === 'MATCH' &&
+  target.matchedLineages.some((l) => l.startsWith(PINNED_LINEAGE))
+
+/**
  * Judges a registration this repo cannot rebuild against the codehash `main`
  * pins for it.
  *
@@ -638,9 +646,7 @@ const judgePinned = async (
  * @param targets - verdicts that are all MATCH
  */
 const matchBasis = (targets: ITargetVerdict[]): string => {
-  const pinned = targets.filter((t) =>
-    t.matchedLineages.some((l) => l.startsWith(PINNED_LINEAGE))
-  ).length
+  const pinned = targets.filter(isPinnedMatch).length
   const rebuilt = targets.length - pinned
   // Not "matches main": the rebuild is at the commit each deployment record
   // names, and D3 has the verifier assert that commit's presence rather than
