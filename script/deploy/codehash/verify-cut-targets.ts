@@ -272,7 +272,13 @@ const judge = async (
     attested.builds.length === 0 &&
     !scope.holdsImmutablesOffCode
   ) {
-    const pinned = await judgePinned(address, network, code, deps)
+    const pinned = await judgePinned(
+      address,
+      network,
+      code,
+      deps,
+      attested.absence
+    )
     if (pinned) return pinned
   }
 
@@ -577,13 +583,15 @@ const PINNED_LINEAGE = 'pinned: '
  * @param network - the proposal's network
  * @param code - what is deployed there
  * @param deps - carries the pinned lookup
+ * @param absence - why no attested build was found, kept for the signer
  * @returns The verdict, or undefined when nothing is pinned for the address
  */
 const judgePinned = async (
   address: string,
   network: string,
   code: IObservedCode,
-  deps: IVerifyCutDeps
+  deps: IVerifyCutDeps,
+  absence: string | undefined
 ): Promise<ITargetVerdict | undefined> => {
   let pinned: IPinnedCodehash | undefined
   try {
@@ -591,9 +599,7 @@ const judgePinned = async (
   } catch (error) {
     return unreadable(
       address,
-      `it has no attested build, and the codehashes main pins could not be read: ${message(
-        error
-      )}`
+      `it has no attested build (${absence ?? 'none was found'}), and the codehashes main pins could not be read: ${message(error)}`
     )
   }
   if (!pinned) return undefined

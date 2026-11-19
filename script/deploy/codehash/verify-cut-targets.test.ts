@@ -796,6 +796,7 @@ describe('verifyCutTargets: a registration main pins a codehash for', () => {
     expect(report.blocksSigning).toBe(true)
     expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
     expect(report.targets[0]?.reason).toContain('blob-unreadable')
+    expect(report.targets[0]?.reason).toContain('no deployment record')
   })
 
   it('never accepts a pin for a cut target', async () => {

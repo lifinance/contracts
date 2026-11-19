@@ -2063,9 +2063,11 @@ const priceWithLoadedConfig = async <T>(
  *
  * Never the signer's checkout, for the reason the immutable expectations are
  * not: a deploy PR's branch could otherwise pin the code its own proposal
- * registers. Read once per run, so every proposal is judged against one commit.
- * A file that cannot be read or does not parse throws on every lookup, which
- * the gate reports as UNVERIFIABLE rather than as nothing pinned.
+ * registers. A file `main` does not carry pins nothing. A file that cannot be
+ * read or does not parse throws, which the gate reports as UNVERIFIABLE rather
+ * than as nothing pinned. Only a successful load is kept, so a transient fetch
+ * failure is retried on the next lookup instead of blocking a long-running
+ * process until restart.
  *
  * @param readPinnedBlob - Reader for JSON blobs at the pinned commit.
  * @returns The `pinnedCodehashFor` dependency of `verifyCutTargets`
@@ -2076,14 +2078,17 @@ export const createPinnedCodehashSource = (
   let loaded: Promise<PinnedCodehashes> | undefined
   const load = async (): Promise<PinnedCodehashes> => {
     const blob = await readPinnedBlob(PINNED_CODEHASHES_REPO_PATH)
-    if (!blob.ok)
-      throw new Error(
-        `${PINNED_CODEHASHES_REPO_PATH} could not be read at ${PINNED_REF} (${blob.reason})`
-      )
-    return parsePinnedCodehashes(blob.value)
+    if (blob.ok) return parsePinnedCodehashes(blob.value)
+    if (blob.reason === 'blob-unreadable') return new Map()
+    throw new Error(
+      `${PINNED_CODEHASHES_REPO_PATH} could not be read at ${PINNED_REF} (${blob.reason})`
+    )
   }
   return async (address, network) => {
-    loaded ??= load()
+    loaded ??= load().catch((error: unknown) => {
+      loaded = undefined
+      throw error
+    })
     return (await loaded).get(pinnedKey(network, address))
   }
 }

@@ -3793,15 +3793,37 @@ describe('createPinnedCodehashSource', () => {
     expect(asked).toEqual([PATH])
   })
 
-  it('rejects every lookup when main cannot be read', async () => {
+  it('pins nothing when main does not carry the file', async () => {
     const lookup = createPinnedCodehashSource(async () => ({
       ok: false,
       reason: 'blob-unreadable',
     }))
 
-    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain(
-      'blob-unreadable'
-    )
+    expect(await lookup(LEDGER, 'mainnet')).toBeUndefined()
+  })
+
+  it('rejects a lookup when main cannot be fetched', async () => {
+    const lookup = createPinnedCodehashSource(async () => ({
+      ok: false,
+      reason: 'fetch-failed',
+    }))
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain('fetch-failed')
+  })
+
+  it('retries after a failed read instead of keeping the failure', async () => {
+    let reads = 0
+    const lookup = createPinnedCodehashSource(async () => {
+      reads += 1
+      return reads === 1
+        ? { ok: false, reason: 'fetch-failed' }
+        : { ok: true, value: FILE }
+    })
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain('fetch-failed')
+    expect((await lookup(LEDGER, 'mainnet'))?.codehash).toBe(CODEHASH)
+    await lookup(LEDGER, 'mainnet')
+    expect(reads).toBe(2)
   })
 
   it('rejects every lookup when the file main carries is malformed', async () => {
