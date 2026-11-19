@@ -112,8 +112,12 @@ first comment's `author.login` is `coderabbitai` (GraphQL drops `[bot]`):
    no longer true → `No longer applies: <why>` and resolve. Needs a design or scope decision →
    stop condition.
 
-Reply with `addPullRequestReviewThreadReply`, resolve with `resolveReviewThread`. Threads by
-people stay open: list them in the report.
+**Answering a finding** (CodeRabbit, Zeus, Aikido): reply inside its own thread with
+`addPullRequestReviewThreadReply`, then resolve it with `resolveReviewThread`. One reply per
+thread; never answer findings in a top-level PR comment or a review body, since the thread stays
+open and blocks the merge. A finding the user decided after a stop condition is answered the same
+way: the decision and its reason go in that finding's thread, then resolve. Threads by people stay
+open: list them in the report.
 
 ### 5. Aikido (Phase B)
 
@@ -131,9 +135,10 @@ round on the new SHA.
 
 Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews ready PRs against their Linear ticket on
 its own, hours later. Its approval is not part of clean: never wait for it. When its review is
-`CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4 (reply
-`Fixed in <sha>: <what changed>` or with evidence, then resolve); deferring a correct finding to
-a follow-up ticket is a user decision. Once every finding has a fix or a reply, push, then
+`CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4, answered in each
+finding's own thread (reply `Fixed in <sha>: <what changed>` or with evidence, then resolve);
+deferring a correct finding to a follow-up ticket is a user decision. Once every finding's thread
+has a fix or a reply and is resolved, push, then
 re-request Zeus with the `Agent Review Request` label (no need to wait for its review).
 
 ## After `gh pr ready`
