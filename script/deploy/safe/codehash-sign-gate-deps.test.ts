@@ -63,6 +63,7 @@ import {
   createToolchainScopeResolver,
   createArtifactCache,
   createPinnedImmutableExpectations,
+  createPinnedCodehashSource,
   defaultCheckoutRoot,
   readToolchainConfig,
   resolveDeploymentRecord,
@@ -3754,5 +3755,63 @@ describe('buildRecordQuery', () => {
         }
       )
     ).toThrow('unmodelled operator $not')
+  })
+})
+
+describe('createPinnedCodehashSource', () => {
+  const PATH = 'script/deploy/resources/pinnedExternalCodehashes.json'
+  const LEDGER = '0x5A4966A80B95D867Ee5804FF84b8b75f260D9282'
+  const CODEHASH = `0x${'de'.repeat(32)}`
+  const FILE = {
+    Ledger: {
+      source: 'example/repo@abc',
+      deployments: { mainnet: { address: LEDGER, codehash: CODEHASH } },
+    },
+  }
+
+  const failure = async (promise: Promise<unknown>): Promise<string> => {
+    try {
+      await promise
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    throw new Error('expected the lookup to reject')
+  }
+
+  it('returns the entry main pins, in any address case, reading main once', async () => {
+    const asked: string[] = []
+    const lookup = createPinnedCodehashSource(async (repoPath) => {
+      asked.push(repoPath)
+      return { ok: true, value: FILE }
+    })
+
+    expect(await lookup(LEDGER.toLowerCase(), 'mainnet')).toEqual({
+      codehash: CODEHASH,
+      label: 'Ledger on mainnet',
+    })
+    expect(await lookup(LEDGER, 'base')).toBeUndefined()
+    expect(asked).toEqual([PATH])
+  })
+
+  it('rejects every lookup when main cannot be read', async () => {
+    const lookup = createPinnedCodehashSource(async () => ({
+      ok: false,
+      reason: 'blob-unreadable',
+    }))
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain(
+      'blob-unreadable'
+    )
+  })
+
+  it('rejects every lookup when the file main carries is malformed', async () => {
+    const lookup = createPinnedCodehashSource(async () => ({
+      ok: true,
+      value: { Ledger: { source: 'x', deployments: { mainnet: 'nope' } } },
+    }))
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain(
+      'Ledger.deployments.mainnet must be an object'
+    )
   })
 })

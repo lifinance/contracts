@@ -77,10 +77,12 @@ const deps = (overrides?: {
     runtimeCode: string
   ) => Promise<ImmutablePricing>
   isClosedSet?: boolean
+  holdsImmutablesOffCode?: boolean
+  pinnedCodehashFor?: IVerifyCutDeps['pinnedCodehashFor']
 }) => ({
   scope: () => ({
     isClosedSet: overrides?.isClosedSet ?? true,
-    holdsImmutablesOffCode: false,
+    holdsImmutablesOffCode: overrides?.holdsImmutablesOffCode ?? false,
   }),
   observe: overrides?.observe ?? (async () => observed(HASH)),
   attestationsFor:
@@ -98,6 +100,7 @@ const deps = (overrides?: {
     pricing: { decided: false as const, reason: 'no gate L in this test' },
     slotByName: {},
   }),
+  pinnedCodehashFor: overrides?.pinnedCodehashFor ?? (async () => undefined),
 })
 
 /** A layer-2 answer that accounts for `bytes` of masked code. */
@@ -726,5 +729,139 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
     expect(report.targets[0]?.verdict).toBe('MATCH')
     expect(report.blocksSigning).toBe(false)
     expect(report.targets[0]?.immutables.status).toBe('none')
+  })
+})
+
+describe('verifyCutTargets: a registration main pins a codehash for', () => {
+  const PINNED = { codehash: HASH, label: 'Ledger on mainnet' }
+  const noBuild = async (): Promise<IAttestationLookup> => ({
+    builds: [],
+    absence: 'no deployment record names this address',
+  })
+  const pinnedFor =
+    (pinned: string) =>
+    async (address: string): Promise<typeof PINNED | undefined> =>
+      address.toLowerCase() === pinned.toLowerCase() ? PINNED : undefined
+
+  it('matches a registration whose deployed code equals the pinned codehash', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({ attestationsFor: noBuild, pinnedCodehashFor: pinnedFor(A) })
+    )
+
+    expect(report.blocksSigning).toBe(false)
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.targets[0]?.reason).toContain('Ledger on mainnet')
+    expect(report.targets[0]?.excludedByteCount).toBe(0)
+    expect(report.targets[0]?.immutables.status).toBe('documented')
+  })
+
+  it('refuses a registration whose deployed code differs from the pinned codehash', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({
+        observe: async () => observed(OTHER),
+        attestationsFor: noBuild,
+        pinnedCodehashFor: pinnedFor(A),
+      })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+  })
+
+  it('leaves a registration nothing is pinned for unverifiable', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({ attestationsFor: noBuild, pinnedCodehashFor: pinnedFor(B) })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toContain('no deployment record')
+  })
+
+  it('blocks when the pinned codehashes cannot be read', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({
+        attestationsFor: noBuild,
+        pinnedCodehashFor: async () => {
+          throw new Error('blob-unreadable')
+        },
+      })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toContain('blob-unreadable')
+  })
+
+  it('never accepts a pin for a cut target', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({ attestationsFor: noBuild, pinnedCodehashFor: pinnedFor(A) })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+  })
+
+  it('never accepts a pin for an address the same call also cuts in', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({ attestationsFor: noBuild, pinnedCodehashFor: pinnedFor(A) })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+  })
+
+  it('never accepts a pin for an address the same call runs as _init', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(B)], init: A, network: 'mainnet', registrations: [A] },
+      deps({
+        attestationsFor: async (address) =>
+          address === B ? { builds: [attested(HASH)] } : noBuild(),
+        pinnedCodehashFor: pinnedFor(A),
+      })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets.find((target) => target.address === A)?.verdict).toBe(
+      'UNVERIFIABLE'
+    )
+  })
+
+  it('never accepts a pin on a chain that keeps immutables off the runtime code', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'zksync', registrations: [A] },
+      deps({
+        attestationsFor: noBuild,
+        pinnedCodehashFor: pinnedFor(A),
+        holdsImmutablesOffCode: true,
+      })
+    )
+
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+  })
+
+  it('prefers an attested build over a pin, and never consults the pin then', async () => {
+    let consulted = false
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({
+        pinnedCodehashFor: async () => {
+          consulted = true
+          return PINNED
+        },
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.targets[0]?.immutables.status).toBe('none')
+    expect(consulted).toBe(false)
   })
 })

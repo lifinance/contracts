@@ -107,6 +107,7 @@ const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
   attestationsFor: async () => ({ builds: [attested()] }),
   price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
   readOffCodeImmutables: async () => ({ declared: 'none' }),
+  pinnedCodehashFor: async () => undefined,
   ...over,
 })
 

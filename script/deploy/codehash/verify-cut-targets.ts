@@ -19,6 +19,7 @@ import {
   type IObservedCode,
 } from './attested-set'
 import { classifyCut, type IFacetCutEntry } from './cut-classification'
+import { normalizeHash } from './hex'
 import type { ImmutablePricing } from './immutable-expectations'
 import {
   gradeAssumedImmutables,
@@ -94,6 +95,14 @@ export interface IAttestationLookup {
   absence?: string
 }
 
+/** A runtime codehash `main` pins for a contract this repo does not build. */
+export interface IPinnedCodehash {
+  /** keccak of the exact deployed bytes. */
+  codehash: string
+  /** Names the pinned entry in the reason a signer reads. */
+  label: string
+}
+
 export interface IVerifyCutDeps {
   /**
    * Which toolchains this network's code may legitimately have been built with.
@@ -132,6 +141,18 @@ export interface IVerifyCutDeps {
     address: string,
     network: string
   ) => Promise<IOffCodeImmutables>
+  /**
+   * The codehash `main` pins for a periphery registration this repo cannot
+   * rebuild, or undefined when none is pinned.
+   *
+   * Consulted only for a registration with no attested build, and never for a
+   * cut target or `_init`: those install code into the diamond's own storage
+   * context, and their bytes must come from a build this repo can reproduce.
+   */
+  pinnedCodehashFor: (
+    address: string,
+    network: string
+  ) => Promise<IPinnedCodehash | undefined>
 }
 
 /**
@@ -171,11 +192,29 @@ export const verifyCutTargets = async (
 
   const scope = deps.scope(input.network)
   const targets: ITargetVerdict[] = []
+  // An address the same call also cuts in or runs as `_init` is not a
+  // registration only: it keeps the stricter judgement those roles need.
+  const installsIntoDiamond = new Set(
+    [...input.cuts.map((cut) => cut.facetAddress), input.init].map(lower)
+  )
+  const registrationOnly = new Set(
+    (input.registrations ?? [])
+      .map(lower)
+      .filter((address) => !installsIntoDiamond.has(address))
+  )
 
   // Every target is judged even after one has failed: a signer shown one
   // problem at a time cannot see that two addresses are wrong.
   for (const address of classified.gated)
-    targets.push(await judge(address, input.network, scope, deps))
+    targets.push(
+      await judge(
+        address,
+        input.network,
+        scope,
+        deps,
+        registrationOnly.has(lower(address))
+      )
+    )
 
   return {
     blocksSigning: targets.some((t) => t.verdict !== 'MATCH'),
@@ -190,12 +229,14 @@ export const verifyCutTargets = async (
  * @param network - the proposal's network
  * @param scope - how complete the attested set is for this network
  * @param deps - chain read and attestation lookup
+ * @param isRegistrationOnly - true when the call only registers this address
  */
 const judge = async (
   address: string,
   network: string,
   scope: ILineageScope,
-  deps: IVerifyCutDeps
+  deps: IVerifyCutDeps,
+  isRegistrationOnly: boolean
 ): Promise<ITargetVerdict> => {
   let attested: IAttestationLookup
   try {
@@ -221,6 +262,18 @@ const judge = async (
         error
       )}`
     )
+  }
+
+  // A chain holding immutables off the runtime code is excluded: there the exact
+  // bytes say nothing about the values, so a byte match would vouch for less
+  // than it appears to.
+  if (
+    isRegistrationOnly &&
+    attested.builds.length === 0 &&
+    !scope.holdsImmutablesOffCode
+  ) {
+    const pinned = await judgePinned(address, network, code, deps)
+    if (pinned) return pinned
   }
 
   const comparison = compareToAttestedSet(
@@ -508,6 +561,73 @@ const unreadable = (address: string, why: string): ITargetVerdict => ({
   pricedByteCount: 0,
   immutables: immutablesUnreadable(address, why),
 })
+
+/**
+ * Judges a registration this repo cannot rebuild against the codehash `main`
+ * pins for it.
+ *
+ * The comparison is of the exact deployed bytes, so immutables are compared
+ * along with everything else; what is not checked is that their values are the
+ * ones config declares, which the immutables verdict says so a signer
+ * acknowledges it.
+ *
+ * @param address - the registered address
+ * @param network - the proposal's network
+ * @param code - what is deployed there
+ * @param deps - carries the pinned lookup
+ * @returns The verdict, or undefined when nothing is pinned for the address
+ */
+const judgePinned = async (
+  address: string,
+  network: string,
+  code: IObservedCode,
+  deps: IVerifyCutDeps
+): Promise<ITargetVerdict | undefined> => {
+  let pinned: IPinnedCodehash | undefined
+  try {
+    pinned = await deps.pinnedCodehashFor(address, network)
+  } catch (error) {
+    return unreadable(
+      address,
+      `it has no attested build, and the codehashes main pins could not be read: ${message(
+        error
+      )}`
+    )
+  }
+  if (!pinned) return undefined
+
+  if (normalizeHash(code.rawHash) !== normalizeHash(pinned.codehash))
+    return {
+      address,
+      verdict: 'MISMATCH',
+      reason: `${address}: its deployed code hashes to ${code.rawHash}, not to ${pinned.codehash}, the codehash main pins for ${pinned.label}`,
+      matchedLineages: [],
+      excludedByteCount: 0,
+      pricedByteCount: 0,
+      immutables: immutablesUnreadable(
+        address,
+        `its code is MISMATCH against the codehash main pins for ${pinned.label}`
+      ),
+    }
+
+  return {
+    address,
+    verdict: 'MATCH',
+    reason: `${address}: its deployed code is byte-identical to the codehash main pins for ${pinned.label}`,
+    matchedLineages: [`pinned: ${pinned.label}`],
+    excludedByteCount: 0,
+    pricedByteCount: 0,
+    immutables: {
+      status: 'documented',
+      detail: `${address}: compared byte for byte against the codehash main pins for ${pinned.label}, so any immutables it holds were compared as bytes; their values were not graded against config.`,
+    },
+  }
+}
+
+/**
+ * @param address - an address in any case
+ */
+const lower = (address: string): string => address.toLowerCase()
 
 /**
  * @param error - whatever was thrown

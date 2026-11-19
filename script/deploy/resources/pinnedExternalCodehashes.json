@@ -1,0 +1,75 @@
+{
+  "BridgeCommitmentLedger": {
+    "source": "lifinance/intent-factory contracts/src/BridgeCommitmentLedger.sol at 6d4a5d869f1a35ef826e2d44303ec863106efc32 (solc 0.8.35, cancun, via-IR, 100000000 runs, bytecode_hash none); deployed via CREATE2 0x4e59b44847b379578588920cA78FbF26c0B4956C with constructor (diamond, CATValidatorV1_1 0xA1d38c83e842ebA863238845Dc4fF14F5668041A); codehashes checked on-chain 2026-11-19 (EXSC-1375)",
+    "deployments": {
+      "mainnet": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "optimism": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "bsc": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "polygon": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "hyperevm": {
+        "address": "0x234320FdBef088a8760eEE5dF04Ef517bf477760",
+        "codehash": "0x6b3823dd0f2c7e6a16340381b523a1885e05754cfad3a9c1902353cd563541c8"
+      },
+      "pharos": {
+        "address": "0x78acD1BC51203d3f874a4ffDa7A4aBbC652EeA88",
+        "codehash": "0x9c2e668fd3e9bac624fdf8d2ab511caa5713812f4d002c3d2e4672108e6a2ee8"
+      },
+      "tempo": {
+        "address": "0x5F76F443d6AeafA4380C92F9bB91434dC8791BfF",
+        "codehash": "0x29153cca2604fb8e70af7fd96d78312c1f8e4d9e1157f2ea3223427c82120d93"
+      },
+      "robinhood": {
+        "address": "0xadec17263695Eca028b6D6Cae569e30038EfA10a",
+        "codehash": "0x1467d7ba4a8e64043c6042a6718fd0654cdb27f77dd0829301dff641d832e71a"
+      },
+      "arc": {
+        "address": "0xfa6d929f0ad8cE4391D837a30f7F2A5399d56e09",
+        "codehash": "0x670cd58255f3678e1347e1a37dbbb83b4c2d305a856814cec91030bf0acca1ab"
+      },
+      "base": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "plasma": {
+        "address": "0xc451a01e55d424Cc1794cD3a3C7E72D6f8Ffd05e",
+        "codehash": "0x8453070519e8c5fbc1b6adeb447eb1d11b02a5bc14a2e65cf8ebbc287206db8a"
+      },
+      "arbitrum": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "avalanche": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d"
+      },
+      "elysium": {
+        "address": "0x609FC184Af9CE6f5253e06f96aE46E4Af11aD6F0",
+        "codehash": "0xe0fd5126dbaa36f2e22792bda7068edbd4a41ba153bad26ffa449d22efaca84f"
+      },
+      "basesepolia": {
+        "address": "0x52A23e1e2EAaa02077eDD8d6941dc4b8e4E584df",
+        "codehash": "0x3e5c48d35adea5e9ee77f753f8f49c0b77eb3dc4e1acce4e3c0e130974ad6006"
+      },
+      "arbitrumsepolia": {
+        "address": "0x52A23e1e2EAaa02077eDD8d6941dc4b8e4E584df",
+        "codehash": "0x3e5c48d35adea5e9ee77f753f8f49c0b77eb3dc4e1acce4e3c0e130974ad6006"
+      },
+      "sepolia": {
+        "address": "0x1c50Ea4A53a52FDAf841964c4CC0871Ae16f6470",
+        "codehash": "0xffb201923d5a962bfdfa63dea46e56662a268b3e7b2ac1dfee0cd3a719b043a0"
+      }
+    }
+  }
+}
