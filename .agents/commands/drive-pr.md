@@ -130,10 +130,19 @@ round on the new SHA.
 ## Zeus QA review
 
 Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews ready PRs against their Linear ticket on
-its own, hours later. Its approval is not part of clean: never request it or wait for it. When
-its review threads are open, handle them like CodeRabbit threads in step 4 (reply
+its own, hours later. Its approval is not part of clean: never wait for it. When its review is
+`CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4 (reply
 `Fixed in <sha>: <what changed>` or with evidence, then resolve); deferring a correct finding to
-a follow-up ticket is a user decision.
+a follow-up ticket is a user decision. Once every finding has a fix or a reply, push, then
+re-request Zeus so it reads them: remove and re-add the `Agent Review Request` label
+(`qa-review-trigger.yml` fires on `labeled`):
+
+```bash
+gh api -X DELETE "repos/lifinance/contracts/issues/<N>/labels/Agent%20Review%20Request" || true
+gh api -X POST repos/lifinance/contracts/issues/<N>/labels -f "labels[]=Agent Review Request"
+```
+
+The label turning into `QA AI Reviewing` confirms the request; don't wait for the review.
 
 ## After `gh pr ready`
 
@@ -169,7 +178,7 @@ CI:          N passing, ignored: audit-* (expected before audit), protect-critic
 CodeRabbit:  reviewed — T threads (F fixed, R replied) | not reviewed (rate limited | paused)
 Aikido:      I ignored, F fixed, M manual review | clean scan
 Olympix:     D dismissed (each with reason), F fixed | no alerts | not run (no src/**/*.sol)
-Zeus:        F fixed, R replied | no open threads
+Zeus:        F fixed, R replied, re-requested | no open findings
 Open threads by people: <url list or none>
 Rounds:      <n>
 ```
