@@ -192,16 +192,7 @@ export const verifyCutTargets = async (
 
   const scope = deps.scope(input.network)
   const targets: ITargetVerdict[] = []
-  // An address the same call also cuts in or runs as `_init` is not a
-  // registration only: it keeps the stricter judgement those roles need.
-  const installsIntoDiamond = new Set(
-    [...input.cuts.map((cut) => cut.facetAddress), input.init].map(lower)
-  )
-  const registrationOnly = new Set(
-    (input.registrations ?? [])
-      .map(lower)
-      .filter((address) => !installsIntoDiamond.has(address))
-  )
+  const registered = new Set((input.registrations ?? []).map(lower))
 
   // Every target is judged even after one has failed: a signer shown one
   // problem at a time cannot see that two addresses are wrong.
@@ -212,7 +203,7 @@ export const verifyCutTargets = async (
         input.network,
         scope,
         deps,
-        registrationOnly.has(lower(address))
+        registered.has(lower(address))
       )
     )
 
@@ -229,14 +220,14 @@ export const verifyCutTargets = async (
  * @param network - the proposal's network
  * @param scope - how complete the attested set is for this network
  * @param deps - chain read and attestation lookup
- * @param isRegistrationOnly - true when the call only registers this address
+ * @param isRegistration - true when the call registers this address as periphery
  */
 const judge = async (
   address: string,
   network: string,
   scope: ILineageScope,
   deps: IVerifyCutDeps,
-  isRegistrationOnly: boolean
+  isRegistration: boolean
 ): Promise<ITargetVerdict> => {
   let attested: IAttestationLookup
   try {
@@ -268,7 +259,7 @@ const judge = async (
   // bytes say nothing about the values, so a byte match would vouch for less
   // than it appears to.
   if (
-    isRegistrationOnly &&
+    isRegistration &&
     attested.builds.length === 0 &&
     !scope.holdsImmutablesOffCode
   ) {

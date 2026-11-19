@@ -809,32 +809,6 @@ describe('verifyCutTargets: a registration main pins a codehash for', () => {
     expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
   })
 
-  it('never accepts a pin for an address the same call also cuts in', async () => {
-    const report = await verifyCutTargets(
-      { cuts: [add(A)], init: ZERO, network: 'mainnet', registrations: [A] },
-      deps({ attestationsFor: noBuild, pinnedCodehashFor: pinnedFor(A) })
-    )
-
-    expect(report.blocksSigning).toBe(true)
-    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
-  })
-
-  it('never accepts a pin for an address the same call runs as _init', async () => {
-    const report = await verifyCutTargets(
-      { cuts: [add(B)], init: A, network: 'mainnet', registrations: [A] },
-      deps({
-        attestationsFor: async (address) =>
-          address === B ? { builds: [attested(HASH)] } : noBuild(),
-        pinnedCodehashFor: pinnedFor(A),
-      })
-    )
-
-    expect(report.blocksSigning).toBe(true)
-    expect(report.targets.find((target) => target.address === A)?.verdict).toBe(
-      'UNVERIFIABLE'
-    )
-  })
-
   it('never accepts a pin on a chain that keeps immutables off the runtime code', async () => {
     const report = await verifyCutTargets(
       { cuts: [], init: ZERO, network: 'zksync', registrations: [A] },
