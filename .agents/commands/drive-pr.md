@@ -39,7 +39,7 @@ Several checks skip drafts, including the unit tests, `version-control`, `verify
 and `Aikido Security: check code`.
 
 - **Phase A (draft)**: rounds until no blocking check, CodeRabbit settled and no open CodeRabbit
-  thread, then `gh pr ready`. Already ready → Phase B.
+  thread, then `gh pr ready` (never for a rollout PR, see Preflight). Already ready → Phase B.
 - **Phase B (ready)**: rounds on the new check runs until clean.
   **Clean is judged here only**; a `skipped` run never counts as a pass for those three checks.
 
@@ -145,15 +145,16 @@ re-request Zeus with the `Agent Review Request` label (no need to wait for its r
 
 `securityAlertsReview` turns the PR back to draft when an Olympix alert on it is open, dismissed
 without a comment, or dismissed as "used in tests". Its comment starts with
-`### 🤖 GitHub Action: Security Alerts Review 🔍`. Take each open alert from
-`code-scanning/alerts?pr=<N>` (`tool.name` `Olympix Integrated Security`) and check it against
-the code:
+`### 🤖 GitHub Action: Security Alerts Review 🔍`. From `code-scanning/alerts?pr=<N>`
+(`tool.name` `Olympix Integrated Security`) take every alert the workflow rejects: open, dismissed
+without a `dismissed_comment`, or dismissed as `used in tests`. Check each against the code:
 
-- Real → fix it like a failing check.
-- False positive → dismiss it: `PATCH code-scanning/alerts/<number>` with `state=dismissed`,
-  `dismissed_reason` `false positive` (or `won't fix` when real but not reachable or not worth
-  changing) and a `dismissed_comment` naming the code that makes it safe. Never
-  `used in tests`: only production code is analysed.
+- Real and reachable → fix it like a failing check (reopen a dismissed one with `state=open`
+  first). Deferring it instead is a user decision.
+- False positive, or real but unreachable → dismiss it: `PATCH code-scanning/alerts/<number>`
+  with `state=dismissed`, `dismissed_reason` `false positive` (`won't fix` for the unreachable
+  case) and a `dismissed_comment` naming the code that makes it safe. Never `used in tests`: only
+  production code is analysed.
 - Unsure → stop condition.
 
 Then push any fixes, `gh pr ready` again (the workflow runs only on `ready_for_review`) and wait

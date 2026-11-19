@@ -107,7 +107,7 @@ Already enabled → no-op. "Auto-merge is not enabled for this repository" → s
 
 ### 8. Clean up
 
-Once posted, remove the session's worktree (if one was used) and any stray uncommitted files, so the next session starts clean.
+Once posted, check the session's worktree (if one was used) with `git status --porcelain` and `git log @{u}..`. Both empty → remove it, so the next session starts clean. Otherwise list the uncommitted files and unpushed commits and ask the user; never discard them.
 
 ## Failure modes
 
