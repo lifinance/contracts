@@ -107,6 +107,7 @@ const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
   attestationsFor: async () => ({ builds: [attested()] }),
   price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
   readOffCodeImmutables: async () => ({ declared: 'none' }),
+  pinnedCodehashFor: async () => undefined,
   ...over,
 })
 
@@ -731,6 +732,39 @@ describe('the render distinguishes every bucket, including the two that are not 
       getAddress(OTHER),
     ])
     expect(gate.blocksSigning).toBe(false)
+  })
+
+  it('passes a registration whose code equals the codehash main pins', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([registerCalldata()]), NETWORK),
+      () =>
+        deps({
+          attestationsFor: async () => ({ builds: [] }),
+          pinnedCodehashFor: async () => ({ codehash: RAW, label: 'Ledger' }),
+        })
+    )
+
+    expect(gate.targets[0]?.verdict).toBe('MATCH')
+    expect(gate.blocksSigning).toBe(false)
+  })
+
+  it('blocks a proposal that both cuts in and registers a pinned address', async () => {
+    // A pin vouches for a registration only; the cut half of the same proposal
+    // is judged on its own and has no attested build to match.
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(
+        wrapped([cutCalldata(OTHER), registerCalldata(OTHER)]),
+        NETWORK
+      ),
+      () =>
+        deps({
+          attestationsFor: async () => ({ builds: [] }),
+          pinnedCodehashFor: async () => ({ codehash: RAW, label: 'Ledger' }),
+        })
+    )
+
+    expect(gate.blocksSigning).toBe(true)
+    expect(gate.targets.map((one) => one.verdict)).toContain('UNVERIFIABLE')
   })
 
   it('does not claim an unopened frame for an ordinary decodable cut', async () => {

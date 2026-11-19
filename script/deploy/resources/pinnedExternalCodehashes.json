@@ -1,0 +1,160 @@
+{
+  "BridgeCommitmentLedger": {
+    "source": "lifinance/intent-factory contracts/src/BridgeCommitmentLedger.sol at 6d4a5d869f1a35ef826e2d44303ec863106efc32 (solc 0.8.35, cancun, via-IR, 100000000 runs, bytecode_hash none). constructor(address diamond, address validator): each deployment lists its constructorArgs, read from its deployTx. The diamond is that network's LI.FI Diamond and the validator is CATValidatorV1_1; the diamond is an immutable, so codehashes differ where it does. Deployed via CREATE2 0x4e59b44847b379578588920cA78FbF26c0B4956C (address recomputed from each deployTx), except tempo and basesepolia, created inside a batch sent to 0xdb9B1e94B5b69Df7e401DDbedE43491141047dB3. Codehashes checked on-chain 2026-11-19 (EXSC-1375)",
+    "deployments": {
+      "mainnet": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0xda965e544570e8d22e52aee4d75821d2e98d345d5104f991fc742186e21da04a",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "optimism": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0x32404369f3e0f2fda326ec6c4905dc99958bee9e43bbadf75b8061d983a83f2c",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "bsc": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0xe8d4b9e2f637cf1ea8c06923d1fae295fcdad099d67150e88a99df042fa43e65",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "polygon": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0x1c5481dbd2e207cde0899f4af3494dd9206dd672a8b1b228ae66a3584fc2d203",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "hyperevm": {
+        "address": "0x234320FdBef088a8760eEE5dF04Ef517bf477760",
+        "codehash": "0x6b3823dd0f2c7e6a16340381b523a1885e05754cfad3a9c1902353cd563541c8",
+        "deployTx": "0x0d08dfe7ccb10ec8800a9571c07c4f00ee8b17142567ca1a53f948942bd839b9",
+        "constructorArgs": [
+          "0x0a0758d937d1059c356D4714e57F5df0239bce1A",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "pharos": {
+        "address": "0x78acD1BC51203d3f874a4ffDa7A4aBbC652EeA88",
+        "codehash": "0x9c2e668fd3e9bac624fdf8d2ab511caa5713812f4d002c3d2e4672108e6a2ee8",
+        "deployTx": "0xcd10f2672d08540cc1a9f16aceb9330535ab4cd02d1a181e68c93fef1a32d231",
+        "constructorArgs": [
+          "0xFf70F4A1d11995621854F3692acF286d8aCd04b2",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "tempo": {
+        "address": "0x5F76F443d6AeafA4380C92F9bB91434dC8791BfF",
+        "codehash": "0x29153cca2604fb8e70af7fd96d78312c1f8e4d9e1157f2ea3223427c82120d93",
+        "deployTx": "0xc4e8a71ecf7740588fdc53434b89d0328b68bd3dfc9ce203841c646d093672fc",
+        "constructorArgs": [
+          "0x2cAcAE8e22418E65dcf7651c67aEbe6288EB8243",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "robinhood": {
+        "address": "0xadec17263695Eca028b6D6Cae569e30038EfA10a",
+        "codehash": "0x1467d7ba4a8e64043c6042a6718fd0654cdb27f77dd0829301dff641d832e71a",
+        "deployTx": "0x9b3ec34a78379ba2903e68e525a008b86e145fdf8db2c02faec357aedd1a9bbb",
+        "constructorArgs": [
+          "0xB477751B76CF82d00a686A1232f5fCD772414Af3",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "arc": {
+        "address": "0xfa6d929f0ad8cE4391D837a30f7F2A5399d56e09",
+        "codehash": "0x670cd58255f3678e1347e1a37dbbb83b4c2d305a856814cec91030bf0acca1ab",
+        "deployTx": "0x089e011a74bbb3ba17c6d018026e97dfd8e5d2c4c22dc610e86ca24e976c0091",
+        "constructorArgs": [
+          "0xA4072583658Fae592A3506A42431cb6316a8d40b",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "base": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0x7837ee2bfc52eecf49bfe9ce155656012906ff61f830a8a7c84554f9dc4693a4",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "plasma": {
+        "address": "0xc451a01e55d424Cc1794cD3a3C7E72D6f8Ffd05e",
+        "codehash": "0x8453070519e8c5fbc1b6adeb447eb1d11b02a5bc14a2e65cf8ebbc287206db8a",
+        "deployTx": "0x85ad898eafd213c567db0001a2940d20c3be1eb7da7d40a02678c3569200be33",
+        "constructorArgs": [
+          "0x026F252016A7C47CDEf1F05a3Fc9E20C92a49C37",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "arbitrum": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0x20cadcbcba1faf14ddfc94931fa9ac84875d830aa38dfd7be6b80cfec4799597",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "avalanche": {
+        "address": "0x5A4966A80B95D867Ee5804FF84b8b75f260D9282",
+        "codehash": "0xdec9bfdfe0298ce8d68220c93c8bfae03c29f2cbb431ed75be04cef0e78d529d",
+        "deployTx": "0x6b8459734a80c337556f4ddd40491da968afc5e1009b08092f8680e864b52b72",
+        "constructorArgs": [
+          "0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "elysium": {
+        "address": "0x609FC184Af9CE6f5253e06f96aE46E4Af11aD6F0",
+        "codehash": "0xe0fd5126dbaa36f2e22792bda7068edbd4a41ba153bad26ffa449d22efaca84f",
+        "deployTx": "0xb91aa00425ead8a54d002bf1d86111e80e2620463e49bc54dca690bfdea75688",
+        "constructorArgs": [
+          "0x24E6dA91AA4A8FEe2447F542c92E006243bd6Dc5",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "basesepolia": {
+        "address": "0x52A23e1e2EAaa02077eDD8d6941dc4b8e4E584df",
+        "codehash": "0x3e5c48d35adea5e9ee77f753f8f49c0b77eb3dc4e1acce4e3c0e130974ad6006",
+        "deployTx": "0xa3c34724f04dcd4365c7da15bed2572c32809ae424750f70fadc979fa9b38a71",
+        "constructorArgs": [
+          "0x816Fc6EeE47e3157A666827a0C06205294C81770",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "arbitrumsepolia": {
+        "address": "0x52A23e1e2EAaa02077eDD8d6941dc4b8e4E584df",
+        "codehash": "0x3e5c48d35adea5e9ee77f753f8f49c0b77eb3dc4e1acce4e3c0e130974ad6006",
+        "deployTx": "0x9c9a454b402ef29a00b7c064639446f26bacc3fba04636d51ce0804dbc41fc0e",
+        "constructorArgs": [
+          "0x816Fc6EeE47e3157A666827a0C06205294C81770",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      },
+      "sepolia": {
+        "address": "0x1c50Ea4A53a52FDAf841964c4CC0871Ae16f6470",
+        "codehash": "0xffb201923d5a962bfdfa63dea46e56662a268b3e7b2ac1dfee0cd3a719b043a0",
+        "deployTx": "0x7c21a6a847ed6dca93b4835caf482081f32f14828c27fd76d23b2557dae99d40",
+        "constructorArgs": [
+          "0xeCeC3970Ca674278DA8D9B1c484ACaF6B20181F5",
+          "0xA1d38c83e842ebA863238845Dc4fF14F5668041A"
+        ]
+      }
+    }
+  }
+}
