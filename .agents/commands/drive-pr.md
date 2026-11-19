@@ -39,7 +39,8 @@ Several checks skip drafts, including the unit tests, `version-control`, `verify
 and `Aikido Security: check code`.
 
 - **Phase A (draft)**: rounds until no blocking check, CodeRabbit settled and no open CodeRabbit
-  thread, then `gh pr ready` (never for a rollout PR, see Preflight). Already ready → Phase B.
+  thread, then `gh pr ready`. Already ready → Phase B. A rollout PR (see Preflight) never leaves
+  Phase A, whether draft or ready: no `gh pr ready`, no Phase B.
 - **Phase B (ready)**: rounds on the new check runs until clean.
   **Clean is judged here only**; a `skipped` run never counts as a pass for those three checks.
 
@@ -135,10 +136,10 @@ round on the new SHA.
 
 Zeus (`lifi-qa-agent[bot]`, from the QA team) reviews ready PRs against their Linear ticket on
 its own, hours later. Its approval is not part of clean: never wait for it. When its review is
-`CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4, answered in each
-finding's own thread (reply `Fixed in <sha>: <what changed>` or with evidence, then resolve);
-deferring a correct finding to a follow-up ticket is a user decision. Once every finding's thread
-has a fix or a reply and is resolved, push, then
+`CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4: fix, push, then reply
+in each finding's own thread (`Fixed in <sha>: <what changed>`, or with evidence when no change is
+needed) and resolve it. Deferring a correct finding to a follow-up ticket is a user decision. Once
+every finding's thread is answered and resolved,
 re-request Zeus with the `Agent Review Request` label (no need to wait for its review).
 
 ## After `gh pr ready`
