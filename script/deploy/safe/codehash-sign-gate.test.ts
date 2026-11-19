@@ -799,6 +799,21 @@ describe('the render distinguishes every bucket, including the two that are not 
     expect(gate.summary).toContain('updateDelay')
     expect(gate.summary).not.toMatch(/could not open/)
   })
+
+  it('stands down on a direct ownership-handover request to an external contract', async () => {
+    // The Safe calls `requestOwnershipHandover()` straight on catapultar's
+    // IntentExecutor: no envelope, no arguments, nothing it could install.
+    const gate = await evaluateCodehashSignGate(
+      await gateInput('0x25692962', NETWORK),
+      () => deps()
+    )
+
+    expect(gate.madeNoClaim).toBe(true)
+    expect(gate.blocksSigning).toBe(false)
+    expect(gate.unopened).toEqual([])
+    expect(gate.knownCalls).toEqual(['requestOwnershipHandover'])
+    expect(gate.summary).not.toMatch(/could not open/)
+  })
 })
 
 describe('a verdict is about specific bytes', () => {

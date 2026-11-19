@@ -24,6 +24,7 @@ import {
   hashMessage,
   hashTypedData,
   isHex,
+  keccak256,
   parseAbi,
   recoverAddress,
   type Address,
@@ -33,6 +34,9 @@ import {
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactUrls } from '../../utils/redactUrls'
+import { normalizeHash } from '../codehash/hex'
+import type { IPinnedCodehash } from '../codehash/verify-cut-targets'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { indexDeploymentsByAddress } from '../shared/funnel-deploy-gate'
 import type { IDeploymentRecord } from '../shared/mongo-log-utils'
@@ -249,6 +253,13 @@ export interface IIntegrityAssertDeps {
   recordedDeployments: (
     address: string
   ) => Promise<readonly IDeploymentRecordRef[]>
+  /**
+   * The runtime codehash `origin/main` pins for this network and address, or
+   * undefined when none is pinned. Throws when the pinned file cannot be read.
+   */
+  pinnedCodehash: (address: Address) => Promise<IPinnedCodehash | undefined>
+  /** keccak of the runtime code deployed at the address now. */
+  liveCodehash: (address: Address) => Promise<Hex>
   /** The timelock's live minimum delay, read at the committed timelock address. */
   timelockMinDelay: (timelock: Address) => Promise<bigint>
 }
@@ -262,7 +273,7 @@ interface IAssertOutcome {
 }
 
 const errorOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
+  redactUrls(error instanceof Error ? error.message : String(error))
 
 const normalise = (network: string, value: string): Address | undefined => {
   try {
@@ -700,17 +711,18 @@ function assertFixedFields(input: IIntegrityAssertInput): IAssertOutcome {
  * only report.
  *
  * `config/networks.json` and the committed deployment log are reviewed files, so
- * a match in either is a verdict. The deployment record is written by the
- * deploying process, so a match there names the address for the signer and
- * leaves the result unverified — recorded under the anchor that says so, which
- * the ledger then refuses to grade as a pass.
+ * a match in either is a verdict. So is a contract this repo does not deploy
+ * whose live codehash equals the one `main` pins for it. The deployment record
+ * is written by the deploying process, so a match there names the address for
+ * the signer and leaves the result unverified — recorded under the anchor that
+ * says so, which the ledger then refuses to grade as a pass.
  */
 async function assertTarget(
   input: IIntegrityAssertInput,
   deps: IIntegrityAssertDeps
 ): Promise<IAssertOutcome> {
   const expected =
-    'a target this checkout can name: the configured Safe, or an address in the committed deployment log'
+    'a target this checkout can name: the configured Safe, an address in the committed deployment log, or a contract main pins whose deployed code matches the pin'
 
   const to = normalise(input.network, input.to)
   if (!to)
@@ -756,6 +768,11 @@ async function assertTarget(
       actual: `${to} — ${committedName}`,
       anchor: 'A-LOCAL',
     }
+
+  // Before the deployment record: a codehash checked on-chain against a pin
+  // `main` reviewed can decide a pass, which a record the deployer wrote cannot.
+  const pinned = await judgePinnedTarget(to, deps, expected)
+  if (pinned) return pinned
 
   let records: readonly IDeploymentRecordRef[]
   try {
@@ -803,6 +820,72 @@ async function assertTarget(
     actual: `${to} — named by neither the committed log nor the deployment record`,
     anchor: 'A-LOCAL',
     detail: 'nothing this checkout trusts says what is at this address',
+  }
+}
+
+/**
+ * Judges a target this repo does not deploy against the runtime codehash
+ * `origin/main` pins for it.
+ *
+ * The pin is read from `main` rather than the checkout, so a branch cannot pin
+ * the target of its own proposal. A pin that cannot be read is never taken as
+ * "nothing pinned": that would fall through to the deployment record and
+ * report a refusal for the wrong reason.
+ *
+ * @param to - the normalised target
+ * @param deps - carries the pin lookup and the chain read
+ * @param expected - the assertion's expectation, restated on every outcome
+ * @returns The outcome, or undefined when nothing is pinned for the target
+ */
+const judgePinnedTarget = async (
+  to: Address,
+  deps: IIntegrityAssertDeps,
+  expected: string
+): Promise<IAssertOutcome | undefined> => {
+  let pinned: IPinnedCodehash | undefined
+  try {
+    pinned = await deps.pinnedCodehash(to)
+  } catch (error) {
+    return {
+      status: 'error',
+      expected,
+      actual: to,
+      anchor: 'A-UNRESOLVED',
+      detail: `not in the committed log, and the codehashes main pins could not be read: ${errorOf(
+        error
+      )}`,
+    }
+  }
+  if (!pinned) return undefined
+
+  let live: Hex
+  try {
+    live = await deps.liveCodehash(to)
+  } catch (error) {
+    return {
+      status: 'error',
+      expected,
+      actual: `${to} — pinned as ${pinned.label}`,
+      anchor: 'A-UNRESOLVED',
+      detail: `its deployed code could not be read: ${errorOf(error)}`,
+    }
+  }
+
+  if (normalizeHash(live) !== normalizeHash(pinned.codehash))
+    return {
+      status: 'fail',
+      expected,
+      actual: `${to} — its deployed code hashes to ${live}, not to ${pinned.codehash}, the codehash main pins for ${pinned.label}`,
+      anchor: 'A-CHAIN',
+      detail:
+        'the address is pinned, but what is deployed there is not the pinned code',
+    }
+
+  return {
+    status: 'pass',
+    expected,
+    actual: `${to} — ${pinned.label}, its deployed code matches the codehash main pins`,
+    anchor: 'A-CHAIN',
   }
 }
 
@@ -1016,14 +1099,19 @@ export const INTEGRITY_CHECKS_ALWAYS: readonly string[] = [
  * @param options.network - Network key, which also selects the address form the committed log uses.
  * @param options.safe - The signing client, already pointed at the Safe config names.
  * @param options.safeTx - The transaction that would be signed.
+ * @param options.pinnedCodehashFor - The codehashes `origin/main` pins, read through the codehash gate's own source.
  * @returns Dependencies for {@link runIntegrityAsserts}.
  */
 export const createIntegrityAssertDeps = (options: {
   network: string
   safe: SafeClient
   safeTx: ISafeTransaction
+  pinnedCodehashFor: (
+    address: string,
+    network: string
+  ) => Promise<IPinnedCodehash | undefined>
 }): IIntegrityAssertDeps => {
-  const { network, safe, safeTx } = options
+  const { network, safe, safeTx, pinnedCodehashFor } = options
   let hash: Promise<Hex> | undefined
   let committed: Promise<ReadonlyMap<string, string>> | undefined
   let records: Promise<readonly IDeploymentRecord[]> | undefined
@@ -1092,6 +1180,9 @@ export const createIntegrityAssertDeps = (options: {
           version: record.version ?? '',
         }))
     },
+    pinnedCodehash: (address) => pinnedCodehashFor(address, network),
+    liveCodehash: async (address) =>
+      keccak256((await safe.getPublicClient().getCode({ address })) ?? '0x'),
     timelockMinDelay: (timelock) =>
       safe.getPublicClient().readContract({
         address: timelock,

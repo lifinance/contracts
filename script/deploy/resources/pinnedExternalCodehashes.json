@@ -156,5 +156,119 @@
         ]
       }
     }
+  },
+  "IntentExecutor": {
+    "source": "lifinance/catapultar solidity/src/libs/IntentExecutor.sol at 74df47c, the production instance under \"Canonical deployments\" in solidity/README.md at 7e305c1a10c7d05b27f032550285405e25183bbd. constructor(address owner, address[] solvers), deployed via CREATE2 with owner 0x7Fb7C22d4a4Ff9DCff0eaa8B534cDF98488b4aa3 and solvers [0xc6b9743624Faa056eDB7C57B35F2937155C0e425] on every network, so it has one address everywhere. Its runtime code holds no immutables, so the constructor arguments do not reach the codehash, which is the same as IntentExecutorDev's; the two are separate entries because a pin is keyed by network and address. Codehashes checked on-chain 2026-11-19 (EXSC-1376)",
+    "deployments": {
+      "arbitrum": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "arc": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "avalanche": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "base": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "bsc": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "hyperevm": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "mainnet": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "optimism": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "pharos": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "plasma": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "polygon": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "robinhood": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "tempo": {
+        "address": "0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      }
+    }
+  },
+  "IntentExecutorDev": {
+    "source": "lifinance/catapultar solidity/src/libs/IntentExecutor.sol at 74df47c, the dev instance under \"Canonical deployments\" in solidity/README.md at 7e305c1a10c7d05b27f032550285405e25183bbd. constructor(address owner, address[] solvers), deployed via CREATE2 with owner 0x7Fb7C22d4a4Ff9DCff0eaa8B534cDF98488b4aa3 and solvers [0x7Fb7C22d4a4Ff9DCff0eaa8B534cDF98488b4aa3] on every network, so it has one address everywhere. Its runtime code holds no immutables, so the constructor arguments do not reach the codehash, which is the same as IntentExecutor's; the two are separate entries because a pin is keyed by network and address. Codehashes checked on-chain 2026-11-19 (EXSC-1376)",
+    "deployments": {
+      "arbitrum": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "arc": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "avalanche": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "base": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "bsc": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "hyperevm": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "mainnet": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "optimism": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "pharos": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "plasma": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "polygon": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "robinhood": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      },
+      "tempo": {
+        "address": "0xD6552aF70ffa577166d98d120137D4Ad4d8d821d",
+        "codehash": "0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421"
+      }
+    }
   }
 }

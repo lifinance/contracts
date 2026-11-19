@@ -1,9 +1,10 @@
 /**
- * Runtime codehashes `main` pins for contracts this repo does not build, such as
- * a periphery registration's target built in another repository.
+ * Runtime codehashes `main` pins for contracts this repo does not build: a
+ * periphery registration's target built in another repository, or a contract
+ * the Safe calls directly.
  *
- * Pure: the sign-time gate's dependency assembly owns the read at `origin/main`
- * and hands the parsed lookup to the codehash gate.
+ * Pure: the sign-time dependency assembly owns the read at `origin/main` and
+ * hands the parsed lookup to the codehash gate and to Gate E.
  */
 import { getAddress, isAddress } from 'viem'
 
