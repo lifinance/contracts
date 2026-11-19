@@ -1595,10 +1595,14 @@ async function checkAttestableSelectors(
   })
   for (const message of errors) ctx.logError(message)
   for (const message of warnings) ctx.logWarn(message)
-  if (errors.length === 0 && warnings.length === 0)
+  if (errors.length === 0 && warnings.length === 0) {
+    const checked = [...expected.keys()].filter(
+      (selector) => routedTo.has(selector) || enabled.get(selector)
+    ).length
     consola.success(
-      `Attestable selectors match config (${expected.size} expected, ${probed.size} probed)`
+      `Attestable selectors match config (${checked} expected, ${probed.size} probed)`
     )
+  }
 }
 
 /**
