@@ -6,7 +6,7 @@
     "node": ">=26"
   },
   "type": "module",
-  "packageManager": "bun@1.4.4",
+  "packageManager": "bun@1.4.5",
   "repository": "github:lifinance/contracts",
   "author": "LI.FI",
   "license": "MIT",
