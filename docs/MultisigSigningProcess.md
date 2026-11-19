@@ -579,6 +579,15 @@ signer sees:
    struct that gets hashed and signed, so what it vouches for cannot drift from
    what the device shows.
 
+   The target of a `registerPeripheryContract` call is judged the same way,
+   cut or no cut. One extra path covers a contract this repo does not build:
+   when the registered address has no attested build, its deployed bytes are
+   compared with the codehash `main` pins for it in
+   `script/deploy/resources/pinnedExternalCodehashes.json`. A match is
+   `MATCH`, and the summary says it rests on the pin rather than a rebuild. Its
+   immutables line still asks for an acknowledgement, because their values were
+   compared as bytes and not graded against config.
+
    Infrastructure failures block as well, and they land in two different places
    depending on how far the gate got. One that stops it reaching any verdict —
    an unreadable `foundry.toml`, so the legitimate toolchain set cannot be
@@ -595,8 +604,8 @@ signer sees:
    excluded as immutables renders grey rather than green, until the
    per-immutable check (WP-2.3) can price those bytes. Calldata this decoder
    cannot open makes **no claim** — it names the frames it could not read
-   instead of reporting a pass. And calldata that decodes to no cut at all is
-   outside its scope and says so; a proposal with empty calldata prints no gate
+   instead of reporting a pass. And calldata that installs nothing — no cut
+   and no periphery registration — is outside its scope and says so; a proposal with empty calldata prints no gate
    line, because there is nothing to judge.
 
 5. **The proposal-integrity assertions** (`confirm-integrity-asserts.ts`),
