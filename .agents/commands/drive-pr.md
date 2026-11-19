@@ -134,15 +134,7 @@ its own, hours later. Its approval is not part of clean: never wait for it. When
 `CHANGES_REQUESTED`, handle its findings like CodeRabbit threads in step 4 (reply
 `Fixed in <sha>: <what changed>` or with evidence, then resolve); deferring a correct finding to
 a follow-up ticket is a user decision. Once every finding has a fix or a reply, push, then
-re-request Zeus so it reads them: remove and re-add the `Agent Review Request` label
-(`qa-review-trigger.yml` fires on `labeled`):
-
-```bash
-gh api -X DELETE "repos/lifinance/contracts/issues/<N>/labels/Agent%20Review%20Request" || true
-gh api -X POST repos/lifinance/contracts/issues/<N>/labels -f "labels[]=Agent Review Request"
-```
-
-The label turning into `QA AI Reviewing` confirms the request; don't wait for the review.
+re-request Zeus with the `Agent Review Request` label (no need to wait for its review).
 
 ## After `gh pr ready`
 
