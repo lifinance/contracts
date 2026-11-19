@@ -11,6 +11,10 @@
 #   the job only installs Bun deps and runs the tests, with no outbound network access
 #   needed beyond the install. Measured by running the suite with outbound network denied
 #   (localhost allowed); re-check the claim that way rather than trusting it.
+# - The install passes `--ignore-scripts`, so package lifecycle scripts are skipped (no
+#   `preinstall.sh` apt installs of gum/mongosh, no husky, no native dependency builds);
+#   the tests need none of them. The TronWeb proto fix, normally a postinstall step, runs
+#   explicitly afterwards.
 
 name: Run TypeScript Unit Tests
 on:
@@ -113,7 +117,19 @@ jobs:
           node-version-file: .nvmrc
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
+
+      - name: Apply TronWeb proto fix
+        # tronweb-importing suites need this patch, which --ignore-scripts skipped. The script
+        # exits 0 when it finds nothing to patch, so require its success line here.
+        run: |
+          set -euo pipefail
+          output="$(node script/troncast/postinstall-tronweb-fix.mjs 2>&1)"
+          echo "$output"
+          if ! grep -qF 'TronWeb proto fix applied successfully!' <<<"$output"; then
+            echo -e "\033[31mTronWeb proto fix did not apply\033[0m" >&2
+            exit 1
+          fi
 
       - name: Run TypeScript tests
         run: bun test:ts
