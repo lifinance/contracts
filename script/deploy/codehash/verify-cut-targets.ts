@@ -562,6 +562,8 @@ const unreadable = (address: string, why: string): ITargetVerdict => ({
   immutables: immutablesUnreadable(address, why),
 })
 
+const PINNED_LINEAGE = 'pinned: '
+
 /**
  * Judges a registration this repo cannot rebuild against the codehash `main`
  * pins for it.
@@ -614,7 +616,7 @@ const judgePinned = async (
     address,
     verdict: 'MATCH',
     reason: `${address}: its deployed code is byte-identical to the codehash main pins for ${pinned.label}`,
-    matchedLineages: [`pinned: ${pinned.label}`],
+    matchedLineages: [`${PINNED_LINEAGE}${pinned.label}`],
     excludedByteCount: 0,
     pricedByteCount: 0,
     immutables: {
@@ -622,6 +624,27 @@ const judgePinned = async (
       detail: `${address}: compared byte for byte against the codehash main pins for ${pinned.label}, so any immutables it holds were compared as bytes; their values were not graded against config.`,
     },
   }
+}
+
+/**
+ * Says what each MATCH rests on, so a pin is never reported as a rebuild.
+ *
+ * @param targets - verdicts that are all MATCH
+ */
+const matchBasis = (targets: ITargetVerdict[]): string => {
+  const pinned = targets.filter((t) =>
+    t.matchedLineages.some((l) => l.startsWith(PINNED_LINEAGE))
+  ).length
+  const rebuilt = targets.length - pinned
+  // Not "matches main": the rebuild is at the commit each deployment record
+  // names, and D3 has the verifier assert that commit's presence rather than
+  // its ancestry. Saying main would promise the signer a check nobody runs.
+  const onMain = 'Whether that commit is on main is not checked.'
+  const pin = 'byte-identical to the codehash main pins for it.'
+  if (pinned === 0)
+    return `Every address this call installs matches a rebuild at the commit its deployment record names. ${onMain}`
+  if (rebuilt === 0) return `Every address this call registers is ${pin}`
+  return `${rebuilt} of these addresses match a rebuild at the commit its deployment record names. ${onMain} The other ${pinned} are each ${pin}`
 }
 
 /**
@@ -658,10 +681,7 @@ const summarise = (
         : priced > 0
           ? ` ${priced} bytes holding immutables were compared against the values this repo declares for them.`
           : ''
-    // Not "matches main": the rebuild is at the commit each deployment record
-    // names, and D3 has the verifier assert that commit's presence rather than
-    // its ancestry. Saying main would promise the signer a check nobody runs.
-    return `Every address this call installs matches a rebuild at the commit its deployment record names. Whether that commit is on main is not checked.${caveat}`
+    return `${matchBasis(targets)}${caveat}`
   }
 
   // The verdict word is carried per address rather than summed, so a MISMATCH

@@ -864,4 +864,49 @@ describe('verifyCutTargets: a registration main pins a codehash for', () => {
     expect(report.targets[0]?.immutables.status).toBe('none')
     expect(consulted).toBe(false)
   })
+
+  it('compares the pin with the raw codehash, not the masked one', async () => {
+    const run = (code: IObservedCode) =>
+      verifyCutTargets(
+        { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+        deps({
+          observe: async () => code,
+          attestationsFor: noBuild,
+          pinnedCodehashFor: pinnedFor(A),
+        })
+      )
+
+    const maskedOnly = await run({ ...observed(HASH), rawHash: OTHER })
+    expect(maskedOnly.targets[0]?.verdict).toBe('MISMATCH')
+    expect(maskedOnly.blocksSigning).toBe(true)
+
+    const rawOnly = await run({ ...observed(OTHER), rawHash: HASH })
+    expect(rawOnly.targets[0]?.verdict).toBe('MATCH')
+    expect(rawOnly.blocksSigning).toBe(false)
+  })
+
+  it('tells the signer a pinned MATCH rests on the pin, not on a rebuild', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({ attestationsFor: noBuild, pinnedCodehashFor: pinnedFor(A) })
+    )
+
+    expect(report.summary).toContain('byte-identical to the codehash main pins')
+    expect(report.summary).not.toContain('rebuild')
+  })
+
+  it('splits the summary when one address is rebuilt and another pinned', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(B)], init: ZERO, network: 'mainnet', registrations: [A] },
+      deps({
+        attestationsFor: async (address) =>
+          address === B ? { builds: [attested(HASH)] } : noBuild(),
+        pinnedCodehashFor: pinnedFor(A),
+      })
+    )
+
+    expect(report.blocksSigning).toBe(false)
+    expect(report.summary).toContain('1 of these addresses match a rebuild')
+    expect(report.summary).toContain('The other 1 are each byte-identical')
+  })
 })
