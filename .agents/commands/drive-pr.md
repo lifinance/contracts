@@ -27,6 +27,7 @@ changed files with `gh api repos/lifinance/contracts/pulls/<N>/files --paginate`
 
 ## Pushing rules
 
+- Before each push, run the tests and linters scoped to the files the fix touched.
 - Signed commits (`git commit -S`); a signing failure stops the skill.
 - Never `--no-verify`, never force-push. A failing pre-commit hook is fixed like a failing check.
 - Never add `audit/auditLog.json` entries, never set or remove `AuditRequired`,
