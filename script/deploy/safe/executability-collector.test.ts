@@ -39,6 +39,7 @@ import {
 import { evaluateExecutability } from './executability-simulation'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_SCHEDULE_SELECTOR,
   TIMELOCK_ZERO_PREDECESSOR,
 } from './timelock-abi'
 
@@ -188,6 +189,265 @@ describe('collectExecutabilityInput', () => {
     // thing simulated was `scheduleBatch`, which succeeds whatever it carries.
     expect(verdict.refuses).toBe(true)
     expect(verdict.reason).toContain('scheduled')
+  })
+
+  describe('a batch whose call needs the cut before it', () => {
+    // The added function's eth_call runs before the cut, so it reverts on the
+    // diamond's fallback whatever it would do once the cut has run.
+    const inner = `${SELECTOR}${'00'.repeat(31)}01${'00'.repeat(31)}01` as Hex
+    const proposal = {
+      network: 'arbitrum',
+      safeAddress: SAFE,
+      to: TIMELOCK,
+      data: scheduleBatch([DIAMOND, DIAMOND], [cut(), inner]),
+    }
+    const revertsAlone: Partial<IExecutabilityChainReader> = {
+      staticCall: async (call) =>
+        call.data === inner
+          ? { outcome: 'reverted' as const }
+          : { outcome: 'succeeded' as const },
+    }
+
+    it('simulates the batch in order, as the timelock, and passes it', async () => {
+      const sequences: (readonly IRecordedCall[])[] = []
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async (calls) => {
+          sequences.push(calls)
+          return {
+            kind: 'simulated',
+            outcomes: calls.map(() => ({ outcome: 'succeeded' as const })),
+          }
+        },
+      })
+
+      const input = await collectExecutabilityInput(proposal, chain)
+      const verdict = evaluateExecutability(input)
+
+      expect(sequences).toEqual([
+        [
+          { from: TIMELOCK, to: DIAMOND, data: cut() },
+          { from: TIMELOCK, to: DIAMOND, data: inner },
+        ],
+      ])
+      expect(verdict.refuses).toBe(false)
+      expect(verdict.error).toBe(false)
+      const call = verdict.calls.find((c) => c.target === DIAMOND && c.inOrder)
+      expect(call?.outcome).toBe('would-execute')
+    })
+
+    it('refuses it when the call reverts in order', async () => {
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => ({
+          kind: 'simulated',
+          outcomes: [
+            { outcome: 'succeeded' as const },
+            { outcome: 'reverted' as const, revertReason: 'revert data 0x01' },
+          ],
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(proposal, chain)
+      )
+
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('reports why when the batch cannot be simulated in order', async () => {
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => ({
+          kind: 'unavailable',
+          reason: 'eth_simulateV1 failed: Method not found',
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(proposal, chain)
+      )
+
+      expect(verdict.refuses).toBe(false)
+      expect(verdict.error).toBe(true)
+      expect(verdict.errors.join(' ')).toContain('Method not found')
+    })
+
+    it('does not simulate in order when nothing reverted alone', async () => {
+      let asked = false
+      const chain = reader({
+        simulateInOrder: async () => {
+          asked = true
+          return { kind: 'unavailable', reason: 'unused' }
+        },
+      })
+
+      await collectExecutabilityInput(proposal, chain)
+
+      expect(asked).toBe(false)
+    })
+
+    it('refuses a nested schedule, which it does not simulate in order', async () => {
+      // An inner operation runs only once it is executed itself, so nothing
+      // orders it after the cut, and its revert still refuses.
+      let asked = false
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => {
+          asked = true
+          return { kind: 'unavailable', reason: 'unused' }
+        },
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch([TIMELOCK], [proposal.data]),
+          },
+          chain
+        )
+      )
+
+      expect(asked).toBe(false)
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('refuses a batch carrying value, which it does not simulate in order', async () => {
+      // The in-order run sends no value, so it would judge calls the batch
+      // does not make.
+      let asked = false
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => {
+          asked = true
+          return { kind: 'unavailable', reason: 'unused' }
+        },
+      })
+      const data = encodeFunctionData({
+        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+        functionName: 'scheduleBatch',
+        args: [
+          [DIAMOND, DIAMOND],
+          [1n, 0n],
+          [cut(), inner],
+          TIMELOCK_ZERO_PREDECESSOR,
+          TIMELOCK_ZERO_PREDECESSOR,
+          86400n,
+        ],
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput({ ...proposal, data }, chain)
+      )
+
+      expect(asked).toBe(false)
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('refuses a call placed before the cut that adds it', async () => {
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => ({
+          kind: 'unavailable',
+          reason: 'eth_simulateV1 failed: Method not found',
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch([DIAMOND, DIAMOND], [inner, cut()]),
+          },
+          chain
+        )
+      )
+
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('keeps a revert no cut explains, whatever the in-order run says', async () => {
+      const register = encodeFunctionData({
+        abi: REGISTER_ABI,
+        functionName: 'registerPeripheryContract',
+        args: ['FeeCollector', FACET],
+      })
+      const chain = reader({
+        staticCall: async (call) =>
+          call.data === inner || call.data === register
+            ? { outcome: 'reverted' as const }
+            : { outcome: 'succeeded' as const },
+        simulateInOrder: async (calls) => ({
+          kind: 'simulated',
+          outcomes: calls.map(() => ({ outcome: 'succeeded' as const })),
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch(
+              [DIAMOND, DIAMOND, DIAMOND],
+              [cut(), register, inner]
+            ),
+          },
+          chain
+        )
+      )
+
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('does not simulate a batch with a call it could not open', async () => {
+      let asked = false
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => {
+          asked = true
+          return { kind: 'unavailable', reason: 'unused' }
+        },
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch(
+              [DIAMOND, TIMELOCK, DIAMOND],
+              [cut(), `${TIMELOCK_SCHEDULE_SELECTOR}deadbeef` as Hex, inner]
+            ),
+          },
+          chain
+        )
+      )
+
+      expect(asked).toBe(false)
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('refuses the batch when its cut reverts in order', async () => {
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => ({
+          kind: 'simulated',
+          outcomes: [
+            { outcome: 'reverted' as const },
+            { outcome: 'succeeded' as const },
+          ],
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(proposal, chain)
+      )
+
+      expect(verdict.refuses).toBe(true)
+      expect(
+        verdict.calls.find((call) => call.path.includes('diamondCut'))?.outcome
+      ).toBe('would-revert')
+    })
   })
 
   it('simulates a direct cut from the Safe', async () => {
@@ -1280,4 +1540,128 @@ describe('revert bodies captured from live nodes', () => {
         )
       })
     })
+})
+
+describe('createExecutabilityChainReader simulateInOrder', () => {
+  const simulatorThat = (behaviour: () => Promise<unknown>): PublicClient =>
+    ({ simulateBlocks: behaviour }) as unknown as PublicClient
+  const unused = simulatorThat(async () => [])
+  const calls = [
+    { from: TIMELOCK, to: DIAMOND, data: '0x01' as Hex },
+    { from: TIMELOCK, to: DIAMOND, data: '0x02' as Hex },
+  ]
+
+  it('maps each call to its own outcome', async () => {
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'success', data: '0x' },
+            { status: 'failure', data: '0xdeadbeef' },
+          ],
+        },
+      ]),
+    ])
+
+    expect(await reader.simulateInOrder?.(calls)).toEqual({
+      kind: 'simulated',
+      outcomes: [
+        { outcome: 'succeeded' },
+        { outcome: 'reverted', revertReason: 'revert data 0xdeadbeef' },
+      ],
+    })
+  })
+
+  it('fails over to the next endpoint when one cannot simulate', async () => {
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => {
+        throw new Error('Method not found')
+      }),
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'success', data: '0x' },
+            { status: 'success', data: '0x' },
+          ],
+        },
+      ]),
+    ])
+
+    expect((await reader.simulateInOrder?.(calls))?.kind).toBe('simulated')
+  })
+
+  it('takes a revert from any endpoint over another endpoint’s success', async () => {
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'success', data: '0x' },
+            { status: 'success', data: '0x' },
+          ],
+        },
+      ]),
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'success', data: '0x' },
+            { status: 'failure', data: '0xdeadbeef' },
+          ],
+        },
+      ]),
+    ])
+
+    const result = await reader.simulateInOrder?.(calls)
+
+    expect(
+      result?.kind === 'simulated' ? result.outcomes[1]?.outcome : undefined
+    ).toBe('reverted')
+  })
+
+  it('does not count a failure without revert data as a revert', async () => {
+    // Out of gas under the node's own cap comes back the same way.
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'failure', data: '0x' },
+            { status: 'success', data: '0x' },
+          ],
+        },
+      ]),
+    ])
+
+    const result = await reader.simulateInOrder?.(calls)
+
+    expect(result?.kind === 'unavailable' ? result.reason : '').toContain(
+      'failed without revert data'
+    )
+  })
+
+  it('does not pair outcomes when the node returns fewer than it was sent', async () => {
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => [
+        { calls: [{ status: 'success', data: '0x' }] },
+      ]),
+    ])
+
+    const result = await reader.simulateInOrder?.(calls)
+
+    expect(result?.kind === 'unavailable' ? result.reason : '').toContain(
+      '1 results for 2 calls'
+    )
+  })
+
+  it('says why when no endpoint can simulate in order', async () => {
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => {
+        throw new Error('the method eth_simulateV1 does not exist')
+      }),
+    ])
+
+    const result = await reader.simulateInOrder?.(calls)
+
+    expect(result?.kind === 'unavailable' ? result.reason : '').toContain(
+      'eth_simulateV1 does not exist'
+    )
+  })
 })
