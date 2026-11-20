@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { consola } from 'consola'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
+
 import { githubCommitPresence, resolveCommitPresence } from './commit-presence'
 import { readRepoIdentity } from './repo-identity'
 import {
@@ -29,19 +31,35 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024
  * leads to a refusal or to the presence query, so a timeout costs a deploy
  * attempt and never buys one.
  */
-const GIT_TIMEOUT_MS = 5_000
+const GIT_TIMEOUT_MS = 5_000 // 5 seconds
 
-const git = <T>(args: string[], fallback: T): string | T => {
+/**
+ * Runs one git read for the pre-flight, answering `fallback` when git fails,
+ * overflows the buffer or outlives the timeout.
+ *
+ * @param args - Arguments passed to `git`.
+ * @param fallback - What a failed read answers instead.
+ * @param timeoutMs - Bound on the read; every caller in this CLI takes the default.
+ * @returns git's stdout, or `fallback`.
+ */
+export const readGit = <T>(
+  args: string[],
+  fallback: T,
+  timeoutMs: number = GIT_TIMEOUT_MS
+): string | T => {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',
       maxBuffer: MAX_BUFFER_BYTES,
-      timeout: GIT_TIMEOUT_MS,
+      timeout: timeoutMs,
     })
   } catch {
     return fallback
   }
 }
+
+const git = <T>(args: string[], fallback: T): string | T =>
+  readGit(args, fallback)
 
 /**
  * Whether a path is the root of a checked-out git repository.
@@ -156,4 +174,4 @@ const main = (): void => {
   )
 }
 
-main()
+if (isEntrypoint(import.meta.url)) main()
