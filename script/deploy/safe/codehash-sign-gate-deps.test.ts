@@ -2754,6 +2754,22 @@ describe('createDeployedCodeReader', () => {
   })
 
   /**
+   * A failed read viem does not retry: `-32602` is outside its `shouldRetry`
+   * set, so a down primary fails at once instead of waiting out the sign-time
+   * backoff. The readers' catch after the primary read is generic, so the
+   * fallback path runs exactly as it would after a 503.
+   */
+  const downResponse = (id: number): Response =>
+    new Response(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32602, message: 'endpoint down' },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+  /**
    * Answers each JSON-RPC method per host. `code` undefined marks the host
    * down, so a test can fail one endpoint without failing the rest.
    */
@@ -2765,16 +2781,12 @@ describe('createDeployedCodeReader', () => {
       const url = String(input)
       const host = Object.keys(byHost).find((h) => url.startsWith(h))
       const code = host ? byHost[host] : undefined
-      if (code === undefined) {
-        const error = new Error('HTTP request failed: 503')
-        error.name = 'HttpRequestError'
-        throw error
-      }
-
       const body = JSON.parse(String(init?.body ?? '{}')) as {
         method?: string
         id?: number
       }
+      if (code === undefined) return downResponse(body.id ?? 1)
+
       const result =
         body.method === 'eth_chainId'
           ? '0x1'
@@ -2832,16 +2844,12 @@ describe('createDeployedCodeReader', () => {
         input: RequestInfo | URL,
         init?: RequestInit
       ) => {
-        if (String(input).startsWith(PRIMARY)) {
-          const error = new Error('HTTP request failed: 503')
-          error.name = 'HttpRequestError'
-          throw error
-        }
         const body = JSON.parse(String(init?.body ?? '{}')) as {
           method?: string
           params?: unknown[]
           id?: number
         }
+        if (String(input).startsWith(PRIMARY)) return downResponse(body.id ?? 1)
         if (body.method === 'eth_getCode') codeReadAt.push(body.params?.[1])
         const payload =
           refuseHeights &&
