@@ -287,7 +287,7 @@ export const executabilityPanel = (
       ? `${YELLOW}${BOLD}Simulation: INCONCLUSIVE${RESET} — no call was simulated`
       : verdict.refuses
         ? `${RED}${BOLD}Simulation: FAILED${RESET} — ${reverting} of ${total} ${noun} would revert`
-        : verdict.error
+        : verdict.error || undecided > 0
           ? // A run can be undecided without any single call being undecided — a
             // selector nobody looked up leaves the payload it sits in unproven
             // while its own `eth_call` still answered. "0 of 1 call could not be

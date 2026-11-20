@@ -1060,7 +1060,10 @@ export const evaluateExecutability = (
 export const toCancelDecisionExecutability = (
   verdict: IExecutabilityVerdict
 ): 'ok' | 'would-revert' | 'error' => {
-  if (verdict.error) return 'error'
+  // A call graded unknown (one an earlier cut in the batch adds) was never
+  // simulated, so it must not read as a clean `ok`.
+  if (verdict.error || verdict.calls.some((call) => call.outcome === 'unknown'))
+    return 'error'
   return verdict.refuses ? 'would-revert' : 'ok'
 }
 
@@ -1096,7 +1099,11 @@ export const renderExecutability = (
 
   for (const message of verdict.notSimulated) lines.push(`${INFO} ${message}`)
 
-  if (!verdict.refuses && !verdict.error)
+  if (
+    !verdict.refuses &&
+    !verdict.error &&
+    verdict.calls.every((call) => call.outcome !== 'unknown')
+  )
     lines.push(
       `${OK} Nothing in this proposal reverts against the state read now; ${verdict.notSimulated.length} payload(s) have no Tier-0 revert model. A clean simulation is not a statement that the proposal is correct.`
     )

@@ -1351,6 +1351,15 @@ describe('a call to a function an earlier cut in the proposal adds', () => {
     )
   })
 
+  it('neither claims a clean run nor hands the cancel matrix an ok', () => {
+    const verdict = cutThenCall(addUnserved, { selector: UNSERVED })
+
+    expect(renderExecutability(verdict).join('\n')).not.toContain(
+      'Nothing in this proposal reverts'
+    )
+    expect(toCancelDecisionExecutability(verdict)).toBe('error')
+  })
+
   it('matches the selector whatever its case', () => {
     const verdict = cutThenCall(addUnserved, { selector: '0xDEADBEEF' })
 

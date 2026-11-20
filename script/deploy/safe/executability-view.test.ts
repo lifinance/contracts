@@ -143,6 +143,22 @@ describe('the panel headline', () => {
     expect(stripAnsi(headline ?? '')).toContain('Simulation: INCONCLUSIVE')
   })
 
+  it('reads INCONCLUSIVE when a call went unsimulated without a run error', () => {
+    const [headline] = executabilityPanel(
+      verdict({
+        calls: [
+          call({ outcome: 'unknown', simulation: 'reverted' }),
+          call({ path: 'call[1]', outcome: 'would-execute' }),
+        ],
+      })
+    )
+
+    expect(stripAnsi(headline ?? '')).toContain('Simulation: INCONCLUSIVE')
+    expect(stripAnsi(headline ?? '')).toContain(
+      '1 of 2 calls could not be decided'
+    )
+  })
+
   it('says so rather than claiming success when there was nothing to simulate', () => {
     const plain = executabilityPanel(verdict({ calls: [] })).map(stripAnsi)
 
