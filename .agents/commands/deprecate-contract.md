@@ -68,8 +68,10 @@ others; file not found → skip silently; invalid JSON → abort.
    - `forge test` — all tests must pass. Failures are blocking: report them, do not mark
      the deprecation successful.
    - Summary of changes, including the coverage comparison.
-   - Open the deprecation PR with `/create-pr`, passing the ticket ID when one is known. Step 6
-     needs the URL it returns.
+   - Open the deprecation PR with `/create-pr` as a calling skill, passing every file this run
+     changed, a `chore(<Name>): deprecate <Name>` title, a "Why" that lists what was removed
+     and the coverage comparison, and the ticket ID when one is known. Step 6 needs the URL it
+     returns.
 
 6. **Park the on-chain removal** (facets)
 

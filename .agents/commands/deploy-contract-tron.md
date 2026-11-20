@@ -114,6 +114,7 @@ Then call `/create-pr` as a calling skill, passing:
 - **files to stage**: `deployments/tron.json`, `deployments/tron.diamond.json` (nothing else).
 - **title / commit message**: `chore(<Contract>): deploy vX.Y.Z-tron to tron`.
 - **body** (the "Why"): deploy-log update from `contracts-tron`, fork commit `$TRON_COMMIT`.
+- **Linear**: `SAFE_PROPOSAL_TICKET` with the partial-work flag, so merging does not close the rollout ticket.
 
 The fork commit hash in the PR body (it flows into MongoDB via deploy-log ingestion) is what lets someone re-verify bytecode later from that exact fork commit.
 

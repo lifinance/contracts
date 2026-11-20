@@ -13,9 +13,9 @@ pausing; the only question it may ask is the missing-ticket one in step 2.
 - **Linear ID or URL**: overrides the `exsc-<N>` in the branch name.
 - **Base branch**: `main` unless the user names another, e.g. for a stacked PR.
 - **Called from another skill**: the caller passes the files to stage, the title/commit
-  message, the "Why", and optionally a Linear ID and a partial-work flag. Ask nothing and stop
-  after step 6 with the PR URL: rollout PRs stay draft until `/finish-rollout` marks them ready,
-  and `/drive-pr` would mark them ready early.
+  message, the "Why", and a Linear ID (with an optional partial-work flag) or an explicit
+  opt-out; derive anything it omits from the diff. Ask nothing and stop after step 6 with the
+  PR URL: the caller continues its own flow and decides when the PR leaves draft.
 
 ## Steps
 
@@ -27,13 +27,14 @@ pausing; the only question it may ask is the missing-ticket one in step 2.
    "Why" unless the caller supplies one.
 
 2. **Resolve the ticket.** Linear links a PR through the `exsc-<N>` in the branch name or a
-   `Fixes`/`Ref` line in the body. Take the supplied ID, else the branch's, and `get_issue` it
+   `Fixes`/`Ref` line in the body. Take the supplied ID (or one the user named this session),
+   else the branch's `exsc-<N>` in any case, and `get_issue` it
    for its `url`. A missing, unknown or non-EXSC ID counts as none; keep a non-EXSC ticket as an
    extra `Ref` line. With none, ask the user to provide an ID, create one
    (`/start-linear-ticket --existing-branch`, titled from the diff), or opt out
    (`<!-- No Linear task -->`, and suggest the `trivial` label for a typo, doc-only, dep-bump or
-   single-line PR so the ticket-linkage metric counts it). Unattended and called runs create
-   one without asking.
+   single-line PR so the ticket-linkage metric counts it). Unattended runs, and called runs
+   with neither an ID nor an opt-out, create one without asking.
 
 3. **Commit.** Stage only this work's files, or exactly the caller's list. Worktrees often hold
    unrelated or secret files, so no `git add -A`; report anything left out.
@@ -53,8 +54,10 @@ pausing; the only question it may ask is the missing-ticket one in step 2.
 
 6. **Open.** `git push -u origin <branch>`; a rejected push stops the run (never force-push).
    Write the body to the session scratchpad, run
-   `gh pr create --base <base> --head <branch> --title … --body-file …` and print the URL. CI
-   turns every new PR into a draft.
+   `gh pr create --draft --base <base> --head <branch> --title … --body-file …` and print the
+   URL. Open as draft: `createPRsAsDraft.yml` converts a PR only after its `opened` event, which
+   still runs the ready-only checks, and `deploymentAddressConsistency.yml` fails a rollout PR
+   whose flat log is ahead of `diamond.json`.
 
 7. **Hand off.** On a direct user invocation, run `/drive-pr <N>`. When called from a skill,
    return the URL.

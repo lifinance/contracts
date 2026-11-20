@@ -141,14 +141,19 @@ combined PR after capturing proposals, since the body needs the Safe nonce table
    all of them. If the output is empty (idempotent re-deploy — same CREATE3
    address, version already registered), there's nothing to land; skip.
 
-2. Call `/create-pr` as a calling skill, passing:
+2. Unless already on `main`, check out a fresh branch from `origin/main`
+   (`git checkout -b deploy-<contract>-<date> origin/main`; the uncommitted logs
+   carry over), so the logs never land in a feature branch or its PR.
+3. Call `/create-pr` as a calling skill, passing:
    - **files to stage**: exactly the paths from step 1.
+   - **title / commit message**: `chore(<Contract>): deploy vX.Y.Z to staging`.
+   - **Linear**: the ticket the user named, else an opt-out (`trivial` label).
    - **body** (the "Why"): contract, version (old → new per network), network
      list, environment (staging), and the registration note for the type —
      `diamondCut` (facet) / `diamondUpdatePeriphery` (periphery) / `+ allowlist
      sync, whitelist.json updated` (diamond-called periphery).
 
-`/create-pr` branches off `main`, stages only the named files, asks nothing and returns the PR URL.
+`/create-pr` stages only the named files, opens a draft, asks nothing and returns the PR URL.
 
 ## Output
 
