@@ -116,7 +116,7 @@
     "test": "forge test --evm-version 'cancun'",
     "test:scoped": "bunx tsx script/utils/runScopedForgeTests.ts",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
-    "test:ts": "bun test script/ tasks/",
+    "test:ts": "bun test --parallel script/ tasks/",
     "troncast": "bunx tsx script/troncast/index.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "typechain:incremental": "forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
