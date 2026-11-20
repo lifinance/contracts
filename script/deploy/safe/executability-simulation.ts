@@ -176,6 +176,16 @@ export interface IStaticCallObservation {
   revertReason?: string
   /** Why the call could not be made. Set exactly when `outcome` is `errored`. */
   errorReason?: string
+  /**
+   * Set when the outcome comes from `eth_simulateV1`, run over the batch this
+   * call sits in, so the call saw what every call before it changed.
+   */
+  inOrder?: true
+  /**
+   * Why the batch could not be simulated in order, on a call whose own
+   * `eth_call` reverted. The outcome is then the isolated one.
+   */
+  inOrderUnavailable?: string
 }
 
 /** Whether the account that broadcasts can pay for it. */
@@ -290,6 +300,8 @@ export interface IExecutabilityCall {
   simulation: IStaticCallObservation['outcome'] | 'none'
   /** The node's revert or error text, unabridged. */
   simulationDetail?: string
+  /** Set when `simulation` comes from the batch simulated in order. */
+  inOrder?: true
   /** Every finding this payload produced. */
   findings: readonly IExecutabilityFinding[]
   outcome: TCallOutcome
@@ -930,6 +942,7 @@ export const evaluateExecutability = (
     }
 
     record.simulation = call.outcome
+    if (call.inOrder) record.inOrder = true
 
     if (call.outcome === 'errored') {
       record.outcome = 'unknown'
@@ -948,10 +961,10 @@ export const evaluateExecutability = (
         payload.kind === 'opaque'
           ? addedByEarlierPayload(payload, input.observations, amendedByDiamond)
           : undefined
-      if (addedBy !== undefined) {
-        // Unknown rather than a pass: nothing simulated this call after the cut
-        // it depends on, so the signer acknowledges it instead of the gate
-        // vouching for it.
+      // An in-order revert saw the cut, so it is the call's own and refuses
+      // like any other. Only an isolated revert of a call an earlier cut adds
+      // is left undecided: it ran against a diamond without that function.
+      if (addedBy !== undefined && call.inOrder !== true) {
         if (!here.some((finding) => finding.blocking))
           record.outcome = 'unknown'
         const unsimulated: IExecutabilityFinding = {
@@ -959,11 +972,16 @@ export const evaluateExecutability = (
           certainty: RevertCertaintyEnum.Predicted,
           composed: true,
           path: payload.path,
-          detail: `${payload.path} calls ${addedBy.selector}, which ${record.target} routes only once ${addedBy.byPayload} has added it; its eth_call ran before that cut and reverted, so it was not simulated`,
+          detail: `${payload.path} calls ${addedBy.selector}, which ${record.target} routes only once ${addedBy.byPayload} has added it; its eth_call ran before that cut, and the batch could not be simulated in order`,
           blocking: false,
         }
         here.push(unsimulated)
         findings.push(unsimulated)
+        errors.push(
+          `${payload.path} depends on ${addedBy.byPayload} earlier in this proposal and could not be simulated in order${
+            call.inOrderUnavailable ? `: ${call.inOrderUnavailable}` : ''
+          }, so whether it reverts is unknown.`
+        )
         continue
       }
       record.outcome = 'would-revert'
@@ -1060,10 +1078,7 @@ export const evaluateExecutability = (
 export const toCancelDecisionExecutability = (
   verdict: IExecutabilityVerdict
 ): 'ok' | 'would-revert' | 'error' => {
-  // A call graded unknown (one an earlier cut in the batch adds) was never
-  // simulated, so it must not read as a clean `ok`.
-  if (verdict.error || verdict.calls.some((call) => call.outcome === 'unknown'))
-    return 'error'
+  if (verdict.error) return 'error'
   return verdict.refuses ? 'would-revert' : 'ok'
 }
 
@@ -1099,11 +1114,7 @@ export const renderExecutability = (
 
   for (const message of verdict.notSimulated) lines.push(`${INFO} ${message}`)
 
-  if (
-    !verdict.refuses &&
-    !verdict.error &&
-    verdict.calls.every((call) => call.outcome !== 'unknown')
-  )
+  if (!verdict.refuses && !verdict.error)
     lines.push(
       `${OK} Nothing in this proposal reverts against the state read now; ${verdict.notSimulated.length} payload(s) have no Tier-0 revert model. A clean simulation is not a statement that the proposal is correct.`
     )

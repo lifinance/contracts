@@ -57,11 +57,9 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
-import {
-  ExecutabilityFindingEnum,
-  RevertCertaintyEnum,
-  type IExecutabilityCall,
-  type IExecutabilityVerdict,
+import type {
+  IExecutabilityCall,
+  IExecutabilityVerdict,
 } from './executability-simulation'
 import {
   formatTargetStateLines,
@@ -1423,42 +1421,6 @@ describe('executabilityCheckResult', () => {
 
     expect(result.status).toBe('error')
     expect(result.anchor).toBe('A-UNRESOLVED')
-  })
-
-  it('asks the signer to acknowledge a call an earlier cut makes reachable', () => {
-    // Its eth_call ran before the cut it depends on, so nothing simulated it:
-    // not a pass, and not a revert the proposal is responsible for.
-    const path = 'call[0].scheduled[2]'
-    const result = executabilityCheckResult(
-      executabilityVerdict({
-        calls: [
-          {
-            path,
-            description: 'an unrecognised function the timelock would send',
-            target: '0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae',
-            modelled: false,
-            simulation: 'reverted',
-            outcome: 'unknown',
-            findings: [
-              {
-                code: ExecutabilityFindingEnum.ComposedCallNotSimulated,
-                certainty: RevertCertaintyEnum.Predicted,
-                composed: true,
-                path,
-                detail: 'routed only once call[0].diamondCut[0] has added it',
-                blocking: false,
-              },
-            ],
-          },
-        ],
-      }),
-      NETWORK
-    )
-
-    expect(result.status).toBe('needs-ack')
-    expect(result.anchor).toBe('A-CHAIN')
-    expect(result.actual).toContain(path)
-    expect(result.actual).toContain('not simulated')
   })
 
   it('still refuses a target that holds no code, model or not', () => {

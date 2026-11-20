@@ -29,6 +29,7 @@ import {
 } from 'viem'
 
 import { redactUrls } from '../../utils/redactUrls'
+import { TIMELOCK_SCHEDULE_BATCH_SELECTOR } from './timelock-abi'
 import { ZERO_ADDRESS } from '../shared/constants'
 import {
   collectDiamondCutCalls,
@@ -78,7 +79,22 @@ export interface IExecutabilityChainReader {
     to: Address
     data: Hex
   }) => Promise<Omit<IStaticCallObservation, 'path' | 'from'>>
+  /**
+   * `eth_simulateV1` of a batch's calls in the order the timelock executes
+   * them, so each call sees what the calls before it changed.
+   */
+  simulateInOrder?: (
+    calls: readonly { from: Address; to: Address; data: Hex }[]
+  ) => Promise<TInOrderSimulation>
 }
+
+/** One outcome per call, in order, or why no endpoint could simulate them. */
+export type TInOrderSimulation =
+  | {
+      kind: 'simulated'
+      outcomes: Pick<IStaticCallObservation, 'outcome' | 'revertReason'>[]
+    }
+  | { kind: 'unavailable'; reason: string }
 
 /** The proposal this collector is about. */
 export interface ICollectExecutabilityInput {
@@ -162,6 +178,95 @@ const leafPath = (call: IScheduledCall, ordinal: number): string =>
   call.depth === 0
     ? `call[${call.callIndex}]`
     : `call[${call.callIndex}].scheduled[${ordinal}]`
+
+/** A `scheduleBatch`'s calls in execution order, and each one's payload path. */
+interface IBatchSequence {
+  calls: ISimulatedCall[]
+  /** Undefined for a cut, which keeps its own `eth_call` result. */
+  paths: (string | undefined)[]
+}
+
+/**
+ * The calls of a proposal that is a single timelock `scheduleBatch`.
+ *
+ * Only that shape fixes the order the calls run in: separate `schedule`
+ * operations, in a multiSend or nested, can each execute once their own delay
+ * passes, so simulating them in proposal order would vouch for an order nothing
+ * enforces.
+ */
+const batchSequence = (
+  input: ICollectExecutabilityInput,
+  leaves: readonly IScheduledCall[]
+): IBatchSequence | undefined => {
+  const isBatch =
+    input.data.slice(0, 10).toLowerCase() ===
+    TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
+  if (!isBatch || leaves.length < 2 || leaves.some((leaf) => leaf.depth !== 1))
+    return undefined
+
+  return {
+    calls: leaves.map((leaf) => ({
+      from: leaf.caller ?? input.safeAddress,
+      to: leaf.target ?? input.to,
+      data: leaf.payload,
+    })),
+    paths: leaves.map((leaf, ordinal) =>
+      leaf.payload.slice(0, 10).toLowerCase() === DIAMOND_CUT_SELECTOR
+        ? undefined
+        : leafPath(leaf, ordinal)
+    ),
+  }
+}
+
+/**
+ * Re-simulates a batch in order when one of its calls reverted on its own.
+ *
+ * An isolated `eth_call` runs against the state before the proposal, so a call
+ * that needs an earlier one in the same batch (a setter of a facet the batch
+ * cuts in) reverts there whatever it would do at execution. The in-order
+ * outcome replaces the isolated one for every call in the batch; when no
+ * endpoint can run it, the isolated reverts stay and say why.
+ */
+const simulateBatchInOrder = async (
+  batch: IBatchSequence | undefined,
+  staticCalls: IExecutabilityInput['staticCalls'],
+  reader: IExecutabilityChainReader
+): Promise<IExecutabilityInput['staticCalls']> => {
+  if (batch === undefined) return staticCalls
+  const at = new Map<string, number>()
+  batch.paths.forEach((path, index) => {
+    if (path !== undefined) at.set(path, index)
+  })
+  const reverted = staticCalls.results.some(
+    (result) => result.outcome === 'reverted' && at.has(result.path)
+  )
+  if (!reverted) return staticCalls
+
+  const sequence: TInOrderSimulation = reader.simulateInOrder
+    ? await reader.simulateInOrder(
+        batch.calls.map((call) => ({
+          from: getAddress(call.from),
+          to: getAddress(call.to),
+          data: call.data,
+        }))
+      )
+    : { kind: 'unavailable', reason: 'no in-order simulator was configured' }
+
+  const results = staticCalls.results.map((result): IStaticCallObservation => {
+    const index = at.get(result.path)
+    if (index === undefined) return result
+    if (sequence.kind === 'unavailable')
+      return result.outcome === 'reverted'
+        ? { ...result, inOrderUnavailable: sequence.reason }
+        : result
+    const outcome = sequence.outcomes[index]
+    return outcome === undefined
+      ? result
+      : { path: result.path, from: result.from, ...outcome, inOrder: true }
+  })
+
+  return { ...staticCalls, results }
+}
 
 /**
  * Turns a proposal's calldata into the payloads the simulation walks, and the
@@ -453,7 +558,11 @@ export const collectExecutabilityInput = async (
 
   const { payloads, simulation } = buildPayloads(input, calls, leaves.calls)
   const observations = await readObservations(payloads, reader)
-  const staticCalls = await runStaticCalls(simulation, reader)
+  const staticCalls = await simulateBatchInOrder(
+    batchSequence(input, leaves.calls),
+    await runStaticCalls(simulation, reader),
+    reader
+  )
 
   return {
     network: input.network,
@@ -713,6 +822,56 @@ export const createExecutabilityChainReader = (
         lastError === undefined
           ? 'no endpoint was available to simulate this payload'
           : summariseRpcError(lastError)
+      ),
+    }
+  },
+  simulateInOrder: async (calls) => {
+    let lastError: string | undefined
+
+    for (const simulator of simulators)
+      try {
+        const [block] = await simulator.simulateBlocks({
+          blocks: [
+            {
+              calls: calls.map((call) => ({
+                account: call.from,
+                to: call.to,
+                data: call.data,
+              })),
+            },
+          ],
+        })
+        // A node that answers with fewer results than calls has not simulated
+        // the batch, and pairing what it did return by index would grade one
+        // call on another's outcome.
+        if (block?.calls.length !== calls.length) {
+          lastError = `the node returned ${block?.calls.length ?? 0} results for ${calls.length} calls`
+          continue
+        }
+        return {
+          kind: 'simulated',
+          outcomes: block.calls.map((result) =>
+            result.status === 'success'
+              ? { outcome: 'succeeded' }
+              : {
+                  outcome: 'reverted',
+                  revertReason:
+                    result.data && result.data !== '0x'
+                      ? `revert data ${result.data.slice(0, 74)}`
+                      : 'Execution reverted for an unknown reason.',
+                }
+          ),
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error)
+      }
+
+    return {
+      kind: 'unavailable',
+      reason: redactUrls(
+        lastError === undefined
+          ? 'no endpoint was available to simulate the batch in order'
+          : `eth_simulateV1 failed: ${summariseRpcError(lastError)}`
       ),
     }
   },

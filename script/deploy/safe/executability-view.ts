@@ -221,7 +221,11 @@ const renderCall = (call: IExecutabilityCall): string[] => {
     )
   )
 
-  const phrase = SIMULATION_PHRASE.get(call.simulation) ?? call.simulation
+  const phrase = call.inOrder
+    ? `simulated in order after the calls before it (eth_simulateV1): ${
+        call.simulation === 'succeeded' ? 'succeeded' : 'reverted'
+      }`
+    : (SIMULATION_PHRASE.get(call.simulation) ?? call.simulation)
   const detail = call.simulationDetail
     ? `: ${condenseNodeMessage(call.simulationDetail)}`
     : ''
@@ -287,7 +291,7 @@ export const executabilityPanel = (
       ? `${YELLOW}${BOLD}Simulation: INCONCLUSIVE${RESET} — no call was simulated`
       : verdict.refuses
         ? `${RED}${BOLD}Simulation: FAILED${RESET} — ${reverting} of ${total} ${noun} would revert`
-        : verdict.error || undecided > 0
+        : verdict.error
           ? // A run can be undecided without any single call being undecided — a
             // selector nobody looked up leaves the payload it sits in unproven
             // while its own `eth_call` still answered. "0 of 1 call could not be

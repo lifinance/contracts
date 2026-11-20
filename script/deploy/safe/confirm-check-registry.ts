@@ -26,10 +26,7 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
-import {
-  ExecutabilityFindingEnum,
-  type IExecutabilityVerdict,
-} from './executability-simulation'
+import type { IExecutabilityVerdict } from './executability-simulation'
 import {
   describeConfigDrift,
   describeExpected,
@@ -1321,28 +1318,6 @@ export const executabilityCheckResult = (
       anchor: 'A-CHAIN',
     }
   }
-
-  const unsimulated = verdict.calls
-    .filter((call) =>
-      call.findings.some(
-        (finding) =>
-          finding.code === ExecutabilityFindingEnum.ComposedCallNotSimulated
-      )
-    )
-    .map((call) => call.path)
-  if (unsimulated.length > 0)
-    return {
-      checkId: EXECUTABILITY_CHECK_ID,
-      network,
-      status: 'needs-ack',
-      expected: 'no payload reverts',
-      actual: `${unsimulated.length} of ${
-        verdict.calls.length
-      } call(s) call a function an earlier call in this proposal adds, so their eth_call ran before it existed and they were not simulated: ${unsimulated.join(
-        ', '
-      )}`,
-      anchor: 'A-CHAIN',
-    }
 
   // A payload with no bespoke revert model is still simulated: its target is
   // checked for code and its calldata is sent in an eth_call from the account

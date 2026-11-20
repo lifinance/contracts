@@ -23,6 +23,7 @@ import {
   type IExecutabilityInput,
   type IExecutabilityVerdict,
   type IFacetCutInput,
+  type IStaticCallObservation,
   type TSimulatedPayload,
 } from './executability-simulation'
 
@@ -1303,7 +1304,8 @@ describe('a call to a function an earlier cut in the proposal adds', () => {
    */
   const cutThenCall = (
     cuts: readonly IFacetCutInput[],
-    call: Partial<Extract<TSimulatedPayload, { kind: 'opaque' }>>
+    call: Partial<Extract<TSimulatedPayload, { kind: 'opaque' }>>,
+    result: Partial<IStaticCallObservation> = {}
   ): IExecutabilityVerdict =>
     evaluateExecutability({
       network: 'mainnet',
@@ -1324,18 +1326,25 @@ describe('a call to a function an earlier cut in the proposal adds', () => {
         attempted: true,
         results: [
           { path: PATH, outcome: 'succeeded', from: OWNER },
-          { path: CALL_PATH, outcome: 'reverted', from: OWNER },
+          { path: CALL_PATH, outcome: 'reverted', from: OWNER, ...result },
         ],
       },
     })
 
   const addUnserved = [cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])]
 
-  it('leaves it unknown with a non-blocking finding instead of refusing', () => {
-    const verdict = cutThenCall(addUnserved, { selector: UNSERVED })
+  it('reports it as not simulated, not as a revert, when the batch could not run in order', () => {
+    const verdict = cutThenCall(
+      addUnserved,
+      { selector: UNSERVED },
+      { inOrderUnavailable: 'eth_simulateV1 failed: method not found' }
+    )
 
     expect(verdict.refuses).toBe(false)
-    expect(verdict.error).toBe(false)
+    expect(verdict.error).toBe(true)
+    expect(verdict.errors.join(' ')).toContain(
+      `${CALL_PATH} depends on ${PATH} earlier in this proposal and could not be simulated in order: eth_simulateV1 failed: method not found`
+    )
     const finding = findingFor(
       verdict,
       ExecutabilityFindingEnum.ComposedCallNotSimulated
@@ -1358,6 +1367,35 @@ describe('a call to a function an earlier cut in the proposal adds', () => {
       'Nothing in this proposal reverts'
     )
     expect(toCancelDecisionExecutability(verdict)).toBe('error')
+  })
+
+  it('refuses it when it reverts with the batch simulated in order', () => {
+    // The in-order run saw the cut, so this revert is the call's own.
+    const verdict = cutThenCall(
+      addUnserved,
+      { selector: UNSERVED },
+      { inOrder: true }
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.error).toBe(false)
+    expect(codes(verdict)).toContain(
+      ExecutabilityFindingEnum.StaticCallReverted
+    )
+  })
+
+  it('passes it when it executes with the batch simulated in order', () => {
+    const verdict = cutThenCall(
+      addUnserved,
+      { selector: UNSERVED },
+      { outcome: 'succeeded', inOrder: true }
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    const call = verdict.calls.find((c) => c.path === CALL_PATH)
+    expect(call?.outcome).toBe('would-execute')
+    expect(call?.inOrder).toBe(true)
   })
 
   it('matches the selector whatever its case', () => {
