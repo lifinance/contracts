@@ -51,6 +51,9 @@ const DIAMOND_LOUPE_ABI = parseAbi([
 
 const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
 
+/** Calldata that opens with a 4-byte function selector. */
+const FUNCTION_SELECTOR = /^0x[0-9a-f]{8}/iu
+
 /**
  * The reads one verdict needs.
  *
@@ -224,6 +227,9 @@ const buildPayloads = (
           : 'an unrecognised function the timelock would send',
       target,
       calldataLength: Math.max(0, (leaf.payload.length - 2) / 2),
+      ...(FUNCTION_SELECTOR.test(leaf.payload)
+        ? { selector: leaf.payload.slice(0, 10).toLowerCase() }
+        : {}),
       ...(leaf.caller ? { caller: leaf.caller } : {}),
     })
     simulation.set(path, {

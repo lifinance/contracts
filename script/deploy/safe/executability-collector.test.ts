@@ -190,6 +190,35 @@ describe('collectExecutabilityInput', () => {
     expect(verdict.reason).toContain('scheduled')
   })
 
+  it('does not refuse a scheduled call to a function the cut before it adds', async () => {
+    // The added function's eth_call runs before the cut, so it reverts on the
+    // diamond's fallback; the selector is what lets the verdict see why.
+    const inner = `${SELECTOR}${'00'.repeat(31)}01${'00'.repeat(31)}01` as Hex
+    const chain = reader({
+      staticCall: async (call) =>
+        call.data === inner
+          ? { outcome: 'reverted' as const }
+          : { outcome: 'succeeded' as const },
+    })
+    const input = await collectExecutabilityInput(
+      {
+        network: 'arbitrum',
+        safeAddress: SAFE,
+        to: TIMELOCK,
+        data: scheduleBatch([DIAMOND, DIAMOND], [cut(), inner]),
+      },
+      chain
+    )
+
+    const call = input.payloads.find(
+      (payload) => payload.kind === 'opaque' && payload.target === DIAMOND
+    )
+    expect(call?.kind === 'opaque' ? call.selector : undefined).toBe(SELECTOR)
+    const verdict = evaluateExecutability(input)
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+  })
+
   it('simulates a direct cut from the Safe', async () => {
     const data = cut()
     const chain = reader()
