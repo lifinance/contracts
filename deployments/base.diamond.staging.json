@@ -96,6 +96,10 @@
       "0xa28ae3C42E0CAA03c8F19dBAa24FD4BCF9e0a5b8": {
         "Name": "M0Facet",
         "Version": "1.0.0"
+      },
+      "0x4b2b6cEC3269fE34dB010C90360b39B6f38b5eE1": {
+        "Name": "CCTPFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
