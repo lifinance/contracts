@@ -312,6 +312,38 @@ describe('collectExecutabilityInput', () => {
       expect(verdict.refuses).toBe(true)
     })
 
+    it('refuses a batch carrying value, which it does not simulate in order', async () => {
+      // The in-order run sends no value, so it would judge calls the batch
+      // does not make.
+      let asked = false
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => {
+          asked = true
+          return { kind: 'unavailable', reason: 'unused' }
+        },
+      })
+      const data = encodeFunctionData({
+        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+        functionName: 'scheduleBatch',
+        args: [
+          [DIAMOND, DIAMOND],
+          [1n, 0n],
+          [cut(), inner],
+          TIMELOCK_ZERO_PREDECESSOR,
+          TIMELOCK_ZERO_PREDECESSOR,
+          86400n,
+        ],
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput({ ...proposal, data }, chain)
+      )
+
+      expect(asked).toBe(false)
+      expect(verdict.refuses).toBe(true)
+    })
+
     it('refuses a call placed before the cut that adds it', async () => {
       const chain = reader({
         ...revertsAlone,

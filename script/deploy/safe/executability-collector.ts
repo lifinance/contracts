@@ -20,6 +20,7 @@
  */
 
 import {
+  decodeFunctionData,
   getAddress,
   parseAbi,
   type Address,
@@ -29,7 +30,10 @@ import {
 } from 'viem'
 
 import { redactUrls } from '../../utils/redactUrls'
-import { TIMELOCK_SCHEDULE_BATCH_SELECTOR } from './timelock-abi'
+import {
+  TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+} from './timelock-abi'
 import { ZERO_ADDRESS } from '../shared/constants'
 import {
   collectDiamondCutCalls,
@@ -197,6 +201,19 @@ const ROUTING_ACTIONS: ReadonlySet<number> = new Set([
   FacetCutActionEnum.Replace,
 ])
 
+/** The native value of each call a `scheduleBatch` schedules; unreadable reads as nonzero. */
+const scheduledValues = (data: Hex): readonly bigint[] => {
+  try {
+    const { args } = decodeFunctionData({
+      abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+      data,
+    })
+    return args[1]
+  } catch {
+    return [1n]
+  }
+}
+
 /**
  * The calls of a proposal that is a single timelock `scheduleBatch`.
  *
@@ -215,6 +232,10 @@ const batchSequence = (
     input.data.slice(0, 10).toLowerCase() ===
     TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
   if (!isBatch || leaves.length < 2 || leaves.some((leaf) => leaf.depth !== 1))
+    return undefined
+  // The simulation sends no value, so a batch carrying any would be judged on
+  // calls it does not make (a nonpayable cut sent one wei reverts on chain).
+  if (scheduledValues(input.data).some((value) => value !== 0n))
     return undefined
 
   const cuts = payloads.filter(
