@@ -141,15 +141,14 @@ combined PR after capturing proposals, since the body needs the Safe nonce table
    all of them. If the output is empty (idempotent re-deploy — same CREATE3
    address, version already registered), there's nothing to land; skip.
 
-2. Delegate the branch / commit / template / push / create mechanic
-   to `/create-pr`, passing:
+2. Call `/create-pr` as a calling skill, passing:
    - **files to stage**: exactly the paths from step 1.
    - **body** (the "Why"): contract, version (old → new per network), network
      list, environment (staging), and the registration note for the type —
      `diamondCut` (facet) / `diamondUpdatePeriphery` (periphery) / `+ allowlist
      sync, whitelist.json updated` (diamond-called periphery).
 
-`/create-pr` stages only the named files and has its own confirm gate before it pushes.
+`/create-pr` branches off `main`, stages only the named files, asks nothing and returns the PR URL.
 
 ## Output
 

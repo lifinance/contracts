@@ -109,7 +109,7 @@ cp ../contracts-tron/deployments/tron.json deployments/tron.json
 cp ../contracts-tron/deployments/tron.diamond.json deployments/tron.diamond.json
 ```
 
-Then delegate the commit / template / Linear ticket / push / create mechanic to `/create-pr`, passing:
+Then call `/create-pr` as a calling skill, passing:
 
 - **files to stage**: `deployments/tron.json`, `deployments/tron.diamond.json` (nothing else).
 - **title / commit message**: `chore(<Contract>): deploy vX.Y.Z-tron to tron`.
