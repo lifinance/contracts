@@ -114,6 +114,10 @@ Already enabled → no-op (a sync PR's squash auto-merge was already turned off 
 
 `Posted to #<channel> ✓ — auto-merge: <enabled (<squash | merge>) | already on | skipped: <reason>>` only when both sends succeeded; append `; squash auto-merge disabled` when step 6 turned one off. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge was not changed by this run` with the parent link instead.
 
+### 8. Clean up
+
+Once posted, check the session's worktree (if one was used) with `git status --porcelain --untracked-files=all` and `git log HEAD --not --remotes` (commits on no remote branch). Both empty → remove it, so the next session starts clean. Otherwise list the uncommitted files and unpushed commits and ask the user; never discard them.
+
 ## Failure modes
 
 - **Slack MCP not connected** → ask the user to connect it. Never fall back to webhooks — the MCP posts as the user, which reviewers need for attribution and thread notifications.
