@@ -215,7 +215,7 @@ Expect one `pending` proposal per succeeded network with `signatureCount: 1` (th
 
 ## Phase 5 — Draft PR (deploy mode; propose-only when files dirty)
 
-**deploy mode:** The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). For a diamond-called periphery, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too. Model the PR on #1917. Delegate to `/create-pr` (as **draft**): stage deployment logs + any whitelist diffs; body includes `| Chain | Contract address | Safe nonce |` from Phases 2 and 4.
+**deploy mode:** The deploy updated `deployments/<net>.json` (and staging logs if staging was deployed). For a diamond-called periphery, `updateWhitelistPeriphery.ts` also rewrote `config/whitelist.json` (and `config/whitelist.staging.json`) on disk — that diff must ship in this PR too. Model the PR on #1917. Unless already on `main`, check out `deploy-<contract>-<date>` from `origin/main` (the uncommitted logs carry over), then call `/create-pr` as a calling skill: stage deployment logs + any whitelist diffs; pass `SAFE_PROPOSAL_TICKET` as the Linear ID with the partial-work flag, so merging does not close the rollout ticket; the PR stays draft until `/finish-rollout`; body includes `| Chain | Contract address | Safe nonce |` from Phases 2 and 4.
 
 **propose-only mode:** usually no deployment-log changes — skip the PR unless the regenerated allowlist dirtied `config/whitelist.json` / `config/whitelist.staging.json` (then open a small PR for those). Prefer an existing deploy PR (e.g. deferred-cut PR) as the Slack link when one already has the addresses.
 

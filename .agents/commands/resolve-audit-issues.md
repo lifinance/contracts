@@ -191,7 +191,7 @@ On go:
 1. Push (over SSH if it touches `.github/workflows/**` — an HTTPS push with a `gh` token lacking
    the `workflow` scope is refused).
 2. Open the PR from `.github/pull_request_template.md`, linking the `EXSC-\d+` ticket; title
-   e.g. `fix(<Facet>): address <auditor> audit findings`. Open as **draft** if it trips the
+   e.g. `fix(<Facet>): address <auditor> audit findings`. Keep it a draft while it trips the
    audit/version CI gate (struct/selector/version churn will) so audit verification skips until
    the auditor re-signs. Leave the reviewer checklist unchecked.
 3. Capture the PR number and each fix's permalink
