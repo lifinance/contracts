@@ -1305,7 +1305,9 @@ describe('a call to a function an earlier cut in the proposal adds', () => {
   const cutThenCall = (
     cuts: readonly IFacetCutInput[],
     call: Partial<Extract<TSimulatedPayload, { kind: 'opaque' }>>,
-    result: Partial<IStaticCallObservation> = {}
+    result: Partial<IStaticCallObservation> = {
+      inOrderUnavailable: 'eth_simulateV1 failed: method not found',
+    }
   ): IExecutabilityVerdict =>
     evaluateExecutability({
       network: 'mainnet',
@@ -1367,6 +1369,14 @@ describe('a call to a function an earlier cut in the proposal adds', () => {
       'Nothing in this proposal reverts'
     )
     expect(toCancelDecisionExecutability(verdict)).toBe('error')
+  })
+
+  it('refuses it when no in-order run was attempted for it', () => {
+    // The collector marks only a call after its cut in one scheduleBatch;
+    // any other shape keeps the isolated revert.
+    const verdict = cutThenCall(addUnserved, { selector: UNSERVED }, {})
+
+    expect(verdict.refuses).toBe(true)
   })
 
   it('refuses it when it reverts with the batch simulated in order', () => {

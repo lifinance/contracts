@@ -286,8 +286,9 @@ describe('collectExecutabilityInput', () => {
       expect(asked).toBe(false)
     })
 
-    it('does not simulate in order a proposal that is not one scheduleBatch', async () => {
-      // Only a scheduleBatch fixes the order its calls execute in.
+    it('refuses a nested schedule, which it does not simulate in order', async () => {
+      // An inner operation runs only once it is executed itself, so nothing
+      // orders it after the cut, and its revert still refuses.
       let asked = false
       const chain = reader({
         ...revertsAlone,
@@ -297,12 +298,62 @@ describe('collectExecutabilityInput', () => {
         },
       })
 
-      await collectExecutabilityInput(
-        { ...proposal, data: `0x8d80ff0a${proposal.data.slice(10)}` as Hex },
-        chain
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch([TIMELOCK], [proposal.data]),
+          },
+          chain
+        )
       )
 
       expect(asked).toBe(false)
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('refuses a call placed before the cut that adds it', async () => {
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => ({
+          kind: 'unavailable',
+          reason: 'eth_simulateV1 failed: Method not found',
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch([DIAMOND, DIAMOND], [inner, cut()]),
+          },
+          chain
+        )
+      )
+
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('refuses the batch when its cut reverts in order', async () => {
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => ({
+          kind: 'simulated',
+          outcomes: [
+            { outcome: 'reverted' as const },
+            { outcome: 'succeeded' as const },
+          ],
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(proposal, chain)
+      )
+
+      expect(verdict.refuses).toBe(true)
+      expect(
+        verdict.calls.find((call) => call.path.includes('diamondCut'))?.outcome
+      ).toBe('would-revert')
     })
   })
 
@@ -1444,6 +1495,33 @@ describe('createExecutabilityChainReader simulateInOrder', () => {
     ])
 
     expect((await reader.simulateInOrder?.(calls))?.kind).toBe('simulated')
+  })
+
+  it('takes a revert from any endpoint over another endpoint’s success', async () => {
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'success', data: '0x' },
+            { status: 'success', data: '0x' },
+          ],
+        },
+      ]),
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'success', data: '0x' },
+            { status: 'failure', data: '0x' },
+          ],
+        },
+      ]),
+    ])
+
+    const result = await reader.simulateInOrder?.(calls)
+
+    expect(
+      result?.kind === 'simulated' ? result.outcomes[1]?.outcome : undefined
+    ).toBe('reverted')
   })
 
   it('does not pair outcomes when the node returns fewer than it was sent', async () => {

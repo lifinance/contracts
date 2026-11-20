@@ -961,10 +961,10 @@ export const evaluateExecutability = (
         payload.kind === 'opaque'
           ? addedByEarlierPayload(payload, input.observations, amendedByDiamond)
           : undefined
-      // An in-order revert saw the cut, so it is the call's own and refuses
-      // like any other. Only an isolated revert of a call an earlier cut adds
-      // is left undecided: it ran against a diamond without that function.
-      if (addedBy !== undefined && call.inOrder !== true) {
+      // Left undecided only when the collector found this call placed after
+      // the cut that routes it in one `scheduleBatch` and could not run that
+      // batch in order. Every other revert, in order or alone, refuses.
+      if (addedBy !== undefined && call.inOrderUnavailable !== undefined) {
         if (!here.some((finding) => finding.blocking))
           record.outcome = 'unknown'
         const unsimulated: IExecutabilityFinding = {
@@ -978,9 +978,7 @@ export const evaluateExecutability = (
         here.push(unsimulated)
         findings.push(unsimulated)
         errors.push(
-          `${payload.path} depends on ${addedBy.byPayload} earlier in this proposal and could not be simulated in order${
-            call.inOrderUnavailable ? `: ${call.inOrderUnavailable}` : ''
-          }, so whether it reverts is unknown.`
+          `${payload.path} depends on ${addedBy.byPayload} earlier in this proposal and could not be simulated in order: ${call.inOrderUnavailable}, so whether it reverts is unknown.`
         )
         continue
       }
