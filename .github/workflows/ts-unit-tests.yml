@@ -124,7 +124,10 @@ jobs:
         # exits 0 when it finds nothing to patch, so require its success line here.
         run: |
           set -euo pipefail
-          output="$(node script/troncast/postinstall-tronweb-fix.mjs 2>&1)"
+          output="$(node script/troncast/postinstall-tronweb-fix.mjs 2>&1)" || {
+            echo "$output"
+            exit 1
+          }
           echo "$output"
           if ! grep -qF 'TronWeb proto fix applied successfully!' <<<"$output"; then
             echo -e "\033[31mTronWeb proto fix did not apply\033[0m" >&2
