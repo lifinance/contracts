@@ -225,14 +225,18 @@ const scheduledValues = (data: Hex): readonly bigint[] => {
  */
 const batchSequence = (
   input: ICollectExecutabilityInput,
-  leaves: readonly IScheduledCall[],
+  walked: { calls: readonly IScheduledCall[]; undecodable: readonly number[] },
   payloads: readonly TSimulatedPayload[]
 ): IBatchSequence | undefined => {
+  const leaves = walked.calls
   const isBatch =
     input.data.slice(0, 10).toLowerCase() ===
     TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
   if (!isBatch || leaves.length < 2 || leaves.some((leaf) => leaf.depth !== 1))
     return undefined
+  // A call the walker could not open is missing from the sequence, so the
+  // calls after it would be simulated without it.
+  if (walked.undecodable.length > 0) return undefined
   // The simulation sends no value, so a batch carrying any would be judged on
   // calls it does not make (a nonpayable cut sent one wei reverts on chain).
   if (scheduledValues(input.data).some((value) => value !== 0n))
@@ -282,11 +286,12 @@ const batchSequence = (
  *
  * An isolated `eth_call` runs against the state before the proposal, so a call
  * that needs an earlier one in the same batch (a setter of a facet the batch
- * cuts in) reverts there whatever it would do at execution. The in-order
- * outcome replaces the isolated one for every call in the batch, cuts
- * included. When no endpoint can run it, the isolated reverts stay, and only a
- * call placed after the cut that routes it carries the reason: any other
- * revert cannot be explained by the batch's order and still refuses.
+ * cuts in) reverts there whatever it would do at execution. Only a call placed
+ * after the cut that routes it can revert alone for that reason, so only its
+ * isolated revert can be cleared in order; any other isolated revert stands,
+ * whatever another endpoint's in-order run says. Every other call takes the
+ * in-order outcome, cuts included. When no endpoint can run it, the isolated
+ * reverts stay, and a call after its cut carries the reason.
  */
 const simulateBatchInOrder = async (
   batch: IBatchSequence | undefined,
@@ -296,10 +301,9 @@ const simulateBatchInOrder = async (
   if (batch === undefined) return staticCalls
   const at = new Map<string, number>()
   batch.paths.forEach((path, index) => at.set(path, index))
-  const reverted = staticCalls.results.some(
-    (result) => result.outcome === 'reverted' && at.has(result.path)
-  )
-  if (!reverted) return staticCalls
+  const revertsForWantOfItsCut = (result: IStaticCallObservation): boolean =>
+    result.outcome === 'reverted' && batch.afterTheirCut.has(result.path)
+  if (!staticCalls.results.some(revertsForWantOfItsCut)) return staticCalls
 
   const sequence: TInOrderSimulation = reader.simulateInOrder
     ? await reader.simulateInOrder(
@@ -315,10 +319,11 @@ const simulateBatchInOrder = async (
     const index = at.get(result.path)
     if (index === undefined) return result
     if (sequence.kind === 'unavailable')
-      return result.outcome === 'reverted' &&
-        batch.afterTheirCut.has(result.path)
+      return revertsForWantOfItsCut(result)
         ? { ...result, inOrderUnavailable: sequence.reason }
         : result
+    if (result.outcome === 'reverted' && !revertsForWantOfItsCut(result))
+      return result
     const outcome = sequence.outcomes[index]
     return outcome === undefined
       ? result
@@ -619,7 +624,7 @@ export const collectExecutabilityInput = async (
   const { payloads, simulation } = buildPayloads(input, calls, leaves.calls)
   const observations = await readObservations(payloads, reader)
   const staticCalls = await simulateBatchInOrder(
-    batchSequence(input, leaves.calls, payloads),
+    batchSequence(input, leaves, payloads),
     await runStaticCalls(simulation, reader),
     reader
   )
@@ -952,6 +957,18 @@ const simulateOn = async (
         kind: 'unavailable',
         reason: `the node returned ${block?.calls.length ?? 0} results for ${calls.length} calls`,
       }
+    // A failure without revert data is not told apart from a VM error (out of
+    // gas under the node's own cap), which the isolated eth_call does not
+    // count as a revert either, so it leaves this endpoint without an answer.
+    const silent = block.calls.findIndex(
+      (result) =>
+        result.status !== 'success' && (!result.data || result.data === '0x')
+    )
+    if (silent !== -1)
+      return {
+        kind: 'unavailable',
+        reason: `eth_simulateV1 call ${silent} failed without revert data`,
+      }
     return {
       kind: 'simulated',
       outcomes: block.calls.map((result) =>
@@ -959,10 +976,7 @@ const simulateOn = async (
           ? { outcome: 'succeeded' }
           : {
               outcome: 'reverted',
-              revertReason:
-                result.data && result.data !== '0x'
-                  ? `revert data ${result.data.slice(0, 74)}`
-                  : 'Execution reverted for an unknown reason.',
+              revertReason: `revert data ${result.data.slice(0, 74)}`,
             }
       ),
     }

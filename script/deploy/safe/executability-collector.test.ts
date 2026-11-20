@@ -39,6 +39,7 @@ import {
 import { evaluateExecutability } from './executability-simulation'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_SCHEDULE_SELECTOR,
   TIMELOCK_ZERO_PREDECESSOR,
 } from './timelock-abi'
 
@@ -363,6 +364,66 @@ describe('collectExecutabilityInput', () => {
         )
       )
 
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('keeps a revert no cut explains, whatever the in-order run says', async () => {
+      const register = encodeFunctionData({
+        abi: REGISTER_ABI,
+        functionName: 'registerPeripheryContract',
+        args: ['FeeCollector', FACET],
+      })
+      const chain = reader({
+        staticCall: async (call) =>
+          call.data === inner || call.data === register
+            ? { outcome: 'reverted' as const }
+            : { outcome: 'succeeded' as const },
+        simulateInOrder: async (calls) => ({
+          kind: 'simulated',
+          outcomes: calls.map(() => ({ outcome: 'succeeded' as const })),
+        }),
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch(
+              [DIAMOND, DIAMOND, DIAMOND],
+              [cut(), register, inner]
+            ),
+          },
+          chain
+        )
+      )
+
+      expect(verdict.refuses).toBe(true)
+    })
+
+    it('does not simulate a batch with a call it could not open', async () => {
+      let asked = false
+      const chain = reader({
+        ...revertsAlone,
+        simulateInOrder: async () => {
+          asked = true
+          return { kind: 'unavailable', reason: 'unused' }
+        },
+      })
+
+      const verdict = evaluateExecutability(
+        await collectExecutabilityInput(
+          {
+            ...proposal,
+            data: scheduleBatch(
+              [DIAMOND, TIMELOCK, DIAMOND],
+              [cut(), `${TIMELOCK_SCHEDULE_SELECTOR}deadbeef` as Hex, inner]
+            ),
+          },
+          chain
+        )
+      )
+
+      expect(asked).toBe(false)
       expect(verdict.refuses).toBe(true)
     })
 
@@ -1543,7 +1604,7 @@ describe('createExecutabilityChainReader simulateInOrder', () => {
         {
           calls: [
             { status: 'success', data: '0x' },
-            { status: 'failure', data: '0x' },
+            { status: 'failure', data: '0xdeadbeef' },
           ],
         },
       ]),
@@ -1554,6 +1615,26 @@ describe('createExecutabilityChainReader simulateInOrder', () => {
     expect(
       result?.kind === 'simulated' ? result.outcomes[1]?.outcome : undefined
     ).toBe('reverted')
+  })
+
+  it('does not count a failure without revert data as a revert', async () => {
+    // Out of gas under the node's own cap comes back the same way.
+    const reader = createExecutabilityChainReader(unused, [
+      simulatorThat(async () => [
+        {
+          calls: [
+            { status: 'failure', data: '0x' },
+            { status: 'success', data: '0x' },
+          ],
+        },
+      ]),
+    ])
+
+    const result = await reader.simulateInOrder?.(calls)
+
+    expect(result?.kind === 'unavailable' ? result.reason : '').toContain(
+      'failed without revert data'
+    )
   })
 
   it('does not pair outcomes when the node returns fewer than it was sent', async () => {
