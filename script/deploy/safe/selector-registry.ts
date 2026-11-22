@@ -73,6 +73,12 @@ const WELL_KNOWN_SIGNATURES: readonly string[] = [
   'transferOwnership(address)',
   'acceptOwnership()',
   'renounceOwnership()',
+  // Solady Ownable two-step handover, and catapultar's IntentExecutor solver
+  // set, which the Safe calls directly on contracts LI.FI does not deploy
+  'requestOwnershipHandover()',
+  'completeOwnershipHandover(address)',
+  'cancelOwnershipHandover()',
+  'setSolver(address,bool)',
   // AcrossFacetPackedV4 relayer entry-points. Every other diamond selector is
   // covered by config/clearSigningProposal.json, but the Packed/Min variants are
   // deliberately excluded from it (docs/ClearSigningProposal.md), so a diamondCut

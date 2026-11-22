@@ -69,6 +69,14 @@ describe('evaluateAttestableSelectors', () => {
     ])
   })
 
+  it('skips a listed selector the diamond neither routes nor enables', () => {
+    const findings = evaluateAttestableSelectors(
+      state({ enabled: new Map([[TRANSFER, false]]), routedTo: new Map() })
+    )
+
+    expect(findings).toEqual({ errors: [], warnings: [] })
+  })
+
   it('fails an enabled selector config does not list', () => {
     const findings = evaluateAttestableSelectors(state({ expected: new Map() }))
 

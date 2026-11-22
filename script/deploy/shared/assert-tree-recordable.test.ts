@@ -1,7 +1,9 @@
 /**
  * Covers where the pre-flight is wired in, not what it decides. Every case here
  * drives the real bash seam, the real CLI against real git state, or the real
- * deploy scripts; the decision itself is covered next to the module.
+ * deploy scripts, except the git-hang case, which runs the CLI's git reader
+ * in-process on a short timeout; the decision itself is covered next to the
+ * module.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -24,12 +26,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { readGit } from './assert-tree-recordable'
+
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const SEAM = 'script/deploy/shared/assertTreeRecordable.sh'
 const CLI = join(import.meta.dir, 'assert-tree-recordable.ts')
-
-/** Room for a real clone plus the CLI's own 5s git timeout. */
-const HANG_CASE_TIMEOUT_MS = 60_000
 
 const readScript = (relativePath: string): string =>
   readFileSync(join(REPO_ROOT, relativePath), 'utf8')
@@ -577,31 +578,26 @@ describe('the CLI when git itself cannot answer', () => {
     expect(result.status).toBe(1)
     expect(`${result.stdout}${result.stderr}`).toContain('could not be read')
   })
+})
 
-  it(
-    'refuses within the timeout when git hangs, rather than blocking the deploy',
-    () => {
-      // A production deploy waits on this gate, so an unbounded git read would
-      // stall the deploy indefinitely. Bounded, the read fails and the tree
-      // reads as unreadable — a refusal, never a pass.
-      const started = Date.now()
-      const result = spawnSync(process.execPath, [CLI], {
-        cwd: makePushedClone(),
-        encoding: 'utf8',
-        env: {
-          ...process.env,
-          PATH: `${gitHangingFor('status')}:${process.env.PATH}`,
-        },
-      })
+describe('readGit', () => {
+  // A production deploy waits on this gate, so an unbounded git read would
+  // stall the deploy indefinitely. Bounded, the read answers its fallback, and
+  // the CLI refuses an unreadable status (covered above with a failing git).
+  it('answers the fallback within the timeout when git hangs', () => {
+    const originalPath = process.env.PATH
+    process.env.PATH = `${gitHangingFor('status')}:${originalPath}`
+    const started = Date.now()
+    try {
+      expect(readGit(['status'], 'FALLBACK', 200)).toBe('FALLBACK')
+    } finally {
+      process.env.PATH = originalPath
+    }
 
-      expect(result.status).toBe(1)
-      expect(`${result.stdout}${result.stderr}`).toContain('could not be read')
-      // Well inside the stub's 120s sleep: without a timeout this case cannot
-      // finish at all.
-      expect(Date.now() - started).toBeLessThan(30_000)
-    },
-    HANG_CASE_TIMEOUT_MS
-  )
+    // Well inside the stub's 120s sleep: without a timeout this case cannot
+    // finish at all.
+    expect(Date.now() - started).toBeLessThan(2_000)
+  })
 })
 
 describe('the deploy script’s refusal branch', () => {

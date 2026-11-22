@@ -26,6 +26,7 @@ import {
   logScanFailureReason,
   openWatcherStore,
   parseDeployLogHistory,
+  pinsFingerprint,
   readTimelockLogs,
   unreadableReport,
   vouchedFloorOf,
@@ -998,5 +999,29 @@ describe('createDeployLogHistoryReader', () => {
       ok: false,
       reason: 'origin/main has no history of the file',
     })
+  })
+})
+
+describe('pinsFingerprint', () => {
+  const pins = (codehash: string) => ({
+    ok: true as const,
+    value: { Ledger: { deployments: { mainnet: { codehash } } } },
+  })
+
+  it('changes whenever main changes a pin, so a cached verdict is re-judged', () => {
+    const before = pinsFingerprint(pins(`0x${'aa'.repeat(32)}`))
+
+    expect(pinsFingerprint(pins(`0x${'aa'.repeat(32)}`))).toBe(before)
+    expect(pinsFingerprint(pins(`0x${'bb'.repeat(32)}`))).not.toBe(before)
+    expect(pinsFingerprint({ ok: true, value: {} })).not.toBe(before)
+  })
+
+  it('tells an unreadable file apart from any content, and by its reason', () => {
+    const missing = pinsFingerprint({ ok: false, reason: 'blob-unreadable' })
+
+    expect(missing).not.toBe(pinsFingerprint({ ok: true, value: {} }))
+    expect(missing).not.toBe(
+      pinsFingerprint({ ok: false, reason: 'fetch-failed' })
+    )
   })
 })

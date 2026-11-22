@@ -221,7 +221,11 @@ const renderCall = (call: IExecutabilityCall): string[] => {
     )
   )
 
-  const phrase = SIMULATION_PHRASE.get(call.simulation) ?? call.simulation
+  const phrase = call.inOrder
+    ? `simulated in order after the calls before it (eth_simulateV1): ${
+        call.simulation === 'succeeded' ? 'succeeded' : 'reverted'
+      }`
+    : (SIMULATION_PHRASE.get(call.simulation) ?? call.simulation)
   const detail = call.simulationDetail
     ? `: ${condenseNodeMessage(call.simulationDetail)}`
     : ''

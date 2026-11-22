@@ -4826,6 +4826,22 @@ describe('attestable-selectors-match-config', () => {
     expect(ctx.errors[0]).toContain('no facet routes it')
   })
 
+  it('skips a listed selector the diamond neither routes nor enables', async () => {
+    const { ctx, probed } = makeGatewayCtx({
+      attestable: async () => false,
+      facets: [
+        {
+          address: GATEWAY_FACET,
+          selectors: [START_BRIDGE_ATTESTED, SET_ATTESTABLE, IS_ATTESTABLE],
+        },
+      ],
+    })
+    await invariant('attestable-selectors-match-config').run(ctx)
+    expect(probed).toEqual([ACROSS])
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
   it('does nothing when AttestedBridgeFacet is not cut', async () => {
     const { ctx, probed } = makeGatewayCtx({
       facets: [{ address: ACROSS_FACET, selectors: [ACROSS] }],

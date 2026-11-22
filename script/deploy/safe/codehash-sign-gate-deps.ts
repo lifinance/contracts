@@ -42,6 +42,12 @@ import {
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import type { IOffCodeImmutables } from '../codehash/immutable-verdict'
 import {
+  parsePinnedCodehashes,
+  PINNED_CODEHASHES_REPO_PATH,
+  pinnedKey,
+  type PinnedCodehashes,
+} from '../codehash/pinned-codehashes'
+import {
   deriveToolchainScope,
   parseBuildProfiles,
   ZK_PROFILE,
@@ -1631,6 +1637,12 @@ const collectProcess = (
   new Promise((resolve) => {
     let stdout = ''
     let stderr = ''
+    // spawn starts the child even for an already-aborted signal and kills it only
+    // afterwards, so a fast command can exit 0 before the kill lands.
+    if (options.signal?.aborted) {
+      resolve({ status: null, stdout, stderr })
+      return
+    }
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,
@@ -1790,6 +1802,7 @@ export const createSignTimeCodehashDeps = (overrides: {
       ...expectations,
     }),
     attestationsFor: attestations.attestationsFor,
+    pinnedCodehashFor: createPinnedCodehashSource(overrides.readPinnedBlob),
     close: async (): Promise<void> => {
       await rebuild.cleanup()
       await closeMongoRecordSource()
@@ -2048,6 +2061,41 @@ const priceWithLoadedConfig = async <T>(
       )
     )
     for (const [fileName, value] of entries) loaded.set(fileName, value)
+  }
+}
+
+/**
+ * The codehashes `origin/main` pins for contracts this repo does not build.
+ *
+ * Never the signer's checkout, for the reason the immutable expectations are
+ * not: a deploy PR's branch could otherwise pin the code its own proposal
+ * registers. A file `main` does not carry pins nothing. A file that cannot be
+ * read or does not parse throws, which the gate reports as UNVERIFIABLE rather
+ * than as nothing pinned. Only a successful load is kept, so a transient fetch
+ * failure is retried on the next lookup instead of blocking a long-running
+ * process until restart.
+ *
+ * @param readPinnedBlob - Reader for JSON blobs at the pinned commit.
+ * @returns The `pinnedCodehashFor` dependency of `verifyCutTargets`
+ */
+export const createPinnedCodehashSource = (
+  readPinnedBlob: (repoPath: string) => Promise<PinnedJsonRead>
+): IVerifyCutDeps['pinnedCodehashFor'] => {
+  let loaded: Promise<PinnedCodehashes> | undefined
+  const load = async (): Promise<PinnedCodehashes> => {
+    const blob = await readPinnedBlob(PINNED_CODEHASHES_REPO_PATH)
+    if (blob.ok) return parsePinnedCodehashes(blob.value)
+    if (blob.reason === 'blob-unreadable') return new Map()
+    throw new Error(
+      `${PINNED_CODEHASHES_REPO_PATH} could not be read at ${PINNED_REF} (${blob.reason})`
+    )
+  }
+  return async (address, network) => {
+    loaded ??= load().catch((error: unknown) => {
+      loaded = undefined
+      throw error
+    })
+    return (await loaded).get(pinnedKey(network, address))
   }
 }
 

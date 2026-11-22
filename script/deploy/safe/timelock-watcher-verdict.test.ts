@@ -932,6 +932,23 @@ describe('gradeCodehash', () => {
     ).toBe('pass')
   })
 
+  it('says which matches rest on a pin rather than a rebuild', () => {
+    const graded = report(['MATCH', 'MATCH'])
+    const [, second] = graded.targets
+    if (!second) throw new Error('fixture has two targets')
+    second.matchedLineages = ['pinned: Ledger on mainnet']
+
+    const result = gradeCodehash({
+      kind: 'evaluated',
+      collected: collected(),
+      reports: [graded],
+    })
+    expect(result.status).toBe('pass')
+    expect(result.detail).toBe(
+      '1 address(es) match a rebuild of their recorded commit; 1 address(es) match a codehash pinned on main'
+    )
+  })
+
   it('fails when a target mismatches', () => {
     expect(
       gradeCodehash({
