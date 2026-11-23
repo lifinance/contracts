@@ -31,7 +31,7 @@ import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidNonEVMRecei
 ///      unlimited ERC20 allowance via LibAsset.maxApproveERC20 (see docs/FraxFacet.md). On
 ///      Tempo that allowance goes to Frax's TempoFeeInclusiveWrapper instead, an immutable
 ///      ownerless contract that only pulls from msg.sender and forwards to the same HopV2.
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 contract FraxFacet is
     ILiFi,
     LiFiData,

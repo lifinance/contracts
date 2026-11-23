@@ -213,7 +213,8 @@
         "configFileName": "frax.json",
         "keyInConfigFile": ".tempoFeeInclusiveWrapper.<NETWORK>",
         "allowToDeployWithZeroAddress": "true",
-        "getter": "FRAX_TEMPO_WRAPPER"
+        "getter": "FRAX_TEMPO_WRAPPER",
+        "getterSinceVersion": "2.0.0"
       }
     }
   },
