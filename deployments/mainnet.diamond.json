@@ -168,6 +168,10 @@
       "0x879D83EAE7d13fcF7ffD931F211eF29F167d9d5C": {
         "Name": "M0Facet",
         "Version": "1.0.0"
+      },
+      "0x6f15d4d5B89c47e676f68cd656b3CCe52419A5dA": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

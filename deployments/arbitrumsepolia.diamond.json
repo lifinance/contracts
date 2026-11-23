@@ -17,6 +17,14 @@
         "Name": "CalldataVerificationFacet",
         "Version": "1.3.1"
       },
+      "0xF218bf600e9C9C03DDD176902b94a5FAfb59D99A": {
+        "Name": "EmergencyPauseFacet",
+        "Version": "1.0.1"
+      },
+      "0x861D30214134ba1360AC37e19C10618B563c0902": {
+        "Name": "SupersetFacet",
+        "Version": "1.0.0"
+      },
       "0x9Cd41674566354E1Cd7e6C7E91bC6ec4Fd8e4eEa": {
         "Name": "GenericSwapFacetV3",
         "Version": "2.0.0"
@@ -41,21 +49,17 @@
         "Name": "PolymerCCTPFacet",
         "Version": "2.0.1"
       },
-      "0x861D30214134ba1360AC37e19C10618B563c0902": {
-        "Name": "SupersetFacet",
-        "Version": "1.0.0"
-      },
-      "0xF218bf600e9C9C03DDD176902b94a5FAfb59D99A": {
-        "Name": "EmergencyPauseFacet",
-        "Version": "1.0.1"
+      "0xFF0Bef43ecA68e90bD29A887baFdC1833dACfC67": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "2.0.0"
       },
       "0xed86e8F84072BC066A353a2180F38E5268F32B26": {
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0xFF0Bef43ecA68e90bD29A887baFdC1833dACfC67": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "2.0.0"
+      "0x4aCfB5aBBeC8d0251ddd97E75BC2B53aC65f7B17": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
