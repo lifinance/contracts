@@ -51,7 +51,7 @@ jq --arg evm "$NEW_EVM" --arg tron "$NEW_TRON" \
 
 ### Phase 3 — Open the PR
 
-`/create-pr` with exactly `config/global.json` staged (never `git add -A`). Body: role, old → new EVM + Tron addresses, that the on-chain change goes through Safe proposals, and the rotation ticket.
+`/create-pr` with exactly `config/global.json` staged (never `git add -A`). Body: role, old → new EVM + Tron addresses, that the on-chain change goes through Safe proposals, and the rotation ticket. Pass that ticket as the Linear ID when the caller has one, with the partial-work flag: the rotation is not done when this PR merges.
 
 ### Phase 4 — Notion registry
 
