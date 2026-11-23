@@ -128,8 +128,7 @@ contract NEARIntentsFacet is
 
     /// Modifiers ///
 
-    /// @dev Validates quote parameters and marks the quote consumed before any external call
-    ///      (a later revert rolls the mark back)
+    /// @dev Validates quote parameters (consolidated from separate helper function)
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
     modifier onlyValidQuote(
@@ -142,7 +141,6 @@ contract NEARIntentsFacet is
         if (s.consumedQuoteIds[_nearData.quoteId]) {
             revert QuoteAlreadyConsumed();
         }
-        s.consumedQuoteIds[_nearData.quoteId] = true;
 
         // Ensure quote hasn't expired
         if (block.timestamp > _nearData.deadline) {
@@ -190,21 +188,11 @@ contract NEARIntentsFacet is
         doesNotContainDestinationCalls(_bridgeData)
     {
         _verifySignature(_bridgeData, _nearData);
-
+        // ERC20 is pulled in _startBridge; for native this enforces msg.value >= minAmount so the
+        // diamond's own balance is never spent
         if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
-            // enforces msg.value >= minAmount so the diamond's own native balance is never spent
             LibAsset.depositAsset(
                 _bridgeData.sendingAssetId,
-                _bridgeData.minAmount
-            );
-            _transferToDepositAddress(_bridgeData, _nearData);
-        } else {
-            // a single pull straight to the deposit address: routing through the diamond costs a
-            // second token transfer, which on Tron USDT carries a dynamic-energy surcharge
-            LibAsset.transferFromERC20(
-                _bridgeData.sendingAssetId,
-                msg.sender,
-                _nearData.depositAddress,
                 _bridgeData.minAmount
             );
         }
@@ -249,7 +237,6 @@ contract NEARIntentsFacet is
             );
         }
 
-        _transferToDepositAddress(_bridgeData, _nearData);
         _startBridge(_bridgeData, _nearData);
     }
 
@@ -266,13 +253,39 @@ contract NEARIntentsFacet is
 
     /// Internal Methods ///
 
-    /// @dev Emits the bridge events; the entrypoint has already funded the deposit address
+    /// @dev Contains the business logic for bridging via NEAR Intents
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
         NEARIntentsData calldata _nearData
     ) internal {
+        Storage storage s = getStorage();
+
+        // Mark quote as consumed BEFORE external interactions (CEI pattern)
+        s.consumedQuoteIds[_nearData.quoteId] = true;
+
+        // Without a swap, ERC20 still sits with the caller: pull it straight to the deposit address
+        // instead of holding it in the diamond for a second transfer
+        if (
+            !_bridgeData.hasSourceSwaps &&
+            !LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
+        ) {
+            LibAsset.transferFromERC20(
+                _bridgeData.sendingAssetId,
+                msg.sender,
+                _nearData.depositAddress,
+                _bridgeData.minAmount
+            );
+        } else {
+            LibAsset.transferAsset(
+                _bridgeData.sendingAssetId,
+                payable(_nearData.depositAddress),
+                _bridgeData.minAmount
+            );
+        }
+
+        // Emit bridge started event
         emit NEARIntentsBridgeStarted(
             _bridgeData.transactionId,
             _nearData.quoteId,
@@ -356,22 +369,6 @@ contract NEARIntentsFacet is
     }
 
     /// Private Methods ///
-
-    /// @dev Sends `minAmount` of the sending asset from the diamond to the deposit address.
-    ///      Kept out of line: inlined in `swapAndStartBridgeTokensViaNEARIntents` it hits
-    ///      stack-too-deep
-    /// @param _bridgeData The core information needed for bridging
-    /// @param _nearData Data specific to NEAR Intents
-    function _transferToDepositAddress(
-        ILiFi.BridgeData memory _bridgeData,
-        NEARIntentsData calldata _nearData
-    ) private {
-        LibAsset.transferAsset(
-            _bridgeData.sendingAssetId,
-            payable(_nearData.depositAddress),
-            _bridgeData.minAmount
-        );
-    }
 
     /// @dev Gets the diamond storage for this facet
     /// @return s The storage struct
