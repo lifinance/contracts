@@ -159,7 +159,9 @@ describe('weekly coverage skip list', () => {
     ) as {
       scripts: Record<string, string>
     }
-    expect(pkg.scripts['coverage']).toContain('--skip EcoFacet')
+    expect(pkg.scripts['coverage']).toContain(
+      '--skip EcoFacet --no-match-coverage EcoFacet'
+    )
   })
 })
 
@@ -218,23 +220,26 @@ describe('weekly coverage retry loop', () => {
     expect(log).toContain('forge coverage failed after 1 attempt(s)')
   })
 
-  it('passes every contract in a multi-contract skip list to one --skip', () => {
+  it('passes a multi-contract skip list to one --skip and one --no-match-coverage regex', () => {
     writeExecutable('forge', FORGE_ARGS_STUB)
     const { exitCode, log } = runScript(RETRY_LOOP, {
       COVERAGE_SKIP: 'EcoFacet FooFacet',
     })
 
     expect(exitCode).toBe(0)
-    expect(log).toContain('[--ir-minimum][--skip][EcoFacet][FooFacet]\n')
+    expect(log).toContain(
+      '[--ir-minimum][--skip][EcoFacet][FooFacet][--no-match-coverage][EcoFacet|FooFacet]\n'
+    )
   })
 
-  it('passes no --skip when the skip list is empty', () => {
+  it('passes no --skip or --no-match-coverage when the skip list is empty', () => {
     writeExecutable('forge', FORGE_ARGS_STUB)
     const { exitCode, log } = runScript(RETRY_LOOP, { COVERAGE_SKIP: '' })
 
     expect(exitCode).toBe(0)
     expect(log).toContain('[--ir-minimum]\n')
     expect(log).not.toContain('--skip')
+    expect(log).not.toContain('--no-match-coverage')
   })
 
   it('passes the skip list to forge and stops after a successful attempt', () => {
@@ -243,7 +248,7 @@ describe('weekly coverage retry loop', () => {
 
     expect(exitCode).toBe(0)
     expect(log).toContain(
-      '[coverage][--report][lcov][--force][--ir-minimum][--skip][EcoFacet]\n'
+      '[coverage][--report][lcov][--force][--ir-minimum][--skip][EcoFacet][--no-match-coverage][EcoFacet]\n'
     )
     expect(log).not.toContain('attempt 2/10')
   })

@@ -87,7 +87,10 @@ jobs:
           read -ra SKIP <<< "$COVERAGE_SKIP"
           SKIP_ARGS=()
           if [[ ${#SKIP[@]} -gt 0 ]]; then
-            SKIP_ARGS=(--skip "${SKIP[@]}")
+            # --skip leaves a skipped contract in the build when a test helper imports it,
+            # so it would count as uncovered without --no-match-coverage.
+            SKIP_REGEX=$(IFS='|'; echo "${SKIP[*]}")
+            SKIP_ARGS=(--skip "${SKIP[@]}" --no-match-coverage "$SKIP_REGEX")
           fi
           for i in $(seq 1 10); do
             ATTEMPT_START=$SECONDS
