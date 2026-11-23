@@ -84,6 +84,10 @@
       "0xa44919b475455DC88fAC8ab7Cf5f1C9018651294": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
+      },
+      "0x34f77deB3557ec8e2C40Fd8780775e36d8c7a00b": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

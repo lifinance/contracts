@@ -116,6 +116,10 @@
       "0x94eF6D1702ac7E30a5CeF39dEE26FAb180C251Fe": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0x6f15d4d5B89c47e676f68cd656b3CCe52419A5dA": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -136,6 +136,10 @@
       "0x6275c64C1DA8919D1F7F5D558D36A6D750C74838": {
         "Name": "CentrifugeFacet",
         "Version": "1.0.0"
+      },
+      "0x6f15d4d5B89c47e676f68cd656b3CCe52419A5dA": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

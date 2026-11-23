@@ -57,7 +57,8 @@
         "ThorSwapFacet": "latest",
         "FraxFacet": "latest",
         "CentrifugeFacet": "latest",
-        "UnitFacet": "latest"
+        "UnitFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -143,7 +144,8 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "SupersetFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -210,7 +212,8 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ThorSwapFacet": "1.2.0",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -291,7 +294,8 @@
         "SupersetFacet": "latest",
         "ThorSwapFacet": "latest",
         "FraxFacet": "latest",
-        "CentrifugeFacet": "latest"
+        "CentrifugeFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -396,7 +400,8 @@
         "SymbiosisFacet": "latest",
         "ThorSwapFacet": "1.2.0",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -653,7 +658,8 @@
         "PolymerCCTPFacet": "latest",
         "RelayDepositoryFacet": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -966,7 +972,8 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -1014,7 +1021,8 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -1610,7 +1618,8 @@
         "SymbiosisFacet": "latest",
         "UnitFacet": "latest",
         "LiFiIntentEscrowFacetV2": "latest",
-        "ReceiverOIF": "latest"
+        "ReceiverOIF": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -1900,7 +1909,8 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "FraxFacet": "latest",
-        "SymbiosisFacet": "latest"
+        "SymbiosisFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -1986,7 +1996,8 @@
         "TokenWrapper": "latest",
         "GlacisFacet": "latest",
         "PolymerCCTPFacet": "latest",
-        "ReceiverOIF": "latest"
+        "ReceiverOIF": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -2092,7 +2103,8 @@
         "PaxosTransitFacet": "latest",
         "RelayDepositoryFacet": "latest",
         "SymbiosisFacet": "latest",
-        "ReceiverOIF": "latest"
+        "ReceiverOIF": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -2178,7 +2190,8 @@
         "RelayDepositoryFacet": "latest",
         "EcoFacet": "latest",
         "GardenFacet": "latest",
-        "SymbiosisFacet": "latest"
+        "SymbiosisFacet": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   },
@@ -2236,7 +2249,8 @@
         "OutputValidator": "latest",
         "Permit2Proxy": "latest",
         "TokenWrapper": "latest",
-        "ReceiverOIF": "latest"
+        "ReceiverOIF": "latest",
+        "AttestedBridgeFacet": "latest"
       }
     }
   }
