@@ -71,6 +71,9 @@ jobs:
       - name: Generate coverage report
         id: coverage
         continue-on-error: true # informational job: a failed report posts a notice, never aborts the Slack step
+        # Hard stop under the job's 90 minutes: an attempt slower than the last one can
+        # overrun RETRY_BUDGET_SECONDS, and a job timeout would cancel the Slack steps.
+        timeout-minutes: 75
         env:
           FOUNDRY_PROFILE: ci
           # 70 of the job's 90 minutes: a run out of retries must still reach the Slack steps
