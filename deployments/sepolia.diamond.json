@@ -25,6 +25,10 @@
         "Name": "GenericSwapFacetV3",
         "Version": "2.0.0"
       },
+      "0xe99dB2d1D4942C4e1146519314F3d9eBdbc51c8E": {
+        "Name": "LiFiIntentEscrowFacetV2",
+        "Version": "2.0.0"
+      },
       "0x66ceb8416d34e922b3DD31c40628f63Eb56dA481": {
         "Name": "OwnershipFacet",
         "Version": "1.0.0"
@@ -45,9 +49,9 @@
         "Name": "AcrossFacetV4",
         "Version": "1.0.0"
       },
-      "0xe99dB2d1D4942C4e1146519314F3d9eBdbc51c8E": {
-        "Name": "LiFiIntentEscrowFacetV2",
-        "Version": "2.0.0"
+      "0xc77CE9338a8Bc180930e0a2bd1427DA8202aD314": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
