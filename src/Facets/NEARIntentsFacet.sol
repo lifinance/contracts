@@ -266,7 +266,6 @@ contract NEARIntentsFacet is
         s.consumedQuoteIds[_nearData.quoteId] = true;
 
         // Without a swap, ERC20 still sits with the caller: pull it straight to the deposit address
-        // instead of holding it in the diamond for a second transfer
         if (
             !_bridgeData.hasSourceSwaps &&
             !LibAsset.isNativeAsset(_bridgeData.sendingAssetId)

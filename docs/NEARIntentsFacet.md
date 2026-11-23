@@ -12,6 +12,8 @@ How the tokens reach the deposit address depends on the entrypoint and asset:
 - `startBridgeTokensViaNEARIntents` with native: `msg.value` must cover `minAmount`; the diamond forwards it to the deposit address.
 - `swapAndStartBridgeTokensViaNEARIntents`: the swap output lands in the diamond, which then transfers `minAmount` to the deposit address.
 
+Fee-on-transfer tokens are not supported. Without a swap, the ERC20 pull does not check what the deposit address received, so such a token arrives short of `minAmount`, the quote is still consumed and the events report the full `minAmount`. The diamond's own balance is never used to cover the shortfall.
+
 ```mermaid
 graph LR;
     U(User) -- APPROVE --> D;

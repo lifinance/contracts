@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { Vm } from "forge-std/Vm.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import {
     TestWhitelistManagerBase
@@ -386,35 +386,16 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         usdc.approve(address(diamond), bridgeData.minAmount);
         uint256 diamondBalanceBefore = usdc.balanceOf(address(diamond));
 
-        vm.recordLogs();
+        vm.expectEmit(true, true, true, true, ADDRESS_USDC);
+        emit IERC20.Transfer(
+            USER_SENDER, TEST_DEPOSIT_ADDRESS, bridgeData.minAmount
+        );
+
         nearIntentsFacet.startBridgeTokensViaNEARIntents(
             bridgeData, validNearData
         );
         vm.stopPrank();
 
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes32 transferTopic = keccak256("Transfer(address,address,uint256)");
-        uint256 transferCount;
-        for (uint256 i = 0; i < logs.length; i++) {
-            if (
-                logs[i].emitter == ADDRESS_USDC
-                    && logs[i].topics[0] == transferTopic
-            ) {
-                transferCount++;
-                assertEq(
-                    logs[i].topics[1], bytes32(uint256(uint160(USER_SENDER)))
-                );
-                assertEq(
-                    logs[i].topics[2],
-                    bytes32(uint256(uint160(TEST_DEPOSIT_ADDRESS)))
-                );
-                assertEq(
-                    abi.decode(logs[i].data, (uint256)), bridgeData.minAmount
-                );
-            }
-        }
-
-        assertEq(transferCount, 1);
         assertEq(usdc.balanceOf(address(diamond)), diamondBalanceBefore);
     }
 
@@ -435,6 +416,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.startPrank(USER_SENDER);
 
         vm.expectRevert(InvalidAmount.selector);
+
         nearIntentsFacet.startBridgeTokensViaNEARIntents{
             value: defaultNativeAmount - 1
         }(
