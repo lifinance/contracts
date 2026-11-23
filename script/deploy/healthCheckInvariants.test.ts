@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'fs'
+import { mkdtempSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -32,6 +32,7 @@ import {
   HEALTH_CHECK_EXCLUSIONS,
   HEALTH_CHECK_INVARIANTS,
   isDeterministicReadFailure,
+  loadPinnedLedgerAddresses,
   RECEIVER_EXECUTOR_GETTERS,
   findDeprecatedLiveFacets,
   findUntargetedLiveFacets,
@@ -2498,6 +2499,16 @@ describe('periphery-registry-log-sync invariant', () => {
     expect(ctx.warnings).toEqual([])
   })
 
+  it('leaves BridgeAttester alone - it is built outside this repo, so no deploy log records it', async () => {
+    const { ctx, registryQueries } = makeReceiverCtx({
+      registry: { BridgeAttester: OIF_ON_CHAIN },
+    })
+    await sync().run(ctx)
+    expect(registryQueries).not.toContain('BridgeAttester')
+    expect(ctx.warnings).toEqual([])
+    expect(ctx.errors).toEqual([])
+  })
+
   it('stays silent when the registry and the deploy log agree', async () => {
     const { ctx } = makeReceiverCtx({
       registry: { ReceiverOIF: OIF_ON_CHAIN },
@@ -4726,6 +4737,242 @@ describe('bridge-attester-not-allowlisted', () => {
       expect(ctx.errors).toEqual([])
       expect(ctx.warnings).toHaveLength(1)
       expect(ctx.warnings[0]).toContain('no Tron RPC URL configured')
+    })
+  })
+})
+
+describe('bridge-attester-pinned', () => {
+  const PINNED = getAddress('0x5a4966a80b95d867ee5804ff84b8b75f260d9282')
+  const OTHER = getAddress('0xa77e57e200000000000000000000000000000001')
+  const DIAMOND = '0x9999999999999999999999999999999999999999'
+  const OPERATION_ID = `0x${'ab'.repeat(32)}`
+  const pinnedAttester = () => invariant('bridge-attester-pinned')
+
+  interface IPinnedStub {
+    registered?: string
+    registryError?: Error
+    pins?: IHealthCheckContext['pinnedLedgerAddresses']
+    pendingRegistrations?: IHealthCheckContext['pendingRegistrations']
+  }
+
+  function makePinnedCtx(stub: IPinnedStub): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      network: 'mainnet',
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      peripheryRegistryCache: new Map(),
+      pinnedLedgerAddresses: stub.pins ?? new Map([['mainnet', PINNED]]),
+      pendingRegistrations: stub.pendingRegistrations ?? new Map(),
+      publicClient: {
+        readContract: async ({
+          functionName,
+          args,
+        }: {
+          functionName: string
+          args: readonly unknown[]
+        }) => {
+          if (functionName !== 'getPeripheryContract')
+            throw new Error(`unexpected read ${functionName}`)
+          expect(args).toEqual(['BridgeAttester'])
+          if (stub.registryError) throw stub.registryError
+          return stub.registered ?? ZERO
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  /** A queued timelock op registering `address` under `peripheryName` on this diamond. */
+  const queuedRegistration = (
+    address: string,
+    peripheryName: string
+  ): IHealthCheckContext['pendingRegistrations'] =>
+    new Map([
+      [
+        'mainnet',
+        new Map([
+          [
+            address.toLowerCase(),
+            [
+              {
+                kind: 'periphery',
+                address: address.toLowerCase(),
+                peripheryName,
+                operationId: OPERATION_ID,
+                target: DIAMOND,
+              } as IPendingRegistration,
+            ],
+          ],
+        ]),
+      ],
+    ])
+
+  it('is a production, EVM-only error', () => {
+    expect(pinnedAttester().severity).toBe('error')
+    expect(pinnedAttester().scope).toEqual({
+      environments: ['production'],
+      chains: 'evm-only',
+    })
+  })
+
+  it('passes when the registered attester is the pinned ledger, in any case', async () => {
+    const ctx = makePinnedCtx({
+      registered: PINNED.toLowerCase(),
+      pins: new Map([['mainnet', PINNED.toLowerCase()]]),
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('fails naming both checksummed addresses when the registry holds another one', async () => {
+    const ctx = makePinnedCtx({ registered: OTHER.toLowerCase() })
+    await pinnedAttester().run(ctx)
+    expect(ctx.warnings).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(OTHER)
+    expect(ctx.errors[0]).toContain(PINNED)
+  })
+
+  it('reports expected-pending when a queued op registers the pinned address as BridgeAttester', async () => {
+    const ctx = makePinnedCtx({
+      registered: OTHER,
+      pendingRegistrations: queuedRegistration(PINNED, 'BridgeAttester'),
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('still fails when the queued op registers the pinned address under another name', async () => {
+    const ctx = makePinnedCtx({
+      registered: OTHER,
+      pendingRegistrations: queuedRegistration(PINNED, 'Executor'),
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('still fails when the queued op registers a different address as BridgeAttester', async () => {
+    const ctx = makePinnedCtx({
+      registered: OTHER,
+      pendingRegistrations: queuedRegistration(OTHER, 'BridgeAttester'),
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('keeps the error and warns when the timelock queue is unreachable', async () => {
+    const ctx = makePinnedCtx({
+      registered: OTHER,
+      pendingRegistrations: { unreachable: 'connect ECONNREFUSED' },
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(PINNED)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
+    expect(ctx.warnings[0]).toContain('connect ECONNREFUSED')
+  })
+
+  it('warns to pin the ledger when the network has no pin', async () => {
+    const ctx = makePinnedCtx({ registered: OTHER, pins: new Map() })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain(OTHER)
+    expect(ctx.warnings[0]).toContain(
+      'pin it in script/deploy/resources/pinnedExternalCodehashes.json'
+    )
+  })
+
+  it('says nothing when no attester is registered', async () => {
+    const ctx = makePinnedCtx({ pins: new Map() })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('reports a transient registry read failure as a warning, without comparing pins', async () => {
+    const ctx = makePinnedCtx({ registryError: new Error('fetch failed') })
+    await pinnedAttester().run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('could not read the PeripheryRegistry')
+  })
+
+  it('reports a deterministic registry read failure as an error, without comparing pins', async () => {
+    const ctx = makePinnedCtx({
+      registryError: Object.assign(new Error('call failed'), {
+        cause: new Error('execution reverted'),
+      }),
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.warnings).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('could not read the PeripheryRegistry')
+  })
+
+  it('fails naming the path and the reason when the pinned file is unreadable', async () => {
+    const ctx = makePinnedCtx({
+      registered: PINNED,
+      pins: { unreadable: '/repo/pinned.json: Ledger must name the source' },
+    })
+    await pinnedAttester().run(ctx)
+    expect(ctx.warnings).toEqual([])
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(
+      '/repo/pinned.json: Ledger must name the source'
+    )
+  })
+
+  describe('loadPinnedLedgerAddresses', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pinned-ledger-'))
+
+    it('reads the pinned ledger address per network', () => {
+      const file = join(dir, 'ok.json')
+      writeFileSync(
+        file,
+        JSON.stringify({
+          BridgeCommitmentLedger: {
+            source: 's',
+            deployments: {
+              mainnet: { address: PINNED, codehash: `0x${'de'.repeat(32)}` },
+            },
+          },
+        })
+      )
+      expect(loadPinnedLedgerAddresses(file)).toEqual(
+        new Map([['mainnet', PINNED]])
+      )
+    })
+
+    it('names the path and the read error when the file is missing', () => {
+      const file = join(dir, 'missing.json')
+      const loaded = loadPinnedLedgerAddresses(file)
+      expect('unreadable' in loaded && loaded.unreadable).toContain(
+        `${file}: ENOENT`
+      )
+    })
+
+    it('names the path and the parser message when the file is malformed', () => {
+      const file = join(dir, 'malformed.json')
+      writeFileSync(
+        file,
+        JSON.stringify({ BridgeCommitmentLedger: { deployments: {} } })
+      )
+      expect(loadPinnedLedgerAddresses(file)).toEqual({
+        unreadable: `${file}: BridgeCommitmentLedger must name the source it was built from`,
+      })
+    })
+
+    it('reads the committed file', () => {
+      const loaded = loadPinnedLedgerAddresses(
+        join(
+          process.cwd(),
+          'script/deploy/resources/pinnedExternalCodehashes.json'
+        )
+      )
+      expect('unreadable' in loaded).toBe(false)
     })
   })
 })
