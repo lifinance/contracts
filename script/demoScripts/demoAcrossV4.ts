@@ -22,7 +22,6 @@ import {
   ADDRESS_WETH_ARB,
   ADDRESS_WETH_OPT,
   DEFAULT_DEST_PAYLOAD_ABI,
-  deriveSolanaAddress,
   DEV_WALLET_ADDRESS,
   ensureBalanceAndAllowanceToDiamond,
   getPrivateKeyForEnvironment,
@@ -37,6 +36,7 @@ import {
   sendTransaction,
   solanaAddressToBytes32,
 } from './utils/demoScriptHelpers'
+import { deriveSolanaAddress } from './utils/solanaAddress'
 
 // SUCCESSFUL TRANSACTIONS PRODUCED BY THIS SCRIPT ---------------------------------------------------------------------------------------------------
 // This script is for Across V4 - similar to V3 but with bytes32 addresses and different data structure

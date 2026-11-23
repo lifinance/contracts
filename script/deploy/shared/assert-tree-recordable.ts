@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { consola } from 'consola'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
+
 import { githubCommitPresence, resolveCommitPresence } from './commit-presence'
 import { readRepoIdentity } from './repo-identity'
 import {
@@ -29,14 +31,27 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024
  * leads to a refusal or to the presence query, so a timeout costs a deploy
  * attempt and never buys one.
  */
-const GIT_TIMEOUT_MS = 5_000
+const GIT_TIMEOUT_MS = 5_000 // 5 seconds
 
-const git = <T>(args: string[], fallback: T): string | T => {
+/**
+ * Runs one git read for the pre-flight, answering `fallback` when git fails,
+ * overflows the buffer or outlives the timeout.
+ *
+ * @param args - Arguments passed to `git`.
+ * @param fallback - What a failed read answers instead.
+ * @param timeoutMs - Bound on the read, in milliseconds; defaults to GIT_TIMEOUT_MS.
+ * @returns git's stdout, or `fallback`.
+ */
+export const readGit = <T>(
+  args: string[],
+  fallback: T,
+  timeoutMs: number = GIT_TIMEOUT_MS
+): string | T => {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',
       maxBuffer: MAX_BUFFER_BYTES,
-      timeout: GIT_TIMEOUT_MS,
+      timeout: timeoutMs,
     })
   } catch {
     return fallback
@@ -57,7 +72,7 @@ const git = <T>(args: string[], fallback: T): string | T => {
  * @returns True when git resolves that path as its own repository root.
  */
 const isCheckedOutRepository = (path: string): boolean => {
-  const top = git(['-C', path, 'rev-parse', '--show-toplevel'], undefined)
+  const top = readGit(['-C', path, 'rev-parse', '--show-toplevel'], undefined)
   if (top === undefined) return false
 
   try {
@@ -84,11 +99,11 @@ const readAbsentSubmodulePaths = (): string[] | undefined => {
   // `--full-name -- :/` reports the whole repository from any working
   // directory; `git ls-files` is otherwise scoped to the cwd subtree, unlike
   // every other read here.
-  const staged = git(
+  const staged = readGit(
     ['ls-files', '--stage', '-z', '--full-name', '--', ':/'],
     undefined
   )
-  const root = git(['rev-parse', '--show-toplevel'], undefined)
+  const root = readGit(['rev-parse', '--show-toplevel'], undefined)
   if (staged === undefined || root === undefined) return undefined
 
   return submodulePathsInIndex(staged).filter(
@@ -97,7 +112,7 @@ const readAbsentSubmodulePaths = (): string[] | undefined => {
 }
 
 const readTreeState = (): ITreeState => {
-  const head = git(['rev-parse', 'HEAD'], 'UNKNOWN').trim()
+  const head = readGit(['rev-parse', 'HEAD'], 'UNKNOWN').trim()
   return {
     // `--untracked-files=all` overrides a local status.showUntrackedFiles=no,
     // which would otherwise hide a new source file. `--ignore-submodules=untracked`
@@ -105,7 +120,7 @@ const readTreeState = (): ITreeState => {
     // submodule holding only untracked content (a .DS_Store, a stray forge cache)
     // reports the same ` M lib/x` as one left at a different commit, and no
     // remedy the refusal could name would clear it.
-    statusZ: git(
+    statusZ: readGit(
       [
         'status',
         '--porcelain=v1',
@@ -123,12 +138,12 @@ const readTreeState = (): ITreeState => {
         repo: readRepoIdentity(),
         // Restricted to `origin` because a commit pushed only to a fork, or to
         // the `tron` remote, is not held by the repository the record names.
-        localRemoteRefsContainingCommit: git(
+        localRemoteRefsContainingCommit: readGit(
           ['branch', '-r', '--contains', head, '--list', 'origin/*'],
           ''
         ),
         isShallow:
-          git(['rev-parse', '--is-shallow-repository'], 'true').trim() ===
+          readGit(['rev-parse', '--is-shallow-repository'], 'true').trim() ===
           'true',
       },
       githubCommitPresence
@@ -156,4 +171,4 @@ const main = (): void => {
   )
 }
 
-main()
+if (isEntrypoint(import.meta.url)) main()

@@ -27,12 +27,21 @@
  *   it is holding back.
  */
 
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
-import type { Address, Hex } from 'viem'
-import { decodeFunctionData, parseAbi } from 'viem'
+import type { Abi, AbiFunction, Address, Hex } from 'viem'
+import {
+  decodeFunctionData,
+  encodeAbiParameters,
+  parseAbi,
+  toFunctionSelector,
+} from 'viem'
 
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
+import { parseAttestableSelectors } from '../shared/attestableSelectors'
 
 import {
   asPrintable,
@@ -330,7 +339,7 @@ async function effectLines(
       `${pre}  ${rawPreview(data)}`,
     ]
 
-  const { functionName, args } = decoded
+  const { functionName, args, unread } = decoded
   const called = calledFunction(functionName, hex)
   if (args === undefined)
     return [
@@ -339,6 +348,47 @@ async function effectLines(
       `${pre}  ${rawPreview(data)}`,
     ]
 
+  const lines = await decodedCallLines(functionName, args, hex, context, pre)
+  return unread === undefined
+    ? lines
+    : [...lines, ...unreadLines(pre, unread, data)]
+}
+
+/** Bytes the decode skipped, by where they sit in the calldata. */
+type Unread =
+  | { readonly kind: 'trailing'; readonly bytes: Hex }
+  | { readonly kind: 'nonStandard' }
+
+/**
+ * The bytes the decode never read, which would otherwise render exactly like
+ * the standard call they hide in.
+ */
+const unreadLines = (pre: string, unread: Unread, data: unknown): string[] => {
+  if (unread.kind === 'nonStandard')
+    return [
+      cannotRead(
+        pre,
+        '  ARGUMENTS ARE NOT IN STANDARD ABI LAYOUT — SOME BYTES ARE NOT SHOWN'
+      ),
+      `${pre}  ${rawPreview(data)}`,
+    ]
+  const bytes = Math.ceil((unread.bytes.length - 2) / 2)
+  const what =
+    bytes === 1
+      ? '1 BYTE AFTER THE ARGUMENTS IS NOT SHOWN'
+      : `${bytes} BYTES AFTER THE ARGUMENTS ARE NOT SHOWN`
+  return [cannotRead(pre, `  ${what}`), `${pre}  ${rawPreview(unread.bytes)}`]
+}
+
+/** The summary of a call whose arguments decoded, by the function it names. */
+async function decodedCallLines(
+  functionName: string,
+  args: readonly unknown[],
+  hex: Hex,
+  context: ICalldataEffectContext,
+  pre: string
+): Promise<string[]> {
+  const called = calledFunction(functionName, hex)
   switch (bareName(functionName)) {
     case 'scheduleBatch':
       return scheduleBatchLines(args, called, context, pre)
@@ -350,6 +400,8 @@ async function effectLines(
       return whitelistLines(args, called, context, pre)
     case 'registerPeripheryContract':
       return registerPeripheryLines(args, called, context, pre)
+    case 'setAttestableSelector':
+      return attestableSelectorLines(args, called, pre)
     case 'grantRole':
     case 'revokeRole':
     case 'renounceRole':
@@ -387,11 +439,18 @@ const bareName = (functionName: string): string =>
  * Resolves and decodes one call, without printing how it was resolved.
  *
  * `args` is undefined when the selector resolved but nothing could decode the
- * arguments — the one case zone 1 reports on itself.
+ * arguments — the one case zone 1 reports on itself. `unread` says how the
+ * calldata departs from the standard encoding of `args`, which viem's decode
+ * accepts without complaint.
  */
-async function decodeCall(
-  data: Hex
-): Promise<{ functionName: string; args?: readonly unknown[] } | undefined> {
+async function decodeCall(data: Hex): Promise<
+  | {
+      functionName: string
+      args?: readonly unknown[]
+      unread?: Unread
+    }
+  | undefined
+> {
   const selector = data.slice(0, 10)
   const local = getLocalSelectorInfo(selector)
   const functionName =
@@ -417,8 +476,14 @@ async function decodeCall(
   for (const abi of candidates)
     try {
       const decoded = decodeFunctionData({ abi, data })
-      if (decoded.args !== undefined)
-        return { functionName: decoded.functionName, args: decoded.args }
+      if (decoded.args !== undefined) {
+        const unread = unreadBytes(abi, data, decoded.args)
+        return {
+          functionName: decoded.functionName,
+          args: decoded.args,
+          ...(unread === undefined ? {} : { unread }),
+        }
+      }
       // viem never reads past the selector of a function with no inputs, so a
       // body behind it would otherwise render as "no arguments" and go unseen.
       if (data.length === 10)
@@ -428,6 +493,37 @@ async function decodeCall(
     }
 
   return functionName === undefined ? undefined : { functionName }
+}
+
+/**
+ * How the calldata departs from the standard encoding of its decoded
+ * arguments, or undefined when it is exactly that encoding.
+ *
+ * Only a calldata that starts with the standard encoding has bytes "after" the
+ * arguments; any other difference (a gap an offset jumps over, say) means the
+ * decode skipped bytes somewhere inside, so the tail is not what went unread.
+ *
+ * Throws when no function in `abi` carries the calldata's selector, so the
+ * caller treats the candidate as not decoding rather than as canonical.
+ */
+function unreadBytes(
+  abi: Abi,
+  data: Hex,
+  args: readonly unknown[]
+): Unread | undefined {
+  const selector = data.slice(0, 10).toLowerCase()
+  const item = abi.find(
+    (entry): entry is AbiFunction =>
+      entry.type === 'function' && toFunctionSelector(entry) === selector
+  )
+  if (!item) throw new Error(`no function in the ABI has selector ${selector}`)
+  const encoded = `${selector}${encodeAbiParameters(item.inputs, args).slice(
+    2
+  )}`
+  const lowered = data.toLowerCase()
+  if (lowered === encoded) return undefined
+  if (!lowered.startsWith(encoded)) return { kind: 'nonStandard' }
+  return { kind: 'trailing', bytes: `0x${data.slice(encoded.length)}` }
 }
 
 const isZeroWord = (value: unknown): boolean =>
@@ -914,6 +1010,82 @@ async function registerPeripheryLines(
     ),
     address
   )
+}
+
+async function attestableSelectorLines(
+  args: readonly unknown[],
+  called: Printable,
+  pre: string
+): Promise<string[]> {
+  const [selectorArg, enabled] = args
+  // Keyed by the decoded bool, as in whitelistLines; anything else is quoted.
+  const verb =
+    enabled === true
+      ? trustedMarkup('Enable for attested dispatch ')
+      : enabled === false
+      ? trustedMarkup('Disable for attested dispatch ')
+      : concatPrintable(
+          trustedMarkup('set enabled='),
+          quoted(enabled, GREEN),
+          trustedMarkup(' on ')
+        )
+  const selector = String(selectorArg ?? '').toLowerCase()
+  const expected = expectedAttestableEntry(selector)
+  const named =
+    expected?.confirmedName ??
+    getLocalSelectorInfo(selector)?.name ??
+    (await resolveSelectorsViaFourByte([selector])).get(selector)
+  const name = named
+    ? storedField(named, BLUE)
+    : color(GREY, trustedMarkup('no name for this selector'))
+  const listing = color(
+    GREY,
+    trustedMarkup(
+      expected
+        ? ' · listed in attestableSelectors'
+        : ' · not listed in attestableSelectors'
+    )
+  )
+  return [
+    `${pre}${called}${color(GREY, trustedMarkup(' · '))}${verb}${storedField(
+      selector,
+      CYAN
+    )}  ${name}${listing}`,
+  ]
+}
+
+/**
+ * The selector's entry in the repository's expected attestable set, if any.
+ *
+ * `confirmedName` is `<Facet>.<function>`, set only when the facet's build
+ * artifact still has the selector: CI holds the config to the build, but a
+ * signer may run on a tree that has drifted or was never built.
+ */
+function expectedAttestableEntry(
+  selector: string
+): { confirmedName?: string } | undefined {
+  try {
+    const raw: unknown = JSON.parse(
+      readFileSync(join(process.cwd(), 'config', 'global.json'), 'utf8')
+    )
+    if (
+      typeof raw !== 'object' ||
+      raw === null ||
+      !('attestableSelectors' in raw)
+    )
+      return undefined
+    const entry = parseAttestableSelectors(
+      raw.attestableSelectors
+    ).selectors.get(selector as Hex)
+    if (!entry) return undefined
+    return getArtifactSelectorInfo(entry.facet).has(selector)
+      ? { confirmedName: `${entry.facet}.${bareName(entry.signature)}` }
+      : {}
+  } catch {
+    // An unreadable or malformed config leaves the name to the registry and
+    // 4byte; the config's own tests report the malformation.
+    return undefined
+  }
 }
 
 /** The verbs for a role change, keyed by the function this repository decoded. */

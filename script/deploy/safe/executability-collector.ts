@@ -20,6 +20,7 @@
  */
 
 import {
+  decodeFunctionData,
   getAddress,
   parseAbi,
   type Address,
@@ -29,6 +30,10 @@ import {
 } from 'viem'
 
 import { redactUrls } from '../../utils/redactUrls'
+import {
+  TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+} from './timelock-abi'
 import { ZERO_ADDRESS } from '../shared/constants'
 import {
   collectDiamondCutCalls,
@@ -38,11 +43,13 @@ import {
   type IScheduledCall,
 } from '../shared/diamond-cut-calls'
 
-import type {
-  IChainObservations,
-  IExecutabilityInput,
-  IStaticCallObservation,
-  TSimulatedPayload,
+import {
+  FacetCutActionEnum,
+  type IChainObservations,
+  type IDiamondCutPayload,
+  type IExecutabilityInput,
+  type IStaticCallObservation,
+  type TSimulatedPayload,
 } from './executability-simulation'
 
 const DIAMOND_LOUPE_ABI = parseAbi([
@@ -50,6 +57,9 @@ const DIAMOND_LOUPE_ABI = parseAbi([
 ])
 
 const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
+
+/** Calldata that opens with a 4-byte function selector. */
+const FUNCTION_SELECTOR = /^0x[0-9a-f]{8}/iu
 
 /**
  * The reads one verdict needs.
@@ -75,7 +85,22 @@ export interface IExecutabilityChainReader {
     to: Address
     data: Hex
   }) => Promise<Omit<IStaticCallObservation, 'path' | 'from'>>
+  /**
+   * `eth_simulateV1` of a batch's calls in the order the timelock executes
+   * them, so each call sees what the calls before it changed.
+   */
+  simulateInOrder?: (
+    calls: readonly { from: Address; to: Address; data: Hex }[]
+  ) => Promise<TInOrderSimulation>
 }
+
+/** One outcome per call, in order, or why no endpoint could simulate them. */
+export type TInOrderSimulation =
+  | {
+      kind: 'simulated'
+      outcomes: Pick<IStaticCallObservation, 'outcome' | 'revertReason'>[]
+    }
+  | { kind: 'unavailable'; reason: string }
 
 /** The proposal this collector is about. */
 export interface ICollectExecutabilityInput {
@@ -160,6 +185,154 @@ const leafPath = (call: IScheduledCall, ordinal: number): string =>
     ? `call[${call.callIndex}]`
     : `call[${call.callIndex}].scheduled[${ordinal}]`
 
+/** A `scheduleBatch`'s calls in execution order, and each one's payload path. */
+interface IBatchSequence {
+  calls: ISimulatedCall[]
+  paths: string[]
+  /**
+   * Calls whose selector a cut placed before them in the batch adds or
+   * replaces. Only these can revert alone for want of that cut.
+   */
+  afterTheirCut: ReadonlySet<string>
+}
+
+const ROUTING_ACTIONS: ReadonlySet<number> = new Set([
+  FacetCutActionEnum.Add,
+  FacetCutActionEnum.Replace,
+])
+
+/** The native value of each call a `scheduleBatch` schedules; unreadable reads as nonzero. */
+const scheduledValues = (data: Hex): readonly bigint[] => {
+  try {
+    const { args } = decodeFunctionData({
+      abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+      data,
+    })
+    return args[1]
+  } catch {
+    return [1n]
+  }
+}
+
+/**
+ * The calls of a proposal that is a single timelock `scheduleBatch`.
+ *
+ * Only that shape fixes the order the calls run in: separate `schedule`
+ * operations, nested or side by side, can each execute once their own delay
+ * passes, so simulating them in proposal order would vouch for an order nothing
+ * enforces. Each cut in the batch is matched to its own payload by position, so
+ * a cut that reverts in order is graded on that revert.
+ */
+const batchSequence = (
+  input: ICollectExecutabilityInput,
+  walked: { calls: readonly IScheduledCall[]; undecodable: readonly number[] },
+  payloads: readonly TSimulatedPayload[]
+): IBatchSequence | undefined => {
+  const leaves = walked.calls
+  const isBatch =
+    input.data.slice(0, 10).toLowerCase() ===
+    TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
+  if (!isBatch || leaves.length < 2 || leaves.some((leaf) => leaf.depth !== 1))
+    return undefined
+  // A call the walker could not open is missing from the sequence, so the
+  // calls after it would be simulated without it.
+  if (walked.undecodable.length > 0) return undefined
+  // The simulation sends no value, so a batch carrying any would be judged on
+  // calls it does not make (a nonpayable cut sent one wei reverts on chain).
+  if (scheduledValues(input.data).some((value) => value !== 0n))
+    return undefined
+
+  const cuts = payloads.filter(
+    (payload): payload is IDiamondCutPayload => payload.kind === 'diamond-cut'
+  )
+  const routed = new Set<string>()
+  const afterTheirCut = new Set<string>()
+  const paths: string[] = []
+  let cutsSeen = 0
+
+  for (const [ordinal, leaf] of leaves.entries()) {
+    const selector = leaf.payload.slice(0, 10).toLowerCase()
+    if (selector === DIAMOND_CUT_SELECTOR) {
+      const cut = cuts[cutsSeen++]
+      if (cut === undefined) return undefined
+      paths.push(cut.path)
+      for (const facetCut of cut.cuts)
+        if (ROUTING_ACTIONS.has(facetCut.action))
+          for (const added of facetCut.selectors) routed.add(normalise(added))
+      continue
+    }
+    const path = leafPath(leaf, ordinal)
+    paths.push(path)
+    if (routed.has(selector)) afterTheirCut.add(path)
+  }
+
+  // A cut the walker read but the batch did not carry, or the reverse: the
+  // positions no longer line up, and an outcome would land on the wrong call.
+  if (cutsSeen !== cuts.length) return undefined
+
+  return {
+    calls: leaves.map((leaf) => ({
+      from: leaf.caller ?? input.safeAddress,
+      to: leaf.target ?? input.to,
+      data: leaf.payload,
+    })),
+    paths,
+    afterTheirCut,
+  }
+}
+
+/**
+ * Re-simulates a batch in order when one of its calls reverted on its own.
+ *
+ * An isolated `eth_call` runs against the state before the proposal, so a call
+ * that needs an earlier one in the same batch (a setter of a facet the batch
+ * cuts in) reverts there whatever it would do at execution. Only a call placed
+ * after the cut that routes it can revert alone for that reason, so only its
+ * isolated revert can be cleared in order; any other isolated revert stands,
+ * whatever another endpoint's in-order run says. Every other call takes the
+ * in-order outcome, cuts included. When no endpoint can run it, the isolated
+ * reverts stay, and a call after its cut carries the reason.
+ */
+const simulateBatchInOrder = async (
+  batch: IBatchSequence | undefined,
+  staticCalls: IExecutabilityInput['staticCalls'],
+  reader: IExecutabilityChainReader
+): Promise<IExecutabilityInput['staticCalls']> => {
+  if (batch === undefined) return staticCalls
+  const at = new Map<string, number>()
+  batch.paths.forEach((path, index) => at.set(path, index))
+  const revertsForWantOfItsCut = (result: IStaticCallObservation): boolean =>
+    result.outcome === 'reverted' && batch.afterTheirCut.has(result.path)
+  if (!staticCalls.results.some(revertsForWantOfItsCut)) return staticCalls
+
+  const sequence: TInOrderSimulation = reader.simulateInOrder
+    ? await reader.simulateInOrder(
+        batch.calls.map((call) => ({
+          from: getAddress(call.from),
+          to: getAddress(call.to),
+          data: call.data,
+        }))
+      )
+    : { kind: 'unavailable', reason: 'no in-order simulator was configured' }
+
+  const results = staticCalls.results.map((result): IStaticCallObservation => {
+    const index = at.get(result.path)
+    if (index === undefined) return result
+    if (sequence.kind === 'unavailable')
+      return revertsForWantOfItsCut(result)
+        ? { ...result, inOrderUnavailable: sequence.reason }
+        : result
+    if (result.outcome === 'reverted' && !revertsForWantOfItsCut(result))
+      return result
+    const outcome = sequence.outcomes[index]
+    return outcome === undefined
+      ? result
+      : { path: result.path, from: result.from, ...outcome, inOrder: true }
+  })
+
+  return { ...staticCalls, results }
+}
+
 /**
  * Turns a proposal's calldata into the payloads the simulation walks, and the
  * `eth_call` each of them is answered by.
@@ -224,6 +397,9 @@ const buildPayloads = (
           : 'an unrecognised function the timelock would send',
       target,
       calldataLength: Math.max(0, (leaf.payload.length - 2) / 2),
+      ...(FUNCTION_SELECTOR.test(leaf.payload)
+        ? { selector: leaf.payload.slice(0, 10).toLowerCase() }
+        : {}),
       ...(leaf.caller ? { caller: leaf.caller } : {}),
     })
     simulation.set(path, {
@@ -447,7 +623,11 @@ export const collectExecutabilityInput = async (
 
   const { payloads, simulation } = buildPayloads(input, calls, leaves.calls)
   const observations = await readObservations(payloads, reader)
-  const staticCalls = await runStaticCalls(simulation, reader)
+  const staticCalls = await simulateBatchInOrder(
+    batchSequence(input, leaves, payloads),
+    await runStaticCalls(simulation, reader),
+    reader
+  )
 
   return {
     network: input.network,
@@ -710,4 +890,102 @@ export const createExecutabilityChainReader = (
       ),
     }
   },
+  simulateInOrder: async (calls) => {
+    // Every endpoint is asked, and a revert from any of them wins, as it does
+    // for an isolated eth_call: this result can clear a revert, so a single
+    // stale or permissive endpoint must not be the one that clears it.
+    let lastError: string | undefined
+    let merged: TInOrderSimulation | undefined
+
+    for (const simulator of simulators) {
+      const answer = await simulateOn(simulator, calls)
+      if (answer.kind === 'unavailable') {
+        lastError = answer.reason
+        continue
+      }
+      merged =
+        merged?.kind === 'simulated'
+          ? {
+              kind: 'simulated',
+              outcomes: merged.outcomes.map((outcome, index) =>
+                outcome.outcome === 'reverted'
+                  ? outcome
+                  : (answer.outcomes[index] ?? outcome)
+              ),
+            }
+          : answer
+    }
+
+    if (merged !== undefined) return merged
+    return {
+      kind: 'unavailable',
+      reason: redactUrls(
+        lastError ?? 'no endpoint was available to simulate the batch in order'
+      ),
+    }
+  },
 })
+
+/**
+ * One endpoint's `eth_simulateV1` answer for a batch, or why it gave none.
+ *
+ * @param simulator - The endpoint to ask.
+ * @param calls - The batch, in execution order.
+ * @returns One outcome per call, or the endpoint's failure.
+ */
+const simulateOn = async (
+  simulator: PublicClient,
+  calls: readonly { from: Address; to: Address; data: Hex }[]
+): Promise<TInOrderSimulation> => {
+  try {
+    const [block] = await simulator.simulateBlocks({
+      blocks: [
+        {
+          calls: calls.map((call) => ({
+            account: call.from,
+            to: call.to,
+            data: call.data,
+          })),
+        },
+      ],
+    })
+    // A node that answers with fewer results than calls has not simulated the
+    // batch, and pairing what it did return by index would grade one call on
+    // another's outcome.
+    if (block?.calls.length !== calls.length)
+      return {
+        kind: 'unavailable',
+        reason: `the node returned ${block?.calls.length ?? 0} results for ${calls.length} calls`,
+      }
+    // A failure without revert data is not told apart from a VM error (out of
+    // gas under the node's own cap), which the isolated eth_call does not
+    // count as a revert either, so it leaves this endpoint without an answer.
+    const silent = block.calls.findIndex(
+      (result) =>
+        result.status !== 'success' && (!result.data || result.data === '0x')
+    )
+    if (silent !== -1)
+      return {
+        kind: 'unavailable',
+        reason: `eth_simulateV1 call ${silent} failed without revert data`,
+      }
+    return {
+      kind: 'simulated',
+      outcomes: block.calls.map((result) =>
+        result.status === 'success'
+          ? { outcome: 'succeeded' }
+          : {
+              outcome: 'reverted',
+              revertReason: `revert data ${result.data.slice(0, 74)}`,
+            }
+      ),
+    }
+  } catch (error) {
+    return {
+      kind: 'unavailable',
+      reason: `eth_simulateV1 failed: ${summariseRpcError(
+        error instanceof Error ? error.message : String(error)
+      )}`,
+    }
+  }
+}

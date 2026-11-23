@@ -13,7 +13,10 @@
  */
 
 import type { ImmutableVerdictStatus } from '../codehash/immutable-verdict'
-import type { ITargetVerdict } from '../codehash/verify-cut-targets'
+import {
+  isPinnedMatch,
+  type ITargetVerdict,
+} from '../codehash/verify-cut-targets'
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import type { ICodehashSignGate } from './codehash-sign-gate'
@@ -946,13 +949,24 @@ export const codehashCheckResult = (
       anchor: 'A-LOCAL',
     }
 
+  // A pin is `main`'s word for the bytes, not a rebuild, so it is named and
+  // anchored as such rather than counted among the attested builds.
+  const pinned = gate.targets.filter(isPinnedMatch).length
+  const rebuilt = gate.targets.length - pinned
   return {
     checkId: CODEHASH_CHECK_ID,
     network,
     status: 'pass',
     expected: EVERY_TARGET_ATTESTED,
-    actual: `${gate.targets.length} installed address(es) match an attested build`,
-    anchor: 'A-AUDIT',
+    actual: [
+      ...(rebuilt > 0
+        ? [`${rebuilt} installed address(es) match an attested build`]
+        : []),
+      ...(pinned > 0
+        ? [`${pinned} registered address(es) match a codehash pinned on main`]
+        : []),
+    ].join('; '),
+    anchor: pinned > 0 ? 'A-MAIN' : 'A-AUDIT',
   }
 }
 
@@ -1361,6 +1375,9 @@ export const rpcQuorumCheckResult = (
       expected,
       actual: agreed,
       anchor: 'A-CHAIN',
+      // A pass at the pinned block needs no qualifier. One read at `latest`
+      // says the chains, not the code, were compared at the pinned block.
+      ...(verdict.valueReadAt === 'latest' ? { detail: verdict.detail } : {}),
     }
 
   return {
@@ -1407,15 +1424,6 @@ export interface IProposalCheckVerdicts {
   executabilityOutOfScope?: string
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
-  /**
-   * Why this network's providers cannot be compared, when they cannot.
-   *
-   * The quorum reads every provider at one pinned block, and a chain whose
-   * JSON-RPC serves a code read only at `latest` — Tron — has no height two
-   * providers can be held to. A declared limit, named on the row, kept apart
-   * from a read on a covered chain that simply was not made.
-   */
-  rpcQuorumOutOfScope?: string
   /**
    * The codehash gate's verdict for this proposal.
    *
@@ -1718,25 +1726,16 @@ export const proposalCheckResults = (
           ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
-      : verdicts.rpcQuorumOutOfScope
-        ? {
-            checkId: RPC_QUORUM_CHECK_ID,
-            network,
-            status: 'needs-ack',
-            expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
-            actual: verdicts.rpcQuorumOutOfScope,
-            anchor: 'A-DOCUMENTED',
-          }
-        : {
-            checkId: RPC_QUORUM_CHECK_ID,
-            network,
-            // Report-only, so an unmade read is an acknowledgement and not the
-            // `error` every other unmade check here records: this gate must not
-            // block a run on the fleet's missing endpoint redundancy.
-            status: 'needs-ack',
-            expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
-            actual: 'no quorum read was made for this proposal',
-            anchor: 'A-UNRESOLVED',
-          },
+      : {
+          checkId: RPC_QUORUM_CHECK_ID,
+          network,
+          // Report-only, so an unmade read is an acknowledgement and not the
+          // `error` every other unmade check here records: this gate must not
+          // block a run on the fleet's missing endpoint redundancy.
+          status: 'needs-ack',
+          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+          actual: 'no quorum read was made for this proposal',
+          anchor: 'A-UNRESOLVED',
+        },
   ]
 }

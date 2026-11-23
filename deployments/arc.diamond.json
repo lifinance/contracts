@@ -76,6 +76,10 @@
       "0x2af47e3266a5120b0C07658447aaD001680Fbb77": {
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
+      },
+      "0x66378319035FdcA6C27b88a58A27097424e333A4": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

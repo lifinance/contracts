@@ -20,11 +20,13 @@ import {
   createDeployLogHistoryReader,
   createLogRangeReader,
   findingsOf,
+  isSettled,
   jobFails,
   loadWatcherState,
   logScanFailureReason,
   openWatcherStore,
   parseDeployLogHistory,
+  pinsFingerprint,
   readTimelockLogs,
   unreadableReport,
   vouchedFloorOf,
@@ -245,15 +247,10 @@ describe('jobFails', () => {
     ).toBe(true)
   })
 
-  it('fails when no network could be read, ignoring skipped and uncovered ones', () => {
+  it('fails when no network could be read, ignoring skipped ones', () => {
     const skipped = report({ network: 'zksync', status: 'skipped' })
-    const uncovered = report({
-      network: 'tron',
-      status: 'uncovered',
-      verdict: 'unverified',
-    })
-    expect(jobFails([unreadable, skipped, uncovered], false)).toBe(true)
-    expect(jobFails([skipped, uncovered], false)).toBe(false)
+    expect(jobFails([unreadable, skipped], false)).toBe(true)
+    expect(jobFails([skipped], false)).toBe(false)
     expect(jobFails([], false)).toBe(false)
   })
 
@@ -797,7 +794,7 @@ describe('parseDeployLogHistory', () => {
       '+  "FeeForwarder": "0xC18D9E84b8687A2645447A61e52c455Dac1675e1",',
       ' "Executor": "0x0000000000000000000000000000000000005555",',
     ].join('\n')
-    expect(parseDeployLogHistory(patch)).toEqual(
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
       new Map([
         [
           'FeeForwarder',
@@ -814,7 +811,7 @@ describe('parseDeployLogHistory', () => {
     const patch =
       '+{"Executor":"0x0000000000000000000000000000000000005555",' +
       '"ERC20Proxy":"0x0000000000000000000000000000000000006666"}'
-    expect(parseDeployLogHistory(patch)).toEqual(
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
       new Map([
         [
           'Executor',
@@ -826,6 +823,69 @@ describe('parseDeployLogHistory', () => {
         ],
       ])
     )
+  })
+
+  it('keys a Tron base58 entry by its hex, and ignores base58 off Tron', () => {
+    const patch = [
+      '+  "LiFiTimelockController": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu",',
+      '+  "Executor": "0x0000000000000000000000000000000000005555",',
+    ].join('\n')
+    expect(parseDeployLogHistory(patch, 'tron')).toEqual(
+      new Map([
+        [
+          'LiFiTimelockController',
+          new Map([['0x161f35951702e93ffee662ed16fb538c283462a5', 0]]),
+        ],
+        [
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 1]]),
+        ],
+      ])
+    )
+    expect(parseDeployLogHistory(patch, 'xlayer')).toEqual(
+      new Map([
+        [
+          'Executor',
+          new Map([['0x0000000000000000000000000000000000005555', 0]]),
+        ],
+      ])
+    )
+  })
+
+  it('throws on a Tron entry whose checksum fails', () => {
+    const patch = '+  "Executor": "TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhv",'
+    expect(() => parseDeployLogHistory(patch, 'tron')).toThrow()
+  })
+
+  it('throws on a Tron entry under another version byte', () => {
+    const patch = '+  "Executor": "TbKcWzjyNreUq3ub5hQFKUbCX7wyoDAGww",'
+    expect(() => parseDeployLogHistory(patch, 'tron')).toThrow(
+      'version byte is not 0x41'
+    )
+  })
+})
+
+describe('isSettled', () => {
+  it('drops an executed operation on any network', () => {
+    expect(isSettled('xlayer', 'done', 0, false)).toBe(true)
+    expect(isSettled('tron', 'done', 0, false)).toBe(true)
+  })
+
+  it('keeps a pending or unread operation', () => {
+    expect(isSettled('xlayer', 'pending', 0, false)).toBe(false)
+    expect(isSettled('tron', undefined, 5, true)).toBe(false)
+  })
+
+  it('drops an unset operation proven cancelled on any network', () => {
+    expect(isSettled('xlayer', 'unset', 1, true)).toBe(true)
+    expect(isSettled('tron', 'unset', 1, true)).toBe(true)
+  })
+
+  it('drops an unproven unset operation after three runs off Tron only', () => {
+    expect(isSettled('xlayer', 'unset', 2, false)).toBe(false)
+    expect(isSettled('xlayer', 'unset', 3, false)).toBe(true)
+    expect(isSettled('tron', 'unset', 3, false)).toBe(false)
+    expect(isSettled('tron', 'unset', 50, false)).toBe(false)
   })
 })
 
@@ -939,5 +999,29 @@ describe('createDeployLogHistoryReader', () => {
       ok: false,
       reason: 'origin/main has no history of the file',
     })
+  })
+})
+
+describe('pinsFingerprint', () => {
+  const pins = (codehash: string) => ({
+    ok: true as const,
+    value: { Ledger: { deployments: { mainnet: { codehash } } } },
+  })
+
+  it('changes whenever main changes a pin, so a cached verdict is re-judged', () => {
+    const before = pinsFingerprint(pins(`0x${'aa'.repeat(32)}`))
+
+    expect(pinsFingerprint(pins(`0x${'aa'.repeat(32)}`))).toBe(before)
+    expect(pinsFingerprint(pins(`0x${'bb'.repeat(32)}`))).not.toBe(before)
+    expect(pinsFingerprint({ ok: true, value: {} })).not.toBe(before)
+  })
+
+  it('tells an unreadable file apart from any content, and by its reason', () => {
+    const missing = pinsFingerprint({ ok: false, reason: 'blob-unreadable' })
+
+    expect(missing).not.toBe(pinsFingerprint({ ok: true, value: {} }))
+    expect(missing).not.toBe(
+      pinsFingerprint({ ok: false, reason: 'fetch-failed' })
+    )
   })
 })

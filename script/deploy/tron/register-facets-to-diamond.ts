@@ -22,7 +22,10 @@ import { flagIsOn } from '../safe/cli-flags'
 
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain.js'
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
-import { assertFacetCodeMatchesArtifacts } from './helpers/assertFacetCodeMatchesArtifact.js'
+import {
+  assertFacetCodeMatchesArtifacts,
+  tronRuntimeCodeReader,
+} from './helpers/assertFacetCodeMatchesArtifact.js'
 import {
   DIAMOND_CUT_FEE_LIMIT_SUN,
   sendGuardedFacetRegistration,
@@ -466,10 +469,7 @@ async function registerFacetsToDiamond(
     )
     await assertFacetCodeMatchesArtifacts({
       facets: pendingFacets,
-      readRuntimeCode: async (address) => {
-        const info = await tronWeb.trx.getContractInfo(address)
-        return info?.runtimecode ? `0x${info.runtimecode}` : undefined
-      },
+      readRuntimeCode: tronRuntimeCodeReader(tronWeb),
       outRoot: path.join(process.cwd(), 'out'),
     })
 

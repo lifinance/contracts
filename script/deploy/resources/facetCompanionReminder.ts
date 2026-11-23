@@ -1,9 +1,9 @@
 /**
  * Companion-periphery reminder for facet deployments (EXSC-785).
  *
- * A bridge facet only covers the source side; destination calls need its companion Receiver on the
- * same chain. Rolling out a facet to a new chain and forgetting the Receiver silently disables
- * destination swaps there.
+ * Some facets need a companion periphery contract registered on the same chain, e.g. a bridge
+ * facet's Receiver for destination calls. Rolling out such a facet to a new chain and forgetting
+ * the companion silently breaks what it provides there.
  *
  * The deploy pipeline prints a NON-FATAL reminder when a facet being deployed has a declared
  * companion (`config/global.json` → `facetPeripheryCouplings`) that is absent from the network's
@@ -54,10 +54,10 @@ export function buildCompanionReminder(
 
   const wanted = [...new Set(missing.map((r) => r.companion))]
   return (
-    `⚠️  ${contractName} handles the source side only — destination calls on ${network} need ` +
+    `⚠️  ${contractName} does not work on its own — on ${network} it needs ` +
     `${wanted.join(
       ', '
-    )}, which is not in the deploy log. Deploy and register the companion ` +
+    )}, which is not in the deploy log. Make sure it is deployed and registered ` +
     `before enabling routes, or the health check will flag this network ` +
     `(config/global.json → facetPeripheryCouplings).`
   )

@@ -63,6 +63,7 @@ import {
   createToolchainScopeResolver,
   createArtifactCache,
   createPinnedImmutableExpectations,
+  createPinnedCodehashSource,
   defaultCheckoutRoot,
   readToolchainConfig,
   resolveDeploymentRecord,
@@ -2753,6 +2754,22 @@ describe('createDeployedCodeReader', () => {
   })
 
   /**
+   * A failed read viem does not retry: `-32602` is outside its `shouldRetry`
+   * set, so a down primary fails at once instead of waiting out the sign-time
+   * backoff. The readers' catch after the primary read is generic, so the
+   * fallback path runs exactly as it would after a 503.
+   */
+  const downResponse = (id: number): Response =>
+    new Response(
+      JSON.stringify({
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32602, message: 'endpoint down' },
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+
+  /**
    * Answers each JSON-RPC method per host. `code` undefined marks the host
    * down, so a test can fail one endpoint without failing the rest.
    */
@@ -2764,16 +2781,12 @@ describe('createDeployedCodeReader', () => {
       const url = String(input)
       const host = Object.keys(byHost).find((h) => url.startsWith(h))
       const code = host ? byHost[host] : undefined
-      if (code === undefined) {
-        const error = new Error('HTTP request failed: 503')
-        error.name = 'HttpRequestError'
-        throw error
-      }
-
       const body = JSON.parse(String(init?.body ?? '{}')) as {
         method?: string
         id?: number
       }
+      if (code === undefined) return downResponse(body.id ?? 1)
+
       const result =
         body.method === 'eth_chainId'
           ? '0x1'
@@ -2818,6 +2831,67 @@ describe('createDeployedCodeReader', () => {
     )
 
     expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+  })
+
+  describe('on a chain that serves eth_getCode only at latest', () => {
+    /**
+     * Answers like TronGrid when `refuseHeights` is set: a code read at a block
+     * number is an error. Returns the block each fallback code read asked for.
+     */
+    const stubFallbacks = (refuseHeights: boolean): unknown[] => {
+      const codeReadAt: unknown[] = []
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit
+      ) => {
+        const body = JSON.parse(String(init?.body ?? '{}')) as {
+          method?: string
+          params?: unknown[]
+          id?: number
+        }
+        if (String(input).startsWith(PRIMARY)) return downResponse(body.id ?? 1)
+        if (body.method === 'eth_getCode') codeReadAt.push(body.params?.[1])
+        const payload =
+          refuseHeights &&
+          body.method === 'eth_getCode' &&
+          body.params?.[1] !== 'latest'
+            ? { error: { code: -32602, message: 'only latest is supported' } }
+            : {
+                result:
+                  body.method === 'eth_chainId'
+                    ? '0x1'
+                    : body.method === 'eth_getBlockByNumber'
+                      ? { number: '0x64', hash: `0x${'ab'.repeat(32)}` }
+                      : '0xfeed',
+              }
+        return new Response(
+          JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, ...payload }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      }) as typeof fetch
+      return codeReadAt
+    }
+
+    it('reads the fallbacks at latest on Tron', async () => {
+      const codeReadAt = stubFallbacks(true)
+      const read = createDeployedCodeReader(() =>
+        chainWith([PRIMARY, SECOND, THIRD])
+      )
+
+      expect(await read(ADDRESS, 'tron')).toBe('0xfeed')
+      expect(new Set(codeReadAt)).toEqual(new Set(['latest']))
+    })
+
+    it('reads the fallbacks at a block number elsewhere', async () => {
+      const codeReadAt = stubFallbacks(false)
+      const read = createDeployedCodeReader(() =>
+        chainWith([PRIMARY, SECOND, THIRD])
+      )
+
+      expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+      expect(codeReadAt.length).toBeGreaterThan(0)
+      expect(codeReadAt).not.toContain('latest')
+    })
   })
 
   // Disagreement is the case the corroboration exists for.
@@ -3689,5 +3763,85 @@ describe('buildRecordQuery', () => {
         }
       )
     ).toThrow('unmodelled operator $not')
+  })
+})
+
+describe('createPinnedCodehashSource', () => {
+  const PATH = 'script/deploy/resources/pinnedExternalCodehashes.json'
+  const LEDGER = '0x5A4966A80B95D867Ee5804FF84b8b75f260D9282'
+  const CODEHASH = `0x${'de'.repeat(32)}`
+  const FILE = {
+    Ledger: {
+      source: 'example/repo@abc',
+      deployments: { mainnet: { address: LEDGER, codehash: CODEHASH } },
+    },
+  }
+
+  const failure = async (promise: Promise<unknown>): Promise<string> => {
+    try {
+      await promise
+    } catch (error) {
+      return error instanceof Error ? error.message : String(error)
+    }
+    throw new Error('expected the lookup to reject')
+  }
+
+  it('returns the entry main pins, in any address case, reading main once', async () => {
+    const asked: string[] = []
+    const lookup = createPinnedCodehashSource(async (repoPath) => {
+      asked.push(repoPath)
+      return { ok: true, value: FILE }
+    })
+
+    expect(await lookup(LEDGER.toLowerCase(), 'mainnet')).toEqual({
+      codehash: CODEHASH,
+      label: 'Ledger on mainnet',
+    })
+    expect(await lookup(LEDGER, 'base')).toBeUndefined()
+    expect(asked).toEqual([PATH])
+  })
+
+  it('pins nothing when main does not carry the file', async () => {
+    const lookup = createPinnedCodehashSource(async () => ({
+      ok: false,
+      reason: 'blob-unreadable',
+    }))
+
+    expect(await lookup(LEDGER, 'mainnet')).toBeUndefined()
+  })
+
+  it('rejects a lookup when main cannot be fetched', async () => {
+    const lookup = createPinnedCodehashSource(async () => ({
+      ok: false,
+      reason: 'fetch-failed',
+    }))
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain('fetch-failed')
+  })
+
+  it('retries after a failed read instead of keeping the failure', async () => {
+    let reads = 0
+    const lookup = createPinnedCodehashSource(async () => {
+      reads += 1
+      return reads === 1
+        ? { ok: false, reason: 'fetch-failed' }
+        : { ok: true, value: FILE }
+    })
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain('fetch-failed')
+    expect((await lookup(LEDGER, 'mainnet'))?.codehash).toBe(CODEHASH)
+    await lookup(LEDGER, 'mainnet')
+    expect(reads).toBe(2)
+  })
+
+  it('rejects every lookup when the file main carries is malformed', async () => {
+    const lookup = createPinnedCodehashSource(async () => ({
+      ok: true,
+      value: { Ledger: { source: 'x', deployments: { mainnet: 'nope' } } },
+    }))
+
+    expect(await failure(lookup(LEDGER, 'mainnet'))).toContain(
+      'Ledger.deployments.mainnet must be an object'
+    )
   })
 })

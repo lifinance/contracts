@@ -35,12 +35,17 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
 import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
-import { deployContractWithLogging, validateBalance } from './tronUtils'
+import {
+  deployContractWithLogging,
+  tronExistingDeploymentMode,
+  validateBalance,
+} from './tronUtils'
 
 /**
  * Deploy and register LayerSwapFacet to Tron.
@@ -50,13 +55,18 @@ import { deployContractWithLogging, validateBalance } from './tronUtils'
  * @throws If required config (depository, backend signer, diamond address) is
  *         missing, or the deploy/propose step fails.
  */
-async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
+async function deployAndRegisterLayerSwapFacet(options: {
+  dryRun?: boolean
+  proposeOnly?: boolean
+}) {
   consola.start('TRON LayerSwapFacet Deployment & Registration')
+  const dryRun = options.dryRun ?? false
+  const proposeOnly = options.proposeOnly ?? false
+  if (!dryRun) assertTicketPresent()
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
 
-  const dryRun = options.dryRun ?? false
   let verbose = true
 
   try {
@@ -96,7 +106,6 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
     privateKey,
     verbose,
     dryRun,
-    safetyMargin: 1.5,
     maxRetries: 3,
     confirmationTimeout: 120000,
   }
@@ -114,7 +123,7 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
       privateKey,
     })
 
-    await validateBalance(tronWeb, MIN_BALANCE_WARNING)
+    if (!proposeOnly) await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
     const layerSwapConfig = JSON.parse(
       await readFile('config/layerswap.json', 'utf8')
@@ -155,7 +164,8 @@ async function deployAndRegisterLayerSwapFacet(options: { dryRun?: boolean }) {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'LayerSwapFacet',
-      dryRun
+      dryRun,
+      tronExistingDeploymentMode(proposeOnly, 'LayerSwapFacet', tronWeb)
     )
 
     let facetAddress: string
@@ -248,10 +258,19 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
     },
+    proposeOnly: {
+      type: 'boolean',
+      description:
+        'Skip the deploy and propose the address recorded for the network',
+    },
   },
   async run({ args }) {
     await deployAndRegisterLayerSwapFacet({
       dryRun: flagIsOn(args.dryRun),
+      proposeOnly: readBooleanFlag(process.argv, {
+        camel: 'proposeOnly',
+        kebab: 'propose-only',
+      }),
     })
   },
 })

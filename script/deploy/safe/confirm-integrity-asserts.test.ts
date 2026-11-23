@@ -18,19 +18,28 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { readFileSync } from 'node:fs'
 import {
   encodeFunctionData,
   getAddress,
   hashMessage,
   hashTypedData,
+  keccak256,
   parseAbi,
   type Address,
   type Hex,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import {
+  PINNED_CODEHASHES_REPO_PATH,
+  parsePinnedCodehashes,
+  pinnedKey,
+} from '../codehash/pinned-codehashes'
+
 import type { ICheckLedger, ILedgerVerdict } from './check-ledger'
 import { proposalKeyOf } from './codehash-sign-gate'
+import { createPinnedCodehashSource } from './codehash-sign-gate-deps'
 import {
   CHECK_FIXED_FIELDS,
   CHECK_SAFE_ADDRESS,
@@ -39,6 +48,7 @@ import {
   CHECK_TARGET,
   CHECK_TIMELOCK_DELAY,
   assertIntegrityAssertsAllowSigning,
+  createIntegrityAssertDeps,
   readScheduleDelay,
   renderIntegrityAsserts,
   resolveRecordedTarget,
@@ -47,6 +57,8 @@ import {
   type IIntegrityAssertInput,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
+import type { PinnedJsonRead } from './pinned-target-state'
+import type { ISafeTransaction, SafeClient } from './safe-utils'
 import {
   TIMELOCK_SCHEDULE_ABI,
   TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -156,6 +168,10 @@ const makeDeps = (
   currentOwners: async () => [OWNER, SECOND_OWNER] as readonly Address[],
   committedDeployments: async () => committedLog(),
   recordedDeployments: async () => [],
+  pinnedCodehash: async () => undefined,
+  liveCodehash: async () => {
+    throw new Error('the chain is read only for a pinned target')
+  },
   timelockMinDelay: async () => MIN_DELAY,
   ...over,
 })
@@ -632,6 +648,303 @@ describe('the target', () => {
     expect(outcome.status).toBe('error')
   })
 })
+
+describe('a target main pins the codehash of', () => {
+  const EXTERNAL = getAddress('0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468')
+  const PINNED_HASH = `0x${'d1'.repeat(32)}` as Hex
+  const OTHER_HASH = `0x${'ee'.repeat(32)}` as Hex
+  const HANDOVER: Hex = '0x25692962'
+  const PIN = { codehash: PINNED_HASH, label: 'IntentExecutor on mainnet' }
+
+  const externalInput = (): IIntegrityAssertInput =>
+    makeInput({
+      to: EXTERNAL,
+      data: HANDOVER,
+      storedTxData: { to: EXTERNAL, data: HANDOVER, operation: 0 },
+    })
+
+  const pinnedDeps = (
+    over: Partial<IIntegrityAssertDeps> = {}
+  ): IIntegrityAssertDeps =>
+    makeDeps({
+      pinnedCodehash: async (address) =>
+        address === EXTERNAL ? PIN : undefined,
+      liveCodehash: async () => PINNED_HASH,
+      ...over,
+    })
+
+  it('passes on the chain anchor when the deployed code matches the pin', async () => {
+    const outcome = await statusOf(externalInput(), pinnedDeps(), CHECK_TARGET)
+    expect(outcome.status).toBe('pass')
+    expect(outcome.anchor).toBe('A-CHAIN')
+    expect(outcome.actual).toContain('IntentExecutor on mainnet')
+  })
+
+  it('compares the hashes in any case', async () => {
+    const outcome = await statusOf(
+      externalInput(),
+      pinnedDeps({
+        liveCodehash: async () => PINNED_HASH.toUpperCase() as Hex,
+      }),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('pass')
+  })
+
+  it('fails when the deployed code differs from the pin', async () => {
+    const outcome = await statusOf(
+      externalInput(),
+      pinnedDeps({ liveCodehash: async () => OTHER_HASH }),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.anchor).toBe('A-CHAIN')
+    expect(outcome.actual).toContain(OTHER_HASH)
+    expect(outcome.actual).toContain('IntentExecutor on mainnet')
+  })
+
+  it('does not let the deployment record rescue a codehash mismatch', async () => {
+    const outcome = await statusOf(
+      externalInput(),
+      pinnedDeps({
+        liveCodehash: async () => OTHER_HASH,
+        recordedDeployments: async () => [
+          { contractName: 'IntentExecutor', version: '1.0.0' },
+        ],
+      }),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('fail')
+  })
+
+  it('is unverified, never passed, when the pins cannot be read', async () => {
+    const outcome = await statusOf(
+      externalInput(),
+      pinnedDeps({
+        pinnedCodehash: async () => {
+          throw new Error('fetch failed')
+        },
+      }),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('error')
+    expect(outcome.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it('is unverified when the deployed code cannot be read', async () => {
+    const outcome = await statusOf(
+      externalInput(),
+      pinnedDeps({
+        liveCodehash: async () => {
+          throw new Error('rpc down')
+        },
+      }),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('error')
+    expect(outcome.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it('keeps the RPC endpoint out of the record when the code read fails', async () => {
+    const run = await runIntegrityAsserts(
+      externalInput(),
+      pinnedDeps({
+        liveCodehash: async () => {
+          throw new Error(
+            'HTTP request failed. URL: https://rpc.example/v2/secret-key'
+          )
+        },
+      })
+    )
+    const recorded = JSON.stringify([...run.ledger.results.values()])
+    expect(recorded).not.toContain('secret-key')
+    expect(recorded).toContain('[redacted-url]')
+  })
+
+  it('decides before the deployment record is consulted', async () => {
+    let consulted = false
+    const outcome = await statusOf(
+      externalInput(),
+      pinnedDeps({
+        recordedDeployments: async () => {
+          consulted = true
+          return []
+        },
+      }),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('pass')
+    expect(consulted).toBe(false)
+  })
+
+  it('leaves the refusal unchanged for a target nothing pins', async () => {
+    const outcome = await statusOf(
+      makeInput({ to: UNKNOWN_TARGET, storedTxData: { operation: 0 } }),
+      pinnedDeps(),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.anchor).toBe('A-LOCAL')
+    expect(outcome.actual).toContain('named by neither')
+  })
+
+  it('does not consult the pins for the configured Safe or a committed address', async () => {
+    const unreachable = pinnedDeps({
+      pinnedCodehash: async () => {
+        throw new Error('pins must not be read')
+      },
+    })
+    const safe = await statusOf(
+      makeInput({ to: SAFE, data: OWNER_ROTATION_PAYLOAD }),
+      unreachable,
+      CHECK_TARGET
+    )
+    const committed = await statusOf(makeInput(), unreachable, CHECK_TARGET)
+    expect(safe.status).toBe('pass')
+    expect(safe.anchor).toBe('A-LOCAL')
+    expect(committed.status).toBe('pass')
+    expect(committed.actual).toContain('LiFiDiamond')
+  })
+})
+
+describe('createIntegrityAssertDeps pin wiring', () => {
+  const EXTERNAL = getAddress('0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468')
+  const RUNTIME = '0x6080604052' as Hex
+  const committedFile = JSON.parse(
+    readFileSync(PINNED_CODEHASHES_REPO_PATH, 'utf8')
+  ) as Record<string, unknown>
+
+  const fakeSafe = (code: Hex | undefined): SafeClient =>
+    ({
+      getPublicClient: () => ({
+        getCode: async ({ address }: { address: Address }) =>
+          address === EXTERNAL ? code : undefined,
+      }),
+    }) as unknown as SafeClient
+
+  // The committed log and the deployment record are replaced with offline
+  // answers, so an error or a refusal below can only have come from the pins.
+  const depsWith = (
+    readPinnedBlob: (repoPath: string) => Promise<PinnedJsonRead>,
+    safe: SafeClient = fakeSafe(RUNTIME)
+  ): IIntegrityAssertDeps => ({
+    ...createIntegrityAssertDeps({
+      network: 'Mainnet',
+      safe,
+      safeTx: {} as ISafeTransaction,
+      pinnedCodehashFor: createPinnedCodehashSource(readPinnedBlob),
+    }),
+    committedDeployments: async () => committedLog(),
+    recordedDeployments: async () => [],
+  })
+
+  it('hashes the live runtime code and looks the pin up under the network', async () => {
+    const asked: string[] = []
+    const deps = depsWith(async (repoPath) => {
+      asked.push(repoPath)
+      return {
+        ok: true,
+        value: {
+          IntentExecutor: {
+            source: 'example',
+            deployments: {
+              mainnet: { address: EXTERNAL, codehash: keccak256(RUNTIME) },
+            },
+          },
+        },
+      }
+    })
+
+    expect(await deps.liveCodehash(EXTERNAL)).toBe(keccak256(RUNTIME))
+    expect(await deps.pinnedCodehash(EXTERNAL)).toEqual({
+      codehash: keccak256(RUNTIME),
+      label: 'IntentExecutor on mainnet',
+    })
+    expect(asked).toEqual([PINNED_CODEHASHES_REPO_PATH])
+  })
+
+  it('hashes an address with no code as the empty string', async () => {
+    const deps = depsWith(
+      async () => ({ ok: true, value: {} }),
+      fakeSafe(undefined)
+    )
+    expect(await deps.liveCodehash(EXTERNAL)).toBe(keccak256('0x'))
+  })
+
+  it('reads pins only from main, so a pin the checkout adds is ignored', async () => {
+    // The checkout's own file pins this address; main's copy does not.
+    expect(
+      parsePinnedCodehashes(committedFile).has(pinnedKey('mainnet', EXTERNAL))
+    ).toBe(true)
+    const outcome = await statusOf(
+      makeInput({
+        to: EXTERNAL,
+        data: '0x25692962',
+        storedTxData: { operation: 0 },
+      }),
+      depsWith(async () => ({ ok: true, value: {} })),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.actual).toContain('named by neither')
+  })
+
+  it.each(['fetch-failed', 'invalid-shape'] as const)(
+    'is unverified, not refused as unpinned, when main cannot be read (%s)',
+    async (reason) => {
+      const outcome = await statusOf(
+        makeInput({ to: EXTERNAL, storedTxData: { operation: 0 } }),
+        depsWith(async () => ({ ok: false, reason })),
+        CHECK_TARGET
+      )
+      expect(outcome.status).toBe('error')
+      expect(outcome.anchor).toBe('A-UNRESOLVED')
+    }
+  )
+
+  it('is unverified when main carries a malformed pin file', async () => {
+    const outcome = await statusOf(
+      makeInput({ to: EXTERNAL, storedTxData: { operation: 0 } }),
+      depsWith(async () => ({
+        ok: true,
+        value: { IntentExecutor: { deployments: {} } },
+      })),
+      CHECK_TARGET
+    )
+    expect(outcome.status).toBe('error')
+    expect(outcome.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it.each([
+    ['production', '0xd0D4d0c8a03029cb434868CaDc81c9500A7f0468'],
+    ['dev', '0xD6552aF70ffa577166d98d120137D4Ad4d8d821d'],
+  ])(
+    'the committed file pins the %s IntentExecutor on every network the Safe calls it on',
+    (_, address) => {
+      const pins = parsePinnedCodehashes(committedFile)
+      for (const network of INTENT_EXECUTOR_NETWORKS)
+        expect(pins.get(pinnedKey(network, address))?.codehash).toBe(
+          '0xd1e30761de57afee679b565abce89cc01950914d7aa8d823373e83dead77c421'
+        )
+    }
+  )
+})
+
+const INTENT_EXECUTOR_NETWORKS = [
+  'mainnet',
+  'optimism',
+  'bsc',
+  'polygon',
+  'hyperevm',
+  'pharos',
+  'tempo',
+  'robinhood',
+  'arc',
+  'base',
+  'plasma',
+  'arbitrum',
+  'avalanche',
+] as const
 
 describe('resolveRecordedTarget', () => {
   it('names a single versioned record', () => {

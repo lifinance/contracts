@@ -44,6 +44,7 @@ const WELL_KNOWN_SIGNATURES: readonly string[] = [
   'diamondCut((address,uint8,bytes4[])[],address,bytes)',
   'batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
   'registerPeripheryContract(string,address)',
+  'setAttestableSelector(bytes4,bool)',
   // TimelockController
   'schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
   'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
@@ -72,6 +73,12 @@ const WELL_KNOWN_SIGNATURES: readonly string[] = [
   'transferOwnership(address)',
   'acceptOwnership()',
   'renounceOwnership()',
+  // Solady Ownable two-step handover, and catapultar's IntentExecutor solver
+  // set, which the Safe calls directly on contracts LI.FI does not deploy
+  'requestOwnershipHandover()',
+  'completeOwnershipHandover(address)',
+  'cancelOwnershipHandover()',
+  'setSolver(address,bool)',
   // AcrossFacetPackedV4 relayer entry-points. Every other diamond selector is
   // covered by config/clearSigningProposal.json, but the Packed/Min variants are
   // deliberately excluded from it (docs/ClearSigningProposal.md), so a diamondCut

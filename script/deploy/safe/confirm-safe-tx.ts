@@ -70,6 +70,7 @@ import {
   type ICodehashSignGate,
 } from './codehash-sign-gate'
 import {
+  createPinnedCodehashSource,
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
@@ -395,6 +396,7 @@ const readPinnedTargetState = createPinnedTargetStateReader({
   anchor: pinnedAnchor,
 })
 const readPinnedBlob = createPinnedBlobReader({ anchor: pinnedAnchor })
+const pinnedCodehashFor = createPinnedCodehashSource(readPinnedBlob)
 
 // Networks the run tried to process. A network can be attempted and still
 // contribute no outcome (not an owner, ownership read failed, nothing
@@ -1145,6 +1147,7 @@ const processTxs = async (
           network,
           safe,
           safeTx: tx.safeTransaction,
+          pinnedCodehashFor,
         })
       )
     } catch (error) {
@@ -1297,12 +1300,15 @@ const processTxs = async (
 
     const quorumTarget = tx.safeTransaction.data.to as Address
     let rpcQuorum: IRpcQuorumVerdict | undefined
-    if (evmSimulatable && endpoints.length > 0)
+    if (endpoints.length > 0)
       try {
         rpcQuorum = await readCodeQuorumPastTipReorgs(
           quorumTarget,
           endpoints,
-          chain.id
+          chain.id,
+          // Tron's JSON-RPC serves `eth_getCode` only at `latest`; the chains
+          // are still compared at the pinned block.
+          isTronNetworkKey(network) ? 'latest' : 'pinned'
         )
       } catch (error) {
         log.warn(
@@ -1831,9 +1837,6 @@ const processTxs = async (
       ...(isTronNetworkKey(network)
         ? {
             executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
-            // TronGrid answers `eth_getCode` only at `latest`, so the pinned
-            // block every provider is held to cannot be asked for there.
-            rpcQuorumOutOfScope: `${network} serves a code read only at the latest block, so its providers cannot be compared at one height`,
           }
         : {}),
       rpcQuorum,

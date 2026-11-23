@@ -6,7 +6,7 @@
     "node": ">=26"
   },
   "type": "module",
-  "packageManager": "bun@1.4.4",
+  "packageManager": "bun@1.4.5",
   "repository": "github:lifinance/contracts",
   "author": "LI.FI",
   "license": "MIT",
@@ -19,8 +19,7 @@
   ],
   "devDependencies": {
     "@mayanfinance/swap-sdk": "15.0.0",
-    "@solana/spl-token": "^0.4.9",
-    "@solana/web3.js": "^1.95.4",
+    "@noble/curves": "1.9.2",
     "@typechain/ethers-v5": "^10.2.0",
     "@types/bun": "1.4.4",
     "@types/node": "26.6.6",
@@ -51,7 +50,10 @@
     "katex": "0.18.11",
     "ws": "8.22.1",
     "fast-uri": "3.1.9",
-    "markdown-it": "14.3.3"
+    "markdown-it": "14.3.3",
+    "solhint": {
+      "glob": "14.0.6"
+    }
   },
   "scripts": {
     "attestations:mint": "forge build --ast && bunx tsx tasks/buildAttestationManifest.ts --out out",
@@ -114,7 +116,7 @@
     "test": "forge test --evm-version 'cancun'",
     "test:scoped": "bunx tsx script/utils/runScopedForgeTests.ts",
     "test:fix": "npm run lint:fix; npm run format:fix; npm run test",
-    "test:ts": "bun test script/ tasks/",
+    "test:ts": "bun test --parallel script/ tasks/",
     "troncast": "bunx tsx script/troncast/index.ts",
     "typechain": "forge clean && rm -rf typechain/* && forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
     "typechain:incremental": "forge build src && bun abi:removeDuplicateEvents && typechain --target ethers-v5 'out/!(*.t).sol/*.json' --out-dir typechain",
@@ -158,6 +160,12 @@
     ],
     "*.md": [
       "bunx --no-install --bun markdownlint-cli2 --fix"
+    ],
+    ".github/workflows/*.{yml,yaml}": [
+      "bash script/utils/actionlint-files.sh"
+    ],
+    ".github/actions/**/action.{yml,yaml}": [
+      "bash script/utils/actionlint-files.sh"
     ]
   }
 }

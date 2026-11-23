@@ -123,6 +123,20 @@ Each pattern has:
 
 ---
 
+## `gha_remote_archive_sha256_pinned`
+
+**Matches when**: issue title contains "pulled from a remote source without integrity verification"; file is under `.github/workflows/`; AND the downloaded file is checked against a SHA-256 hard-coded in the workflow (`env:` or a literal) with `sha256sum --check --strict` (or `-c`) in the same `run:` step, before it is extracted or executed. The step must use the default `bash -e` shell, or `set -e`.
+
+**Does NOT match** (fix instead): the checksum is fetched from the same remote as the artifact (e.g. a `checksums.txt` downloaded next to it), the check runs after extraction or execution, the artifact is piped straight into a shell (`curl … | sh`), or the step overrides `shell:` without `-e`.
+
+**ignore_reason**:
+> False positive — the archive is verified against a SHA-256 pinned in the workflow file with `sha256sum --check --strict` before extraction, and the step runs under `bash -e`, so a mismatch fails the job before the binary is used. The pinned digest is version-controlled and changes only through a reviewed PR.
+
+**sast_context** (UI: "Binary, code or archive is pulled from a remote source without integrity verification" → Custom Code Context):
+> GitHub Actions workflows in .github/workflows/ that download release tarballs (e.g. actionlint.yml) pin both the version and the SHA-256 digest in the job's env block, and verify the download with `echo "${SHA256}  ${ARCHIVE}" | sha256sum --check --strict` before `tar` runs. GitHub's default run shell is `bash -e`, so a checksum mismatch exits the step non-zero and nothing is extracted or executed. SHA-256 is a sufficient integrity check; the digest comes from the repo, not from the download host. Treat such a download as verified. Flag it only if the digest is fetched from the network, the check comes after extraction or execution, or the archive is piped into a shell.
+
+---
+
 ## Patterns NOT auto-ignored (require manual review or a real fix)
 
 | Pattern | Why | Action |
