@@ -53,26 +53,32 @@ jobs:
           echo -e "\033[31mYou must type 'UNDERSTOOD' to proceed. Please try again. \033[0m"
           exit 1
 
-      # DiamondPauser team-membership gate. triggering_actor (not actor) so that a re-run by a
-      # non-member of a member's run is rejected. Passes only on membership state "active".
+      # DiamondPauser team-membership gate. A re-run keeps the original run's ref and commit and
+      # its github.actor, so both the dispatcher (actor) and the re-runner (triggering_actor)
+      # must be members: otherwise a member's re-run would execute a ref a non-member picked.
+      # Passes only on membership state "active".
       - name: Check DiamondPauser team membership
         if: ${{ inputs.warning == 'UNDERSTOOD' }}
         env:
           GH_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
-          ACTOR: ${{ github.triggering_actor }}
+          ACTOR: ${{ github.actor }}
+          TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
-          # On a non-2xx answer gh exits non-zero and prints the error body, so RESPONSE is
-          # the membership state on success and the API error otherwise
-          RESPONSE=$(gh api "orgs/lifinance/teams/diamondpauser/memberships/$ACTOR" --jq '.state') || true
-          if [[ "$RESPONSE" != "active" ]]; then
-            echo -e "\033[31mUser $ACTOR is not an active member of diamondpauser (or the PAT cannot see the team)\033[0m"
-            echo "API response: ${RESPONSE:-none}"
-            echo "Ask one of the DiamondPauser team members to execute this action:"
-            echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
-            exit 1
-          fi
-          echo -e "\033[32mUser $ACTOR is an active member of the DiamondPauser team and may execute this action\033[0m"
+          for LOGIN in "$ACTOR" "$TRIGGERING_ACTOR"; do
+            # On a non-2xx answer gh exits non-zero and prints the error body, so RESPONSE is
+            # the membership state on success and the API error otherwise
+            RESPONSE=$(gh api "orgs/lifinance/teams/diamondpauser/memberships/$LOGIN" --jq '.state') || true
+            if [[ "$RESPONSE" != "active" ]]; then
+              echo -e "\033[31mUser $LOGIN is not an active member of diamondpauser (or the PAT cannot see the team)\033[0m"
+              echo "Dispatched by: $ACTOR, run by: $TRIGGERING_ACTOR"
+              echo "API response: ${RESPONSE:-none}"
+              echo "Ask one of the DiamondPauser team members to execute this action:"
+              echo "https://github.com/orgs/lifinance/teams/diamondpauser/members"
+              exit 1
+            fi
+          done
+          echo -e "\033[32mDispatcher $ACTOR and runner $TRIGGERING_ACTOR are active DiamondPauser members\033[0m"
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
@@ -122,5 +128,5 @@ jobs:
           # when unset the message says so rather than rendering a broken link.
           payload: |
             {
-              "text": "ATTENTION - the PRODUCTION emergency diamond pause action was just executed across all production diamonds by ${{ github.triggering_actor }}\nStatus: ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }}\nGH run: ${{ steps.jobinfo.outputs.url }}\nRunbook: ${{ vars.EMERGENCY_PAUSE_RUNBOOK_URL || 'not configured — set the EMERGENCY_PAUSE_RUNBOOK_URL repository variable' }}"
+              "text": "ATTENTION - the PRODUCTION emergency diamond pause action was just executed across all production diamonds by ${{ github.triggering_actor }}${{ github.actor != github.triggering_actor && format(' (re-run of a run dispatched by {0})', github.actor) || '' }}\nStatus: ${{ job.status == 'success' && 'Success ✅' || 'Failed ❌' }}\nGH run: ${{ steps.jobinfo.outputs.url }}\nRunbook: ${{ vars.EMERGENCY_PAUSE_RUNBOOK_URL || 'not configured — set the EMERGENCY_PAUSE_RUNBOOK_URL repository variable' }}"
             }
