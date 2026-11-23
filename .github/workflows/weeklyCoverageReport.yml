@@ -8,8 +8,10 @@
 # - Triggers: weekly cron (Tue 06:41 UTC) + workflow_dispatch (manual). Upstream-only (skips forks,
 #   which lack the MongoDB/Slack secrets).
 # - Informational: always posts the measured line/function/branch coverage plus the target
-#   threshold. A run that fails to produce a report (e.g. RPC outage after retries) posts a failure
-#   notice rather than silently going dark — but never gates any merge.
+#   threshold. A run that fails to produce a report posts a failure notice rather than silently
+#   going dark — but never gates any merge. A compile error is reported at once with the compiler
+#   error quoted; any other forge failure (failing test or RPC outage) is retried first.
+# - Contracts listed (space-separated) in COVERAGE_SKIP are left out of the coverage build and named in the report.
 
 on:
   schedule:
@@ -34,6 +36,8 @@ jobs:
       actions: read # required to resolve this job's URL (jobs API) for the Slack deep-link
     env:
       MIN_TEST_COVERAGE: ${{ secrets.MIN_TEST_COVERAGE }}
+      # EcoFacet's runtime code has no memoryguard, so via-IR coverage hits stack too deep.
+      COVERAGE_SKIP: EcoFacet
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -67,8 +71,13 @@ jobs:
       - name: Generate coverage report
         id: coverage
         continue-on-error: true # informational job: a failed report posts a notice, never aborts the Slack step
+        # Hard stop under the job's 90 minutes: an attempt slower than the last one can
+        # overrun RETRY_BUDGET_SECONDS, and a job timeout would cancel the Slack steps.
+        timeout-minutes: 75
         env:
           FOUNDRY_PROFILE: ci
+          # 70 of the job's 90 minutes: a run out of retries must still reach the Slack steps
+          RETRY_BUDGET_SECONDS: 4200
         run: |
           set -euo pipefail
           # forge coverage hits live RPCs for fork tests and has no built-in
@@ -76,15 +85,34 @@ jobs:
           # the full command (--rerun can't be used — coverage needs the complete
           # run). Off the merge path and weekly, so retries are generous (10) to
           # ride out RPC flakiness even though --ir-minimum coverage is slow (~8 min/run).
+          # A compile error is deterministic, so it stops the loop on the first attempt.
+          # A retry starts only if one more attempt as long as the last fits the budget.
+          read -ra SKIP <<< "$COVERAGE_SKIP"
+          SKIP_ARGS=()
+          if [[ ${#SKIP[@]} -gt 0 ]]; then
+            # --skip leaves a skipped contract in the build when a test helper imports it,
+            # so it would count as uncovered without --no-match-coverage.
+            SKIP_REGEX=$(IFS='|'; echo "${SKIP[*]}")
+            SKIP_ARGS=(--skip "${SKIP[@]}" --no-match-coverage "$SKIP_REGEX")
+          fi
           for i in $(seq 1 10); do
+            ATTEMPT_START=$SECONDS
             echo "::group::forge coverage (attempt $i/10)"
-            if forge coverage --report lcov --force --ir-minimum; then
+            # bash < 4.4 treats an empty array as unbound under set -u, hence the + guard
+            if forge coverage --report lcov --force --ir-minimum ${SKIP_ARGS[@]+"${SKIP_ARGS[@]}"} 2>&1 | tee coverage.log; then
               echo "::endgroup::"
               break
             fi
             echo "::endgroup::"
-            if [[ "$i" -eq 10 ]]; then
-              echo "forge coverage failed after 10 attempts" >&2
+            if grep -q 'Compiler run failed' coverage.log; then
+              COMPILE_ERROR=$(grep -A1 -m1 'Compiler run failed' coverage.log | tail -1)
+              echo "compile_error=$COMPILE_ERROR" >> "$GITHUB_OUTPUT"
+              echo "forge coverage failed to compile (not retried): $COMPILE_ERROR" >&2
+              exit 1
+            fi
+            LAST_ATTEMPT_SECONDS=$((SECONDS - ATTEMPT_START))
+            if [[ "$i" -eq 10 ]] || (( SECONDS + LAST_ATTEMPT_SECONDS > RETRY_BUDGET_SECONDS )); then
+              echo "forge coverage failed after $i attempt(s) (failing test or RPC)" >&2
               exit 1
             fi
             sleep 15
@@ -135,6 +163,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           JOB_NAME: ${{ github.job }}
           OUTCOME: ${{ steps.coverage.outcome }}
+          COMPILE_ERROR: ${{ steps.coverage.outputs.compile_error }}
           LINE_COVERAGE: ${{ steps.coverage.outputs.line_coverage }}
           FUNCTION_COVERAGE: ${{ steps.coverage.outputs.function_coverage }}
           BRANCH_COVERAGE: ${{ steps.coverage.outputs.branch_coverage }}
@@ -152,20 +181,33 @@ jobs:
           fi
           RUN_URL="${RUN_URL:-$RUN_OVERVIEW}"
 
-          if [[ "$OUTCOME" != "success" ]]; then
+          if [[ -n "$COMPILE_ERROR" ]]; then
+            # Slack mrkdwn needs &, < and > escaped; cap first so no entity is cut in half.
+            # sed, not ${x//&/...}: bash 5.2 expands & in the replacement and bash 3.2 does not.
+            ERROR_TEXT=$(printf '%s' "${COMPILE_ERROR:0:300}" \
+              | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g')
+            HEADER=":rotating_light: *Weekly test coverage report — compile error*"
+            CODE_SPAN="\`${ERROR_TEXT}\`"
+            BODY=$(printf 'The coverage build failed to compile (not retried):\n%s\n<%s|View workflow run>' \
+              "$CODE_SPAN" "$RUN_URL")
+          elif [[ "$OUTCOME" != "success" ]]; then
             HEADER=":rotating_light: *Weekly test coverage report — run failed*"
-            BODY=$(printf 'forge coverage did not produce a report (likely a transient RPC failure after retries).\n<%s|View workflow run>' "$RUN_URL")
+            BODY=$(printf 'forge coverage did not produce a report (failing test or RPC failure on every attempt, or a report-processing error).\n<%s|View workflow run>' "$RUN_URL")
           else
             if (( $(echo "${LINE_COVERAGE} >= ${TARGET}" | bc -l) )); then
               STATUS=":white_check_mark: above target"
             else
               STATUS=":warning: below target"
             fi
+            EXCLUDED=""
+            if [[ -n "${COVERAGE_SKIP// /}" ]]; then
+              EXCLUDED="Excluded from the measurement: ${COVERAGE_SKIP}"$'\n'
+            fi
             HEADER=":bar_chart: *Weekly test coverage report*"
-            BODY=$(printf 'Line coverage: *%s%%* (target %s%%) — %s\nFunction coverage: %s%%\nBranch coverage: %s%%\n(%s / %s lines)\n<%s|View workflow run>' \
+            BODY=$(printf 'Line coverage: *%s%%* (target %s%%) — %s\nFunction coverage: %s%%\nBranch coverage: %s%%\n(%s / %s lines)\n%s<%s|View workflow run>' \
               "${LINE_COVERAGE}" "${TARGET}" "$STATUS" \
               "${FUNCTION_COVERAGE}" "${BRANCH_COVERAGE}" \
-              "${LINES_HIT}" "${LINES_FOUND}" "$RUN_URL")
+              "${LINES_HIT}" "${LINES_FOUND}" "$EXCLUDED" "$RUN_URL")
           fi
           TEXT=$(printf '%s\n%s' "$HEADER" "$BODY")
           {

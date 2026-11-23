@@ -46,7 +46,7 @@ others; file not found → skip silently; invalid JSON → abort.
 3. **Test coverage preservation** (bridge facets only — never delete their tests without
    replacement)
 
-   - Baseline: `forge coverage --report lcov --force --ir-minimum`, then
+   - Baseline: `forge coverage --report lcov --force --ir-minimum --skip EcoFacet --no-match-coverage EcoFacet`, then
      `bunx tsx script/utils/filter_lcov.ts lcov.info lcov-filtered.info 'test/' 'script/'`;
      record line coverage.
    - Pick a similar bridge facet, in priority order: not deprecated; similar test structure
