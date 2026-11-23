@@ -1874,20 +1874,21 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
     'production'
   ).filter((c) => c.contractName === 'FraxFacet')
   const fraxHop = fraxChecks.find((c) => c.getter === 'FRAX_HOP')
-  const fraxPathUsd = fraxChecks.find((c) => c.getter === 'FRAX_PATH_USD')
+  const fraxTempoWrapper = fraxChecks.find(
+    (c) => c.getter === 'FRAX_TEMPO_WRAPPER'
+  )
 
-  it('frax.json carries a hop but no pathUsd for mainnet (test precondition)', () => {
+  it('frax.json carries a hop but no tempoFeeInclusiveWrapper for mainnet (test precondition)', () => {
     expect(fraxHop?.expectedAddress).toBeTruthy()
-    expect(fraxPathUsd?.expectedAddress).toBeNull()
-    expect(fraxPathUsd?.zeroAddressAllowed).toBe(true)
-    expect(fraxPathUsd?.configFileLoaded).toBe(true)
+    expect(fraxTempoWrapper?.expectedAddress).toBeNull()
+    expect(fraxTempoWrapper?.zeroAddressAllowed).toBe(true)
+    expect(fraxTempoWrapper?.configFileLoaded).toBe(true)
   })
 
   it('passes a zero binding whose config map deliberately omits this network', async () => {
     const ctx = makeFacetCtx('FraxFacet', 'mainnet', {
       FRAX_HOP: fraxHop?.expectedAddress as string,
-      FRAX_TIP_FEE_MANAGER: ZERO,
-      FRAX_PATH_USD: ZERO,
+      FRAX_TEMPO_WRAPPER: ZERO,
     })
 
     await invariant.run(ctx)
@@ -1901,16 +1902,15 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
   it('errors when a binding whose config map omits this network holds an address', async () => {
     const ctx = makeFacetCtx('FraxFacet', 'mainnet', {
       FRAX_HOP: fraxHop?.expectedAddress as string,
-      FRAX_TIP_FEE_MANAGER: ZERO,
-      FRAX_PATH_USD: OTHER,
+      FRAX_TEMPO_WRAPPER: OTHER,
     })
 
     await invariant.run(ctx)
 
     expect(ctx.errors).toHaveLength(1)
-    expect(ctx.errors[0]).toContain('FRAX_PATH_USD()')
+    expect(ctx.errors[0]).toContain('FRAX_TEMPO_WRAPPER()')
     expect(ctx.errors[0]).toContain(getAddress(OTHER))
-    expect(ctx.errors[0]).toContain('.pathUsd.mainnet')
+    expect(ctx.errors[0]).toContain('.tempoFeeInclusiveWrapper.mainnet')
   })
 
   const robinhoodPeriphery = collectImmutableBindingChecks(
@@ -1947,8 +1947,7 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
     // distinction would read that as "the value is zero" on every network at once.
     const cwd = process.cwd()
     const ctx = makeFacetCtx('FraxFacet', 'mainnet', {
-      FRAX_PATH_USD: ZERO,
-      FRAX_TIP_FEE_MANAGER: ZERO,
+      FRAX_TEMPO_WRAPPER: ZERO,
     })
 
     try {
@@ -1961,7 +1960,7 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
     expect(ctx.errors).toEqual([])
     expect(
       ctx.warnings.some(
-        (w) => w.includes('FRAX_PATH_USD()') && w.includes('cannot verify')
+        (w) => w.includes('FRAX_TEMPO_WRAPPER()') && w.includes('cannot verify')
       )
     ).toBe(true)
   })

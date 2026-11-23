@@ -209,17 +209,11 @@
         "allowToDeployWithZeroAddress": "false",
         "getter": "FRAX_HOP"
       },
-      "_tipFeeManager": {
+      "_tempoWrapper": {
         "configFileName": "frax.json",
-        "keyInConfigFile": ".tipFeeManager.<NETWORK>",
+        "keyInConfigFile": ".tempoFeeInclusiveWrapper.<NETWORK>",
         "allowToDeployWithZeroAddress": "true",
-        "getter": "FRAX_TIP_FEE_MANAGER"
-      },
-      "_pathUsd": {
-        "configFileName": "frax.json",
-        "keyInConfigFile": ".pathUsd.<NETWORK>",
-        "allowToDeployWithZeroAddress": "true",
-        "getter": "FRAX_PATH_USD"
+        "getter": "FRAX_TEMPO_WRAPPER"
       }
     }
   },
