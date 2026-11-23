@@ -11,7 +11,7 @@ Guarantees: the ticket is assigned, estimated and in a cycle, it is In Progress,
 
 - **Ticket or description** (required): an EXSC ID or Linear URL, matched case-insensitively (a URL's ID is the segment after `/issue/`); otherwise a free-text description. Refuse any other team prefix in one line: this skill handles EXSC tickets in lifinance/contracts only.
 - **`--existing-branch`** (optional): rename the current branch instead of creating one. Only this explicit flag selects it, because a rename is destructive.
-- **Unattended** (nobody to answer): stop with a one-line reason on an open duplicate, a missing next cycle, a ticket assigned to someone else, a Done/Cancelled ticket, a dirty tree in default mode, or an unresolvable In Progress status. Ask nothing else; estimate and cycle take `/create-linear-ticket`'s proposals.
+- **Unattended** (nobody to answer): stop with a one-line reason on an open duplicate, a missing next cycle, several matches after a failed save (list the candidates), a ticket assigned to someone else, a Done/Cancelled ticket, a dirty tree in default mode, or an unresolvable In Progress status. Ask nothing else; estimate and cycle take `/create-linear-ticket`'s proposals.
 
 ## 1. Resolve the ticket
 
