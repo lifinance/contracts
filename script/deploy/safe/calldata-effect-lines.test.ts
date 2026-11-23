@@ -937,17 +937,27 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
   })
 
   it('resolves every remaining pair through one batched 4byte request', async () => {
-    fetchSpy.mockClear()
-    const lines = await renderOn(
-      NETWORK,
-      whitelist([FACET, FACET, DIAMOND], [ALPHA, BETA, NOBODY])
+    // Other tests cache ALPHA and NOBODY; its own cache keeps both in the batch in any order.
+    const fileCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = join(
+      mkdtempSync(join(cacheDir, 'batching-')),
+      'selectors.json'
     )
-    expect(lines).toContain(`${ALPHA}  fixtureWhitelistAlpha()`)
-    expect(lines).toContain(`${BETA}  fixtureWhitelistBeta()`)
-    const urls = fourByteUrls()
-    expect(urls).toHaveLength(1)
-    for (const selector of [ALPHA, BETA, NOBODY])
-      expect(urls[0]).toContain(selector)
+    try {
+      fetchSpy.mockClear()
+      const lines = await renderOn(
+        NETWORK,
+        whitelist([FACET, FACET, DIAMOND], [ALPHA, BETA, NOBODY])
+      )
+      expect(lines).toContain(`${ALPHA}  fixtureWhitelistAlpha()`)
+      expect(lines).toContain(`${BETA}  fixtureWhitelistBeta()`)
+      const urls = fourByteUrls()
+      expect(urls).toHaveLength(1)
+      for (const selector of [ALPHA, BETA, NOBODY])
+        expect(urls[0]).toContain(selector)
+    } finally {
+      process.env.SELECTOR_SIGNATURE_CACHE_PATH = fileCachePath
+    }
   })
 
   it('says so when nothing names a selector, without failing', async () => {

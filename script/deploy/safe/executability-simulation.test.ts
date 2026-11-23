@@ -23,6 +23,7 @@ import {
   type IExecutabilityInput,
   type IExecutabilityVerdict,
   type IFacetCutInput,
+  type IStaticCallObservation,
   type TSimulatedPayload,
 } from './executability-simulation'
 
@@ -1291,5 +1292,204 @@ describe('the per-call breakdown', () => {
 
     expect(verdict.calls[0]?.modelled).toBe(false)
     expect(verdict.calls[0]?.description).toBe('scheduleBatch')
+  })
+})
+
+describe('a call to a function an earlier cut in the proposal adds', () => {
+  const CALL_PATH = 'call[0].scheduled[1]'
+
+  /**
+   * A cut, then a scheduled call whose `eth_call` reverted — a node runs it
+   * against the diamond before the cut, which is the case under test.
+   */
+  const cutThenCall = (
+    cuts: readonly IFacetCutInput[],
+    call: Partial<Extract<TSimulatedPayload, { kind: 'opaque' }>>,
+    result: Partial<IStaticCallObservation> = {
+      inOrderUnavailable: 'eth_simulateV1 failed: method not found',
+    }
+  ): IExecutabilityVerdict =>
+    evaluateExecutability({
+      network: 'mainnet',
+      payloads: [
+        cutCall(cuts),
+        {
+          kind: 'opaque',
+          path: CALL_PATH,
+          description: 'an unrecognised function the timelock would send',
+          target: DIAMOND,
+          calldataLength: 68,
+          caller: OWNER,
+          ...call,
+        },
+      ],
+      observations: observations(),
+      staticCalls: {
+        attempted: true,
+        results: [
+          { path: PATH, outcome: 'succeeded', from: OWNER },
+          { path: CALL_PATH, outcome: 'reverted', from: OWNER, ...result },
+        ],
+      },
+    })
+
+  const addUnserved = [cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])]
+
+  it('reports it as not simulated, not as a revert, when the batch could not run in order', () => {
+    const verdict = cutThenCall(
+      addUnserved,
+      { selector: UNSERVED },
+      { inOrderUnavailable: 'eth_simulateV1 failed: method not found' }
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(true)
+    expect(verdict.errors.join(' ')).toContain(
+      `${CALL_PATH} depends on ${PATH} earlier in this proposal and could not be simulated in order: eth_simulateV1 failed: method not found`
+    )
+    const finding = findingFor(
+      verdict,
+      ExecutabilityFindingEnum.ComposedCallNotSimulated
+    )
+    expect(finding.blocking).toBe(false)
+    expect(finding.composed).toBe(true)
+    expect(finding.detail).toContain(PATH)
+    expect(codes(verdict)).not.toContain(
+      ExecutabilityFindingEnum.StaticCallReverted
+    )
+    expect(verdict.calls.find((c) => c.path === CALL_PATH)?.outcome).toBe(
+      'unknown'
+    )
+  })
+
+  it('neither claims a clean run nor hands the cancel matrix an ok', () => {
+    const verdict = cutThenCall(addUnserved, { selector: UNSERVED })
+
+    expect(renderExecutability(verdict).join('\n')).not.toContain(
+      'Nothing in this proposal reverts'
+    )
+    expect(toCancelDecisionExecutability(verdict)).toBe('error')
+  })
+
+  it('refuses it when no in-order run was attempted for it', () => {
+    // The collector marks only a call after its cut in one scheduleBatch;
+    // any other shape keeps the isolated revert.
+    const verdict = cutThenCall(addUnserved, { selector: UNSERVED }, {})
+
+    expect(verdict.refuses).toBe(true)
+  })
+
+  it('refuses it when it reverts with the batch simulated in order', () => {
+    // The in-order run saw the cut, so this revert is the call's own.
+    const verdict = cutThenCall(
+      addUnserved,
+      { selector: UNSERVED },
+      { inOrder: true }
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.error).toBe(false)
+    expect(codes(verdict)).toContain(
+      ExecutabilityFindingEnum.StaticCallReverted
+    )
+  })
+
+  it('passes it when it executes with the batch simulated in order', () => {
+    const verdict = cutThenCall(
+      addUnserved,
+      { selector: UNSERVED },
+      { outcome: 'succeeded', inOrder: true }
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    const call = verdict.calls.find((c) => c.path === CALL_PATH)
+    expect(call?.outcome).toBe('would-execute')
+    expect(call?.inOrder).toBe(true)
+  })
+
+  it('matches the selector whatever its case', () => {
+    const verdict = cutThenCall(addUnserved, { selector: '0xDEADBEEF' })
+
+    expect(verdict.refuses).toBe(false)
+  })
+
+  it('still refuses a selector the diamond already routes on chain', () => {
+    // Served today, so the revert cannot be the missing route.
+    const verdict = cutThenCall(
+      [cut(FacetCutActionEnum.Replace, CUT_FACET, [FACETS_SELECTOR])],
+      { selector: FACETS_SELECTOR }
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(codes(verdict)).toContain(
+      ExecutabilityFindingEnum.StaticCallReverted
+    )
+  })
+
+  it('still refuses a selector no earlier cut adds', () => {
+    const verdict = cutThenCall(addUnserved, { selector: '0x12345678' })
+
+    expect(verdict.refuses).toBe(true)
+  })
+
+  it('still refuses a selector an earlier cut removes', () => {
+    const verdict = cutThenCall(
+      [cut(FacetCutActionEnum.Remove, ZERO, [FACET_ADDRESS_SELECTOR])],
+      { selector: FACET_ADDRESS_SELECTOR }
+    )
+
+    expect(verdict.refuses).toBe(true)
+  })
+
+  it('still refuses a call that carries no selector', () => {
+    const verdict = cutThenCall(addUnserved, {})
+
+    expect(verdict.refuses).toBe(true)
+  })
+
+  it('still refuses a call to a different target than the cut diamond', () => {
+    const verdict = cutThenCall(addUnserved, {
+      selector: UNSERVED,
+      target: CUT_FACET,
+    })
+
+    expect(verdict.refuses).toBe(true)
+  })
+
+  it('keeps a target-without-code refusal on the same call', () => {
+    const verdict = evaluateExecutability({
+      network: 'mainnet',
+      payloads: [
+        cutCall(addUnserved),
+        {
+          kind: 'opaque',
+          path: CALL_PATH,
+          description: 'an unrecognised function the timelock would send',
+          target: DIAMOND,
+          calldataLength: 68,
+          selector: UNSERVED,
+          caller: OWNER,
+        },
+      ],
+      observations: observations({
+        hasCode: new Map([
+          [LOUPE.toLowerCase(), true],
+          [DIAMOND.toLowerCase(), false],
+        ]),
+      }),
+      staticCalls: {
+        attempted: true,
+        results: [
+          { path: PATH, outcome: 'succeeded', from: OWNER },
+          { path: CALL_PATH, outcome: 'reverted', from: OWNER },
+        ],
+      },
+    })
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.calls.find((c) => c.path === CALL_PATH)?.outcome).toBe(
+      'would-revert'
+    )
   })
 })

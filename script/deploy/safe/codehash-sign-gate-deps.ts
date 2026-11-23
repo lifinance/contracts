@@ -1637,6 +1637,12 @@ const collectProcess = (
   new Promise((resolve) => {
     let stdout = ''
     let stderr = ''
+    // spawn starts the child even for an already-aborted signal and kills it only
+    // afterwards, so a fast command can exit 0 before the kill lands.
+    if (options.signal?.aborted) {
+      resolve({ status: null, stdout, stderr })
+      return
+    }
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env,

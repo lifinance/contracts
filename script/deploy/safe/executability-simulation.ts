@@ -79,6 +79,11 @@ export enum ExecutabilityFindingEnum {
   TargetHasNoCode = 'target-has-no-code',
   /** The broadcasting account cannot pay for the transaction. */
   ExecutorUnderfunded = 'executor-underfunded',
+  /**
+   * A call to a function an earlier call in this proposal adds, whose own
+   * `eth_call` therefore ran against a diamond that does not route it yet.
+   */
+  ComposedCallNotSimulated = 'composed-call-not-simulated',
 }
 
 /** One `FacetCut`, as a decoder recovered it. */
@@ -119,6 +124,8 @@ export interface IOpaquePayload {
   target: string
   /** Bytes of calldata. Zero means a plain value transfer. */
   calldataLength: number
+  /** The function selector the calldata opens with, when it holds one. */
+  selector?: string
   /**
    * The account the target sees as `msg.sender`, when it is not the Safe.
    *
@@ -169,6 +176,16 @@ export interface IStaticCallObservation {
   revertReason?: string
   /** Why the call could not be made. Set exactly when `outcome` is `errored`. */
   errorReason?: string
+  /**
+   * Set when the outcome comes from `eth_simulateV1`, run over the batch this
+   * call sits in, so the call saw what every call before it changed.
+   */
+  inOrder?: true
+  /**
+   * Why the batch could not be simulated in order, on a call whose own
+   * `eth_call` reverted. The outcome is then the isolated one.
+   */
+  inOrderUnavailable?: string
 }
 
 /** Whether the account that broadcasts can pay for it. */
@@ -283,6 +300,8 @@ export interface IExecutabilityCall {
   simulation: IStaticCallObservation['outcome'] | 'none'
   /** The node's revert or error text, unabridged. */
   simulationDetail?: string
+  /** Set when `simulation` comes from the batch simulated in order. */
+  inOrder?: true
   /** Every finding this payload produced. */
   findings: readonly IExecutabilityFinding[]
   outcome: TCallOutcome
@@ -713,6 +732,35 @@ const gradeOpaque = (
   ]
 }
 
+/**
+ * The earlier payload that adds the function this one calls, when the diamond
+ * routes it nowhere today.
+ *
+ * Such a call's `eth_call` runs before that cut exists, so it meets the
+ * diamond's fallback and reverts whatever the call would do once the cut has
+ * run. Narrowed to a selector read as unrouted on chain: a selector the diamond
+ * already serves reverted for some other reason, which stays a revert.
+ */
+const addedByEarlierPayload = (
+  payload: IOpaquePayload,
+  observations: IChainObservations,
+  amendedByDiamond: ReadonlyMap<string, ReadonlyMap<string, IAmendedSelector>>
+): { selector: string; byPayload: string } | undefined => {
+  if (payload.selector === undefined) return undefined
+  const selector = normalise(payload.selector)
+  const moved = amendedByDiamond.get(normalise(payload.target))?.get(selector)
+  if (
+    moved === undefined ||
+    moved.byPayload === payload.path ||
+    isZero(moved.facet)
+  )
+    return undefined
+  const observed = observations.selectorFacets.get(selector)
+  return observed !== undefined && isZero(observed)
+    ? { selector, byPayload: moved.byPayload }
+    : undefined
+}
+
 const gradeNonce = (nonce: INonceObservation): IExecutabilityFinding[] => {
   if (nonce.safeNonce === undefined) return []
 
@@ -894,6 +942,7 @@ export const evaluateExecutability = (
     }
 
     record.simulation = call.outcome
+    if (call.inOrder) record.inOrder = true
 
     if (call.outcome === 'errored') {
       record.outcome = 'unknown'
@@ -907,8 +956,33 @@ export const evaluateExecutability = (
     }
 
     if (call.outcome === 'reverted') {
-      record.outcome = 'would-revert'
       if (call.revertReason) record.simulationDetail = call.revertReason
+      const addedBy =
+        payload.kind === 'opaque'
+          ? addedByEarlierPayload(payload, input.observations, amendedByDiamond)
+          : undefined
+      // Left undecided only when the collector found this call placed after
+      // the cut that routes it in one `scheduleBatch` and could not run that
+      // batch in order. Every other revert, in order or alone, refuses.
+      if (addedBy !== undefined && call.inOrderUnavailable !== undefined) {
+        if (!here.some((finding) => finding.blocking))
+          record.outcome = 'unknown'
+        const unsimulated: IExecutabilityFinding = {
+          code: ExecutabilityFindingEnum.ComposedCallNotSimulated,
+          certainty: RevertCertaintyEnum.Predicted,
+          composed: true,
+          path: payload.path,
+          detail: `${payload.path} calls ${addedBy.selector}, which ${record.target} routes only once ${addedBy.byPayload} has added it; its eth_call ran before that cut, and the batch could not be simulated in order`,
+          blocking: false,
+        }
+        here.push(unsimulated)
+        findings.push(unsimulated)
+        errors.push(
+          `${payload.path} depends on ${addedBy.byPayload} earlier in this proposal and could not be simulated in order: ${call.inOrderUnavailable}, so whether it reverts is unknown.`
+        )
+        continue
+      }
+      record.outcome = 'would-revert'
       const reverted: IExecutabilityFinding = {
         code: ExecutabilityFindingEnum.StaticCallReverted,
         certainty: RevertCertaintyEnum.Predicted,
