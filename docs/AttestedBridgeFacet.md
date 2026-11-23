@@ -239,5 +239,7 @@ bridge entrypoint with `setAttestableSelector`. Add the network to
 The attester (`BridgeCommitmentLedger`) is built and deployed outside this repo, so it is
 not recorded in `deployments/<network>.json`. Before registering it, pin its address and
 codehash under `BridgeCommitmentLedger.deployments.<network>` in
-`script/deploy/resources/pinnedExternalCodehashes.json`; `bridge-attester-pinned` compares
-the registry entry with that pin.
+`script/deploy/resources/pinnedExternalCodehashes.json`. The codehash gate compares the
+registered address's deployed code with the pinned codehash when the registration is signed
+(see `docs/MultisigSigningProcess.md`); after that, `bridge-attester-pinned` checks only that the
+registry still holds the pinned address.
