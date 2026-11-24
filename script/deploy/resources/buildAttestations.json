@@ -911,7 +911,7 @@
         "contractName": "FraxFacet",
         "sourceId": "src/Facets/FraxFacet.sol",
         "version": "2.0.0",
-        "closureHash": "0x3e00bfbd3f316350b06f16e0a1f9d7a092a527ad8d766b76736526910a15d8e8",
+        "closureHash": "0xd086ddaf84c499fabdbbc816ec9b3fa905ac017f6486823a799521f5c0a0097d",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"

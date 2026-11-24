@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title IFraxHopV2
 /// @notice Minimal interface for Frax's HopV2 bridge (LayerZero V2 OFT hub-and-spoke)
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 /// @dev Shadows FraxFinance HopV2/RemoteHopV2 (src/contracts/hop/HopV2.sol)
 interface IFraxHopV2 {
     /// @notice Bridges an OFT to a destination chain (plain transfer, no compose)
