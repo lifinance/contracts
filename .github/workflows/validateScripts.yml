@@ -14,8 +14,8 @@
 #   every bare import in script TS files must resolve to a package declared
 #   in package.json (catches "dependency removed while still imported"
 #   even when no .ts file was touched)
-# - Path-gated: the heavy job runs only when scripts or dependency manifests
-#   change, or when a src/, config/ or deployments/ file they may import is
+# - Path-gated: the heavy job runs only when any TS/JS file or a dependency
+#   manifest changes, or when a src/, config/ or deployments/ file they may import is
 #   removed or renamed. A `validate-scripts-required` aggregator job always reports a
 #   final status so this workflow can be registered as a required check on
 #   `main` branch protection (see .agents/rules/500-github-actions.md)
@@ -73,8 +73,9 @@ jobs:
         with:
           filters: |
             scripts:
-              - 'script/**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
-              - 'tasks/**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
+              # Any TS/JS, not only script/ and tasks/: `bun lint:js` lints the
+              # whole tree (e.g. plopfile.mjs, .setup.js)
+              - '**/*.{ts,tsx,mts,cts,js,mjs,cjs}'
               - 'script/utils/typecheck-files.sh'
               - 'package.json'
               - 'bun.lock'

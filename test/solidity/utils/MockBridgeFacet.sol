@@ -28,11 +28,8 @@ contract MockBridgeFacet {
     /// @param _token The token to pull
     /// @param _amount The amount to pull
     function bridge(address _token, uint256 _amount) external payable {
-        bool ok = IERC20(_token).transferFrom(
-            msg.sender,
-            address(this),
-            _amount
-        );
+        bool ok =
+            IERC20(_token).transferFrom(msg.sender, address(this), _amount);
         if (!ok) revert TransferFromFailed();
 
         emit MockBridged(_token, msg.sender, _amount, msg.value);

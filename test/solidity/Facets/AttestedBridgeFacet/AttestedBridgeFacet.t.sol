@@ -3,9 +3,15 @@ pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
 
-import { InvalidCallData, OnlyContractOwner, ReentrancyError } from "lifi/Errors/GenericErrors.sol";
+import {
+    InvalidCallData,
+    OnlyContractOwner,
+    ReentrancyError
+} from "lifi/Errors/GenericErrors.sol";
 import { DiamondCutFacet } from "lifi/Facets/DiamondCutFacet.sol";
-import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import {
+    PeripheryRegistryFacet
+} from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { LiFiDiamond } from "lifi/LiFiDiamond.sol";
 import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
@@ -44,10 +50,8 @@ contract RevertingAttester is IAttester {
 
 contract ReenteringAttester is IAttester {
     function attest(bytes calldata, bytes calldata) external {
-        AttestedBridgeFacet(msg.sender).setAttestableSelector(
-            bytes4(0x12345678),
-            true
-        );
+        AttestedBridgeFacet(msg.sender)
+            .setAttestableSelector(bytes4(0x12345678), true);
     }
 }
 
@@ -78,22 +82,21 @@ contract GatewayToken {
         balanceOf[_to] += _amount;
     }
 
-    function approve(
-        address _spender,
-        uint256 _amount
-    ) external returns (bool) {
+    function approve(address _spender, uint256 _amount)
+        external
+        returns (bool)
+    {
         allowance[msg.sender][_spender] = _amount;
         return true;
     }
 
-    function transferFrom(
-        address _from,
-        address _to,
-        uint256 _amount
-    ) external returns (bool) {
+    function transferFrom(address _from, address _to, uint256 _amount)
+        external
+        returns (bool)
+    {
         if (
-            allowance[_from][msg.sender] < _amount ||
-            balanceOf[_from] < _amount
+            allowance[_from][msg.sender] < _amount
+                || balanceOf[_from] < _amount
         ) return false;
         allowance[_from][msg.sender] -= _amount;
         balanceOf[_from] -= _amount;
@@ -133,10 +136,10 @@ contract EchoRevertAttester is IAttester {
 contract ReturningAttester {
     uint256 public calls;
 
-    function attest(
-        bytes calldata,
-        bytes calldata
-    ) external returns (uint256, bytes memory) {
+    function attest(bytes calldata, bytes calldata)
+        external
+        returns (uint256, bytes memory)
+    {
         ++calls;
         return (42, new bytes(300));
     }
@@ -175,9 +178,7 @@ abstract contract GatewayDiamondTestBase is Test {
         gateway[1] = AttestedBridgeFacet.setAttestableSelector.selector;
         gateway[2] = AttestedBridgeFacet.isAttestableSelector.selector;
         bytes4[] memory registry = new bytes4[](2);
-        registry[0] = PeripheryRegistryFacet
-            .registerPeripheryContract
-            .selector;
+        registry[0] = PeripheryRegistryFacet.registerPeripheryContract.selector;
         registry[1] = PeripheryRegistryFacet.getPeripheryContract.selector;
         bytes4[] memory bridge = new bytes4[](1);
         bridge[0] = MockBridgeFacet.bridge.selector;
@@ -224,10 +225,8 @@ abstract contract GatewayDiamondTestBase is Test {
     }
 
     function _registerAttester(address _attester) internal {
-        PeripheryRegistryFacet(diamond).registerPeripheryContract(
-            BRIDGE_ATTESTER_KEY,
-            _attester
-        );
+        PeripheryRegistryFacet(diamond)
+            .registerPeripheryContract(BRIDGE_ATTESTER_KEY, _attester);
     }
 
     function _enable(bytes4 _selector) internal {
@@ -240,9 +239,7 @@ abstract contract GatewayDiamondTestBase is Test {
         selectors[0] = _selector;
         LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
         cut[0] = LibDiamond.FacetCut(
-            address(0),
-            LibDiamond.FacetCutAction.Remove,
-            selectors
+            address(0), LibDiamond.FacetCutAction.Remove, selectors
         );
         DiamondCutFacet(diamond).diamondCut(cut, address(0), "");
     }
@@ -253,8 +250,7 @@ abstract contract GatewayDiamondTestBase is Test {
     }
 
     function _bridgeCall() internal view returns (bytes memory) {
-        return
-            abi.encodeCall(MockBridgeFacet.bridge, (address(token), AMOUNT));
+        return abi.encodeCall(MockBridgeFacet.bridge, (address(token), AMOUNT));
     }
 
     function _callDiamond(bytes memory _data, uint256 _value) internal {
@@ -266,9 +262,11 @@ abstract contract GatewayDiamondTestBase is Test {
         }
     }
 
-    function _tail(
-        bytes memory _data
-    ) internal pure returns (bytes memory out) {
+    function _tail(bytes memory _data)
+        internal
+        pure
+        returns (bytes memory out)
+    {
         bytes memory encoded = abi.encode(_data);
         out = new bytes(encoded.length - 32);
         for (uint256 i; i < out.length; ++i) {
@@ -276,36 +274,32 @@ abstract contract GatewayDiamondTestBase is Test {
         }
     }
 
-    function _attestableSlot(
-        bytes4 _selector
-    ) internal pure returns (bytes32) {
+    function _attestableSlot(bytes4 _selector)
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(_selector, ATTESTED_BRIDGE_NAMESPACE));
     }
 
     function _facetSlot(bytes4 _selector) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    _selector,
-                    keccak256("diamond.standard.diamond.storage")
-                )
-            );
+        return keccak256(
+            abi.encode(
+                _selector, keccak256("diamond.standard.diamond.storage")
+            )
+        );
     }
 
     function _bridgeAttesterSlot() internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    BRIDGE_ATTESTER_KEY,
-                    PERIPHERY_REGISTRY_NAMESPACE
-                )
-            );
+        return keccak256(
+            abi.encodePacked(BRIDGE_ATTESTER_KEY, PERIPHERY_REGISTRY_NAMESPACE)
+        );
     }
 
-    function _assertRead(
-        bytes32[] memory _reads,
-        bytes32 _slot
-    ) internal pure {
+    function _assertRead(bytes32[] memory _reads, bytes32 _slot)
+        internal
+        pure
+    {
         bool read;
         for (uint256 i; i < _reads.length && !read; ++i) {
             read = _reads[i] == _slot;
@@ -313,10 +307,10 @@ abstract contract GatewayDiamondTestBase is Test {
         assertTrue(read, "slot not read");
     }
 
-    function _assertNotRead(
-        bytes32[] memory _reads,
-        bytes32 _slot
-    ) internal pure {
+    function _assertNotRead(bytes32[] memory _reads, bytes32 _slot)
+        internal
+        pure
+    {
         for (uint256 i; i < _reads.length; ++i) {
             assertTrue(_reads[i] != _slot, "slot read before the revert");
         }
@@ -326,8 +320,7 @@ abstract contract GatewayDiamondTestBase is Test {
 contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
     function test_IAttesterSelectorMatchesAttestSignature() public pure {
         assertEq(
-            IAttester.attest.selector,
-            bytes4(keccak256("attest(bytes,bytes)"))
+            IAttester.attest.selector, bytes4(keccak256("attest(bytes,bytes)"))
         );
     }
 
@@ -335,10 +328,8 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         vm.prank(makeAddr("stranger"));
         vm.expectRevert(OnlyContractOwner.selector);
 
-        AttestedBridgeFacet(diamond).setAttestableSelector(
-            MockBridgeFacet.bridge.selector,
-            true
-        );
+        AttestedBridgeFacet(diamond)
+            .setAttestableSelector(MockBridgeFacet.bridge.selector, true);
     }
 
     function testRevert_SetAttestableSelectorForEachGatewaySelector() public {
@@ -371,9 +362,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         (, bytes32[] memory writes) = vm.accesses(diamond);
         assertEq(writes.length, 1);
         assertEq(writes[0], _attestableSlot(selector));
-        assertTrue(
-            AttestedBridgeFacet(diamond).isAttestableSelector(selector)
-        );
+        assertTrue(AttestedBridgeFacet(diamond).isAttestableSelector(selector));
 
         vm.expectEmit(true, true, true, true, diamond);
         emit AttestableSelectorSet(selector, false);
@@ -389,10 +378,8 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         for (uint256 length; length < 4; ++length) {
             vm.expectRevert(InvalidCallData.selector);
 
-            AttestedBridgeFacet(diamond).startBridgeAttested(
-                new bytes(length),
-                ATTESTER_DATA
-            );
+            AttestedBridgeFacet(diamond)
+                .startBridgeAttested(new bytes(length), ATTESTER_DATA);
         }
     }
 
@@ -404,7 +391,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
 
         AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
 
-        (bytes32[] memory reads, ) = vm.accesses(diamond);
+        (bytes32[] memory reads,) = vm.accesses(diamond);
         _assertRead(reads, _attestableSlot(MockBridgeFacet.bridge.selector));
         _assertNotRead(reads, _facetSlot(MockBridgeFacet.bridge.selector));
         _assertNotRead(reads, _bridgeAttesterSlot());
@@ -413,10 +400,8 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
     function testRevert_SelectorNotAttestableAfterRevocation() public {
         _registerAttester(address(new RecordingAttester()));
         _enable(MockBridgeFacet.bridge.selector);
-        AttestedBridgeFacet(diamond).setAttestableSelector(
-            MockBridgeFacet.bridge.selector,
-            false
-        );
+        AttestedBridgeFacet(diamond)
+            .setAttestableSelector(MockBridgeFacet.bridge.selector, false);
         bytes memory call = _bridgeCall();
         vm.expectRevert(AttestedBridgeFacet.SelectorNotAttestable.selector);
 
@@ -437,24 +422,19 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
     function testRevert_EnableUnroutedSelector() public {
         vm.expectRevert(LibDiamond.FunctionDoesNotExist.selector);
 
-        AttestedBridgeFacet(diamond).setAttestableSelector(
-            bytes4(0xdeadbeef),
-            true
-        );
+        AttestedBridgeFacet(diamond)
+            .setAttestableSelector(bytes4(0xdeadbeef), true);
     }
 
     function test_DisableUnroutedSelector() public {
         _enableThenUnroute(SentinelFacet.sentinel.selector);
 
-        AttestedBridgeFacet(diamond).setAttestableSelector(
-            SentinelFacet.sentinel.selector,
-            false
-        );
+        AttestedBridgeFacet(diamond)
+            .setAttestableSelector(SentinelFacet.sentinel.selector, false);
 
         assertFalse(
-            AttestedBridgeFacet(diamond).isAttestableSelector(
-                SentinelFacet.sentinel.selector
-            )
+            AttestedBridgeFacet(diamond)
+                .isAttestableSelector(SentinelFacet.sentinel.selector)
         );
     }
 
@@ -475,7 +455,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
 
         AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
 
-        (bytes32[] memory reads, ) = vm.accesses(diamond);
+        (bytes32[] memory reads,) = vm.accesses(diamond);
         _assertRead(reads, _facetSlot(SentinelFacet.sentinel.selector));
         _assertNotRead(reads, _bridgeAttesterSlot());
     }
@@ -515,8 +495,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         call = abi.encodeCall(SentinelFacet.loudRevert, ());
         vm.expectRevert(
             abi.encodeWithSelector(
-                SentinelFacet.LongRevert.selector,
-                new bytes(300)
+                SentinelFacet.LongRevert.selector, new bytes(300)
             )
         );
 
@@ -532,8 +511,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         bytes memory call = _bridgeCall();
         vm.expectRevert(
             abi.encodeWithSelector(
-                RevertingAttester.AttesterReverted.selector,
-                new bytes(300)
+                RevertingAttester.AttesterReverted.selector, new bytes(300)
             )
         );
 
@@ -565,8 +543,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         bytes memory call = _bridgeCall();
         bytes memory outer = bytes.concat(
             abi.encodeCall(
-                AttestedBridgeFacet.startBridgeAttested,
-                (call, ATTESTER_DATA)
+                AttestedBridgeFacet.startBridgeAttested, (call, ATTESTER_DATA)
             ),
             hex"c0ffee0000000000000001"
         );
@@ -611,8 +588,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         emit MockBridged(address(token), address(this), AMOUNT, 1 ether);
 
         AttestedBridgeFacet(diamond).startBridgeAttested{ value: 1 ether }(
-            call,
-            ATTESTER_DATA
+            call, ATTESTER_DATA
         );
 
         assertEq(attester.calls(), 1);
@@ -654,8 +630,10 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
     }
 
     function test_BridgeAttesterSlotMatchesTheRegistryFacet() public {
-        bytes32 namespace = 0xddb1a97e204589b19d70796e7a3363c86670116d11313290b7a7eb064a8f3da1;
-        bytes32 slot = 0x2ea1c0530bb78d2f977ca48354f502a4489c9a6563d07a122a90ebb900c253fd;
+        bytes32 namespace =
+            0xddb1a97e204589b19d70796e7a3363c86670116d11313290b7a7eb064a8f3da1;
+        bytes32 slot =
+            0x2ea1c0530bb78d2f977ca48354f502a4489c9a6563d07a122a90ebb900c253fd;
         string memory key = "BridgeAttester";
         address attester = makeAddr("attester");
 
@@ -665,8 +643,7 @@ contract AttestedBridgeFacetTest is GatewayDiamondTestBase {
         assertEq(PERIPHERY_REGISTRY_NAMESPACE, namespace);
         assertEq(keccak256(abi.encodePacked(key, namespace)), slot);
         assertEq(
-            PeripheryRegistryFacet(diamond).getPeripheryContract(key),
-            attester
+            PeripheryRegistryFacet(diamond).getPeripheryContract(key), attester
         );
         assertEq(LibBytes.toAddress(vm.load(diamond, slot)), attester);
     }
@@ -680,9 +657,7 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         sel[1] = EchoRevertFacet.returnsWord.selector;
         LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
         cut[0] = LibDiamond.FacetCut(
-            address(new EchoRevertFacet()),
-            LibDiamond.FacetCutAction.Add,
-            sel
+            address(new EchoRevertFacet()), LibDiamond.FacetCutAction.Add, sel
         );
         DiamondCutFacet(diamond).diamondCut(cut, address(0), "");
     }
@@ -694,13 +669,11 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
     ) public {
         RecordingAttester attester = _readyBridge();
         bytes memory call = abi.encodeCall(
-            MockBridgeFacet.bridge,
-            (address(token), uint256(amount) % AMOUNT)
+            MockBridgeFacet.bridge, (address(token), uint256(amount) % AMOUNT)
         );
         bytes memory outer = bytes.concat(
             abi.encodeCall(
-                AttestedBridgeFacet.startBridgeAttested,
-                (call, attesterData)
+                AttestedBridgeFacet.startBridgeAttested, (call, attesterData)
             ),
             trailing
         );
@@ -723,31 +696,28 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         emit MockBridged(address(token), address(this), AMOUNT, value);
 
         AttestedBridgeFacet(diamond).startBridgeAttested{ value: value }(
-            _bridgeCall(),
-            ATTESTER_DATA
+            _bridgeCall(), ATTESTER_DATA
         );
 
         assertEq(address(attester).balance, 0);
         assertEq(diamond.balance, value);
     }
 
-    function testRevert_FacetRevertBubblesAnyPayload(
-        bytes calldata payload
-    ) public {
+    function testRevert_FacetRevertBubblesAnyPayload(bytes calldata payload)
+        public
+    {
         _registerAttester(address(new RecordingAttester()));
         _enable(EchoRevertFacet.echoRevert.selector);
-        bytes memory call = abi.encodeCall(
-            EchoRevertFacet.echoRevert,
-            (payload)
-        );
+        bytes memory call =
+            abi.encodeCall(EchoRevertFacet.echoRevert, (payload));
         vm.expectRevert(payload);
 
         AttestedBridgeFacet(diamond).startBridgeAttested(call, ATTESTER_DATA);
     }
 
-    function testRevert_AttesterRevertBubblesAnyPayload(
-        bytes calldata payload
-    ) public {
+    function testRevert_AttesterRevertBubblesAnyPayload(bytes calldata payload)
+        public
+    {
         EchoRevertAttester attester = new EchoRevertAttester();
         attester.setPayload(payload);
         _registerAttester(address(attester));
@@ -755,10 +725,8 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         _fundAndApprove(AMOUNT);
         vm.expectRevert(payload);
 
-        AttestedBridgeFacet(diamond).startBridgeAttested(
-            _bridgeCall(),
-            ATTESTER_DATA
-        );
+        AttestedBridgeFacet(diamond)
+            .startBridgeAttested(_bridgeCall(), ATTESTER_DATA);
     }
 
     function test_AttesterReturnDataIsIgnored() public {
@@ -767,10 +735,8 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
         _enable(MockBridgeFacet.bridge.selector);
         _fundAndApprove(AMOUNT);
 
-        AttestedBridgeFacet(diamond).startBridgeAttested(
-            _bridgeCall(),
-            ATTESTER_DATA
-        );
+        AttestedBridgeFacet(diamond)
+            .startBridgeAttested(_bridgeCall(), ATTESTER_DATA);
 
         assertEq(attester.calls(), 1);
     }
@@ -805,11 +771,8 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
 
         assertFalse(ok);
         assertEq(ret.length, 0);
-        (bytes32[] memory reads, ) = vm.accesses(diamond);
-        _assertNotRead(
-            reads,
-            _attestableSlot(MockBridgeFacet.bridge.selector)
-        );
+        (bytes32[] memory reads,) = vm.accesses(diamond);
+        _assertNotRead(reads, _attestableSlot(MockBridgeFacet.bridge.selector));
         _assertNotRead(reads, _bridgeAttesterSlot());
     }
 
@@ -836,10 +799,11 @@ contract AttestedBridgeFacetFuzzTest is GatewayDiamondTestBase {
 
     function test_DisableAnySelector(bytes4 selector) public {
         vm.assume(
-            selector != AttestedBridgeFacet.startBridgeAttested.selector &&
-                selector !=
-                AttestedBridgeFacet.setAttestableSelector.selector &&
-                selector != AttestedBridgeFacet.isAttestableSelector.selector
+            selector != AttestedBridgeFacet.startBridgeAttested.selector
+                && selector
+                    != AttestedBridgeFacet.setAttestableSelector.selector
+                && selector
+                    != AttestedBridgeFacet.isAttestableSelector.selector
         );
 
         vm.expectEmit(true, true, true, true, diamond);

@@ -1023,12 +1023,12 @@ async function attestableSelectorLines(
     enabled === true
       ? trustedMarkup('Enable for attested dispatch ')
       : enabled === false
-      ? trustedMarkup('Disable for attested dispatch ')
-      : concatPrintable(
-          trustedMarkup('set enabled='),
-          quoted(enabled, GREEN),
-          trustedMarkup(' on ')
-        )
+        ? trustedMarkup('Disable for attested dispatch ')
+        : concatPrintable(
+            trustedMarkup('set enabled='),
+            quoted(enabled, GREEN),
+            trustedMarkup(' on ')
+          )
   const selector = String(selectorArg ?? '').toLowerCase()
   const expected = expectedAttestableEntry(selector)
   const named =

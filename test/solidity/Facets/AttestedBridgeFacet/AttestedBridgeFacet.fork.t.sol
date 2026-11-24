@@ -5,8 +5,12 @@ import { Test, Vm } from "forge-std/Test.sol";
 import { IERC20 } from "forge-std/interfaces/IERC20.sol";
 
 import { AcrossFacetV4 } from "lifi/Facets/AcrossFacetV4.sol";
-import { LiFiIntentEscrowFacetV2 } from "lifi/Facets/LiFiIntentEscrowFacetV2.sol";
-import { PeripheryRegistryFacet } from "lifi/Facets/PeripheryRegistryFacet.sol";
+import {
+    LiFiIntentEscrowFacetV2
+} from "lifi/Facets/LiFiIntentEscrowFacetV2.sol";
+import {
+    PeripheryRegistryFacet
+} from "lifi/Facets/PeripheryRegistryFacet.sol";
 import { PolymerCCTPFacet } from "lifi/Facets/PolymerCCTPFacet.sol";
 import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
@@ -18,7 +22,9 @@ import { LibDiamond } from "lifi/Libraries/LibDiamond.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 
 import { AttestedBridgeFacet } from "lifi/Facets/AttestedBridgeFacet.sol";
-import { RecordingAttester } from "test/solidity/Facets/AttestedBridgeFacet/AttestedBridgeFacet.t.sol";
+import {
+    RecordingAttester
+} from "test/solidity/Facets/AttestedBridgeFacet/AttestedBridgeFacet.t.sol";
 import { UniswapV2Router02 } from "test/solidity/utils/Interfaces.sol";
 
 /// @dev Runs the gateway against the live Base Diamond and the three bridge facets it will
@@ -50,10 +56,9 @@ contract AttestedBridgeFacetForkTest is Test {
     string internal constant BRIDGE_ATTESTER_KEY = "BridgeAttester";
     bytes32 internal constant BRIDGE_ATTESTER_SLOT =
         0x2ea1c0530bb78d2f977ca48354f502a4489c9a6563d07a122a90ebb900c253fd;
-    bytes32 internal constant LIFI_TRANSFER_STARTED =
-        keccak256(
-            "LiFiTransferStarted((bytes32,string,string,address,address,address,uint256,uint256,bool,bool))"
-        );
+    bytes32 internal constant LIFI_TRANSFER_STARTED = keccak256(
+        "LiFiTransferStarted((bytes32,string,string,address,address,address,uint256,uint256,bool,bool))"
+    );
     uint256 internal constant AMOUNT = 0.05 ether;
     uint256 internal constant USDC_AMOUNT = 100e6;
     /// @dev Native sent on top of the swap's quoted input, to be refunded
@@ -69,10 +74,7 @@ contract AttestedBridgeFacetForkTest is Test {
     RecordingAttester internal attester;
 
     function setUp() public {
-        vm.createSelectFork(
-            vm.envString("ETH_NODE_URI_BASE"),
-            BASE_FORK_BLOCK
-        );
+        vm.createSelectFork(vm.envString("ETH_NODE_URI_BASE"), BASE_FORK_BLOCK);
         assertGt(
             LIFI_DIAMOND.code.length,
             0,
@@ -85,17 +87,16 @@ contract AttestedBridgeFacetForkTest is Test {
         );
         diamondOwner = IERC173(LIFI_DIAMOND).owner();
         assertEq(
-            IDiamondLoupe(LIFI_DIAMOND).facetAddress(
-                AttestedBridgeFacet.startBridgeAttested.selector
-            ),
+            IDiamondLoupe(LIFI_DIAMOND)
+                .facetAddress(
+                    AttestedBridgeFacet.startBridgeAttested.selector
+                ),
             address(0)
         );
 
         bytes4[] memory bridgeSelectors = _bridgeSelectors();
         address[3] memory bridgeFacets = [
-            ACROSS_FACET_V4,
-            POLYMER_CCTP_FACET,
-            LIFI_INTENT_ESCROW_FACET_V2
+            ACROSS_FACET_V4, POLYMER_CCTP_FACET, LIFI_INTENT_ESCROW_FACET_V2
         ];
         for (uint256 i; i < bridgeSelectors.length; ++i) {
             assertEq(
@@ -112,12 +113,9 @@ contract AttestedBridgeFacetForkTest is Test {
 
         bytes4[] memory gatewaySelectors = new bytes4[](3);
         gatewaySelectors[0] = AttestedBridgeFacet.startBridgeAttested.selector;
-        gatewaySelectors[1] = AttestedBridgeFacet
-            .setAttestableSelector
-            .selector;
-        gatewaySelectors[2] = AttestedBridgeFacet
-            .isAttestableSelector
-            .selector;
+        gatewaySelectors[1] =
+        AttestedBridgeFacet.setAttestableSelector.selector;
+        gatewaySelectors[2] = AttestedBridgeFacet.isAttestableSelector.selector;
         LibDiamond.FacetCut[] memory cut = new LibDiamond.FacetCut[](1);
         cut[0] = LibDiamond.FacetCut(
             address(new AttestedBridgeFacet()),
@@ -128,24 +126,22 @@ contract AttestedBridgeFacetForkTest is Test {
 
         IDiamondCut(LIFI_DIAMOND).diamondCut(cut, address(0), "");
         for (uint256 i; i < bridgeSelectors.length; ++i) {
-            AttestedBridgeFacet(LIFI_DIAMOND).setAttestableSelector(
-                bridgeSelectors[i],
+            AttestedBridgeFacet(LIFI_DIAMOND)
+                .setAttestableSelector(bridgeSelectors[i], true);
+        }
+        WhitelistManagerFacet(LIFI_DIAMOND)
+            .setContractSelectorWhitelist(
+                UNISWAP_V2_ROUTER,
+                UniswapV2Router02.swapETHForExactTokens.selector,
                 true
             );
-        }
-        WhitelistManagerFacet(LIFI_DIAMOND).setContractSelectorWhitelist(
-            UNISWAP_V2_ROUTER,
-            UniswapV2Router02.swapETHForExactTokens.selector,
-            true
-        );
 
         vm.stopPrank();
 
         for (uint256 i; i < bridgeSelectors.length; ++i) {
             assertTrue(
-                AttestedBridgeFacet(LIFI_DIAMOND).isAttestableSelector(
-                    bridgeSelectors[i]
-                )
+                AttestedBridgeFacet(LIFI_DIAMOND)
+                    .isAttestableSelector(bridgeSelectors[i])
             );
         }
         receiver = makeAddr("receiver");
@@ -155,40 +151,34 @@ contract AttestedBridgeFacetForkTest is Test {
     }
 
     /// @dev The gateway caller receives refunds of excess native from AcrossV4
-    receive() external payable {}
+    receive() external payable { }
 
     function test_NativeAcrossV4DepositThroughTheGateway() public {
         _registerAttester(address(attester));
-        (
-            bytes memory call,
-            ILiFi.BridgeData memory bridgeData
-        ) = _acrossNativeCall();
+        (bytes memory call, ILiFi.BridgeData memory bridgeData) =
+            _acrossNativeCall();
         bytes memory attesterData = _attesterData();
         uint256 diamondBalanceBefore = LIFI_DIAMOND.balance;
-        uint256 spokePoolWrappedBefore = IERC20(wrappedNative).balanceOf(
-            spokePool
-        );
+        uint256 spokePoolWrappedBefore =
+            IERC20(wrappedNative).balanceOf(spokePool);
         vm.deal(address(this), AMOUNT);
         vm.recordLogs();
 
         AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested{ value: AMOUNT }(
-            call,
-            attesterData
+            call, attesterData
         );
 
         Vm.Log memory started = _onlyTransferStarted(vm.getRecordedLogs());
-        ILiFi.BridgeData memory emitted = abi.decode(
-            started.data,
-            (ILiFi.BridgeData)
-        );
+        ILiFi.BridgeData memory emitted =
+            abi.decode(started.data, (ILiFi.BridgeData));
 
         assertEq(started.emitter, LIFI_DIAMOND);
         assertEq(emitted.transactionId, bridgeData.transactionId);
         assertEq(emitted.minAmount, AMOUNT);
         assertEq(emitted.receiver, receiver);
         assertEq(
-            IERC20(wrappedNative).balanceOf(spokePool) -
-                spokePoolWrappedBefore,
+            IERC20(wrappedNative).balanceOf(spokePool)
+                - spokePoolWrappedBefore,
             AMOUNT
         );
         assertEq(LIFI_DIAMOND.balance, diamondBalanceBefore);
@@ -207,15 +197,12 @@ contract AttestedBridgeFacetForkTest is Test {
         uint256 spokePoolBefore = IERC20(USDC).balanceOf(spokePool);
         _fundAndApproveUsdc();
 
-        AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested(
-            call,
-            attesterData
-        );
+        AttestedBridgeFacet(LIFI_DIAMOND)
+            .startBridgeAttested(call, attesterData);
 
         assertEq(IERC20(USDC).balanceOf(address(this)), 0);
         assertEq(
-            IERC20(USDC).balanceOf(spokePool) - spokePoolBefore,
-            USDC_AMOUNT
+            IERC20(USDC).balanceOf(spokePool) - spokePoolBefore, USDC_AMOUNT
         );
         _assertAttested(call, attesterData);
     }
@@ -234,15 +221,15 @@ contract AttestedBridgeFacetForkTest is Test {
         uint256 diamondBalanceBefore = LIFI_DIAMOND.balance;
         vm.deal(address(this), nativeIn + EXCESS_NATIVE);
 
-        AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested{
-            value: nativeIn + EXCESS_NATIVE
-        }(call, attesterData);
+        AttestedBridgeFacet(LIFI_DIAMOND)
+        .startBridgeAttested{ value: nativeIn + EXCESS_NATIVE }(
+            call, attesterData
+        );
 
         assertEq(address(this).balance, EXCESS_NATIVE);
         assertEq(LIFI_DIAMOND.balance, diamondBalanceBefore);
         assertEq(
-            IERC20(USDC).balanceOf(spokePool) - spokePoolBefore,
-            USDC_AMOUNT
+            IERC20(USDC).balanceOf(spokePool) - spokePoolBefore, USDC_AMOUNT
         );
         _assertAttested(call, attesterData);
     }
@@ -256,17 +243,15 @@ contract AttestedBridgeFacetForkTest is Test {
             (bridgeData, polymerData)
         );
         bytes memory attesterData = _attesterData();
-        address feeReceiver = PolymerCCTPFacet(POLYMER_CCTP_FACET)
-            .POLYMER_FEE_RECEIVER();
+        address feeReceiver =
+            PolymerCCTPFacet(POLYMER_CCTP_FACET).POLYMER_FEE_RECEIVER();
         uint256 feeReceiverBefore = IERC20(USDC).balanceOf(feeReceiver);
         uint256 diamondUsdcBefore = IERC20(USDC).balanceOf(LIFI_DIAMOND);
         uint256 supplyBefore = IERC20(USDC).totalSupply();
         _fundAndApproveUsdc();
 
-        AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested(
-            call,
-            attesterData
-        );
+        AttestedBridgeFacet(LIFI_DIAMOND)
+            .startBridgeAttested(call, attesterData);
 
         assertEq(IERC20(USDC).balanceOf(address(this)), 0);
         assertEq(
@@ -297,9 +282,10 @@ contract AttestedBridgeFacetForkTest is Test {
         uint256 supplyBefore = IERC20(USDC).totalSupply();
         vm.deal(address(this), nativeIn + EXCESS_NATIVE);
 
-        AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested{
-            value: nativeIn + EXCESS_NATIVE
-        }(call, attesterData);
+        AttestedBridgeFacet(LIFI_DIAMOND)
+        .startBridgeAttested{ value: nativeIn + EXCESS_NATIVE }(
+            call, attesterData
+        );
 
         assertEq(refundRecipient.balance, EXCESS_NATIVE);
         assertEq(address(this).balance, 0);
@@ -324,10 +310,8 @@ contract AttestedBridgeFacetForkTest is Test {
         uint256 settlerBefore = IERC20(USDC).balanceOf(settler);
         _fundAndApproveUsdc();
 
-        AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested(
-            call,
-            attesterData
-        );
+        AttestedBridgeFacet(LIFI_DIAMOND)
+            .startBridgeAttested(call, attesterData);
 
         assertEq(IERC20(USDC).balanceOf(address(this)), 0);
         assertEq(IERC20(USDC).balanceOf(settler) - settlerBefore, USDC_AMOUNT);
@@ -342,8 +326,7 @@ contract AttestedBridgeFacetForkTest is Test {
         ILiFi.BridgeData memory bridgeData = _bridgeData("lifiIntent", USDC);
         bridgeData.hasSourceSwaps = true;
         bytes memory call = abi.encodeCall(
-            LiFiIntentEscrowFacetV2
-                .swapAndStartBridgeTokensViaLiFiIntentEscrowV2,
+            LiFiIntentEscrowFacetV2.swapAndStartBridgeTokensViaLiFiIntentEscrowV2,
             (bridgeData, swaps, _escrowData())
         );
         bytes memory attesterData = _attesterData();
@@ -353,9 +336,10 @@ contract AttestedBridgeFacetForkTest is Test {
         uint256 diamondBalanceBefore = LIFI_DIAMOND.balance;
         vm.deal(address(this), nativeIn + EXCESS_NATIVE);
 
-        AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested{
-            value: nativeIn + EXCESS_NATIVE
-        }(call, attesterData);
+        AttestedBridgeFacet(LIFI_DIAMOND)
+        .startBridgeAttested{ value: nativeIn + EXCESS_NATIVE }(
+            call, attesterData
+        );
 
         assertEq(refundRecipient.balance, EXCESS_NATIVE);
         assertEq(address(this).balance, 0);
@@ -365,17 +349,15 @@ contract AttestedBridgeFacetForkTest is Test {
     }
 
     function testRevert_UnregisteredAttesterBeforeDispatch() public {
-        (bytes memory call, ) = _acrossNativeCall();
+        (bytes memory call,) = _acrossNativeCall();
         bytes memory attesterData = _attesterData();
-        uint256 spokePoolWrappedBefore = IERC20(wrappedNative).balanceOf(
-            spokePool
-        );
+        uint256 spokePoolWrappedBefore =
+            IERC20(wrappedNative).balanceOf(spokePool);
         vm.deal(address(this), AMOUNT);
 
         assertEq(
-            PeripheryRegistryFacet(LIFI_DIAMOND).getPeripheryContract(
-                BRIDGE_ATTESTER_KEY
-            ),
+            PeripheryRegistryFacet(LIFI_DIAMOND)
+                .getPeripheryContract(BRIDGE_ATTESTER_KEY),
             address(0)
         );
 
@@ -383,37 +365,35 @@ contract AttestedBridgeFacetForkTest is Test {
         vm.expectRevert(AttestedBridgeFacet.AttesterNotRegistered.selector);
 
         AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested{ value: AMOUNT }(
-            call,
-            attesterData
+            call, attesterData
         );
 
         assertEq(vm.getRecordedLogs().length, 0);
         assertEq(
-            IERC20(wrappedNative).balanceOf(spokePool),
-            spokePoolWrappedBefore
+            IERC20(wrappedNative).balanceOf(spokePool), spokePoolWrappedBefore
         );
         assertEq(address(this).balance, AMOUNT);
 
         _registerAttester(address(attester));
 
         AttestedBridgeFacet(LIFI_DIAMOND).startBridgeAttested{ value: AMOUNT }(
-            call,
-            attesterData
+            call, attesterData
         );
 
         assertEq(attester.calls(), 1);
         assertEq(
-            IERC20(wrappedNative).balanceOf(spokePool) -
-                spokePoolWrappedBefore,
+            IERC20(wrappedNative).balanceOf(spokePool)
+                - spokePoolWrappedBefore,
             AMOUNT
         );
     }
 
     function test_LiveRegistryWritesTheSlotTheGatewayReads() public {
         assertEq(
-            IDiamondLoupe(LIFI_DIAMOND).facetAddress(
-                PeripheryRegistryFacet.registerPeripheryContract.selector
-            ),
+            IDiamondLoupe(LIFI_DIAMOND)
+                .facetAddress(
+                    PeripheryRegistryFacet.registerPeripheryContract.selector
+                ),
             PERIPHERY_REGISTRY_FACET
         );
         assertEq(
@@ -437,10 +417,8 @@ contract AttestedBridgeFacetForkTest is Test {
 
     function _registerAttester(address _attester) internal {
         vm.prank(diamondOwner);
-        PeripheryRegistryFacet(LIFI_DIAMOND).registerPeripheryContract(
-            BRIDGE_ATTESTER_KEY,
-            _attester
-        );
+        PeripheryRegistryFacet(LIFI_DIAMOND)
+            .registerPeripheryContract(BRIDGE_ATTESTER_KEY, _attester);
     }
 
     /// @dev Start and swap selector for each bridge facet, in `setUp`'s facet order
@@ -451,42 +429,36 @@ contract AttestedBridgeFacetForkTest is Test {
     {
         selectors = new bytes4[](6);
         selectors[0] = AcrossFacetV4.startBridgeTokensViaAcrossV4.selector;
-        selectors[1] = AcrossFacetV4
-            .swapAndStartBridgeTokensViaAcrossV4
-            .selector;
-        selectors[2] = PolymerCCTPFacet
-            .startBridgeTokensViaPolymerCCTP
-            .selector;
-        selectors[3] = PolymerCCTPFacet
-            .swapAndStartBridgeTokensViaPolymerCCTP
-            .selector;
-        selectors[4] = LiFiIntentEscrowFacetV2
-            .startBridgeTokensViaLiFiIntentEscrowV2
-            .selector;
-        selectors[5] = LiFiIntentEscrowFacetV2
-            .swapAndStartBridgeTokensViaLiFiIntentEscrowV2
+        selectors[1] =
+        AcrossFacetV4.swapAndStartBridgeTokensViaAcrossV4.selector;
+        selectors[2] =
+        PolymerCCTPFacet.startBridgeTokensViaPolymerCCTP.selector;
+        selectors[3] =
+        PolymerCCTPFacet.swapAndStartBridgeTokensViaPolymerCCTP.selector;
+        selectors[4] =
+        LiFiIntentEscrowFacetV2.startBridgeTokensViaLiFiIntentEscrowV2.selector;
+        selectors[5] =
+        LiFiIntentEscrowFacetV2.swapAndStartBridgeTokensViaLiFiIntentEscrowV2
             .selector;
     }
 
-    function _bridgeData(
-        string memory _bridge,
-        address _sendingAssetId
-    ) internal view returns (ILiFi.BridgeData memory) {
-        return
-            ILiFi.BridgeData({
-                transactionId: keccak256(bytes(_bridge)),
-                bridge: _bridge,
-                integrator: "test-integrator",
-                referrer: address(0),
-                sendingAssetId: _sendingAssetId,
-                receiver: receiver,
-                minAmount: _sendingAssetId == address(0)
-                    ? AMOUNT
-                    : USDC_AMOUNT,
-                destinationChainId: OP_CHAIN_ID,
-                hasSourceSwaps: false,
-                hasDestinationCall: false
-            });
+    function _bridgeData(string memory _bridge, address _sendingAssetId)
+        internal
+        view
+        returns (ILiFi.BridgeData memory)
+    {
+        return ILiFi.BridgeData({
+            transactionId: keccak256(bytes(_bridge)),
+            bridge: _bridge,
+            integrator: "test-integrator",
+            referrer: address(0),
+            sendingAssetId: _sendingAssetId,
+            receiver: receiver,
+            minAmount: _sendingAssetId == address(0) ? AMOUNT : USDC_AMOUNT,
+            destinationChainId: OP_CHAIN_ID,
+            hasSourceSwaps: false,
+            hasDestinationCall: false
+        });
     }
 
     function _acrossData(
@@ -494,20 +466,19 @@ contract AttestedBridgeFacetForkTest is Test {
         address _receivingAssetId,
         uint256 _amount
     ) internal view returns (AcrossFacetV4.AcrossV4Data memory) {
-        return
-            AcrossFacetV4.AcrossV4Data({
-                receiverAddress: LibBytes.toBytes32(receiver),
-                refundAddress: LibBytes.toBytes32(receiver),
-                sendingAssetId: LibBytes.toBytes32(_sendingAssetId),
-                receivingAssetId: LibBytes.toBytes32(_receivingAssetId),
-                outputAmount: (_amount * 99) / 100,
-                outputAmountMultiplier: 0.99e18,
-                exclusiveRelayer: bytes32(0),
-                quoteTimestamp: uint32(block.timestamp),
-                fillDeadline: uint32(block.timestamp + 1 hours),
-                exclusivityParameter: 0,
-                message: ""
-            });
+        return AcrossFacetV4.AcrossV4Data({
+            receiverAddress: LibBytes.toBytes32(receiver),
+            refundAddress: LibBytes.toBytes32(receiver),
+            sendingAssetId: LibBytes.toBytes32(_sendingAssetId),
+            receivingAssetId: LibBytes.toBytes32(_receivingAssetId),
+            outputAmount: (_amount * 99) / 100,
+            outputAmountMultiplier: 0.99e18,
+            exclusiveRelayer: bytes32(0),
+            quoteTimestamp: uint32(block.timestamp),
+            fillDeadline: uint32(block.timestamp + 1 hours),
+            exclusivityParameter: 0,
+            message: ""
+        });
     }
 
     function _acrossNativeCall()
@@ -527,16 +498,15 @@ contract AttestedBridgeFacetForkTest is Test {
         view
         returns (PolymerCCTPFacet.PolymerCCTPData memory)
     {
-        return
-            PolymerCCTPFacet.PolymerCCTPData({
-                polymerTokenFee: USDC_AMOUNT / 100,
-                maxCCTPFee: USDC_AMOUNT / 10,
-                nonEVMReceiver: bytes32(0),
-                solanaReceiverATA: bytes32(0),
-                minFinalityThreshold: 2000,
-                refundRecipient: refundRecipient,
-                hookData: ""
-            });
+        return PolymerCCTPFacet.PolymerCCTPData({
+            polymerTokenFee: USDC_AMOUNT / 100,
+            maxCCTPFee: USDC_AMOUNT / 10,
+            nonEVMReceiver: bytes32(0),
+            solanaReceiverATA: bytes32(0),
+            minFinalityThreshold: 2000,
+            refundRecipient: refundRecipient,
+            hookData: ""
+        });
     }
 
     function _escrowData()
@@ -544,22 +514,21 @@ contract AttestedBridgeFacetForkTest is Test {
         view
         returns (LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2 memory)
     {
-        return
-            LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2({
-                dstCallReceiver: bytes32(0),
-                recipient: LibBytes.toBytes32(receiver),
-                depositAndRefundAddress: refundRecipient,
-                nonce: uint256(keccak256("attested-bridge-facet-fork")),
-                expires: 1 days,
-                fillDeadline: 1 hours,
-                inputOracle: inputOracle,
-                outputOracle: bytes32(0),
-                outputSettler: LibBytes.toBytes32(OIF_OUTPUT_SETTLER),
-                outputToken: LibBytes.toBytes32(OP_USDC),
-                outputAmountMultiplier: 1e18,
-                dstCallSwapData: new LibSwap.SwapData[](0),
-                outputContext: ""
-            });
+        return LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2({
+            dstCallReceiver: bytes32(0),
+            recipient: LibBytes.toBytes32(receiver),
+            depositAndRefundAddress: refundRecipient,
+            nonce: uint256(keccak256("attested-bridge-facet-fork")),
+            expires: 1 days,
+            fillDeadline: 1 hours,
+            inputOracle: inputOracle,
+            outputOracle: bytes32(0),
+            outputSettler: LibBytes.toBytes32(OIF_OUTPUT_SETTLER),
+            outputToken: LibBytes.toBytes32(OP_USDC),
+            outputAmountMultiplier: 1e18,
+            dstCallSwapData: new LibSwap.SwapData[](0),
+            outputContext: ""
+        });
     }
 
     /// @dev A native → USDC swap on the live Uniswap V2 router for exactly `USDC_AMOUNT`.
@@ -572,10 +541,8 @@ contract AttestedBridgeFacetForkTest is Test {
         address[] memory path = new address[](2);
         path[0] = wrappedNative;
         path[1] = USDC;
-        nativeIn = UniswapV2Router02(UNISWAP_V2_ROUTER).getAmountsIn(
-            USDC_AMOUNT,
-            path
-        )[0];
+        nativeIn = UniswapV2Router02(UNISWAP_V2_ROUTER)
+            .getAmountsIn(USDC_AMOUNT, path)[0];
         swaps = new LibSwap.SwapData[](1);
         swaps[0] = LibSwap.SwapData({
             callTo: UNISWAP_V2_ROUTER,
@@ -613,14 +580,16 @@ contract AttestedBridgeFacetForkTest is Test {
         }
     }
 
-    function _onlyTransferStarted(
-        Vm.Log[] memory _logs
-    ) internal pure returns (Vm.Log memory started) {
+    function _onlyTransferStarted(Vm.Log[] memory _logs)
+        internal
+        pure
+        returns (Vm.Log memory started)
+    {
         uint256 found;
         for (uint256 i; i < _logs.length; ++i) {
             if (
-                _logs[i].topics.length != 0 &&
-                _logs[i].topics[0] == LIFI_TRANSFER_STARTED
+                _logs[i].topics.length != 0
+                    && _logs[i].topics[0] == LIFI_TRANSFER_STARTED
             ) {
                 started = _logs[i];
                 ++found;
