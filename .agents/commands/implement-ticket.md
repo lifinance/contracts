@@ -1,6 +1,6 @@
 ---
 name: implement-ticket
-description: "Takes one EXSC ticket from start to an open, clean PR in the current session without pausing: starts the ticket, plans, implements and tests, commits, has a fresh-context subagent review the diff, then opens the PR and drives it to clean. Supervised and in-session, unlike the unattended AI Factory (`factory-*` skills) that runs tickets outside the session. Use for \"implement EXSC-<N>\", \"work on this ticket end to end\", or \"take EXSC-<N> to a PR\"."
+description: "Takes one EXSC ticket from start to an open, clean PR in the current session without pausing: starts the ticket, plans, implements and tests, commits, has a fresh-context subagent review the diff, then opens the PR and drives it to clean. Use for \"implement EXSC-<N>\", \"work on this ticket end to end\", or \"take EXSC-<N> to a PR\"."
 usage: /implement-ticket <EXSC-ID | Linear URL>
 ---
 
