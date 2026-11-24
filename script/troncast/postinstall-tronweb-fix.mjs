@@ -122,5 +122,6 @@ if (skippedFiles.length > 0) {
   consola.warn(`✗ Skipped ${skippedFiles.length} files (not patched):`)
   skippedFiles.forEach((file) => consola.warn(`  - ${file}`))
 } else {
+  // .github/workflows/ts-unit-tests.yml greps for this exact line; keep the two in sync.
   consola.log('TronWeb proto fix applied successfully!')
 }
