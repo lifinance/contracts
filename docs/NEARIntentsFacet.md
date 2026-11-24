@@ -16,9 +16,9 @@ Fee-on-transfer tokens are not supported. Without a swap, the ERC20 pull does no
 
 ```mermaid
 graph LR;
-    U(User) -- APPROVE --> D;
+    C(Caller) -- APPROVE --> D;
     D{LiFiDiamond}-- DELEGATECALL -->NEARIntentsFacet;
-    NEARIntentsFacet -. "ERC20 no swap: transferFrom(user, depositAddress)" .-> DepositAddress(Deposit Address);
+    NEARIntentsFacet -. "ERC20 no swap: transferFrom(msg.sender, depositAddress)" .-> DepositAddress(Deposit Address);
     NEARIntentsFacet -- "native or after swap: transfer" --> DepositAddress;
     DepositAddress --> NI[NEAR Intents Protocol]
 ```

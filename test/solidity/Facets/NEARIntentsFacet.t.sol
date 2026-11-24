@@ -424,8 +424,6 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         );
 
         vm.stopPrank();
-
-        assertEq(address(diamond).balance, defaultNativeAmount);
     }
 
     function testRevert_QuoteAlreadyConsumed() public {

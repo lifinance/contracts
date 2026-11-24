@@ -188,16 +188,17 @@ contract NEARIntentsFacet is
         doesNotContainDestinationCalls(_bridgeData)
     {
         _verifySignature(_bridgeData, _nearData);
-        // ERC20 is pulled in _startBridge; for native this enforces msg.value >= minAmount so the
-        // diamond's own balance is never spent
-        if (LibAsset.isNativeAsset(_bridgeData.sendingAssetId)) {
+        bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
+        if (isNative) {
+            // enforces msg.value >= minAmount so the diamond's own balance is never spent
             LibAsset.depositAsset(
                 _bridgeData.sendingAssetId,
                 _bridgeData.minAmount
             );
         }
 
-        _startBridge(_bridgeData, _nearData);
+        // ERC20 still sits with the caller, so _startBridge pulls it straight to the deposit address
+        _startBridge(_bridgeData, _nearData, !isNative);
     }
 
     /// @notice Performs a swap before bridging via NEAR Intents
@@ -237,7 +238,7 @@ contract NEARIntentsFacet is
             );
         }
 
-        _startBridge(_bridgeData, _nearData);
+        _startBridge(_bridgeData, _nearData, false);
     }
 
     /// View Functions ///
@@ -256,20 +257,19 @@ contract NEARIntentsFacet is
     /// @dev Contains the business logic for bridging via NEAR Intents
     /// @param _bridgeData The core information needed for bridging
     /// @param _nearData Data specific to NEAR Intents
+    /// @param _pullFromCaller True to pull ERC20 from msg.sender straight to the deposit address;
+    ///        false to send minAmount from the diamond
     function _startBridge(
         ILiFi.BridgeData memory _bridgeData,
-        NEARIntentsData calldata _nearData
+        NEARIntentsData calldata _nearData,
+        bool _pullFromCaller
     ) internal {
         Storage storage s = getStorage();
 
         // Mark quote as consumed BEFORE external interactions (CEI pattern)
         s.consumedQuoteIds[_nearData.quoteId] = true;
 
-        // Without a swap, ERC20 still sits with the caller: pull it straight to the deposit address
-        if (
-            !_bridgeData.hasSourceSwaps &&
-            !LibAsset.isNativeAsset(_bridgeData.sendingAssetId)
-        ) {
+        if (_pullFromCaller) {
             LibAsset.transferFromERC20(
                 _bridgeData.sendingAssetId,
                 msg.sender,
