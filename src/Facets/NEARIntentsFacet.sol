@@ -9,7 +9,7 @@ import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
-import { InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
+import { InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title NEARIntentsFacet
 /// @author LI.FI (https://li.fi)
@@ -189,12 +189,8 @@ contract NEARIntentsFacet is
     {
         _verifySignature(_bridgeData, _nearData);
         bool isNative = LibAsset.isNativeAsset(_bridgeData.sendingAssetId);
-        if (isNative) {
-            // enforces msg.value >= minAmount so the diamond's own balance is never spent
-            LibAsset.depositAsset(
-                _bridgeData.sendingAssetId,
-                _bridgeData.minAmount
-            );
+        if (isNative && msg.value < _bridgeData.minAmount) {
+            revert InvalidAmount();
         }
 
         // ERC20 still sits with the caller, so _startBridge pulls it straight to the deposit address
