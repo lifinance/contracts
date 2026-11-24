@@ -21,8 +21,8 @@ The run stops early only in these two cases; the report names which, at which st
 ## Steps
 
 1. **Start.** If the ticket already has a branch (an `exsc-<N>-` branch, or the head of an open
-   PR that `Fixes`/`Ref`s it) and is In Progress or later, check it out and continue from step 2
-   on its commits. Otherwise run `/start-linear-ticket <ID>`, after checking out the branch if
+   PR that `Fixes`/`Ref`s it) and its status type is `started` (In Progress, In Review, …), check
+   it out and continue from step 2 on its commits. Otherwise run `/start-linear-ticket <ID>`, after checking out the branch if
    one exists. An ambiguous match is a blocker.
 
 2. **Plan** from the ticket, its comments and any existing commits. Plan internally; nothing is
