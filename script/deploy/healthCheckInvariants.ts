@@ -39,6 +39,10 @@ import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
+  PINNED_CODEHASHES_REPO_PATH,
+  pinnedAddressesByNetwork,
+} from './codehash/pinned-codehashes'
+import {
   loadDeployLog,
   versionsAtAddress,
   type DeployLog,
@@ -242,6 +246,12 @@ export interface IHealthCheckContext {
   pendingRegistrations?:
     | Map<string, Map<string, IPendingRegistration[]>>
     | { unreachable: string }
+  /**
+   * Lowercased network → the pinned `BridgeCommitmentLedger` address, or why the pinned-codehash
+   * file could not be read. Undefined = read the file (the default); injectable so the
+   * `bridge-attester-pinned` invariant is testable without pinning a test to the committed file.
+   */
+  pinnedLedgerAddresses?: ReadonlyMap<string, string> | { unreadable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -1459,6 +1469,31 @@ async function readSelectorAllowlist(
 
 /** Registry name of the attester `AttestedBridgeFacet` reports bridge calls to. */
 const BRIDGE_ATTESTER = 'BridgeAttester'
+
+/** The externally built contract registered under `BridgeAttester`, as the pinned file names it. */
+const BRIDGE_COMMITMENT_LEDGER = 'BridgeCommitmentLedger'
+
+/**
+ * Read the pinned `BridgeCommitmentLedger` address per network from the pinned-codehash file.
+ *
+ * @param file - absolute path of the pinned-codehash file
+ * @returns Lowercased network → checksummed address, or `unreadable` naming the path and the
+ *   read or parser message when the file is missing or malformed
+ */
+export function loadPinnedLedgerAddresses(
+  file: string
+): ReadonlyMap<string, string> | { unreadable: string } {
+  try {
+    const raw = JSON.parse(readFileSync(file, 'utf8')) as Record<
+      string,
+      unknown
+    >
+    return pinnedAddressesByNetwork(raw, BRIDGE_COMMITMENT_LEDGER)
+  } catch (error: unknown) {
+    const reason = error instanceof Error ? error.message : String(error)
+    return { unreadable: `${file}: ${reason}` }
+  }
+}
 
 /**
  * Read `getWhitelistedSelectorsForContract(address)` from the diamond.
@@ -3108,8 +3143,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       // reads its address from the deploy log, and diamond-owner validates that against
       // owner(). A registry entry for it is therefore not an address anything resolves.
       // periphery-registered skips it for the same reason.
+      // The attester is built outside this repo, so no deploy log records it;
+      // bridge-attester-pinned checks its registry entry against the pinned file instead.
       const notPeriphery = (name: string): boolean =>
         name === 'LiFiTimelockController' ||
+        name === BRIDGE_ATTESTER ||
         name.includes('Facet') ||
         name.startsWith('LiFiDiamond') ||
         ctx.coreFacetsToCheck.includes(name) ||
@@ -3603,6 +3641,86 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         return
       }
       consola.success(`${BRIDGE_ATTESTER} (${attester}) is not allowlisted`)
+    },
+  },
+  {
+    name: 'bridge-attester-pinned',
+    description: `The attester registered under BridgeAttester is the ${BRIDGE_COMMITMENT_LEDGER} pinned for this network`,
+    severity: 'error',
+    scope: { environments: ['production'], chains: 'evm-only' },
+    remediation:
+      'Pin the registered ledger in script/deploy/resources/pinnedExternalCodehashes.json, or re-register the pinned address',
+    run: async (ctx) => {
+      // Whether an attester must be registered at all is facet-required-periphery's question;
+      // this check only holds a registered one to the reviewed address.
+      let attester: string | null
+      try {
+        attester = await readPeripheryRegistry(BRIDGE_ATTESTER, ctx)
+      } catch (error: unknown) {
+        report(
+          ctx,
+          error,
+          `${BRIDGE_ATTESTER}: could not read the PeripheryRegistry, so it was not compared with the pinned ${BRIDGE_COMMITMENT_LEDGER}: ${redactUrls(
+            String(error)
+          )}`
+        )
+        return
+      }
+      if (attester === null) return
+
+      const pins =
+        ctx.pinnedLedgerAddresses ??
+        loadPinnedLedgerAddresses(
+          path.join(process.cwd(), PINNED_CODEHASHES_REPO_PATH)
+        )
+      if ('unreadable' in pins) {
+        ctx.logError(
+          `${BRIDGE_ATTESTER} (${attester}): could not read the pinned ${BRIDGE_COMMITMENT_LEDGER} addresses: ${pins.unreadable}`
+        )
+        return
+      }
+
+      const registered = getAddress(attester as Address)
+      const pinnedRaw = pins.get(ctx.networkLower)
+      if (pinnedRaw === undefined) {
+        ctx.logWarn(
+          `${BRIDGE_ATTESTER} (${registered}) is registered, but no ${BRIDGE_COMMITMENT_LEDGER} is pinned for ${ctx.network} - pin it in ${PINNED_CODEHASHES_REPO_PATH}`
+        )
+        return
+      }
+      const pinned = getAddress(pinnedRaw as Address)
+      if (pinned === registered) {
+        consola.success(
+          `${BRIDGE_ATTESTER} (${registered}) is the pinned ${BRIDGE_COMMITMENT_LEDGER}`
+        )
+        return
+      }
+
+      // A ledger replacement merges its pin before the timelock executes the re-registration.
+      // The registry is keyed by name, so only a queued registration of the pinned address under
+      // this name counts.
+      const coverage = await resolvePendingRegistrations(ctx)
+      if (coverage instanceof Map) {
+        const queued = coverage
+          .get(pinned.toLowerCase())
+          ?.some(
+            (record) =>
+              record.kind === 'periphery' &&
+              record.peripheryName === BRIDGE_ATTESTER
+          )
+        if (queued) {
+          consola.info(
+            `${BRIDGE_ATTESTER} is ${registered}, pinned ${BRIDGE_COMMITMENT_LEDGER} is ${pinned} — expected-pending: a queued timelock operation registers it`
+          )
+          return
+        }
+      } else
+        ctx.logWarn(
+          `Timelock queue unreachable — expected-pending downgrade skipped, ${BRIDGE_ATTESTER} mismatch reported as an error: ${coverage.unreachable}`
+        )
+      ctx.logError(
+        `${BRIDGE_ATTESTER} is registered as ${registered}, but the ${BRIDGE_COMMITMENT_LEDGER} pinned for ${ctx.network} is ${pinned}`
+      )
     },
   },
   {

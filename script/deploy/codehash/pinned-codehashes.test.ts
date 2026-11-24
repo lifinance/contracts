@@ -5,9 +5,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { readFileSync } from 'fs'
+import { getAddress } from 'viem'
 
 import {
   parsePinnedCodehashes,
+  pinnedAddressesByNetwork,
   PINNED_CODEHASHES_REPO_PATH,
   pinnedKey,
 } from './pinned-codehashes'
@@ -104,5 +106,42 @@ describe('parsePinnedCodehashes', () => {
       readFileSync(PINNED_CODEHASHES_REPO_PATH, 'utf8')
     ) as Record<string, unknown>
     expect(parsePinnedCodehashes(committed).size).toBeGreaterThan(0)
+  })
+})
+
+describe('pinnedAddressesByNetwork', () => {
+  const OTHER = getAddress('0xa77e57e200000000000000000000000000000001')
+
+  it('maps each network the contract is pinned on to its checksummed address', () => {
+    const raw = {
+      ...file({
+        Mainnet: { address: ADDRESS, codehash: CODEHASH },
+        base: { address: OTHER.toLowerCase(), codehash: CODEHASH },
+      }),
+      Other: {
+        source: 's',
+        deployments: { optimism: { address: OTHER, codehash: CODEHASH } },
+      },
+    }
+
+    expect([...pinnedAddressesByNetwork(raw, 'Ledger')]).toEqual([
+      ['mainnet', ADDRESS],
+      ['base', OTHER],
+    ])
+  })
+
+  it('returns nothing for a contract the file does not pin', () => {
+    const raw = file({ base: { address: ADDRESS, codehash: CODEHASH } })
+    expect(pinnedAddressesByNetwork(raw, 'Unknown').size).toBe(0)
+  })
+
+  it('throws on a malformed file, even when the contract asked for is well formed', () => {
+    const raw = {
+      ...file({ base: { address: ADDRESS, codehash: CODEHASH } }),
+      Broken: 'x',
+    }
+    expect(thrown(() => pinnedAddressesByNetwork(raw, 'Ledger'))).toContain(
+      'Broken must be an object with deployments'
+    )
   })
 })
