@@ -4,11 +4,13 @@
 #   before a formatter change cannot land unformatted or with solhint errors
 # - Checks the whole tree, not only the PR's changed files: it runs in about 20 s and also
 #   catches drift a stale-base merge brings in
-# - Check-only: every step reads, none writes. Fix locally with `bun format:fix` / `bun lint:sol:fix`
+# - Check-only: every step reads, none writes. Fix locally with `bun format:fix` and
+#   `bun lint:sol:fix`
 # - Each tool is its own step that runs after an earlier tool failed, so one run reports every
-#   failing tool (`bun format` chains them with && and stops at the first failure). The tools
-#   are skipped when their install step failed, so a broken install reads as one failure
-#   rather than four
+#   failing tool (`bun format` chains them with && and stops at the first failure). A tool is
+#   skipped only when its own install step failed: Prettier, oxfmt and solhint need
+#   `bun install`, forge fmt needs only Foundry
+# - setup-foundry runs with forge-caches off: this job never compiles or forks
 # - solhint errors fail the job; warnings do not
 # - A formatter/linter version bump that changes output (oxfmt, prettier-plugin-solidity,
 #   solhint, .foundry-version) must carry the `bun format:fix` result in the same PR
@@ -31,7 +33,7 @@ permissions: {}
 
 # Cancel superseded in-progress PR runs; post-merge and manual runs always complete.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: fmt-lint-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -64,9 +66,11 @@ jobs:
       # forge fmt only; no submodules or build needed (foundry.toml [fmt] ignores src/ and lib/)
       - name: Install Foundry
         id: foundry
+        # forge fmt needs no node_modules, so a failed `bun install` must not skip it
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/setup-foundry
         with:
-          build-cache: "false"
+          forge-caches: "false"
 
       - name: Prettier (src/ and archive/ Solidity)
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
