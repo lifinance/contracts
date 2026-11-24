@@ -261,6 +261,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // approval
         usdc.approve(address(diamond), amountIn);
+        uint256 depositBalanceBefore = TEST_DEPOSIT_ADDRESS.balance;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -279,6 +280,11 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+
+        assertEq(
+            TEST_DEPOSIT_ADDRESS.balance,
+            depositBalanceBefore + bridgeData.minAmount
+        );
     }
 
     /// Happy Path Tests ///
