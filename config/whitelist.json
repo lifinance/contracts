@@ -9681,7 +9681,7 @@
     "tron": [
       {
         "name": "FeeForwarder",
-        "address": "TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P",
+        "address": "TPHMB8hdvw1eM3XZHWVSsG87PJvg41kXmm",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9690,6 +9690,10 @@
           {
             "selector": "0x332d746b",
             "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          },
+          {
+            "selector": "0x39db035e",
+            "signature": "forwardERC20FeesShares(address,(address,uint64)[])"
           }
         ]
       },
