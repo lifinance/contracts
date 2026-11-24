@@ -104,8 +104,9 @@ describe('validate-scripts job', () => {
     expect(scriptsFilter()).toEqual(
       expect.arrayContaining([
         '.oxlintrc.json',
-        // Covers the local oxlint plugin `.oxlintrc.json` loads
-        'script/**/*.{ts,tsx,mts,cts,js,mjs,cjs}',
+        // Every TS/JS file `bun lint:js` lints, including the local oxlint
+        // plugin `.oxlintrc.json` loads
+        '**/*.{ts,tsx,mts,cts,js,mjs,cjs}',
         // Type-aware rules read the project from it
         'tsconfig.json',
       ])
