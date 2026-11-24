@@ -21,7 +21,7 @@ The run stops early only in these two cases; the report names which, at which st
 ## Steps
 
 1. **Start.** If the ticket already has a branch (an `exsc-<N>-` branch, or the head of an open
-   PR that `Fixes`/`Ref`s it) and its status type is `started` (In Progress, In Review, …), check
+   PR that `Fixes` it) and its status type is `started` (In Progress, In Review, …), check
    it out and continue from step 2 on its commits. Otherwise run `/start-linear-ticket <ID>`, after checking out the branch if
    one exists. An ambiguous match is a blocker.
 
@@ -33,7 +33,7 @@ The run stops early only in these two cases; the report names which, at which st
 
 4. **Fresh-context review.** Spawn a new `general-purpose` subagent, never a fork (a fork
    inherits your reasoning). Give it only the ticket and ask it to run
-   `/code-review medium origin/main...HEAD`, wait for the result (it can arrive later as a
+   `/code-review medium <branch>`, wait for the result (it can arrive later as a
    background notification), and fall back to reviewing `git diff origin/main...HEAD` itself,
    saying so, if the skill can't run or never reports. Check each finding against the code:
    - **Fix** it when it is real and worth the change.
