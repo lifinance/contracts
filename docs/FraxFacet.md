@@ -42,11 +42,13 @@ specific to Frax HopV2 and is represented as the following struct type:
 /// @param oft The OFT messenger for the token on the source chain (its token() is the
 ///        ERC20 that HopV2 pulls and that must equal bridgeData.sendingAssetId)
 /// @param dstEid The LayerZero endpoint ID of the destination chain
-/// @param nativeFee The native LayerZero fee forwarded to HopV2 as msg.value on standard
-///        chains; ignored on Tempo (fee is paid in the TIP20 gas token)
+/// @param nativeFee On standard chains, the native LayerZero fee forwarded to HopV2 as
+///        msg.value. On Tempo, the maximum fee (in the bridged token) the caller accepts:
+///        the wrapper must bridge at least minAmount - nativeFee
 /// @param refundRecipient Address that receives pre-bridge swap leftovers, the dust
-///        remainder that HopV2 does not bridge, and any excess native that HopV2 refunds
-///        to the diamond mid-call. Must accept plain native transfers.
+///        remainder that HopV2 does not bridge, any excess native that HopV2 refunds to
+///        the diamond mid-call, and on Tempo the residual the wrapper hands back. Must
+///        accept plain native transfers.
 /// @param nonEVMReceiver The bytes32 recipient on a non-EVM destination (e.g. a Solana
 ///        pubkey). Required when bridgeData.receiver is NON_EVM_ADDRESS; must be
 ///        bytes32(0) for EVM destinations.
@@ -76,11 +78,12 @@ invalid route costs the caller nothing but gas:
 The `approvedOft` check runs **before** `oft.token()` deliberately: `oft` is caller-supplied,
 so the only external call this facet makes into it happens after the hop has allowlisted it.
 
-- `nativeFee` is the native LayerZero messaging fee. It is `0` on Tempo, where the
-  fee is charged in an ERC20 gas token instead (see below).
+- `nativeFee` is the native LayerZero messaging fee. On Tempo it is instead the maximum
+  fee taken out of the bridged token (see below).
 - `refundRecipient` receives everything belonging to the user that does not get
-  bridged: pre-bridge swap leftovers, the dust remainder HopV2 floors off, and any
-  excess native / fee refund that HopV2 returns to the Diamond mid-call.
+  bridged: pre-bridge swap leftovers, the dust remainder HopV2 floors off, any
+  excess native / fee refund that HopV2 returns to the Diamond mid-call, and on Tempo
+  the residual the wrapper returns.
 
 ## Fund flow and safety
 
@@ -209,28 +212,33 @@ diff without proposing.
 ## Tempo (EndpointV2Alt) special case
 
 On **Tempo** (chainId `4217`), LayerZero uses **EndpointV2Alt**, which rejects
-native `msg.value`; the messaging fee is paid in a **TIP20 ERC20 gas token**, not
-native gas.
+native `msg.value` and charges the messaging fee in an ERC20. The facet routes Tempo
+sends through Frax's **`TempoFeeInclusiveWrapper`**, which takes the fee out of the
+bridged token itself, so a Tempo-sourced transfer needs **one approval** (the bridged
+token, to the Diamond) and **`msg.value == 0`**.
 
-- The facet selects this path via a constructor immutable, `FRAX_TIP_FEE_MANAGER`,
-  which is non-zero **only on Tempo** (`FRAX_PATH_USD` is the default gas token). One
-  FraxFacet source serves every chain — the fee mode is chosen at **deploy time**
-  from `config/frax.json`, not by a separate contract.
-- The fee token is resolved as `FRAX_TIP_FEE_MANAGER.userTokens(diamond)`, falling back
-  to `FRAX_PATH_USD` when the Diamond has not opted into a specific token. Like the native
-  path, the facet does **not** quote the fee on-chain: it pulls `FraxData.nativeFee` of the
-  fee token from the caller, approves HopV2, and HopV2 requotes and pulls its actual fee on
-  `sendOFT` with `msg.value == 0` (both entrypoints revert `InvalidCallData` if any native
-  is sent on Tempo). Since `depositAsset` pulls exactly `nativeFee` from the caller, that is
-  the most the caller can be charged. The unused-fee refund is computed from a fee-token
-  balance delta, so the fee token must differ from the bridged asset; the facet reverts
-  `InformationMismatch` on that collision (a Frax gas token is never itself a bridged Frax OFT).
-- **Fee-token funding (Tempo only).** The effective caller (`msg.sender`) must hold the
-  TIP20 fee token and **approve `nativeFee` to the Diamond**, in addition to the
-  bridged-token approval. BE populates `FraxData.nativeFee` with the quoted fee-token amount
-  (the value carries Frax's headroom via the quote's `requiredApprovals`). This differs from
-  every other chain, where the fee is native `msg.value`. Provisioning this token in the
-  relayer/BE flow is tracked in EXP-514.
+- **Path selection.** The constructor immutable `FRAX_TEMPO_WRAPPER` is non-zero **only on
+  Tempo** (`config/frax.json` `tempoFeeInclusiveWrapper.tempo`); zero selects the native-fee
+  path everywhere else. One FraxFacet source serves every chain. The constructor reverts
+  `InvalidConfig` unless the wrapper's `HOP()` is the configured HopV2.
+- **Fee cap.** On Tempo, `FraxData.nativeFee` is the maximum fee in the bridged token. The
+  facet passes `minNet = minAmount - nativeFee` to `sendOFTFeeInclusive`, and the wrapper
+  reverts `InsufficientNetAmount` if it would bridge less. `nativeFee >= minAmount` reverts
+  `InvalidCallData`. BE sets `nativeFee = fromAmount - minNetAmountLd` from Frax's quote.
+- **No native.** Both entrypoints revert `InvalidCallData` on any `msg.value` on Tempo. In
+  practice the chain rejects a value-carrying tx before the facet runs.
+- **Emitted amount.** `LiFiTransferStarted.minAmount` is the **net amount bridged** (after
+  the fee and dust floor), read from the wrapper's `quoteFeeInclusive` in the same
+  transaction.
+- **Residual.** The wrapper pulls exactly `minAmount` and returns its unused residual to the
+  Diamond; the facet forwards that residual to `refundRecipient` in the same transaction.
+  A pre-existing Diamond balance is never part of it.
+- **Approval target.** The Diamond grants the wrapper (not HopV2) the standing allowance. The
+  wrapper is immutable and ownerless, only pulls from `msg.sender`, and forwards to the same
+  HopV2.
+- **Pre-bridge swaps.** Tempo's StablecoinDEX is a precompile (code `0xef`), which
+  `LibAllowList` rejects, so it cannot be whitelisted. Swaps into frxUSD must go through a
+  whitelisted aggregator.
 
 ## Swap Data
 

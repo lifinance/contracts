@@ -64,12 +64,16 @@ contract TempoDexRouter {
 ///         the prototype facet cut in by its real timelock owner.
 /// @dev Needs `forge test --network tempo --match-path test/solidity/Facets/FraxFacetTempo.t.sol`.
 ///      Without the network flag every TIP20 call reverts (TIP20s are
-///      node precompiles), so setUp skips the suite instead of failing the default run.
+///      node precompiles), so setUp skips the suite instead of failing the default run,
+///      unless FRAX_TEMPO_REQUIRE_FORK=true (the CI tempo shard), where it fails.
 ///      Does not inherit TestBaseFacet: its base setup deals Ethereum token addresses and
 ///      deploys a fresh diamond, neither of which exists on Tempo; this suite tests the
 ///      production diamond itself. TIP20 balances are not storage-backed, so deal() does not
 ///      work; funding mints frxUSD as the OFT, which holds the TIP20 issuer role.
 contract FraxFacetTempoTest is Test {
+    /// @notice TIP20 calls revert: the suite ran without `--network tempo`.
+    error TempoForkUnavailable();
+
     address internal constant DIAMOND =
         0x2cAcAE8e22418E65dcf7651c67aEbe6288EB8243;
     address internal constant TIMELOCK =
@@ -123,6 +127,10 @@ contract FraxFacetTempoTest is Test {
 
         try frxUsd.totalSupply() returns (uint256) { }
         catch {
+            // The CI tempo shard sets this, so a broken fork fails there instead of skipping.
+            if (vm.envOr("FRAX_TEMPO_REQUIRE_FORK", false)) {
+                revert TempoForkUnavailable();
+            }
             vm.skip(true);
             return;
         }
