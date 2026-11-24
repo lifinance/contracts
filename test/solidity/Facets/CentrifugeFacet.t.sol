@@ -104,6 +104,8 @@ contract CentrifugeReentrancyAttacker {
         FACET = _facet;
     }
 
+    // The re-entrancy attack has to run from the refund itself, so receive() cannot stay simple
+    // solhint-disable-next-line no-complex-fallback
     receive() external payable {
         // only the first refund re-enters: without the guard the re-entrant bridge succeeds and
         // refunds in turn, which would otherwise recurse until the attacker runs out of shares
