@@ -28,9 +28,11 @@ The run stops early in two cases only, and the report names which and at which s
 1. Fetch the ticket; a non-EXSC ID or one Linear can't find is a blocker. Assigned to someone
    other than `me` → user decision.
 2. `git status --porcelain` non-empty → blocker.
-3. `git fetch origin`, then find the ticket's branch: the head branch of an open PR whose
-   title, branch or body names `EXSC-<N>` (`gh pr list --state open --search EXSC-<N>`), else a
-   branch whose name contains `exsc-<N>-` in any case, locally or on origin. A local branch and
+3. `git fetch origin`, then find the ticket's branch: the head branch of an open PR that the
+   ticket owns (`gh pr list --state open --search EXSC-<N>`, kept only when the head branch
+   contains `exsc-<N>-` in any case or the body has a `Fixes`/`Ref` line naming `EXSC-<N>`; a
+   mere mention doesn't count), else a branch whose name contains `exsc-<N>-` in any case,
+   locally or on origin. A local branch and
    its `origin/` counterpart are one match; more than one match → blocker listing them. An open
    PR by someone other than `gh api user` → user decision (`/drive-pr` won't push to it).
    - Found and the ticket's status type is `started` (In Progress or later): check it out
