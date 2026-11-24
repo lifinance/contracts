@@ -76,6 +76,10 @@
       "0x58EBB75C51da4e2d19329B571dC75d815cd59915": {
         "Name": "SquidFacet",
         "Version": "1.0.0"
+      },
+      "0x66378319035FdcA6C27b88a58A27097424e333A4": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

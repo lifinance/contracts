@@ -116,6 +116,10 @@
       "0x8452788daad6af88fe88BC5dFc892974C11C32Ad": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
+      },
+      "0x6f15d4d5B89c47e676f68cd656b3CCe52419A5dA": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

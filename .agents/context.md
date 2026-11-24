@@ -7,7 +7,7 @@ Solidity ^0.8.17 · Foundry · TypeScript/Bun scripts.
 
 `.agents/rules/`, `.agents/commands/` and `.agents/hooks/` are the source of truth; `.cursor/`
 and `.claude/` symlink into them. Edit files in `.agents/` only — never the symlinks.
-Rules load automatically: global rules (000–002, 099, and 600, which has no `paths:`)
+Rules load automatically: global rules (000–002 and 600, which has no `paths:`)
 always apply; scoped rules activate when you edit matching files. Convention anchors (e.g. `[CONV:LICENSE]`, `[CONV:EVENTS]`)
 are embedded in rule files.
 

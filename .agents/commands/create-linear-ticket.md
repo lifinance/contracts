@@ -1,18 +1,17 @@
 ---
 name: create-linear-ticket
-description: 'Creates an EXSC Linear ticket, or repairs an existing one, so it always has an assignee, an estimate and a cycle, plus the InCursu label when it joins a running cycle. Writes a scannable title and a self-contained body with binary Done-when criteria and collapsible Agent notes, then has a fresh subagent cold-read it against the code (guesses, wrong facts, edge cases, existing helpers, simpler or safer options) so it is implementation-ready before saving. Use for "create a ticket", "open a Linear issue for X", "fix the ticket metadata on EXSC-123", or when another skill needs a ticket (create-pr).'
+description: 'Creates an EXSC Linear ticket, or repairs an existing one, so it always has an assignee, an estimate and a cycle, plus the InCursu label when it joins a running cycle. Writes a scannable title and a self-contained body with binary Done-when criteria and collapsible Agent notes, then has a fresh subagent cold-read it against the code (guesses, wrong facts, edge cases, existing helpers, simpler or safer options) so it is implementation-ready before saving. Use for "create a ticket", "open a Linear issue for X", "fix the ticket metadata on EXSC-123", or when another skill needs a ticket.'
 ---
 
 # Create Linear Ticket
 
 ## Inputs
 
-- **What the ticket is for**: conversation context, a pasted draft, a Slack thread, or a diff (when called from `/create-pr`).
+- **What the ticket is for**: conversation context, a pasted draft, a Slack thread, or a diff.
 - **Existing ticket ID** (optional): repair mode. Skip steps 1–4; apply steps 5–8 to that ticket and never rewrite its title or body. Run step 4 only when the user asks for it.
 - **Factory job**: if the ticket is meant for the AI Factory and `/factory-ticket` is installed (a user-level skill, not in this repo), hand off to it — it owns that template and the intake gate. Then run repair mode on the result; it fills only missing fields and keeps the assignee, delegate and cycle intake set. Without that skill, write a normal ticket and say so.
 - **Scope shape**: when the request says migrate, replace, move, consolidate or refactor, ask once whether it is a swap (old data abandoned), a migration (data preserved), a new feature, or an internal refactor. Hold the draft and step 4 to that shape; it keeps a swap from growing phases, flags or dual paths.
-- **Unattended** (nobody to answer): take your recommendation for each question and name it in the report; scope shape goes in Agent notes. Two questions stop the run instead, reported without saving: an open duplicate in step 1, and a missing next cycle in step 6.
-- **Called from `/create-pr`**: the work is already built and `/create-pr` owns the questions. Its route 3 replaces step 1. Run steps 2–6 before its pre-flight: draft the step 3 body from the diff, and in step 4 skip the subagent and check only the facts against the diff. The pre-flight is the step 7 preview. After approval run only the save and step 8, with no new questions; if something would need one (a crossed cycle boundary, a missing next cycle), stop and show the change in a new pre-flight. Repairs from `/create-pr` run steps 5–8 the same way.
+- **Unattended** (nobody to answer): take your recommendation for each question and name it in the report; scope shape goes in Agent notes. Three questions stop the run instead: an open duplicate in step 1 and a missing next cycle in step 6 (reported without saving), and several matches after a failed save in step 7 (reported with the candidates).
 
 ## Required fields
 

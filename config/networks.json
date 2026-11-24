@@ -325,7 +325,7 @@
     "isZkEVM": false,
     "targetEvmVersion": "cancun",
     "create3Factory": "0x79895363FAfA5aAD797690C2D1db81cddb784DF3",
-    "customDeployFlags": "--with-gas-price 200000000 --priority-gas-price 0"
+    "customDeployFlags": "--with-gas-price 1000000000 --priority-gas-price 0"
   },
   "etherlink": {
     "name": "etherlink",

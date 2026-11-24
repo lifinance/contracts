@@ -48,6 +48,10 @@
       "0x6712996A8B7905dBf63364b8553f4142e83727e0": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0x60EE288128FCD72d684Ec8D6f948CE8BecCe06b8": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

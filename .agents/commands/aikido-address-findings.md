@@ -1,7 +1,7 @@
 ---
 name: aikido-address-findings
 description: Triages Aikido findings on the current branch's PR (aikido-pr-checks[bot] comments, default) or the repo feed (`all` / an issue ID) — ignores catalog false positives and fixes real findings after the user confirms. Use for "address aikido findings", "triage aikido", or when Aikido comments on a PR.
-usage: /aikido-address-findings [<issue-id> | all | pr] [repo-name] — scope defaults to "pr" (current branch's PR), repo defaults to the current git repo
+usage: /aikido-address-findings [<issue-id> | all | pr] [unattended] [repo-name] — scope defaults to "pr" (current branch's PR), repo defaults to the current git repo; `unattended` runs without confirmation (used by /drive-pr)
 ---
 
 # Aikido Address Findings
@@ -17,6 +17,15 @@ usage: /aikido-address-findings [<issue-id> | all | pr] [repo-name] — scope de
 `pr` works off PR review-comment IDs and ignores via a GitHub reply; `all`/`<issue-id>` work off feed `issue_id`s and ignore via the MCP. They don't mix.
 
 Never hardcode the repo name: this repo and its `contracts-tron` fork share most code under **different** Aikido repo names, so the wrong one returns the wrong findings.
+
+### `unattended`
+
+Optional input after the scope, for callers that drive a PR without the user (`/drive-pr`). Without it, behaviour is unchanged. With it:
+
+- Phase 1 (`pr`): no bot comment is a clean scan only when the newest `Aikido Security: check code` run on the PR head (by `started_at`; a draft's `skipped` run can precede it) is `completed` / `success` / `Scan completed`; otherwise report the scan as failed with its conclusion and title, and return. Also skip findings whose review thread is resolved (GraphQL `reviewThreads`; the first comment's `databaseId` is the root comment `id`).
+- Phase 2: no "Proceed?" confirmation. **Ignore** and **Fix** findings go ahead; **Manual review** findings are reported and not acted on, and `/aikido-update-false-positive-catalog` is not offered.
+- Phase 4 commits are signed (`git commit -S`); the caller pushes.
+- Phase 5 and the Phase 6 offer are skipped. The Phase 6 report lists each finding with its identifier: the root comment `id` in `pr` mode, the `issue_id` in `all` / `<issue-id>` mode.
 
 ## Preflight
 

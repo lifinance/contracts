@@ -56,6 +56,10 @@
       "0x8B8d40ae1E77b7Dc16AE9F1B29f7b50c1c3a808b": {
         "Name": "GasZipFacet",
         "Version": "2.0.5"
+      },
+      "0x66378319035FdcA6C27b88a58A27097424e333A4": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

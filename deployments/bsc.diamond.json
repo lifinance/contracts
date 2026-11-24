@@ -120,6 +120,10 @@
       "0xce52856e4d95220389350A822C60779D0D921E30": {
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
+      },
+      "0x6f15d4d5B89c47e676f68cd656b3CCe52419A5dA": {
+        "Name": "AttestedBridgeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
