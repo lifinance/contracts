@@ -5,14 +5,14 @@
 # - Checks the whole tree, not only the PR's changed files: it runs in about 20 s and also
 #   catches drift a stale-base merge brings in
 # - Check-only: every step reads, none writes. Fix locally with `bun format:fix` / `bun lint:sol:fix`
-# - Each tool is its own step with `if: !cancelled()`, so one run reports every failing tool
-#   (`bun format` chains them with && and stops at the first failure)
+# - Each tool is its own step that runs after an earlier tool failed, so one run reports every
+#   failing tool (`bun format` chains them with && and stops at the first failure). The tools
+#   are skipped when their install step failed, so a broken install reads as one failure
+#   rather than four
 # - solhint errors fail the job; warnings do not
 # - A formatter/linter version bump that changes output (oxfmt, prettier-plugin-solidity,
 #   solhint, .foundry-version) must carry the `bun format:fix` result in the same PR
 # - oxlint runs in validateScripts.yml, which generates the TypeChain types it needs
-# - Expected noise: setup-foundry's cache save warns "Path Validation Error" because this job
-#   builds nothing
 # - Known limitation: `format-and-solhint` is not yet a required status check on `main`
 
 name: format-and-lint
@@ -58,24 +58,28 @@ jobs:
           bun-version-file: package.json
 
       - name: Install dependencies
+        id: install
         run: bun install --frozen-lockfile
 
       # forge fmt only; no submodules or build needed (foundry.toml [fmt] ignores src/ and lib/)
       - name: Install Foundry
+        id: foundry
         uses: ./.github/actions/setup-foundry
+        with:
+          build-cache: "false"
 
       - name: Prettier (src/ and archive/ Solidity)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx prettier --check "{src,archive}/**/*.sol"
 
       - name: oxfmt (TS/JS)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bunx oxfmt --check
 
       - name: forge fmt (test/ and script/ Solidity)
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.foundry.outcome == 'success' }}
         run: forge fmt --check
 
       - name: solhint
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun lint:sol

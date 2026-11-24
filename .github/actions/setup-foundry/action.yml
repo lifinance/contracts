@@ -33,6 +33,13 @@ inputs:
       entry per run for no gain, and crowd out the entries that matter.
     required: false
     default: "false"
+  build-cache:
+    description: >-
+      Set to "false" for jobs that never compile (e.g. `forge fmt` only). With
+      nothing in cache/ or out/, the forge-build cache save fails on every run
+      with a "Path Validation Error" warning.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -169,6 +176,7 @@ runs:
         cache: false
 
     - name: Cache forge build artifacts (cache/, out/)
+      if: inputs.build-cache == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |
