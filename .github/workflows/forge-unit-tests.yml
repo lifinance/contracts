@@ -1,8 +1,8 @@
 # - Run (Foundry) Unit Test Suite
 # - will make sure that all tests pass
 # - Sharded across six parallel runners (Libraries, Facets, Periphery, Gas, misc, tempo)
-# - The tempo shard runs the Tempo fork suite with `--network tempo`; the facets shard
-#   compiles it too but skips it there, since TIP20 precompiles need the network flag
+# - The tempo shard runs the Tempo fork suite with `--network tempo` and opts in via
+#   FRAX_TEMPO_REQUIRE_FORK; the facets shard compiles it too but skips it without forking
 # - Path-gated: heavy job runs only when files that can affect test outcome change.
 #   A `unit-tests-required` aggregator job always reports a final status so this
 #   workflow can remain a required check on `main` branch protection even when

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { ILiFi } from "lifi/Interfaces/ILiFi.sol";
 import { IDiamondCut } from "lifi/Interfaces/IDiamondCut.sol";
 import { IFraxHopV2 } from "lifi/Interfaces/IFraxHopV2.sol";
@@ -61,19 +62,16 @@ contract TempoDexRouter {
 
 /// @notice Tempo-as-source fork tests for FraxFacet routed through Frax's
 ///         TempoFeeInclusiveWrapper, run against the forked PRODUCTION Tempo diamond with
-///         the prototype facet cut in by its real timelock owner.
-/// @dev Needs `forge test --network tempo --match-path test/solidity/Facets/FraxFacetTempo.t.sol`.
-///      Without the network flag every TIP20 call reverts (TIP20s are
-///      node precompiles), so setUp skips the suite instead of failing the default run,
-///      unless FRAX_TEMPO_REQUIRE_FORK=true (the CI tempo shard), where it fails.
+///         the facet cut in by its real timelock owner.
+/// @dev Run with `FRAX_TEMPO_REQUIRE_FORK=true forge test --network tempo --match-path
+///      test/solidity/Facets/FraxFacetTempo.t.sol` (the CI tempo shard). Without the env flag
+///      setUp skips before forking; with it, a missing network flag fails, because every
+///      TIP20 call reverts without it (TIP20s are node precompiles).
 ///      Does not inherit TestBaseFacet: its base setup deals Ethereum token addresses and
 ///      deploys a fresh diamond, neither of which exists on Tempo; this suite tests the
 ///      production diamond itself. TIP20 balances are not storage-backed, so deal() does not
 ///      work; funding mints frxUSD as the OFT, which holds the TIP20 issuer role.
 contract FraxFacetTempoTest is Test {
-    /// @notice TIP20 calls revert: the suite ran without `--network tempo`.
-    error TempoForkUnavailable();
-
     address internal constant DIAMOND =
         0x2cAcAE8e22418E65dcf7651c67aEbe6288EB8243;
     address internal constant TIMELOCK =
@@ -115,6 +113,13 @@ contract FraxFacetTempoTest is Test {
     address internal receiver;
 
     function setUp() public {
+        // Opt-in: only the CI tempo shard (and an explicit local run) forks Tempo. Once opted
+        // in, a broken fork or a missing --network tempo fails below instead of skipping.
+        if (!vm.envOr("FRAX_TEMPO_REQUIRE_FORK", false)) {
+            vm.skip(true);
+            return;
+        }
+
         // The public endpoint from networks.json, not ETH_NODE_URI_TEMPO: forge forks chain
         // 4217 with Tempo's account policy, which needs eth_getAccountInfo, and the private
         // provider does not serve it (the fork fails with an uncatchable database error).
@@ -124,16 +129,6 @@ contract FraxFacetTempoTest is Test {
         vm.createSelectFork(
             vm.parseJsonString(networks, ".tempo.rpcUrl"), FORK_BLOCK
         );
-
-        try frxUsd.totalSupply() returns (uint256) { }
-        catch {
-            // The CI tempo shard sets this, so a broken fork fails there instead of skipping.
-            if (vm.envOr("FRAX_TEMPO_REQUIRE_FORK", false)) {
-                revert TempoForkUnavailable();
-            }
-            vm.skip(true);
-            return;
-        }
 
         user = makeAddr("user");
         refundRecipient = makeAddr("refundRecipient");
@@ -163,8 +158,10 @@ contract FraxFacetTempoTest is Test {
         vm.label(DEX, "StablecoinDEX");
     }
 
-    /// @dev The cut a production rollout would make: replace the live FraxFacet 1.0.0
-    ///      selectors, drop its two Tempo fee-token getters, add the wrapper getter.
+    /// @dev Selector-only fork cut matching the rollout's selector changes: replace the live
+    ///      FraxFacet 1.0.0 selectors, drop its two Tempo fee-token getters, add the wrapper
+    ///      getter. It passes no init call and relies on the diamond's existing EID mappings;
+    ///      the deploy script's initFrax calldata from config/frax.json is not rehearsed here.
     function _cutIntoProductionDiamond(address _facet) internal {
         bytes4[] memory replaced = new bytes4[](6);
         replaced[0] = FraxFacet.startBridgeTokensViaFrax.selector;
@@ -240,6 +237,26 @@ contract FraxFacetTempoTest is Test {
             .quoteFeeInclusive(OFT, _dstEid, _recipient, _amount, 0, "");
     }
 
+    /// @dev Sums the frxUSD moved from _from to the diamond in the recorded logs.
+    function _frxUsdSentToDiamond(Vm.Log[] memory _logs, address _from)
+        internal
+        pure
+        returns (uint256 total)
+    {
+        bytes32 transferTopic = keccak256("Transfer(address,address,uint256)");
+        for (uint256 i = 0; i < _logs.length; i++) {
+            Vm.Log memory entry = _logs[i];
+            if (
+                entry.emitter == FRXUSD && entry.topics.length == 3
+                    && entry.topics[0] == transferTopic
+                    && entry.topics[1] == bytes32(uint256(uint160(_from)))
+                    && entry.topics[2] == bytes32(uint256(uint160(DIAMOND)))
+            ) {
+                total += abi.decode(entry.data, (uint256));
+            }
+        }
+    }
+
     /// @dev nativeFee as BE would set it: the live fee plus Frax's 10% API buffer
     function _fraxData(
         uint32 _dstEid,
@@ -290,9 +307,12 @@ contract FraxFacetTempoTest is Test {
         vm.expectEmit(true, true, true, true, DIAMOND);
         emit LiFiTransferStarted(expected);
 
+        vm.recordLogs();
         uint256 gasBefore = gasleft();
         fraxFacet.startBridgeTokensViaFrax(bridgeData, fraxData);
         emit log_named_uint(_label, gasBefore - gasleft());
+        uint256 wrapperRefund =
+            _frxUsdSentToDiamond(vm.getRecordedLogs(), WRAPPER);
 
         vm.stopPrank();
 
@@ -301,9 +321,9 @@ contract FraxFacetTempoTest is Test {
         assertEq(frxUsd.balanceOf(WRAPPER), 0);
         assertEq(supplyBefore - frxUsd.totalSupply(), expectedNet);
         assertGe(expectedNet, AMOUNT - fraxData.nativeFee);
-        assertLe(
-            frxUsd.balanceOf(refundRecipient) - refundBefore,
-            AMOUNT - expectedNet
+        assertGt(wrapperRefund, 0);
+        assertEq(
+            frxUsd.balanceOf(refundRecipient) - refundBefore, wrapperRefund
         );
     }
 
@@ -349,12 +369,18 @@ contract FraxFacetTempoTest is Test {
         vm.startPrank(user);
 
         frxUsd.approve(DIAMOND, AMOUNT);
+        vm.recordLogs();
         fraxFacet.startBridgeTokensViaFrax(bridgeData, fraxData);
+        uint256 wrapperRefund =
+            _frxUsdSentToDiamond(vm.getRecordedLogs(), WRAPPER);
 
         vm.stopPrank();
 
         assertEq(frxUsd.balanceOf(DIAMOND), 3_000_000);
-        assertLt(frxUsd.balanceOf(refundRecipient) - refundBefore, 3_000_000);
+        assertGt(wrapperRefund, 0);
+        assertEq(
+            frxUsd.balanceOf(refundRecipient) - refundBefore, wrapperRefund
+        );
     }
 
     function test_SwapsPathUsdToFrxUsdAndBridges() public {
@@ -409,19 +435,23 @@ contract FraxFacetTempoTest is Test {
 
         ITip20(PATH_USD).approve(DIAMOND, pathUsdAmount);
 
+        vm.recordLogs();
         uint256 gasBefore = gasleft();
         fraxFacet.swapAndStartBridgeTokensViaFrax(
             bridgeData, swapData, fraxData
         );
         emit log_named_uint("gas swap+fraxtal", gasBefore - gasleft());
+        uint256 swapOutput =
+            _frxUsdSentToDiamond(vm.getRecordedLogs(), address(router));
 
         vm.stopPrank();
 
         assertEq(frxUsd.balanceOf(DIAMOND), 0);
         assertEq(ITip20(PATH_USD).balanceOf(DIAMOND), 0);
+        assertGt(swapOutput, 0);
         assertGe(
             supplyBefore - frxUsd.totalSupply(),
-            pathUsdAmount - fraxData.nativeFee
+            swapOutput - fraxData.nativeFee
         );
     }
 
