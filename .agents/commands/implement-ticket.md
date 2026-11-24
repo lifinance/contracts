@@ -7,7 +7,8 @@ usage: /implement-ticket <EXSC-ID | Linear URL>
 # Implement Ticket
 
 Runs ticket → branch → implementation → review → clean PR without asking the user anything.
-Sub-skills run in their unattended mode.
+Every sub-skill call states that the run is unattended (nobody to answer), so each takes its
+unattended path instead of asking.
 
 ## Stops
 
@@ -27,10 +28,11 @@ The run stops early in two cases only, and the report names which and at which s
 1. Fetch the ticket; a non-EXSC ID or one Linear can't find is a blocker. Assigned to someone
    other than `me` → user decision.
 2. `git status --porcelain` non-empty → blocker.
-3. Look for a branch containing `exsc-<N>-` locally or on origin.
+3. `git fetch origin`, then look for a branch containing `exsc-<N>-` locally or on origin.
+   More than one match → blocker listing them.
    - Found and the ticket is In Progress: check it out (`git switch <branch>`, then
      `git pull --ff-only` when it has an upstream) and go to step 2 on its existing commits.
-     Checked out in another worktree → blocker naming that path.
+     Checked out in another worktree, or a failed fast-forward → blocker naming the cause.
    - Found and not In Progress: check it out as above, then run `/start-linear-ticket <ID>`.
    - Not found: run `/start-linear-ticket <ID>`.
 
@@ -42,12 +44,12 @@ for every file the plan touches, per `000-global-standards` "Rule activation".
 
 ### 3. Implement and test
 
-- Implement the plan. Iterate with scoped tests (`bun test:scoped`, `forge test --match-path`),
-  then run the full suite that covers the diff, using the commands in `create-pr` step 4
-  "Test". A docs- or skill-only diff needs no tests.
+- Implement the plan. Iterate with `bun test:scoped`, then run what `create-pr` step 4 "Test"
+  prescribes for the diff.
 - A failing full suite gets at most 3 fix attempts on the same failure, then blocker.
-- Commit this work's files on the branch (no `git add -A`; never `--no-verify`). Step 4 reviews
-  committed work only: untracked files are invisible to `git diff`.
+- Commit this work's files on the branch with `git commit -S` (no `git add -A`; never
+  `--no-verify`). Step 4 reviews committed work only: untracked files are invisible to
+  `git diff`.
 
 ### 4. Fresh-context review
 
@@ -55,7 +57,8 @@ Spawn a new `general-purpose` subagent with the Agent tool, never a fork: a fork
 implementer's reasoning. Its prompt contains only the ticket (title, body, URL) and the
 instruction to:
 
-- run `/code-review medium origin/main...HEAD`; if it cannot invoke the skill, review
+- run `/code-review medium origin/main...HEAD` and wait for its result, which may arrive as a
+  background notification; if it cannot invoke the skill or no result arrives, review
   `git diff origin/main...HEAD` for correctness bugs itself and say so;
 - return each finding with file:line, the defect and a concrete failure scenario.
 
@@ -65,16 +68,19 @@ For each finding, check the claim against the code before acting:
 - **Wrong or out of scope** → reject it with a reason tied to code (file:line) or the ticket's
   scope.
 
-Commit the fixes, then run a second round with a new subagent. At most 2 rounds; findings still
-open after round 2 go in the report and in the PR body's "Why I implemented it this way", and
-the run continues.
+Re-run step 3's tests (same attempt limit) and commit the fixes. Only when round 1 produced fix
+commits, run a second round with a new subagent. At most 2 rounds; findings still open after
+round 2 go in the report and in the PR body's "Why I implemented it this way", and the run
+continues.
 
 ### 5. Open and drive the PR
 
-1. Run `/create-pr` as a calling skill: pass the Linear ID, a title, and a "Why" that includes
-   any open review findings. All work is already committed, so pass no files to stage. Its own
-   test step re-runs the tests; that is expected. It returns the PR URL.
-2. Run `/drive-pr <N>` on that PR.
+1. Run `/create-pr` as a calling skill with the Linear ID and a title. All work is already
+   committed, so its commit step has nothing to stage and is skipped. Pass a "Why" for a new
+   PR; for an existing PR pass one only to append open review findings to its current "Why".
+   Its own test step re-runs the tests; that is expected. It returns the PR URL.
+2. Run `/drive-pr <N>` on that PR. Its closing `/post-pr-for-review` offer goes in the report;
+   it is not a stop.
 
 ### 6. Report
 
@@ -84,5 +90,6 @@ PR:        <url> — <drive-pr status line>
 Fixed:     <finding> (<file:line>) …  | none
 Rejected:  <finding> — <reason> …     | none
 Open:      <finding after round 2> …  | none
-Stopped:   step <n>, user decision | blocker: <why>   (omit when the run finished)
+Stopped:   step <n>, <user decision | blocker>: <why>   (omit when the run finished)
+Next:      /post-pr-for-review                          (when drive-pr reports clean)
 ```
