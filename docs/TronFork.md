@@ -610,7 +610,7 @@ these through `/multisig-rollout`.
 
 None of the scripts above prompts. A contract already recorded for the network is reused
 when its on-chain runtime code matches this checkout's artifact in `out/`, and deployed
-when it differs, has no code or is not recorded; `FORCE_REDEPLOY=true` deploys it anyway.
+when it differs, has no code or is not recorded.
 Each decision is logged with its reason before anything is broadcast. On production
 (`PRODUCTION=true`) a run that broadcasts refuses to start without `--skipConfirmation`;
 `--dryRun` needs no flag. `deploy-core-facets.ts --only <Facet,...>` deploys only the

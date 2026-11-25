@@ -125,16 +125,14 @@ export const KEEP_UNLESS_NAMED: ExistingDeploymentMode = {
  * In propose-only mode the recorded address must hold this checkout's build: the cut's
  * selectors and the logged `@custom:version` both come from `out/`, so an older facet left
  * in the log by a failed deploy would be proposed under the wrong selectors and version.
- * Otherwise the same comparison decides whether the recorded address is reused, unless the
- * force-redeploy setting asks for a fresh deploy.
+ * Otherwise the same comparison decides whether the recorded address is reused.
  *
  * @param proposeOnly - the script's `--proposeOnly` flag
  * @param contract - the contract the script deploys
  * @param tronWeb - reads the recorded address's runtime code
  * @param outRoot - Forge output directory holding the contract's artifact
- * @returns `proposeOnly` when the flag is on, `redeploy` when a redeploy is forced,
- *   else `codeMatch`; the first and last compare on-chain code with the artifact
- * @throws when `--proposeOnly` is combined with a forced redeploy
+ * @returns `proposeOnly` when the flag is on, else `codeMatch`; both compare on-chain
+ *   code with the artifact
  */
 export function tronExistingDeploymentMode(
   proposeOnly: boolean,
@@ -142,11 +140,6 @@ export function tronExistingDeploymentMode(
   tronWeb: TronWeb,
   outRoot: string = join(process.cwd(), 'out')
 ): ExistingDeploymentMode {
-  const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
-  if (proposeOnly && forceRedeploy)
-    throw new Error(
-      '--proposeOnly cannot be combined with FORCE_REDEPLOY=true; unset FORCE_REDEPLOY'
-    )
   const readRuntimeCode = (address: string) =>
     retryWithRateLimit(
       () => tronRuntimeCodeReader(tronWeb)(address),
@@ -154,18 +147,16 @@ export function tronExistingDeploymentMode(
       RETRY_DELAY
     )
   if (!proposeOnly)
-    return forceRedeploy
-      ? { kind: 'redeploy', reason: 'FORCE_REDEPLOY=true' }
-      : {
-          kind: 'codeMatch',
-          describeMismatch: (address) =>
-            describeDeployedCodeMismatch({
-              name: contract,
-              address,
-              readRuntimeCode,
-              outRoot,
-            }),
-        }
+    return {
+      kind: 'codeMatch',
+      describeMismatch: (address) =>
+        describeDeployedCodeMismatch({
+          name: contract,
+          address,
+          readRuntimeCode,
+          outRoot,
+        }),
+    }
   return {
     kind: 'proposeOnly',
     assertThisBuild: (address) =>

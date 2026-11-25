@@ -979,11 +979,11 @@ describe('checkExistingDeployment', () => {
     })
   })
 
-  it('deploys a recorded contract under FORCE_REDEPLOY, even one whose code matches', async () => {
-    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
-      const result = await checkExistingDeployment('tron', 'EcoFacet', {
+  it('deploys a recorded contract in redeploy mode, even one whose code matches', async () => {
+    await withLogs(true, { 'tron.json': { Executor: ADDRESS } }, async () => {
+      const result = await checkExistingDeployment('tron', 'Executor', {
         kind: 'redeploy',
-        reason: 'FORCE_REDEPLOY=true',
+        reason: 'ERC20Proxy was deployed in this run',
       })
 
       expect(result).toEqual({
