@@ -399,17 +399,6 @@ async function deployCoreFacetsImpl(options: {
       })
     }
 
-  // If diamond already existed, still update the diamond JSON with facet addresses
-  if (diamondPlan.action === 'reuse' && !options.dryRun) {
-    // Update diamond JSON files
-    const facetEntries = Object.entries(facetAddresses).map(([name, data]) => ({
-      name,
-      address: data.address,
-      version: data.version,
-    }))
-    await updateDiamondJsonBatch(facetEntries, network)
-  }
-
   // Use new utility for summary
   printDeploymentSummary(deploymentResults, options.dryRun)
 

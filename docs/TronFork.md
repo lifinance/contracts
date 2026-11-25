@@ -593,11 +593,11 @@ Run these from a `contracts-tron` checkout, not this repo:
 # anything else → tronshasta + PRIVATE_KEY (both read from .env). NETWORK is ignored.
 export PRODUCTION=true  # or PRODUCTION=false for tronshasta
 
-# Deploy in order
-bunx tsx script/deploy/tron/deploy-core-facets.ts
+# Deploy in order. --skipConfirmation is required on production and ignored on tronshasta.
+bunx tsx script/deploy/tron/deploy-core-facets.ts --skipConfirmation
 bunx tsx script/deploy/tron/register-facets-to-diamond.ts
-bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
-bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --skipConfirmation
+bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts --skipConfirmation
 ```
 
 Each `deploy-and-register-*.ts` script proposes what it deploys, so it refuses to start

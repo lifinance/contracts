@@ -1533,6 +1533,8 @@ async function deployAndRegisterPeripheryImpl(options: {
       consola.info(
         '\n This was a DRY RUN - no contracts were actually deployed'
       )
+    if (failedDeployments.length || registrationOutcome.failed.length)
+      process.exit(1)
   } catch (error: any) {
     consola.error('Deployment failed:', redactUrls(error.message))
     process.exit(1)
