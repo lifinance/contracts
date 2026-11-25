@@ -7,7 +7,7 @@ description: Posts a `lifinance/contracts` or `lifinance/contracts-tron` PR to `
 
 Scope: `lifinance/contracts` and `lifinance/contracts-tron` → `#dev-sc-review` only. For any other repo, stop and tell the user which skill or channel to use — never guess a channel, and don't extend this skill to other repos.
 
-`<REPO>` below is the PR's own `owner/repo` (`<OWNER>` / `<NAME>` its parts). Every `gh` call, the GraphQL query and the Aikido fetch target it — never hard-code `lifinance/contracts` for a contracts-tron PR.
+`<REPO>` below is the PR's own `owner/repo` (`<OWNER>` / `<NAME>` its parts). Every `gh` call and the GraphQL query target it — never hard-code `lifinance/contracts` for a contracts-tron PR.
 
 ## Inputs
 
@@ -25,7 +25,7 @@ files=$(gh api repos/<REPO>/pulls/<N>/files --paginate \
 grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo critical || echo routine
 ```
 
-`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`. The endpoint lists at most 3,000 files, so the post also stops when `gh pr view <N> --repo <REPO> --json changedFiles` exceeds that (routing and the Aikido scan both read this list).
+`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`. The endpoint lists at most 3,000 files, so the post also stops when `gh pr view <N> --repo <REPO> --json changedFiles` exceeds that.
 
 | Result     | Group                  | Thread tag (`GROUP_TAG`) |
 | ---------- | ---------------------- | ------------------------ |
@@ -48,7 +48,7 @@ Parse `owner/repo/pull/N` into `<REPO>` and `<N>`; extract `title`, `url`, `numb
 
 ### 2. Pre-flight
 
-Every check below runs against `HEAD_OID`, even when the Aikido scan is skipped.
+Every check below runs against `HEAD_OID`.
 
 - **Unresolved review threads** (blocking) — REST lacks `isResolved`; use GraphQL:
 
@@ -67,21 +67,21 @@ Every check below runs against `HEAD_OID`, even when the Aikido scan is skipped.
 
   Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view <N> --repo <REPO> --json reviewDecision,comments` and treat resolution state as unknown: don't post unless the user explicitly says to go ahead.
 
-- **Failing CI** (blocking, `gh pr checks <N> --repo <REPO> --json name,state,link`): a check passes only on `SUCCESS` / `SKIPPED` / `NEUTRAL` and is in progress only on `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`; any other state (`FAILURE`, `STARTUP_FAILURE`, `CANCELLED`, an unknown one…) blocks. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
+- **Failing CI** (blocking, `gh pr checks <N> --repo <REPO> --json name,state,link,event`): a check passes only on `SUCCESS` / `SKIPPED` / `NEUTRAL` and is in progress only on `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`; any other state (`FAILURE`, `STARTUP_FAILURE`, `CANCELLED`, an unknown one…) blocks. Ignore checks whose `event` is `pull_request_review` — they run once a reviewer acts, so blocking on them is circular. Filter on `event`, not the name: `protect-critical-code` and `protect_audit_labels` come back with bare names, and `protect_audit_labels` also runs with `event` `pull_request`, which still counts. Surface unfamiliar checks; don't silently widen the allowlist.
 
 - **Audit checks are non-blocking** — `audit-verification` / `audit-*` failing or pending, in either form and in either repo, does not block: peer review precedes the audit (rule `503-sc-feature-pr-lifecycle`).
 
-- **Aikido scan** (soft gate):
-  1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
-  2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: read `gh pr view <N> --repo <REPO> --json headRefOid` before and after the file list and retry until both match, so the list and the contents come from the same head — at most two retries, then stop and ask the user; then `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
-  4. Real findings remain → stop; don't post until clean. Run `/aikido-address-findings` from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR. It reads only the PR's `aikido-pr-checks[bot]` comments, so a finding the MCP scan reports without a matching bot comment must be fixed by hand.
+- **Aikido** (blocking) — CI scans every PR: the `Aikido Security: check code` row of the Failing CI call, whose findings are review threads started by `aikido-pr-checks` (GraphQL drops the `[bot]` suffix).
+  - Row absent or `SKIPPED` → not scanned; block. Drafts always report `SKIPPED` (see the Gate).
+  - Any Aikido thread among the unresolved threads above blocks, even on `SUCCESS`: Aikido concludes `success` with MEDIUM findings.
+  - `FAILURE` (already blocking under Failing CI) with no open Aikido thread → the findings were ignored or fixed, but Aikido doesn't refresh a finished run after `@AikidoSec ignore:` replies: say so, and tell the user to push or re-run the check.
+  - To clear findings, point to `/drive-pr <N>` (`lifinance/contracts` only) or `/aikido-address-findings`. Run the latter from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR.
 
 ### 3. Gate
 
-- **Unresolved threads or failing CI** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
+- **Unresolved threads, failing CI or Aikido not scanned** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
 - **CI in progress, nothing failing** → tell the user; default to waiting.
-- **Draft + clean** → offer `gh pr ready <N> --repo <REPO>`; confirm first.
+- **Draft + clean** (judged without the Aikido row, which is `SKIPPED` on drafts) → offer `gh pr ready <N> --repo <REPO>`; confirm first. After it, wait in the background (at most 30 min) until the Aikido row on `HEAD_OID` is complete and not `SKIPPED`, then rerun step 2 and this gate before confirming.
 
 ### 4. Confirm
 
