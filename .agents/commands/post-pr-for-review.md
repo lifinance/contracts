@@ -36,7 +36,7 @@ Read `title`, `url`, `headRefName`, `isDraft`, and record `HEAD_OID` / `BASE_REF
 
 ### 2. Pre-flight (on `HEAD_OID`)
 
-- **Unresolved threads** (blocking): GraphQL `reviewThreads(first:100)` with `isResolved`, `isOutdated` and the first comment's `author{login} url`; keep `isResolved == false and isOutdated == false`, grouped by author. GraphQL fails → resolution is unknown: don't post unless the user says go.
+- **Unresolved threads** (blocking): GraphQL `reviewThreads(first:100)` with `isResolved`, `isOutdated` and the first comment's `author{login} url`; keep `isResolved == false and isOutdated == false`, grouped by author. GraphQL fails → thread state is unknown: don't post; report it.
 - **Failing CI** (blocking): `gh pr checks <N> --repo <REPO> --json name,state,link,event`. Pass: `SUCCESS` / `SKIPPED` / `NEUTRAL`. In progress: `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`. Anything else blocks.
   - Ignore checks whose `event` is `pull_request_review`: they run once a reviewer acts. Filter on `event`, not the name; a same-named check with another `event` (e.g. `protect_audit_labels` on `pull_request`) still counts.
   - Ignore `audit-*`: peer review precedes the audit.
@@ -50,7 +50,7 @@ Read `title`, `url`, `headRefName`, `isDraft`, and record `HEAD_OID` / `BASE_REF
 
 - **Unresolved threads, failing CI, or Aikido not scanned on a ready PR** → don't post or auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`).
 - **CI in progress, nothing failing** → wait.
-- **Draft, otherwise clean** (Aikido skips drafts) → offer `gh pr ready`, confirming first. Then wait in the background, up to 30 min, until every check the draft skipped has a newer `completed` run on `HEAD_OID` (newest by `started_at` from `repos/<REPO>/commits/<HEAD_OID>/check-runs?check_name=<name>`; Aikido's not `skipped`) and the `gh pr checks` set is stable across two polls 30 s apart. Re-run step 2 and the gate. Not settled by then → report and don't post.
+- **Draft, otherwise clean** (Aikido skips drafts) → offer `gh pr ready <N> --repo <REPO>`, confirming first. Then wait in the background, up to 30 min, until every non-ignored check the draft skipped has a newer `completed` run on `HEAD_OID` (newest by `started_at` from `repos/<REPO>/commits/<HEAD_OID>/check-runs?check_name=<name>`; Aikido's not `skipped`) and the `gh pr checks` set is stable across two polls 30 s apart. Re-run step 2 and the gate. Not settled by then → report and don't post.
 
 ### 4. Confirm
 
@@ -66,7 +66,7 @@ Re-read `headRefOid` / `baseRefName`. Changed → redo steps 1–3; changed agai
 
 Only after both sends succeed. `MERGE_FLAG` is `--merge` for a contracts-tron sync PR (`headRefName` starts with `sync/upstream-`; squashing breaks the fork's merge-base, `docs/TronFork.md`), else `--squash`.
 
-- Sync PR with squash auto-merge on → `gh pr merge --disable-auto` and tell the user. For a sync PR, ask before enabling auto-merge.
+- Sync PR with squash auto-merge on → `gh pr merge <N> --repo <REPO> --disable-auto` and tell the user. For a sync PR, ask before enabling auto-merge.
 - `mergeStateStatus` is `CLEAN` → don't enable (`--auto` would merge before reviewers see it); offer to merge now with `MERGE_FLAG`.
 - Otherwise → `gh pr merge <N> --repo <REPO> --auto <MERGE_FLAG>`. Already on → no-op; "not enabled for this repository" → skip with a note; other errors → show and ask.
 
