@@ -153,11 +153,11 @@
     ],
     "{src,archive}/**/*.sol": [
       "prettier --write",
-      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
+      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"Could not load solhint-plugin\"; then echo \"A solhint plugin is not installed, so its rules were skipped: run bun install\"; exit 1; elif echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ],
     "{test,script}/**/*.sol": [
       "forge fmt",
-      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
+      "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"Could not load solhint-plugin\"; then echo \"A solhint plugin is not installed, so its rules were skipped: run bun install\"; exit 1; elif echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ],
     "*.md": [
       "bunx --no-install --bun markdownlint-cli2 --fix"

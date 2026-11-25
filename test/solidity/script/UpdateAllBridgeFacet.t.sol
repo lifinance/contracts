@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
-import { Test } from "forge-std/Test.sol";
 import {
     DeployScript as UpdateAllBridgeFacetScript
 } from "../../../script/deploy/facets/UpdateAllBridgeFacet.s.sol";
 import { AllBridgeFacet } from "lifi/Facets/AllBridgeFacet.sol";
+import { UpdateScriptTestBase } from "../utils/UpdateScriptTestBase.sol";
 
 /// @dev Forge shares process env across suites running in parallel, and UpdateScriptBase.t.sol sets
 ///      cut-verification env vars, so the cut options and deployments file are pinned here instead.
@@ -41,20 +41,13 @@ contract UpdateAllBridgeFacetHarness is UpdateAllBridgeFacetScript {
     }
 }
 
-contract UpdateAllBridgeFacetTest is Test {
+contract UpdateAllBridgeFacetTest is UpdateScriptTestBase {
     error ChainIdNotInInitCallData(uint256 chainId);
-
-    uint256 internal constant MAINNET_CHAIN_ID = 1;
 
     UpdateAllBridgeFacetHarness internal script;
 
     function setUp() public {
-        vm.chainId(MAINNET_CHAIN_ID);
-
-        vm.setEnv("NETWORK", "mainnet");
-        vm.setEnv("FILE_SUFFIX", "");
-        vm.setEnv("PRIVATE_KEY", vm.toString(bytes32(uint256(1))));
-        vm.setEnv("USE_DEF_DIAMOND", "true");
+        _setMainnetScriptEnv();
 
         script = new UpdateAllBridgeFacetHarness();
     }
@@ -183,14 +176,10 @@ contract UpdateAllBridgeFacetTest is Test {
         pure
         returns (AllBridgeFacet.ChainIdConfig[] memory)
     {
-        assertEq(bytes4(_callData), AllBridgeFacet.initAllBridge.selector);
-
-        bytes memory args = new bytes(_callData.length - 4);
-        for (uint256 i = 0; i < args.length; i++) {
-            args[i] = _callData[i + 4];
-        }
-
-        return abi.decode(args, (AllBridgeFacet.ChainIdConfig[]));
+        return abi.decode(
+            _initArgs(_callData, AllBridgeFacet.initAllBridge.selector),
+            (AllBridgeFacet.ChainIdConfig[])
+        );
     }
 
     function _quoted(string memory _s) internal pure returns (string memory) {
