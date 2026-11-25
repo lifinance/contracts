@@ -79,6 +79,9 @@ jobs:
               # a config-only change can drop the naming rule or a directive
               # mapping without touching script/**
               - '.oxlintrc.json'
+              # no-untyped-json-decode.test.ts lints its cases with this config, so
+              # a config-only change can switch the rule off or drop its plugin
+              - '.solhint.json'
               # assert-zk-toolchain.test.ts asserts this workflow's smoke filter
               - '.github/workflows/deploy-smoke-test.yml'
               # validateScriptsWorkflow.test.ts guards this workflow's lint step

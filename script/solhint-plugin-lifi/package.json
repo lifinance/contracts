@@ -1,0 +1,7 @@
+{
+  "name": "solhint-plugin-lifi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Repo-local solhint rules, loaded through \"plugins\": [\"lifi\"] in .solhint.json",
+  "main": "index.js"
+}

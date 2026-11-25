@@ -2,16 +2,19 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 import { MegaETHBridgeFacet } from "lifi/Facets/MegaETHBridgeFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
-    using stdJson for string;
-
     struct Config {
         address assetId;
         address bridge;
     }
+
+    /// @dev Config's fields in declared order, keyed as config/megaethBridge.json documents a token
+    ///      row ({ "address", "bridgeAddress" }), under a name no struct declares: `forge test`
+    ///      would take the field order from a struct of the same name
+    string internal constant TOKEN_ROW_TYPE =
+        "MegaETHBridgeTokenRow(address address,address bridgeAddress)";
 
     function run()
         public
@@ -35,14 +38,25 @@ contract DeployScript is UpdateScriptBase {
             path, string.concat(".", network, ".defaultBridge")
         );
 
-        bytes memory rawConfig =
-            json.parseRaw(string.concat(".", network, ".tokens"));
-        Config[] memory configs = abi.decode(rawConfig, (Config[]));
+        Config[] memory configs = _readTokens(json);
 
         bytes memory callData = abi.encodeWithSelector(
             MegaETHBridgeFacet.initMegaETH.selector, configs, defaultBridge
         );
 
         return callData;
+    }
+
+    function _readTokens(string memory _json)
+        internal
+        view
+        returns (Config[] memory)
+    {
+        return abi.decode(
+            vm.parseJsonTypeArray(
+                _json, string.concat(".", network, ".tokens"), TOKEN_ROW_TYPE
+            ),
+            (Config[])
+        );
     }
 }

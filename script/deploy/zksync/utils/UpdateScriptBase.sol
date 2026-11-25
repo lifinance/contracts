@@ -380,13 +380,8 @@ contract UpdateScriptBase is ScriptBase {
         json = vm.readFile(path);
         address refundWallet = json.readAddress(".refundWallet");
 
-        // get function selectors that should be approved for refundWallet
-        bytes memory rawConfig =
-            json.parseRaw(".approvedSelectorsForRefundWallet");
-
-        // parse raw data from config into FunctionSelector array
         FunctionSelector[] memory funcSelectorsToBeApproved =
-            abi.decode(rawConfig, (FunctionSelector[]));
+            _readApprovedSelectorsForRefundWallet(json);
 
         emit log("funcSelectorsToBeApproved: ");
         emit log_uint(funcSelectorsToBeApproved.length);
@@ -403,5 +398,24 @@ contract UpdateScriptBase is ScriptBase {
                     true
                 );
         }
+    }
+
+    /// @dev The type string lists FunctionSelector's fields in declared order, under a name no
+    ///      struct declares: `forge test` would take the field order from a struct of the same name
+    /// @param _json Contents of config/global.json
+    /// @return The selectors the refund wallet may call, in file order
+    function _readApprovedSelectorsForRefundWallet(string memory _json)
+        internal
+        pure
+        returns (FunctionSelector[] memory)
+    {
+        return abi.decode(
+            vm.parseJsonTypeArray(
+                _json,
+                ".approvedSelectorsForRefundWallet",
+                "RefundWalletSelectorRow(string name,bytes selector)"
+            ),
+            (FunctionSelector[])
+        );
     }
 }
