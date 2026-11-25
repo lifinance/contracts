@@ -7,7 +7,7 @@
  * value never becomes syntax, and that nothing it stops printing goes unnamed.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 
@@ -907,10 +907,15 @@ describe('buildCalldataEffectLines — whitelist pair names', () => {
 
   it('finds a Tron pair the file holds in base58 from its decoded hex address', async () => {
     fetchSpy.mockClear()
-    const forwarder = normalizeAddressForNetwork(
-      'tron',
-      'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
+    const config = JSON.parse(
+      readFileSync(join(process.cwd(), 'config', 'whitelist.json'), 'utf8')
+    ) as { PERIPHERY: { tron: { name: string; address: string }[] } }
+    const entry = config.PERIPHERY.tron.find(
+      (item) => item.name === 'FeeForwarder'
     )
+    if (!entry)
+      throw new Error('config/whitelist.json lists no tron FeeForwarder')
+    const forwarder = normalizeAddressForNetwork('tron', entry.address)
     const lines = await withoutRegistry(['0x0e8ae67f'], () =>
       renderOn('tron', whitelist([forwarder], ['0x0e8ae67f']))
     )
