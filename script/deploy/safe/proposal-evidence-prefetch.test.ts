@@ -360,11 +360,9 @@ describe('the queue is wired to something that actually moves', () => {
     //
     // Scope, stated because the assertion cannot express it: this covers the
     // function's own writes, not those of the shared helpers it calls.
-    // `getFallbackTransportForChain` warns about unusable endpoints on its own
-    // console, and `SafeClient.getNonce` logs before it rethrows — so a
-    // prefetch can still print through them. Those helpers have call sites
-    // outside this run and threading a sink through them is a wider change than
-    // this one.
+    // `SafeClient.getNonce` logs before it rethrows — so a prefetch can still
+    // print through it. That helper has call sites outside this run and
+    // threading a sink through it is a wider change than this one.
     expect(body).not.toContain('consola.')
   })
 

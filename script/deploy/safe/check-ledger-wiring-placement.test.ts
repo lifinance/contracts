@@ -666,6 +666,19 @@ describe('gate I simulates Tron like any other network', () => {
     expect(body.slice(guard, call)).not.toContain('isTronNetworkKey(')
   })
 
+  // TronGrid's own retry profile spends minutes on one throttled read, and a
+  // TronGrid `--rpcUrl` names the host without the JSON-RPC route.
+  it('builds every transport on the sign-time budget and routes the override', () => {
+    const body = perProposal()
+    const call = body.indexOf('collectExecutabilityInput(')
+    const guard = body.lastIndexOf('let executability', call)
+    const setup = body.slice(guard, call)
+    expect(setup).toContain('normalizeRpcUrlForNetwork(network, rpcUrl)')
+    expect(setup).toContain('getSignTimeTransportConfig(')
+    expect(setup).not.toContain('getFallbackTransportForChain(')
+    expect(setup).not.toContain('getHttpTransportForRpcUrl(')
+  })
+
   it('passes no out-of-scope reason beside the verdicts', () => {
     const body = perProposal()
     const call = body.indexOf('proposalCheckResults({')
@@ -689,7 +702,8 @@ describe('gate J reads Tron at latest', () => {
     const call = body.indexOf('readCodeQuorumPastTipReorgs(')
     expect(call).toBeGreaterThan(-1)
     const guard = body.lastIndexOf('if (', call)
-    expect(body.slice(guard, call)).not.toContain('primaryEndpoint')
+    expect(body.slice(guard, call)).toContain('endpoints.length > 0')
+    expect(body.slice(guard, call)).not.toContain('isTronNetworkKey(')
     const args = body.slice(call, body.indexOf('catch', call))
     expect(args).toContain('isTronNetworkKey(')
     expect(args).toContain("'latest'")
