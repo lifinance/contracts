@@ -608,6 +608,14 @@ refuses when none is recorded, when a `tronshasta` run would take it from `tron.
 when the code there is not this checkout's build of the facet. Production rollouts run
 these through `/multisig-rollout`.
 
+None of the scripts above prompts. A contract already recorded for the network is reused
+when its on-chain runtime code matches this checkout's artifact in `out/`, and deployed
+when it differs, has no code or is not recorded; `FORCE_REDEPLOY=true` deploys it anyway.
+Each decision is logged with its reason before anything is broadcast. On production
+(`PRODUCTION=true`) a run that broadcasts refuses to start without `--skipConfirmation`;
+`--dryRun` needs no flag. `deploy-core-facets.ts --only <Facet,...>` deploys only the
+named core facets and keeps a recorded `LiFiDiamond` unless `--only` names it.
+
 `deploy-core-facets.ts` and `register-facets-to-diamond.ts` only bootstrap a new diamond
 the deployer still owns: `register-facets-to-diamond.ts` sends `diamondCut` from the
 deployer, with no ticket and no Safe proposal. A rollout on a live diamond runs only the

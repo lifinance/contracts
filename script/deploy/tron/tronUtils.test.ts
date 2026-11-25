@@ -122,6 +122,18 @@ describe('tronExistingDeploymentMode', () => {
     )
   })
 
+  it('retries a rate-limited code read instead of failing the run', async () => {
+    let calls = 0
+    const { asked, tronWeb } = fakeTronWeb(async () => {
+      calls += 1
+      if (calls === 1) throw new Error('Request failed with status code 429')
+      return { runtimecode: THIS_BUILD }
+    })
+
+    expect(await codeMatchMode(tronWeb).describeMismatch(ADDR)).toBeUndefined()
+    expect(asked).toEqual([ADDR, ADDR])
+  })
+
   it('redeploys under FORCE_REDEPLOY=true', () => {
     const { tronWeb } = fakeTronWeb(async () => null)
 

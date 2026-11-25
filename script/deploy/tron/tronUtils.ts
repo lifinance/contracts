@@ -35,7 +35,7 @@ import {
   ZERO_ADDRESS,
 } from '../shared/constants'
 import { getContractVersion } from '../shared/getContractVersion'
-import { isRateLimitError } from '../shared/rateLimit'
+import { isRateLimitError, retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   assertTronToolchainOrThrow,
@@ -116,16 +116,16 @@ export async function checkIsDeployedTron(
  * In propose-only mode the recorded address must hold this checkout's build: the cut's
  * selectors and the logged `@custom:version` both come from `out/`, so an older facet left
  * in the log by a failed deploy would be proposed under the wrong selectors and version.
- * Otherwise the same comparison decides whether the recorded address is reused, unless
- * `FORCE_REDEPLOY=true` asks for a fresh deploy.
+ * Otherwise the same comparison decides whether the recorded address is reused, unless the
+ * force-redeploy setting asks for a fresh deploy.
  *
  * @param proposeOnly - the script's `--proposeOnly` flag
  * @param contract - the contract the script deploys
  * @param tronWeb - reads the recorded address's runtime code
  * @param outRoot - Forge output directory holding the contract's artifact
- * @returns `proposeOnly` when the flag is on, `redeploy` under `FORCE_REDEPLOY=true`,
+ * @returns `proposeOnly` when the flag is on, `redeploy` when a redeploy is forced,
  *   else `codeMatch`; the first and last compare on-chain code with the artifact
- * @throws when `--proposeOnly` and `FORCE_REDEPLOY=true` are both set
+ * @throws when `--proposeOnly` is combined with a forced redeploy
  */
 export function tronExistingDeploymentMode(
   proposeOnly: boolean,
@@ -147,7 +147,12 @@ export function tronExistingDeploymentMode(
             describeDeployedCodeMismatch({
               name: contract,
               address,
-              readRuntimeCode: tronRuntimeCodeReader(tronWeb),
+              readRuntimeCode: (codeAddress) =>
+                retryWithRateLimit(
+                  () => tronRuntimeCodeReader(tronWeb)(codeAddress),
+                  MAX_RETRIES,
+                  RETRY_DELAY
+                ),
               outRoot,
             }),
         }

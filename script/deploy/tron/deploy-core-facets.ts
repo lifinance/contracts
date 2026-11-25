@@ -214,11 +214,12 @@ async function deployCoreFacetsImpl(options: {
     existingDeployments.push(deployment)
   }
 
-  const hasExisting = existingDeployments.some((d) => d.exists)
-  if (hasExisting) {
-    consola.info('\nExisting deployments found:')
+  const reused = (d: (typeof existingDeployments)[number]) =>
+    d.exists && d.address !== null && !d.shouldRedeploy
+  if (existingDeployments.some(reused)) {
+    consola.info('\nReusing existing deployments:')
     existingDeployments.forEach((d, index) => {
-      if (d.exists) consola.info(`  ✓ ${coreFacets[index]}: ${d.address}`)
+      if (reused(d)) consola.info(`  ✓ ${coreFacets[index]}: ${d.address}`)
     })
   }
   // Resolved before the first deployment, and only for facets that will be
@@ -454,7 +455,7 @@ const deployCommand = defineCommand({
     only: {
       type: 'string',
       description:
-        'Comma-separated core facets to deploy (e.g. DiamondLoupeFacet). LiFiDiamond is redeployed only when named here.',
+        'Comma-separated core facets to deploy (e.g. DiamondLoupeFacet). A recorded LiFiDiamond is kept unless named here (with DiamondCutFacet); a named one is reused when its code matches this build.',
     },
   },
   async run({ args }) {

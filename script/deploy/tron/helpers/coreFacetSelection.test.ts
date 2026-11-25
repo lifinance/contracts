@@ -22,11 +22,19 @@ describe('selectCoreContracts', () => {
     })
   })
 
-  it('reports LiFiDiamond as named when --only lists it', () => {
-    expect(selectCoreContracts(CORE, ['LiFiDiamond'])).toEqual({
-      facets: [],
+  it('reports LiFiDiamond as named when --only lists it with DiamondCutFacet', () => {
+    expect(
+      selectCoreContracts(CORE, ['LiFiDiamond', 'DiamondCutFacet'])
+    ).toEqual({
+      facets: ['DiamondCutFacet'],
       diamondNamed: true,
     })
+  })
+
+  it('refuses LiFiDiamond without the DiamondCutFacet its constructor takes', () => {
+    expect(() => selectCoreContracts(CORE, ['LiFiDiamond'])).toThrow(
+      /without DiamondCutFacet/
+    )
   })
 
   it('refuses a name that is neither a core facet nor LiFiDiamond', () => {

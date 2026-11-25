@@ -4,6 +4,7 @@
  */
 
 const DIAMOND = 'LiFiDiamond'
+const DIAMOND_CUT_FACET = 'DiamondCutFacet'
 
 /** What `deploy-core-facets.ts` does with LiFiDiamond. */
 export type TDiamondPlan =
@@ -17,8 +18,8 @@ export type TDiamondPlan =
  * @param coreFacets - Every core facet the script knows, in deploy order.
  * @param only - The names `--only` gave, or undefined when the flag is absent.
  * @returns The facets to deploy, in deploy order, and whether LiFiDiamond is named.
- * @throws When `--only` names a contract that is neither a core facet nor LiFiDiamond, or
- *   names nothing.
+ * @throws When `--only` names a contract that is neither a core facet nor LiFiDiamond, names
+ *   nothing, or names LiFiDiamond without the DiamondCutFacet its constructor takes.
  */
 export function selectCoreContracts(
   coreFacets: readonly string[],
@@ -38,9 +39,15 @@ export function selectCoreContracts(
       } not a core facet or ${DIAMOND}. Core facets: ${coreFacets.join(', ')}`
     )
 
+  const diamondNamed = only.includes(DIAMOND)
+  if (diamondNamed && !only.includes(DIAMOND_CUT_FACET))
+    throw new Error(
+      `--only names ${DIAMOND} without ${DIAMOND_CUT_FACET}, whose address its constructor takes; name both`
+    )
+
   return {
     facets: coreFacets.filter((facet) => only.includes(facet)),
-    diamondNamed: only.includes(DIAMOND),
+    diamondNamed,
   }
 }
 
