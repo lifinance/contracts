@@ -68,3 +68,27 @@ export const parsePinnedCodehashes = (
   }
   return pinned
 }
+
+/**
+ * Where one externally built contract is pinned, per network.
+ *
+ * @param raw - the pinned-codehash file's parsed JSON
+ * @param contractName - the contract's key in that file
+ * @returns Lowercased network → checksummed address; empty when the file does
+ *   not pin the contract
+ * @throws When the file is malformed (see `parsePinnedCodehashes`)
+ */
+export const pinnedAddressesByNetwork = (
+  raw: Record<string, unknown>,
+  contractName: string
+): ReadonlyMap<string, string> => {
+  parsePinnedCodehashes(raw)
+  const byNetwork = new Map<string, string>()
+  const entry = raw[contractName]
+  if (!isPlainObject(entry) || !isPlainObject(entry.deployments))
+    return byNetwork
+  for (const [network, deployment] of Object.entries(entry.deployments))
+    if (isPlainObject(deployment) && typeof deployment.address === 'string')
+      byNetwork.set(network.toLowerCase(), getAddress(deployment.address))
+  return byNetwork
+}

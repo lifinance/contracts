@@ -97,7 +97,11 @@ as floors and pin the Across asset fields, and their decode bounds are covered b
 Diamond, with the Diamond as `msg.sender` and no bridge behind the call. Two checks enforce
 this: `script/deploy/bridgeAttesterAllowlist.test.ts` fails CI when config would allowlist
 it, and the `bridge-attester-not-allowlisted` health-check invariant fails when the
-registered attester has any selector on the Diamond allowlist.
+registered attester has any selector on the Diamond allowlist. The `bridge-attester-pinned`
+invariant fails when the address registered under `BridgeAttester` is not the
+`BridgeCommitmentLedger` pinned for the network in
+`script/deploy/resources/pinnedExternalCodehashes.json`, unless a queued timelock operation
+registers the pinned address.
 
 `WithdrawFacet.executeCallAndWithdraw` also lets the Diamond call an arbitrary contract, for
 the owner and for any address granted its selector with `setCanExecute`. A grant to a
@@ -231,3 +235,11 @@ The facet has no constructor arguments. Before it can be used, the Diamond owner
 with a diamond cut, registers the attester under `BridgeAttester`, and enables each
 bridge entrypoint with `setAttestableSelector`. Add the network to
 `attestableSelectors.networks` in the same rollout PR.
+
+The attester (`BridgeCommitmentLedger`) is built and deployed outside this repo, so it is
+not recorded in `deployments/<network>.json`. Before registering it, pin its address and
+codehash under `BridgeCommitmentLedger.deployments.<network>` in
+`script/deploy/resources/pinnedExternalCodehashes.json`. The codehash gate compares the
+registered address's deployed code with the pinned codehash when the registration is signed
+(see `docs/MultisigSigningProcess.md`); after that, `bridge-attester-pinned` checks only that the
+registry still holds the pinned address.

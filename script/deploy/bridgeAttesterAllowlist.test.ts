@@ -6,18 +6,24 @@
  * any sync script can push it on chain; the `bridge-attester-not-allowlisted` health-check
  * invariant covers what reaches the chain anyway.
  *
- * The address comparison is dormant until a deploy log records `BridgeAttester`: the attester is
- * deployed outside this repo, and its address enters `deployments/<network>.json` with the
- * deploy PR that registers it. Until then only the on-chain invariant guards the allowlist.
+ * The attester (`BridgeCommitmentLedger`) is deployed outside this repo, so its reviewed address
+ * per network comes from the pinned-codehash file, which `bridge-attester-pinned` holds the
+ * on-chain registry to.
  */
 import { describe, expect, it } from 'bun:test'
-import { readdirSync, readFileSync } from 'fs'
+import { readFileSync } from 'fs'
 import path from 'path'
 
 import globalConfig from '../../config/global.json'
 import whitelistConfig from '../../config/whitelist.json'
 
+import {
+  PINNED_CODEHASHES_REPO_PATH,
+  pinnedAddressesByNetwork,
+} from './codehash/pinned-codehashes'
+
 const BRIDGE_ATTESTER = 'BridgeAttester'
+const BRIDGE_COMMITMENT_LEDGER = 'BridgeCommitmentLedger'
 const REPO_ROOT = path.resolve(import.meta.dirname, '../..')
 
 interface IAllowlistedAddress {
@@ -42,34 +48,24 @@ function allowlistedAddresses(whitelist: unknown): IAllowlistedAddress[] {
   return found
 }
 
-/** The allowlist entries whose address is the attester the network's deploy log records. */
+/** The allowlist entries whose address is the attester pinned for the entry's network. */
 function allowlistedAttesters(
   whitelist: unknown,
-  attesterByNetwork: Record<string, string>
+  attesterByNetwork: ReadonlyMap<string, string>
 ): IAllowlistedAddress[] {
   return allowlistedAddresses(whitelist).filter(
     ({ network, address }) =>
-      attesterByNetwork[network]?.toLowerCase() === address.toLowerCase()
+      attesterByNetwork.get(network.toLowerCase())?.toLowerCase() ===
+      address.toLowerCase()
   )
 }
 
-/**
- * `BridgeAttester` from every production flat deploy log, keyed by network. Staging logs are
- * skipped: their allowlist, `config/whitelist.staging.json`, is gitignored and not in CI.
- */
-function loggedAttesters(): Record<string, string> {
-  const dir = path.join(REPO_ROOT, 'deployments')
-  const attesters: Record<string, string> = {}
-  for (const file of readdirSync(dir)) {
-    const match = /^([a-z0-9][a-z0-9_-]*)\.json$/.exec(file)
-    if (!match?.[1]) continue
-    const log = JSON.parse(readFileSync(path.join(dir, file), 'utf8')) as
-      | Record<string, unknown>
-      | undefined
-    const attester = log?.[BRIDGE_ATTESTER]
-    if (typeof attester === 'string') attesters[match[1]] = attester
-  }
-  return attesters
+/** The pinned `BridgeCommitmentLedger` address per network. */
+function pinnedAttesters(): ReadonlyMap<string, string> {
+  const raw = JSON.parse(
+    readFileSync(path.join(REPO_ROOT, PINNED_CODEHASHES_REPO_PATH), 'utf8')
+  ) as Record<string, unknown>
+  return pinnedAddressesByNetwork(raw, BRIDGE_COMMITMENT_LEDGER)
 }
 
 describe('BridgeAttester is never allowlisted', () => {
@@ -79,11 +75,15 @@ describe('BridgeAttester is never allowlisted', () => {
     )
   })
 
-  it('has no production address in config/whitelist.json', () => {
-    expect(allowlistedAttesters(whitelistConfig, loggedAttesters())).toEqual([])
+  it('has pinned attesters to compare against', () => {
+    expect(pinnedAttesters().size).toBeGreaterThan(0)
   })
 
-  it('finds a logged attester in either whitelist section, on its own network only', () => {
+  it('has no pinned attester address in config/whitelist.json', () => {
+    expect(allowlistedAttesters(whitelistConfig, pinnedAttesters())).toEqual([])
+  })
+
+  it('finds a pinned attester in either whitelist section, on its own network only', () => {
     const attester = '0xA77E57E200000000000000000000000000000001'
     const whitelist = {
       DEXS: [
@@ -96,7 +96,9 @@ describe('BridgeAttester is never allowlisted', () => {
       ],
       PERIPHERY: { arbitrum: [{ address: attester }] },
     }
-    expect(allowlistedAttesters(whitelist, { arbitrum: attester })).toEqual([
+    expect(
+      allowlistedAttesters(whitelist, new Map([['arbitrum', attester]]))
+    ).toEqual([
       { network: 'arbitrum', address: attester.toLowerCase() },
       { network: 'arbitrum', address: attester },
     ])
