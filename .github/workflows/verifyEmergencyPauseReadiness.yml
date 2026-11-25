@@ -15,6 +15,12 @@
 #   lifinance org, (4) not expired/revoked, (5) has push (write) access and workflow/repo scope,
 #   (6) token owner is an active member of the lifinance/diamondpauser gate team. Fails (not
 #   skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered by these checks.
+# - Bot PAT check: runs the emergency-pause gate's own lookup (gh api on the diamondpauser team
+#   membership of a known active member) with GIT_ACTIONS_BOT_PAT_CLASSIC, the token the gate
+#   uses. Passes only on state "active" with more than 8 days before the token expires; anything
+#   else fails, and the log names the cause (expired/revoked token, SSO not authorized, missing
+#   read:org, GitHub API down after a retry, expiry close, or the known member left the team).
+#   Never skipped.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
 #   wallet can afford pauseDiamond() on every production EVM chain, and reports the TOP-UP needed to
 #   reach OK — in the chain's native/gas asset, or in its fee token on chains with no native currency
@@ -103,6 +109,81 @@ jobs:
           PRIVATE_KEY_PAUSER_WALLET: ${{ secrets.PRIV_KEY_PAUSER_WALLET }}
           HEXAGATE_PAUSER_PAT: ${{ secrets.HEXAGATE_PAUSER_PAT }} # lifi-hexagate-pauser PAT; fails (not skips) if unset
 
+      # Same lookup, same token as the diamondEmergencyPause.yml membership gate, for a member
+      # known to be active. A 404 is ambiguous (not a member, or the token cannot see the team),
+      # so on a 404 the team itself is read to name the cause. The check runs weekly, so it
+      # also fails while the token has MIN_DAYS_LEFT days or fewer before it expires.
+      - name: Verify bot PAT can read diamondpauser membership
+        id: bot_pat
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
+          KNOWN_MEMBER: lifi-hexagate-pauser # the account Hexagate dispatches with
+          MIN_DAYS_LEFT: 8
+        run: |
+          set -euo pipefail
+          fail() {
+            echo -e "\033[31m$1\033[0m"
+            exit 1
+          }
+          [[ -n "$GH_TOKEN" ]] || fail "GIT_ACTIONS_BOT_PAT_CLASSIC is not set: the pause gate rejects every dispatch"
+          HEADERS=$(mktemp)
+          BODY=$(mktemp)
+          header() {
+            grep -i "^$1:" "$HEADERS" | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//' || true
+          }
+          isTransient() {
+            [[ "$STATUS" == "000" || "$STATUS" == 5* || "$STATUS" == "429" ]] \
+              || [[ "$STATUS" == "403" && "$(header x-ratelimit-remaining)" == "0" ]]
+          }
+          # Sets STATUS; retries once on a network error, a 5xx or a rate limit
+          apiGet() {
+            for ATTEMPT in 1 2; do
+              STATUS=$(curl -sS -o "$BODY" -D "$HEADERS" -w '%{http_code}' \
+                -H "Authorization: token $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/$1") || STATUS="000"
+              isTransient || return 0
+              if [[ "$ATTEMPT" == "1" ]]; then
+                echo "GET $1 returned HTTP $STATUS, retrying in 15s"
+                sleep 15
+              fi
+            done
+          }
+          # Names the cause for any answer that is not a readable team or membership
+          tokenCause() {
+            if isTransient; then
+              echo "GitHub API unavailable (HTTP $STATUS) after a retry: readiness unknown, re-run this workflow"
+            elif [[ "$STATUS" == "401" ]]; then
+              echo "GIT_ACTIONS_BOT_PAT_CLASSIC is expired or revoked (HTTP 401): rotate it, the pause gate rejects every dispatch"
+            elif [[ "$STATUS" == "403" && "$(header x-github-sso)" == required* ]]; then
+              echo "GIT_ACTIONS_BOT_PAT_CLASSIC is not SSO-authorized for lifinance (HTTP 403): re-authorize it at github.com/settings/tokens as its owner"
+            else
+              echo "GIT_ACTIONS_BOT_PAT_CLASSIC cannot read the diamondpauser team (HTTP $STATUS, likely missing read:org): the pause gate rejects every dispatch"
+            fi
+          }
+          MEMBER_CAUSE="$KNOWN_MEMBER is not an active diamondpauser member, so Hexagate dispatches are rejected: re-add it to the team or accept its pending invite"
+
+          apiGet "orgs/lifinance/teams/diamondpauser/memberships/$KNOWN_MEMBER"
+          if [[ "$STATUS" == "404" ]]; then
+            apiGet "orgs/lifinance/teams/diamondpauser"
+            [[ "$STATUS" == "200" ]] && fail "$MEMBER_CAUSE"
+            fail "$(tokenCause)"
+          fi
+          [[ "$STATUS" == "200" ]] || fail "$(tokenCause)"
+          STATE=$(jq -r '.state // empty' "$BODY")
+          [[ "$STATE" == "active" ]] || fail "$MEMBER_CAUSE (state: ${STATE:-unknown})"
+
+          EXPIRY=$(header github-authentication-token-expiration)
+          if [[ -n "$EXPIRY" ]]; then
+            EXPIRY_TS=$(date -u -d "$EXPIRY" +%s) || fail "Cannot parse the token expiry header: '$EXPIRY'"
+            DAYS_LEFT=$(((EXPIRY_TS - $(date -u +%s)) / 86400))
+            if ((DAYS_LEFT <= MIN_DAYS_LEFT)); then
+              fail "GIT_ACTIONS_BOT_PAT_CLASSIC expires $EXPIRY ($DAYS_LEFT days left): rotate it before the next weekly run"
+            fi
+          fi
+          echo -e "\033[32mBot PAT reads diamondpauser membership: $KNOWN_MEMBER is active (token expiry: ${EXPIRY:-none})\033[0m"
+
       # Funding is live operational state (independent of the code in a PR), so this runs on
       # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
       # secret (it reads the CONFIGURED pauser's balance, not the key); it exits non-zero when
@@ -114,14 +195,16 @@ jobs:
         continue-on-error: true
         run: bash script/utils/checkPauserFunds.sh
 
-      # Restore the red check that continue-on-error suppressed: fail the job if either check
-      # failed. On PR runs the funds step is skipped (outcome 'skipped'), so only the readiness
-      # check gates PRs — unchanged from before the funds check was added.
+      # Restore the red check that continue-on-error suppressed: fail the job if any check
+      # failed. On PR runs the funds step is skipped (outcome 'skipped'), so the readiness and
+      # bot PAT checks gate PRs.
       - name: Fail if any readiness check failed
         if: ${{ always() }}
+        env:
+          BOT_PAT: ${{ steps.bot_pat.outcome }}
         run: |
-          if [[ "${{ steps.readiness.outcome }}" == "failure" || "${{ steps.funds.outcome }}" == "failure" ]]; then
-            echo "Emergency pause readiness FAILED (readiness=${{ steps.readiness.outcome }}, funds=${{ steps.funds.outcome }})."
+          if [[ "${{ steps.readiness.outcome }}" == "failure" || "${{ steps.funds.outcome }}" == "failure" || "$BOT_PAT" == "failure" ]]; then
+            echo "Emergency pause readiness FAILED (readiness=${{ steps.readiness.outcome }}, bot_pat=$BOT_PAT, funds=${{ steps.funds.outcome }})."
             exit 1
           fi
 
@@ -136,6 +219,7 @@ jobs:
         if: ${{ !cancelled() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
         env:
           GH_TOKEN: ${{ github.token }}
+          BOT_PAT: ${{ steps.bot_pat.outcome }}
         run: |
           # Deep-link straight to THIS job (…/runs/<run>/job/<job_id>) so the Slack link lands on the
           # job (and its failing step) rather than the run overview. github.job is the job key, not the
@@ -169,18 +253,18 @@ jobs:
           HEX_DISPATCH="${{ steps.readiness.outputs.hexagatePatDispatch }}"
           HEX_TEAM="${{ steps.readiness.outputs.hexagatePatTeam }}"
           FUNDS="${{ steps.funds.outcome }}"
-          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$TIMELOCK_DIAMOND" == "pass" && "$SAFE_ROLE" == "pass" && "$HEXAGATE_PAT" == "pass" && "$FUNDS" == "success" ]]; then
+          if [[ "$SECRET" == "pass" && "$PAUSER" == "pass" && "$TIMELOCK_DIAMOND" == "pass" && "$SAFE_ROLE" == "pass" && "$HEXAGATE_PAT" == "pass" && "$BOT_PAT" == "success" && "$FUNDS" == "success" ]]; then
             HEADER=":white_check_mark: *Emergency pause readiness — all checks passed*"
           else
             HEADER=":rotating_light: *Emergency pause readiness — ACTION NEEDED*"
           fi
           # Real newlines here; toJSON in the Slack payload below encodes them as \n for the webhook.
           # The Hexagate PAT entry is a parent bullet with six indented child bullets beneath it.
-          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* classic PAT)\n    - %s No SSO block on lifinance org access\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
+          TEXT=$(printf '%s\n• %s Pauser secret matches the configured pauser wallet (EVM + Tron)\n• %s On-chain pauserWallet() matches the configured pauser on every production diamond\n• %s Timelock controls the right diamond — LiFiTimelockController.diamond() matches the deployed LiFiDiamond\n• %s Safe holds TIMELOCK_ADMIN_ROLE on the timelock (can execute unpauseDiamond())\n• %s Hexagate PAT (lifi-hexagate-pauser)\n    - %s HEXAGATE_PAUSER_PAT secret is configured\n    - %s PAT format is valid (ghp_* classic PAT)\n    - %s No SSO block on lifinance org access\n    - %s PAT active (not expired/revoked)\n    - %s Can trigger workflow_dispatch (push access + scope)\n    - %s Token owner is in the diamondpauser gate team\n• %s Bot PAT (GIT_ACTIONS_BOT_PAT_CLASSIC) can read diamondpauser membership for the pause gate\n• %s Every production pauser wallet can afford pauseDiamond()\n<%s|View workflow run>' \
             "$HEADER" \
             "$(icon "$SECRET")" "$(icon "$PAUSER")" "$(icon "$TIMELOCK_DIAMOND")" "$(icon "$SAFE_ROLE")" \
             "$(icon "$HEXAGATE_PAT")" "$(icon "$HEX_SECRET")" "$(icon "$HEX_FORMAT")" "$(icon "$HEX_SSO")" "$(icon "$HEX_VALIDITY")" "$(icon "$HEX_DISPATCH")" "$(icon "$HEX_TEAM")" \
-            "$(icon "$FUNDS")" "$RUN_URL")
+            "$(icon "$BOT_PAT")" "$(icon "$FUNDS")" "$RUN_URL")
           {
             echo "text<<SLACK_EOF"
             echo "$TEXT"

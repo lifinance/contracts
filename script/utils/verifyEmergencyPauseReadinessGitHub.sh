@@ -295,7 +295,7 @@ function verifyNetwork() {
 #   (4) Validity           — PAT is not expired or revoked (HTTP status)
 #   (5) Dispatch access    — PAT has push access AND workflow/repo scope (both required for workflow_dispatch)
 #   (6) DiamondPauser      — token owner is an active member of lifinance/diamondpauser team
-#       (the gate the workflow checks as github.actor after Hexagate fires the dispatch)
+#       (the gate the workflow checks as github.triggering_actor after Hexagate fires the dispatch)
 #
 # Each sub-check result is emitted individually to GITHUB_OUTPUT (hexagatePatSecret /
 # hexagatePatFormat / hexagatePatSso / hexagatePatValidity / hexagatePatDispatch /
@@ -391,7 +391,7 @@ function verifyHexagatePatReadiness() {
   # header at all — gating "pass" on HTTP 200 prevents any bogus token from falsely passing.
   if [[ "$HTTP_STATUS" == "200" ]]; then
     if echo "$SSO_HEADER" | grep -qi "required"; then
-      error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-hexagate-bot account)"
+      error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (lifi-hexagate-pauser account)"
       SSO_STATUS="fail"
       RC=1
     else
@@ -399,7 +399,7 @@ function verifyHexagatePatReadiness() {
       SSO_STATUS="pass"
     fi
   elif [[ "$HTTP_STATUS" == "403" ]] && echo "$SSO_HEADER" | grep -qi "required"; then
-    error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (li-hexagate-bot account)"
+    error "Hexagate PAT (3/6): SSO authorization lapsed — re-authorize at github.com/settings/tokens (lifi-hexagate-pauser account)"
     SSO_STATUS="fail"
     RC=1
   else
