@@ -10,10 +10,11 @@ contract DeployScript is UpdateScriptBase {
         address bridge;
     }
 
-    /// @dev Config's fields in declared order, under a name no struct declares:
-    ///      `forge test` would take the field order from a struct of the same name
+    /// @dev Config's fields in declared order, keyed as config/megaethBridge.json documents a token
+    ///      row ({ "address", "bridgeAddress" }), under a name no struct declares: `forge test`
+    ///      would take the field order from a struct of the same name
     string internal constant TOKEN_ROW_TYPE =
-        "MegaETHBridgeTokenRow(address assetId,address bridge)";
+        "MegaETHBridgeTokenRow(address address,address bridgeAddress)";
 
     function run()
         public
@@ -37,17 +38,25 @@ contract DeployScript is UpdateScriptBase {
             path, string.concat(".", network, ".defaultBridge")
         );
 
-        Config[] memory configs = abi.decode(
-            vm.parseJsonTypeArray(
-                json, string.concat(".", network, ".tokens"), TOKEN_ROW_TYPE
-            ),
-            (Config[])
-        );
+        Config[] memory configs = _readTokens(json);
 
         bytes memory callData = abi.encodeWithSelector(
             MegaETHBridgeFacet.initMegaETH.selector, configs, defaultBridge
         );
 
         return callData;
+    }
+
+    function _readTokens(string memory _json)
+        internal
+        view
+        returns (Config[] memory)
+    {
+        return abi.decode(
+            vm.parseJsonTypeArray(
+                _json, string.concat(".", network, ".tokens"), TOKEN_ROW_TYPE
+            ),
+            (Config[])
+        );
     }
 }

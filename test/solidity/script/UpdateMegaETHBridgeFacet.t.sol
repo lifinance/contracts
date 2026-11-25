@@ -14,6 +14,14 @@ contract UpdateMegaETHBridgeFacetHarness is UpdateMegaETHBridgeFacetScript {
         return getCallData();
     }
 
+    function exposedReadTokens(string memory _json)
+        public
+        view
+        returns (Config[] memory)
+    {
+        return _readTokens(_json);
+    }
+
     function _readCutOptions()
         internal
         pure
@@ -60,5 +68,20 @@ contract UpdateMegaETHBridgeFacetTest is UpdateScriptTestBase {
 
         assertEq(configs.length, 0);
         assertEq(defaultBridge, DEFAULT_BRIDGE);
+    }
+
+    /// @dev Row keys as config/megaethBridge.json's devNotes and
+    ///      script/tasks/proposeMegaETHBridgeRegistrations.ts define them, since the
+    ///      config itself has no rows yet
+    function test_DecodesTokenRowInDocumentedShape() public view {
+        string memory json =
+            "{\"mainnet\":{\"tokens\":[{\"bridgeAddress\":\"0x0000000000000000000000000000000000000B0B\",\"address\":\"0x0000000000000000000000000000000000000A11\"}]}}";
+
+        UpdateMegaETHBridgeFacetHarness.Config[] memory configs =
+            script.exposedReadTokens(json);
+
+        assertEq(configs.length, 1);
+        assertEq(configs[0].assetId, address(0xA11));
+        assertEq(configs[0].bridge, address(0xB0B));
     }
 }
