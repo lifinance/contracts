@@ -610,7 +610,11 @@ these through `/multisig-rollout`.
 
 None of the scripts above prompts. A contract already recorded for the network is reused
 when its on-chain runtime code matches this checkout's artifact in `out/`, and deployed
-when it differs, has no code or is not recorded.
+when it differs, has no code or is not recorded. The comparison ignores constructor
+arguments, so after changing one pass `--forceRedeploy` (with `--only` to limit it).
+Executor and ReceiverOIF are also redeployed when the ERC20Proxy or Executor they store is
+not the one recorded for the network. A recorded LiFiDiamond or LiFiTimelockController that
+`--only` does not name is kept, and the run stops if no code is deployed at it.
 Each decision is logged with its reason before anything is broadcast. On production
 (`PRODUCTION=true`) a run that broadcasts refuses to start without `--skipConfirmation`;
 `--dryRun` needs no flag. `deploy-core-facets.ts --only <Facet,...>` deploys only the

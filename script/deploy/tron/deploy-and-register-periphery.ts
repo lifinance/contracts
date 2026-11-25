@@ -54,9 +54,10 @@ import {
 import {
   assertTronDeploymentRecordable,
   getTronWallet,
-  KEEP_UNLESS_NAMED,
+  keepUnlessNamed,
   recordTronDeployment,
   tronExistingDeploymentMode,
+  withTronDependencyCheck,
 } from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
@@ -135,6 +136,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   skipConfirmation: boolean
   onlyContracts?: string[]
   registerOnly?: boolean
+  forceRedeploy: boolean
 }) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
   if (!options.dryRun) assertTicketPresent()
@@ -289,7 +291,7 @@ async function deployAndRegisterPeripheryImpl(options: {
 
       assertDeploymentConfirmed(environment, network, {
         skipConfirmation: options.skipConfirmation,
-        dryRun,
+        broadcasts: !dryRun,
       })
     } else {
       consola.info(
@@ -314,18 +316,33 @@ async function deployAndRegisterPeripheryImpl(options: {
           r.contract === contract &&
           !['existing', 'FAILED', 'SKIPPED'].includes(r.txId)
       )
-    // Immutables are masked in the code match, so a reused contract can still hold the
-    // address of a dependency this run replaced; such a contract is deployed again.
+    const deployFlags = {
+      proposeOnly: false,
+      forceRedeploy: options.forceRedeploy,
+    }
+    // The code match ignores the dependency address a contract stores, so a reused one is
+    // also checked against the dependency this run uses, and redeployed when it differs.
     const modeAfterDependency = (
       contract: string,
-      dependency: string
+      dependency: string,
+      getter: string
     ): ExistingDeploymentMode =>
       deployedThisRun(dependency)
         ? {
             kind: 'redeploy',
             reason: `${dependency} was deployed in this run and ${contract} is built against it`,
           }
-        : tronExistingDeploymentMode(false, contract, tronWeb)
+        : withTronDependencyCheck(
+            tronExistingDeploymentMode(deployFlags, contract, tronWeb),
+            {
+              tronWeb,
+              getter,
+              dependency,
+              expected: async () =>
+                deployedContracts[dependency] ||
+                (await getContractAddress(network, dependency)),
+            }
+          )
 
     if (options.registerOnly) {
       consola.info(
@@ -360,7 +377,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const erc20Deployment = await checkExistingDeployment(
             network,
             'ERC20Proxy',
-            tronExistingDeploymentMode(false, 'ERC20Proxy', tronWeb)
+            tronExistingDeploymentMode(deployFlags, 'ERC20Proxy', tronWeb)
           )
 
           if (
@@ -464,7 +481,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const executorDeployment = await checkExistingDeployment(
             network,
             'Executor',
-            modeAfterDependency('Executor', 'ERC20Proxy')
+            modeAfterDependency('Executor', 'ERC20Proxy', 'erc20Proxy')
           )
 
           if (
@@ -603,7 +620,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const feeCollectorDeployment = await checkExistingDeployment(
             network,
             'FeeCollector',
-            tronExistingDeploymentMode(false, 'FeeCollector', tronWeb)
+            tronExistingDeploymentMode(deployFlags, 'FeeCollector', tronWeb)
           )
 
           if (
@@ -711,7 +728,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const feeForwarderDeployment = await checkExistingDeployment(
             network,
             'FeeForwarder',
-            tronExistingDeploymentMode(false, 'FeeForwarder', tronWeb)
+            tronExistingDeploymentMode(deployFlags, 'FeeForwarder', tronWeb)
           )
 
           if (
@@ -844,7 +861,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             const tokenWrapperDeployment = await checkExistingDeployment(
               network,
               'TokenWrapper',
-              tronExistingDeploymentMode(false, 'TokenWrapper', tronWeb)
+              tronExistingDeploymentMode(deployFlags, 'TokenWrapper', tronWeb)
             )
 
             if (
@@ -995,7 +1012,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const outputValidatorDeployment = await checkExistingDeployment(
             network,
             'OutputValidator',
-            tronExistingDeploymentMode(false, 'OutputValidator', tronWeb)
+            tronExistingDeploymentMode(deployFlags, 'OutputValidator', tronWeb)
           )
 
           if (
@@ -1101,7 +1118,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const receiverOIFDeployment = await checkExistingDeployment(
             network,
             'ReceiverOIF',
-            modeAfterDependency('ReceiverOIF', 'Executor')
+            modeAfterDependency('ReceiverOIF', 'Executor', 'EXECUTOR')
           )
 
           if (
@@ -1250,11 +1267,11 @@ async function deployAndRegisterPeripheryImpl(options: {
               'LiFiTimelockController',
               onlyContracts?.includes('LiFiTimelockController')
                 ? tronExistingDeploymentMode(
-                    false,
+                    deployFlags,
                     'LiFiTimelockController',
                     tronWeb
                   )
-                : KEEP_UNLESS_NAMED
+                : keepUnlessNamed(tronWeb)
             )
 
             if (
@@ -1539,7 +1556,13 @@ const deployCommand = defineCommand({
     },
     skipConfirmation: {
       type: 'boolean',
-      description: 'Skip confirmation prompts',
+      description:
+        'Confirm a production deploy up front; production refuses to broadcast without it',
+    },
+    forceRedeploy: {
+      type: 'boolean',
+      description:
+        'Deploy even when the recorded address holds this build, e.g. after a constructor argument changed; combine with --only',
     },
     only: {
       type: 'string',
@@ -1601,6 +1624,10 @@ const deployCommand = defineCommand({
         registerOnly: readBooleanFlag(process.argv, {
           camel: 'registerOnly',
           kebab: 'register-only',
+        }),
+        forceRedeploy: readBooleanFlag(process.argv, {
+          camel: 'forceRedeploy',
+          kebab: 'force-redeploy',
         }),
       })
     } catch (error: unknown) {

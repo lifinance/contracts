@@ -44,7 +44,7 @@ import {
 import { DIAMOND, selectCoreContracts } from './helpers/coreFacetSelection'
 import {
   deployContractWithLogging,
-  KEEP_UNLESS_NAMED,
+  keepUnlessNamed,
   tronExistingDeploymentMode,
   validateBalance,
   waitBetweenDeployments,
@@ -58,20 +58,20 @@ import type { TDiamondPlan } from './types'
  */
 async function planDiamond(
   network: SupportedChain,
-  named: boolean,
-  onlyGiven: boolean,
+  selection: { named: boolean; onlyGiven: boolean },
+  deployFlags: { proposeOnly: boolean; forceRedeploy: boolean },
   tronWeb: TronWeb
 ): Promise<TDiamondPlan> {
-  if (onlyGiven && !named) {
+  if (selection.onlyGiven && !selection.named) {
     const recorded = await findContractAddress(network, DIAMOND)
     if (!recorded || recorded.fromOtherNetwork) return { action: 'skip' }
   }
   const existing = await checkExistingDeployment(
     network,
     DIAMOND,
-    named
-      ? tronExistingDeploymentMode(false, DIAMOND, tronWeb)
-      : KEEP_UNLESS_NAMED
+    selection.named
+      ? tronExistingDeploymentMode(deployFlags, DIAMOND, tronWeb)
+      : keepUnlessNamed(tronWeb)
   )
   return existing.exists && existing.address && !existing.shouldRedeploy
     ? { action: 'reuse', address: existing.address }
@@ -86,6 +86,7 @@ async function deployCoreFacetsImpl(options: {
   verbose: boolean
   delaySeconds: number
   skipConfirmation: boolean
+  forceRedeploy: boolean
   onlyContracts: string[] | undefined
 }) {
   consola.start('TRON Core Facets Deployment')
@@ -176,8 +177,12 @@ async function deployCoreFacetsImpl(options: {
       ...coreFacets,
       ...(diamondNamed || !options.onlyContracts ? [DIAMOND] : []),
     ],
-    { skipConfirmation: options.skipConfirmation, dryRun: options.dryRun }
+    { skipConfirmation: options.skipConfirmation, broadcasts: !options.dryRun }
   )
+  const deployFlags = {
+    proposeOnly: false,
+    forceRedeploy: options.forceRedeploy,
+  }
 
   // Now check for existing deployments (sequentially to avoid event listener warnings)
   consola.info(`\nCore facets to deploy: ${coreFacets.length}`)
@@ -194,7 +199,7 @@ async function deployCoreFacetsImpl(options: {
     const deployment = await checkExistingDeployment(
       network,
       facet,
-      tronExistingDeploymentMode(false, facet, tronWeb)
+      tronExistingDeploymentMode(deployFlags, facet, tronWeb)
     )
     existingDeployments.push(deployment)
   }
@@ -221,8 +226,8 @@ async function deployCoreFacetsImpl(options: {
 
   const diamondPlan = await planDiamond(
     network,
-    diamondNamed,
-    options.onlyContracts !== undefined,
+    { named: diamondNamed, onlyGiven: options.onlyContracts !== undefined },
+    deployFlags,
     tronWeb
   )
   // The diamond is deployed after every facet, so a mismatch in its constructor
@@ -440,7 +445,12 @@ const deployCommand = defineCommand({
     only: {
       type: 'string',
       description:
-        'Comma-separated core facets to deploy (e.g. DiamondLoupeFacet). A recorded LiFiDiamond is kept unless named here (with DiamondCutFacet); a named one is reused when its code matches this build.',
+        'Comma-separated core facets to deploy (e.g. DiamondLoupeFacet). A recorded LiFiDiamond is kept unless named here (with DiamondCutFacet); a named one is redeployed only with --forceRedeploy, since every diamond has the same code.',
+    },
+    forceRedeploy: {
+      type: 'boolean',
+      description:
+        'Deploy even when the recorded address holds this build, e.g. after a constructor argument changed; combine with --only',
     },
   },
   async run({ args }) {
@@ -486,6 +496,10 @@ const deployCommand = defineCommand({
         skipConfirmation: readBooleanFlag(process.argv, {
           camel: 'skipConfirmation',
           kebab: 'skip-confirmation',
+        }),
+        forceRedeploy: readBooleanFlag(process.argv, {
+          camel: 'forceRedeploy',
+          kebab: 'force-redeploy',
         }),
         onlyContracts: args.only
           ?.split(',')

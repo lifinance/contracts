@@ -13,6 +13,7 @@ import {
   getTronWebCodecFullHostForNetwork,
   getTronWebCodecOnlyForNetwork,
   loadForgeArtifact,
+  tronAddressLikeToBase58,
   tronAddressToHex,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
@@ -110,13 +111,28 @@ export async function checkIsDeployedTron(
   return false
 }
 
+const retryingCodeReader = (tronWeb: TronWeb) => (address: string) =>
+  retryWithRateLimit(
+    () => tronRuntimeCodeReader(tronWeb)(address),
+    MAX_RETRIES,
+    RETRY_DELAY
+  )
+
 /**
  * The `checkExistingDeployment` mode for a governance-critical contract (LiFiDiamond,
- * LiFiTimelockController) that the run does not name in `--only`: the recorded one is kept.
+ * LiFiTimelockController) that the run does not name in `--only`: the recorded one is kept,
+ * and the run refuses when no code is deployed at it.
+ *
+ * @param tronWeb - reads the recorded address's runtime code
+ * @returns a `keepRecorded` mode
  */
-export const KEEP_UNLESS_NAMED: ExistingDeploymentMode = {
-  kind: 'keepRecorded',
-  reason: 'redeployed only when --only names it',
+export function keepUnlessNamed(tronWeb: TronWeb): ExistingDeploymentMode {
+  const readRuntimeCode = retryingCodeReader(tronWeb)
+  return {
+    kind: 'keepRecorded',
+    reason: 'redeployed only when --only names it',
+    hasCode: async (address) => (await readRuntimeCode(address)) !== undefined,
+  }
 }
 
 /**
@@ -125,28 +141,28 @@ export const KEEP_UNLESS_NAMED: ExistingDeploymentMode = {
  * In propose-only mode the recorded address must hold this checkout's build: the cut's
  * selectors and the logged `@custom:version` both come from `out/`, so an older facet left
  * in the log by a failed deploy would be proposed under the wrong selectors and version.
- * Otherwise the same comparison decides whether the recorded address is reused.
+ * Otherwise the same comparison decides whether the recorded address is reused, unless
+ * `--forceRedeploy` asks for a fresh deploy (the comparison ignores constructor arguments).
  *
- * @param proposeOnly - the script's `--proposeOnly` flag
+ * @param flags - the script's `--proposeOnly` and `--forceRedeploy` flags
  * @param contract - the contract the script deploys
  * @param tronWeb - reads the recorded address's runtime code
  * @param outRoot - Forge output directory holding the contract's artifact
- * @returns `proposeOnly` when the flag is on, else `codeMatch`; both compare on-chain
- *   code with the artifact
+ * @returns `proposeOnly` or `redeploy` when that flag is on, else `codeMatch`
+ * @throws when both flags are on
  */
 export function tronExistingDeploymentMode(
-  proposeOnly: boolean,
+  flags: { proposeOnly: boolean; forceRedeploy: boolean },
   contract: string,
   tronWeb: TronWeb,
   outRoot: string = join(process.cwd(), 'out')
 ): ExistingDeploymentMode {
-  const readRuntimeCode = (address: string) =>
-    retryWithRateLimit(
-      () => tronRuntimeCodeReader(tronWeb)(address),
-      MAX_RETRIES,
-      RETRY_DELAY
-    )
-  if (!proposeOnly)
+  if (flags.proposeOnly && flags.forceRedeploy)
+    throw new Error('--proposeOnly cannot be combined with --forceRedeploy')
+  if (flags.forceRedeploy)
+    return { kind: 'redeploy', reason: '--forceRedeploy' }
+  const readRuntimeCode = retryingCodeReader(tronWeb)
+  if (!flags.proposeOnly)
     return {
       kind: 'codeMatch',
       describeMismatch: (address) =>
@@ -165,6 +181,71 @@ export function tronExistingDeploymentMode(
         readRuntimeCode,
         outRoot,
       }),
+  }
+}
+
+/**
+ * Narrows a code-match mode for a contract that stores the address of another one (e.g.
+ * Executor's ERC20Proxy): the code match ignores that value, so the recorded contract is
+ * reused only when its getter also returns the dependency's current address. Other modes
+ * pass through unchanged.
+ *
+ * @param mode - the mode `tronExistingDeploymentMode` chose
+ * @param options.tronWeb - reads the getter
+ * @param options.getter - the zero-argument getter returning the dependency's address
+ * @param options.dependency - the dependency's contract name, for the log
+ * @param options.expected - the dependency's address this run uses, or none when unknown
+ * @returns the mode, with the dependency compared after the code
+ */
+export function withTronDependencyCheck(
+  mode: ExistingDeploymentMode,
+  options: {
+    tronWeb: TronWeb
+    getter: string
+    dependency: string
+    expected: () => Promise<string | null | undefined>
+  }
+): ExistingDeploymentMode {
+  if (mode.kind !== 'codeMatch') return mode
+  const { tronWeb, getter, dependency } = options
+  return {
+    kind: 'codeMatch',
+    describeMismatch: async (address) => {
+      const codeMismatch = await mode.describeMismatch(address)
+      if (codeMismatch) return codeMismatch
+      const expected = await options.expected()
+      if (!expected) return undefined
+      const instance = tronWeb.contract(
+        [
+          {
+            name: getter,
+            type: 'function',
+            inputs: [],
+            outputs: [{ name: '', type: 'address' }],
+            stateMutability: 'view',
+          },
+        ],
+        address
+      ) as unknown as Record<
+        string,
+        () => { call: (options: { from: string }) => Promise<unknown> }
+      >
+      const getterCall = instance[getter]
+      if (!getterCall) throw new Error(`${getter}() missing from its ABI`)
+      const actual = tronAddressLikeToBase58(
+        tronWeb,
+        await retryWithRateLimit(
+          // A constant call still needs a caller; a read-only client has none.
+          () => getterCall().call({ from: address }),
+          MAX_RETRIES,
+          RETRY_DELAY
+        )
+      )
+      const wanted = tronAddressLikeToBase58(tronWeb, expected)
+      return actual === wanted
+        ? undefined
+        : `its ${getter}() is ${actual}, not the ${dependency} at ${wanted}`
+    },
   }
 }
 

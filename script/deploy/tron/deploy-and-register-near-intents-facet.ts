@@ -45,6 +45,7 @@ async function deployAndRegisterNEARIntentsFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
   skipConfirmation: boolean
+  forceRedeploy: boolean
 }) {
   consola.start('TRON NEARIntentsFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -134,7 +135,7 @@ async function deployAndRegisterNEARIntentsFacet(options: {
 
     confirmDeployment(environment, network, contracts, {
       skipConfirmation: options.skipConfirmation,
-      dryRun,
+      broadcasts: !dryRun && !proposeOnly,
     })
 
     const deploymentResults: IDeploymentResult[] = []
@@ -144,7 +145,11 @@ async function deployAndRegisterNEARIntentsFacet(options: {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'NEARIntentsFacet',
-      tronExistingDeploymentMode(proposeOnly, 'NEARIntentsFacet', tronWeb)
+      tronExistingDeploymentMode(
+        { proposeOnly, forceRedeploy: options.forceRedeploy },
+        'NEARIntentsFacet',
+        tronWeb
+      )
     )
 
     let facetAddress: string
@@ -245,6 +250,11 @@ const main = defineCommand({
       description:
         'Confirm a production deploy up front; production refuses to broadcast without it',
     },
+    forceRedeploy: {
+      type: 'boolean',
+      description:
+        'Deploy even when the recorded address holds this build, e.g. after a constructor argument changed',
+    },
   },
   async run({ args }) {
     await deployAndRegisterNEARIntentsFacet({
@@ -256,6 +266,10 @@ const main = defineCommand({
       skipConfirmation: readBooleanFlag(process.argv, {
         camel: 'skipConfirmation',
         kebab: 'skip-confirmation',
+      }),
+      forceRedeploy: readBooleanFlag(process.argv, {
+        camel: 'forceRedeploy',
+        kebab: 'force-redeploy',
       }),
     })
   },

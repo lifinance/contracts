@@ -1075,16 +1075,50 @@ describe('checkExistingDeployment', () => {
     })
   })
 
-  const KEEP = { kind: 'keepRecorded' as const, reason: 'kept' }
+  /** A keep-recorded mode whose code check answers `hasCode`, recording each address. */
+  const keepRecorded = (hasCode = true) => {
+    const checked: string[] = []
+    return {
+      checked,
+      mode: {
+        kind: 'keepRecorded' as const,
+        reason: 'kept',
+        hasCode: async (address: string) => {
+          checked.push(address)
+          return hasCode
+        },
+      },
+    }
+  }
+  const KEEP = keepRecorded().mode
 
-  it('keeps a recorded address without reading its code', async () => {
+  it('keeps a recorded address that holds code, whatever the code', async () => {
     await withLogs(
       true,
       { 'tron.json': { LiFiDiamond: ADDRESS } },
       async () => {
+        const { checked, mode } = keepRecorded()
         expect(
-          await checkExistingDeployment('tron', 'LiFiDiamond', KEEP)
+          await checkExistingDeployment('tron', 'LiFiDiamond', mode)
         ).toEqual({ exists: true, address: ADDRESS, shouldRedeploy: false })
+        expect(checked).toEqual([ADDRESS])
+      }
+    )
+  })
+
+  it('refuses to keep a recorded address with no code, rather than deploying', async () => {
+    await withLogs(
+      true,
+      { 'tron.json': { LiFiDiamond: ADDRESS } },
+      async () => {
+        await expectRejects(
+          checkExistingDeployment(
+            'tron',
+            'LiFiDiamond',
+            keepRecorded(false).mode
+          ),
+          `LiFiDiamond: the address recorded for tron (${ADDRESS}) has no code`
+        )
       }
     )
   })
@@ -1137,7 +1171,7 @@ describe('assertDeploymentConfirmed', () => {
     quiet(() =>
       assertDeploymentConfirmed(EnvironmentEnum.staging, 'tronshasta', {
         skipConfirmation: false,
-        dryRun: false,
+        broadcasts: true,
       })
     )
   })
@@ -1147,7 +1181,7 @@ describe('assertDeploymentConfirmed', () => {
       expect(() =>
         assertDeploymentConfirmed(EnvironmentEnum.production, 'tron', {
           skipConfirmation: false,
-          dryRun: false,
+          broadcasts: true,
         })
       ).toThrow(/without --skipConfirmation/)
     )
@@ -1157,16 +1191,16 @@ describe('assertDeploymentConfirmed', () => {
     quiet(() =>
       assertDeploymentConfirmed(EnvironmentEnum.production, 'tron', {
         skipConfirmation: true,
-        dryRun: false,
+        broadcasts: true,
       })
     )
   })
 
-  it('lets a production dry run through, since it broadcasts nothing', () => {
+  it('lets a production run through that broadcasts nothing (dry run, propose-only)', () => {
     quiet(() =>
       assertDeploymentConfirmed(EnvironmentEnum.production, 'tron', {
         skipConfirmation: false,
-        dryRun: true,
+        broadcasts: false,
       })
     )
   })
@@ -1179,7 +1213,7 @@ describe('assertDeploymentConfirmed', () => {
         expect(() =>
           confirmDeployment(EnvironmentEnum.production, 'tron', ['EcoFacet'], {
             skipConfirmation: false,
-            dryRun: false,
+            broadcasts: true,
           })
         ).toThrow(/without --skipConfirmation/)
       )

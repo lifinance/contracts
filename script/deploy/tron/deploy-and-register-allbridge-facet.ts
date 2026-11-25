@@ -51,6 +51,7 @@ async function deployAndRegisterAllBridgeFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
   skipConfirmation: boolean
+  forceRedeploy: boolean
 }) {
   consola.start('TRON AllBridgeFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -155,7 +156,7 @@ async function deployAndRegisterAllBridgeFacet(options: {
 
     confirmDeployment(environment, network, contracts, {
       skipConfirmation: options.skipConfirmation,
-      dryRun,
+      broadcasts: !dryRun && !proposeOnly,
     })
 
     const deploymentResults: IDeploymentResult[] = []
@@ -166,7 +167,11 @@ async function deployAndRegisterAllBridgeFacet(options: {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'AllBridgeFacet',
-      tronExistingDeploymentMode(proposeOnly, 'AllBridgeFacet', tronWeb)
+      tronExistingDeploymentMode(
+        { proposeOnly, forceRedeploy: options.forceRedeploy },
+        'AllBridgeFacet',
+        tronWeb
+      )
     )
 
     let facetAddress: string
@@ -286,6 +291,11 @@ const main = defineCommand({
       description:
         'Confirm a production deploy up front; production refuses to broadcast without it',
     },
+    forceRedeploy: {
+      type: 'boolean',
+      description:
+        'Deploy even when the recorded address holds this build, e.g. after a constructor argument changed',
+    },
   },
   async run({ args }) {
     await deployAndRegisterAllBridgeFacet({
@@ -297,6 +307,10 @@ const main = defineCommand({
       skipConfirmation: readBooleanFlag(process.argv, {
         camel: 'skipConfirmation',
         kebab: 'skip-confirmation',
+      }),
+      forceRedeploy: readBooleanFlag(process.argv, {
+        camel: 'forceRedeploy',
+        kebab: 'force-redeploy',
       }),
     })
   },

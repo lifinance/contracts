@@ -10,12 +10,18 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { createTronWebReadOnly } from '@lifi/tron-devkit'
 import type { TronWeb } from 'tronweb'
+import { encodeAbiParameters } from 'viem'
+
+import type { ExistingDeploymentMode } from '../../common/types'
 
 import {
+  keepUnlessNamed,
   parseTronAddressOutput,
   parseTroncastArrayOutput,
   tronExistingDeploymentMode,
+  withTronDependencyCheck,
 } from './tronUtils'
 
 describe('tronExistingDeploymentMode', () => {
@@ -51,7 +57,12 @@ describe('tronExistingDeploymentMode', () => {
   }
 
   const proposeOnlyMode = (tronWeb: TronWeb) => {
-    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb, OUT_ROOT)
+    const mode = tronExistingDeploymentMode(
+      { proposeOnly: true, forceRedeploy: false },
+      'EcoFacet',
+      tronWeb,
+      OUT_ROOT
+    )
     if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
     return mode
   }
@@ -67,7 +78,7 @@ describe('tronExistingDeploymentMode', () => {
 
   const codeMatchMode = (tronWeb: TronWeb) => {
     const mode = tronExistingDeploymentMode(
-      false,
+      { proposeOnly: false, forceRedeploy: false },
       'EcoFacet',
       tronWeb,
       OUT_ROOT
@@ -75,6 +86,31 @@ describe('tronExistingDeploymentMode', () => {
     if (mode.kind !== 'codeMatch') throw new Error(`got ${mode.kind}`)
     return mode
   }
+
+  it('redeploys without reading the chain under --forceRedeploy', () => {
+    const { asked, tronWeb } = fakeTronWeb(async () => null)
+
+    expect(
+      tronExistingDeploymentMode(
+        { proposeOnly: false, forceRedeploy: true },
+        'EcoFacet',
+        tronWeb
+      )
+    ).toEqual({ kind: 'redeploy', reason: '--forceRedeploy' })
+    expect(asked).toEqual([])
+  })
+
+  it('refuses --proposeOnly together with --forceRedeploy', () => {
+    const { tronWeb } = fakeTronWeb(async () => null)
+
+    expect(() =>
+      tronExistingDeploymentMode(
+        { proposeOnly: true, forceRedeploy: true },
+        'EcoFacet',
+        tronWeb
+      )
+    ).toThrow('--proposeOnly cannot be combined with --forceRedeploy')
+  })
 
   it('reuses a recorded address holding this checkout build when --proposeOnly is off', async () => {
     const { asked, tronWeb } = fakeTronWeb(async () => ({
@@ -146,6 +182,118 @@ describe('tronExistingDeploymentMode', () => {
     expect(
       await rejection(proposeOnlyMode(tronWeb).assertThisBuild(ADDR))
     ).toBe('503 Service Unavailable')
+  })
+})
+
+describe('keepUnlessNamed', () => {
+  const ADDR = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'
+  const tronWebWithCode = (runtimecode?: string) =>
+    ({
+      trx: { getContractInfo: async () => ({ runtimecode }) },
+    }) as unknown as TronWeb
+
+  it('keeps the recorded contract and reports whether code is deployed there', async () => {
+    const withCode = keepUnlessNamed(tronWebWithCode('6080'))
+    const withoutCode = keepUnlessNamed(tronWebWithCode())
+    if (withCode.kind !== 'keepRecorded' || withoutCode.kind !== 'keepRecorded')
+      throw new Error('expected keepRecorded')
+
+    expect(withCode.reason).toBe('redeployed only when --only names it')
+    expect(await withCode.hasCode(ADDR)).toBe(true)
+    expect(await withoutCode.hasCode(ADDR)).toBe(false)
+  })
+})
+
+describe('withTronDependencyCheck', () => {
+  const tronWeb = createTronWebReadOnly({
+    rpcUrl: 'http://127.0.0.1:1',
+    networkKey: 'tron',
+  })
+  const EXECUTOR = tronWeb.address.fromHex(`41${'a1'.repeat(20)}`)
+  const DEPENDENCY = tronWeb.address.fromHex(`41${'b2'.repeat(20)}`)
+  const OTHER = tronWeb.address.fromHex(`41${'c3'.repeat(20)}`)
+
+  /**
+   * Answers every constant call with `address` ABI-encoded, counting the calls. Like a node,
+   * it refuses a call without a caller, which a read-only client does not set on its own.
+   */
+  const answerGetterWith = (address: string) => {
+    const calls = { count: 0 }
+    tronWeb.transactionBuilder.triggerSmartContract = (async (
+      ...args: unknown[]
+    ) => {
+      if (!args[4]) throw new Error("owner_address isn't set.")
+      calls.count += 1
+      const encoded = encodeAbiParameters(
+        [{ type: 'address' }],
+        [`0x${tronWeb.address.toHex(address).slice(2)}`]
+      )
+      return { constant_result: [encoded.slice(2)] }
+    }) as unknown as typeof tronWeb.transactionBuilder.triggerSmartContract
+    return calls
+  }
+
+  const codeMatch = (mismatch?: string): ExistingDeploymentMode => ({
+    kind: 'codeMatch',
+    describeMismatch: async () => mismatch,
+  })
+
+  const check = (
+    mode: ExistingDeploymentMode,
+    expected: string | null = DEPENDENCY
+  ) => {
+    const checked = withTronDependencyCheck(mode, {
+      tronWeb,
+      getter: 'erc20Proxy',
+      dependency: 'ERC20Proxy',
+      expected: async () => expected,
+    })
+    if (checked.kind !== 'codeMatch') throw new Error(`got ${checked.kind}`)
+    return checked.describeMismatch(EXECUTOR)
+  }
+
+  it('reuses a contract whose stored dependency is the one this run uses', async () => {
+    const calls = answerGetterWith(DEPENDENCY)
+
+    expect(await check(codeMatch())).toBeUndefined()
+    expect(calls.count).toBe(1)
+  })
+
+  it('names the stale dependency a reused contract would keep', async () => {
+    answerGetterWith(OTHER)
+
+    expect(await check(codeMatch())).toBe(
+      `its erc20Proxy() is ${OTHER}, not the ERC20Proxy at ${DEPENDENCY}`
+    )
+  })
+
+  it('reports a code mismatch without reading the dependency', async () => {
+    const calls = answerGetterWith(DEPENDENCY)
+
+    expect(await check(codeMatch('on-chain code differs'))).toBe(
+      'on-chain code differs'
+    )
+    expect(calls.count).toBe(0)
+  })
+
+  it('skips the read when no dependency address is known', async () => {
+    const calls = answerGetterWith(OTHER)
+
+    expect(await check(codeMatch(), null)).toBeUndefined()
+    expect(calls.count).toBe(0)
+  })
+
+  it('leaves a mode that does not compare code unchanged', () => {
+    const redeploy: ExistingDeploymentMode = { kind: 'redeploy', reason: 'x' }
+
+    expect(
+      withTronDependencyCheck(redeploy, {
+        tronWeb,
+        getter: 'erc20Proxy',
+        dependency: 'ERC20Proxy',
+        expected: async () => DEPENDENCY,
+      })
+    ).toBe(redeploy)
   })
 })
 

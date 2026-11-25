@@ -213,6 +213,8 @@ export type ExistingDeploymentMode =
       kind: 'keepRecorded'
       /** Why an address recorded for the network is reused whatever its code. */
       reason: string
+      /** Whether any code is deployed at `address`; a recorded address without code is refused. */
+      hasCode: (address: string) => Promise<boolean>
     }
   | {
       kind: 'proposeOnly'

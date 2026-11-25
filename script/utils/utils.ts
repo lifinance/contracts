@@ -619,7 +619,8 @@ export async function getFacetSelectors(
  * @param contractName - the contract to look up
  * @param mode - `codeMatch` reuses a recorded address holding this checkout's
  *   build and deploys otherwise; `keepRecorded` reuses any address recorded for
- *   the network and deploys only when none is; `redeploy` always deploys; `proposeOnly` never
+ *   the network (refusing one with no code) and deploys only when none is; `redeploy` always
+ *   deploys; `proposeOnly` never
  *   deploys and returns the recorded address for the caller to propose
  * @returns the recorded address, if any, and whether to deploy
  * @throws in `proposeOnly` mode when no address is recorded for `network`, when
@@ -660,6 +661,11 @@ export async function checkExistingDeployment(
   }
 
   if (mode.kind === 'keepRecorded') {
+    if (!(await mode.hasCode(found.address)))
+      throw new Error(
+        `${contractName}: the address recorded for ${network} (${found.address}) has no code. ` +
+          `Check the deploy log; name ${contractName} in --only to deploy a new one.`
+      )
     consola.info(`${contractName}: reusing ${found.address} (${mode.reason})`)
     return { exists: true, address: found.address, shouldRedeploy: false }
   }
@@ -1028,13 +1034,14 @@ export async function updateDiamondJsonPeriphery(
  * @param environment - the environment the run deploys to
  * @param network - the network the run deploys to
  * @param options.skipConfirmation - the run's `--skipConfirmation` flag
- * @param options.dryRun - true when nothing is broadcast, which needs no confirmation
+ * @param options.broadcasts - false for a dry run or a propose-only run, which send nothing
+ *   on chain and need no confirmation
  * @throws on a production run that broadcasts without `--skipConfirmation`
  */
 export function assertDeploymentConfirmed(
   environment: EnvironmentEnum,
   network: SupportedChain,
-  options: { skipConfirmation: boolean; dryRun: boolean }
+  options: { skipConfirmation: boolean; broadcasts: boolean }
 ): void {
   const networkName = network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet'
   if (environment !== EnvironmentEnum.production) {
@@ -1045,7 +1052,7 @@ export function assertDeploymentConfirmed(
   consola.warn(
     `WARNING: This will deploy to ${network} ${networkName} in PRODUCTION!`
   )
-  if (options.dryRun || options.skipConfirmation) return
+  if (!options.broadcasts || options.skipConfirmation) return
   throw new Error(
     `Refusing to broadcast to ${network} in PRODUCTION without --skipConfirmation. Re-run with --skipConfirmation once the plan above is the one you mean to deploy.`
   )
@@ -1057,14 +1064,14 @@ export function assertDeploymentConfirmed(
  * @param environment - the environment the run deploys to
  * @param network - the network the run deploys to
  * @param contracts - the contracts in the plan
- * @param options - the run's `--skipConfirmation` and dry-run flags
+ * @param options - the run's `--skipConfirmation` flag and whether it broadcasts
  * @throws on a production run that broadcasts without `--skipConfirmation`
  */
 export function confirmDeployment(
   environment: EnvironmentEnum,
   network: SupportedChain,
   contracts: string[],
-  options: { skipConfirmation: boolean; dryRun: boolean }
+  options: { skipConfirmation: boolean; broadcasts: boolean }
 ): void {
   const planContent = contracts
     .map((contract, index) => `${index + 1}. ${contract}`)
