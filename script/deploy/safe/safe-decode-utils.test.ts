@@ -283,14 +283,20 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
     const infoSpy = spyOn(consola, 'info').mockImplementation(
       (() => {}) as never
     )
+    const whitelist = JSON.parse(
+      fs.readFileSync(
+        path.join(process.cwd(), 'config', 'whitelist.json'),
+        'utf8'
+      )
+    ) as { PERIPHERY: { tron: { name: string; address: string }[] } }
+    const feeForwarder = whitelist.PERIPHERY.tron.find(
+      (entry) => entry.name === 'FeeForwarder'
+    )
+    if (!feeForwarder)
+      throw new Error('config/whitelist.json lists no tron FeeForwarder')
     await formatBatchSetContractSelectorWhitelist(
       [
-        [
-          normalizeAddressForNetwork(
-            'tron',
-            'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
-          ),
-        ],
+        [normalizeAddressForNetwork('tron', feeForwarder.address)],
         ['0x0e8ae67f'],
         true,
       ],
