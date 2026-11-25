@@ -2,7 +2,10 @@
 pragma solidity ^0.8.17;
 
 import { TestToken as ERC20 } from "./TestToken.sol";
-import { ExternalCallFailed } from "lifi/Errors/GenericErrors.sol";
+import {
+    ExternalCallFailed,
+    NativeAssetTransferFailed
+} from "lifi/Errors/GenericErrors.sol";
 
 contract TestAMM {
     function swap(
@@ -42,7 +45,11 @@ contract TestAMM {
             // For native tokens, we receive the full amount via msg.value
             // Send away 80% and return 20% back to the caller
             // solhint-disable-next-line avoid-low-level-calls
-            payable(address(0xd34d)).call{ value: (msg.value * 80) / 100 }("");
+            (bool sent,) = payable(address(0xd34d))
+            .call{ value: (msg.value * 80) / 100 }(
+                ""
+            );
+            if (!sent) revert NativeAssetTransferFailed();
             // Return 20% back to the caller (simulating better pricing)
             payable(msg.sender).transfer((msg.value * 20) / 100);
         }

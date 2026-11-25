@@ -5,7 +5,7 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { AttestedBridgeFacet } from "lifi/Facets/AttestedBridgeFacet.sol";
 
 contract DeployScript is DeployScriptBase {
-    constructor() DeployScriptBase("AttestedBridgeFacet") {}
+    constructor() DeployScriptBase("AttestedBridgeFacet") { }
 
     function run() public returns (AttestedBridgeFacet deployed) {
         deployed = AttestedBridgeFacet(

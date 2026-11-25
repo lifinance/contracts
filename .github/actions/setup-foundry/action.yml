@@ -33,6 +33,16 @@ inputs:
       entry per run for no gain, and crowd out the entries that matter.
     required: false
     default: "false"
+  forge-caches:
+    description: >-
+      Set to "false" for jobs that never compile or fork (e.g. `forge fmt`
+      only). It skips the fork-RPC and forge-build caches: such a job would
+      download state it never reads, and on a cache miss the save fails with a
+      "Path Validation Error" warning because the cached paths do not exist.
+      The foundry toolchain cache is restored but not saved, since the job
+      installs no solc and its entry would hide the solc compiling jobs need.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -51,6 +61,7 @@ runs:
 
     - name: Compute RPC cache key segments
       id: fork_blocks
+      if: inputs.forge-caches == 'true'
       shell: bash
       env:
         RPC_CACHE_REFRESH: ${{ inputs.rpc-cache-refresh }}
@@ -75,6 +86,7 @@ runs:
         fi
 
     - name: Cache Foundry RPC state
+      if: inputs.forge-caches == 'true'
       # Fork tests pin deterministic blocks, so the fetched state stays valid until a pin moves.
       # This step is the SOLE owner of ~/.foundry/cache/rpc — the toolchain cache below does not
       # cover it and foundry-toolchain's own caching is off. When two actions cache overlapping
@@ -94,7 +106,26 @@ runs:
       # Restored before the install step so the next step can reuse a cached binary that
       # matches the pin. Version is folded into the cache key so a foundry bump invalidates
       # the cache automatically and we never mix solc binaries across foundry versions.
+      if: inputs.forge-caches == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        # Enumerated rather than all of ~/.foundry, which also holds cache/rpc: a
+        # superset path would make this the last writer over the RPC state above.
+        path: |
+          ~/.foundry/bin
+          ~/.foundry/share
+          ~/.foundry/versions
+          ~/.svm
+        key: foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-${{ hashFiles('foundry.toml') }}
+        restore-keys: |
+          foundry-toolchain-${{ runner.os }}-${{ steps.pin.outputs.version }}-
+
+    - name: Restore Foundry toolchain state (svm + foundryup)
+      # Restore only: a job that never compiles has no solc for the pin, and actions/cache
+      # never overwrites an existing key, so saving here would pin a solc-less entry that
+      # every compiling job then restores.
+      if: inputs.forge-caches != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         # Enumerated rather than all of ~/.foundry, which also holds cache/rpc: a
         # superset path would make this the last writer over the RPC state above.
@@ -169,6 +200,7 @@ runs:
         cache: false
 
     - name: Cache forge build artifacts (cache/, out/)
+      if: inputs.forge-caches == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: |

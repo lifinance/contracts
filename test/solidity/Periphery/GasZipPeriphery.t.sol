@@ -12,7 +12,8 @@ import { WhitelistManagerFacet } from "lifi/Facets/WhitelistManagerFacet.sol";
 import {
     InvalidCallData,
     InvalidConfig,
-    ContractCallNotAllowed
+    ContractCallNotAllowed,
+    NativeAssetTransferFailed
 } from "lifi/Errors/GenericErrors.sol";
 import { TestBase, ILiFi } from "../utils/TestBase.sol";
 import { NonETHReceiver } from "../utils/TestHelpers.sol";
@@ -895,7 +896,8 @@ contract MockDexRouterWithSeparateSpender {
 
         // Transfer native tokens to simulate swap output
         // The router should be funded with native tokens before the test
-        to.call{ value: amountOutMin }("");
+        (bool sent,) = to.call{ value: amountOutMin }("");
+        if (!sent) revert NativeAssetTransferFailed();
 
         amounts = new uint256[](2);
         amounts[0] = amountIn;

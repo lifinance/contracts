@@ -22,28 +22,19 @@ contract AttestableSelectorsConfigTest is Test {
 
         for (uint256 i; i < selectors.length; ++i) {
             string memory entry = vm.parseJsonString(
-                config,
-                string.concat(SELECTORS_PATH, ".", selectors[i])
+                config, string.concat(SELECTORS_PATH, ".", selectors[i])
             );
             (string memory facet, string memory signature) = _split(entry);
-            string memory artifactPath = string.concat(
-                "out/",
-                facet,
-                ".sol/",
-                facet,
-                ".json"
-            );
+            string memory artifactPath =
+                string.concat("out/", facet, ".sol/", facet, ".json");
             assertTrue(
                 vm.isFile(artifactPath),
                 string.concat(entry, ": no build artifact for ", facet)
             );
 
             string memory artifact = vm.readFile(artifactPath);
-            string memory key = string.concat(
-                ".methodIdentifiers['",
-                signature,
-                "']"
-            );
+            string memory key =
+                string.concat(".methodIdentifiers['", signature, "']");
             assertTrue(
                 vm.keyExistsJson(artifact, key),
                 string.concat(entry, " is not a function of ", facet)
@@ -56,9 +47,11 @@ contract AttestableSelectorsConfigTest is Test {
         }
     }
 
-    function _split(
-        string memory _entry
-    ) internal pure returns (string memory facet, string memory signature) {
+    function _split(string memory _entry)
+        internal
+        pure
+        returns (string memory facet, string memory signature)
+    {
         bytes memory raw = bytes(_entry);
         for (uint256 i; i < raw.length; ++i) {
             if (raw[i] != ".") continue;
@@ -69,11 +62,11 @@ contract AttestableSelectorsConfigTest is Test {
         revert(string.concat("no facet in ", _entry));
     }
 
-    function _slice(
-        bytes memory _raw,
-        uint256 _start,
-        uint256 _end
-    ) internal pure returns (string memory) {
+    function _slice(bytes memory _raw, uint256 _start, uint256 _end)
+        internal
+        pure
+        returns (string memory)
+    {
         bytes memory out = new bytes(_end - _start);
         for (uint256 i; i < out.length; ++i) {
             out[i] = _raw[_start + i];
