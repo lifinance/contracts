@@ -63,7 +63,7 @@ const ID_FIELDS = new Set(['chainId', 'allBridgeChainId'])
  * `config/allbridge.json` already carries 9270000000000000, above
  * `Number.MAX_SAFE_INTEGER` — so `JSON.parse` alone would hand back a double
  * that is not guaranteed to equal what the file says. The Foundry path
- * has no such hazard — `stdJson.parseRaw` decodes straight to `uint256`. The
+ * has no such hazard — `stdJson.readUint` decodes straight to `uint256`. The
  * third reviver argument (`context.source`) carries the untouched number
  * literal, so `BigInt` conversion is exact; it also rejects fractional ids for
  * free, since `BigInt('1.5')` throws.

@@ -40,6 +40,7 @@
         "prettier": "3.9.10",
         "prettier-plugin-solidity": "1.4.3",
         "solhint": "6.2.5",
+        "solhint-plugin-lifi": "file:./script/solhint-plugin-lifi",
         "tsc-files": "^1.1.4",
         "tsx": "4.23.13",
         "typechain": "^8.0.0",
@@ -1122,6 +1123,8 @@
     "smol-toml": ["smol-toml@1.9.1", "", {}, "sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ=="],
 
     "solhint": ["solhint@6.2.5", "", { "dependencies": { "@solidity-parser/parser": "^0.20.2", "ajv": "^8.18.0", "ast-parents": "^0.0.1", "better-ajv-errors": "^2.0.2", "chalk": "^4.1.2", "commander": "^10.0.0", "cosmiconfig": "^8.0.0", "fast-diff": "^1.2.0", "glob": "^13.0.6", "ignore": "^5.2.4", "js-yaml": "^4.1.0", "latest-version": "^7.0.0", "lodash": "^4.17.21", "pluralize": "^8.0.0", "semver": "^7.5.2", "table": "^6.8.1", "text-table": "^0.2.0" }, "optionalDependencies": { "prettier": "^3.0.0" }, "bin": { "solhint": "solhint.js" } }, "sha512-WCkEQIJHMaCLv7d9SuTsGjcsprv2DLP2dxg95oUtAe7qYh4Ho3NfECCNSSTZ6OPnjv1HMV8z2Bcg7nH1UBAZiA=="],
+
+    "solhint-plugin-lifi": ["solhint-plugin-lifi@file:script/solhint-plugin-lifi", {}],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
 

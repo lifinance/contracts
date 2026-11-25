@@ -3,7 +3,6 @@ pragma solidity ^0.8.17;
 
 // solhint-disable max-line-length
 
-import { stdJson } from "forge-std/StdJson.sol";
 import { DeBridgeDlnFacet } from "lifi/Facets/DeBridgeDlnFacet.sol";
 import { IDlnSource } from "lifi/Interfaces/IDlnSource.sol";
 import {
@@ -22,8 +21,6 @@ contract TestDeBridgeDlnFacet is DeBridgeDlnFacet, TestWhitelistManagerBase {
 }
 
 contract DeBridgeDlnFacetTest is TestBaseFacet {
-    using stdJson for string;
-
     DeBridgeDlnFacet.DeBridgeDlnData internal validDeBridgeDlnData;
     TestDeBridgeDlnFacet internal deBridgeDlnFacet;
     IDlnSource internal constant DLN_SOURCE =
@@ -73,13 +70,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
             ADDRESS_UNISWAP, uniswap.swapETHForExactTokens.selector
         );
 
-        // Initialize
-        string memory path =
-            string.concat(vm.projectRoot(), "/config/debridgedln.json");
-        string memory json = vm.readFile(path);
-        bytes memory rawChains = json.parseRaw(".mappings");
-        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg =
-            abi.decode(rawChains, (DeBridgeDlnFacet.ChainIdConfig[]));
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = _readChainIdConfigs();
 
         deBridgeDlnFacet.initDeBridgeDln(cidCfg);
 
@@ -157,13 +148,7 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
 
         vm.startPrank(USER_DIAMOND_OWNER);
 
-        // Initialize
-        string memory path =
-            string.concat(vm.projectRoot(), "/config/debridgedln.json");
-        string memory json = vm.readFile(path);
-        bytes memory rawChains = json.parseRaw(".mappings");
-        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg =
-            abi.decode(rawChains, (DeBridgeDlnFacet.ChainIdConfig[]));
+        DeBridgeDlnFacet.ChainIdConfig[] memory cidCfg = _readChainIdConfigs();
 
         vm.expectEmit(true, true, true, true);
         emit DeBridgeInitialized(cidCfg);
@@ -513,5 +498,26 @@ contract DeBridgeDlnFacetTest is TestBaseFacet {
         uint256 storedValue = deBridgeDlnFacet.getDeBridgeChainId(chainIdKey);
 
         assertEq(storedValue, expectedValue);
+    }
+
+    /// @dev The type string lists DeBridgeDlnFacet.ChainIdConfig's fields in declared order, under
+    ///      a name no struct declares: forge would take the field order from a struct of that name
+    function _readChainIdConfigs()
+        internal
+        view
+        returns (DeBridgeDlnFacet.ChainIdConfig[] memory)
+    {
+        string memory json = vm.readFile(
+            string.concat(vm.projectRoot(), "/config/debridgedln.json")
+        );
+
+        return abi.decode(
+            vm.parseJsonTypeArray(
+                json,
+                ".mappings",
+                "DeBridgeDlnChainIdRow(uint256 chainId,uint256 deBridgeChainId)"
+            ),
+            (DeBridgeDlnFacet.ChainIdConfig[])
+        );
     }
 }

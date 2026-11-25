@@ -13,12 +13,7 @@ contract DeployScript is UpdateScriptBase {
     function run() public returns (address[] memory facets) {
         address facet = json.readAddress(".AcrossFacetPackedV4");
 
-        // load config
-        path = string.concat(root, "/config/across.json");
-        json = vm.readFile(path);
-        bytes memory rawConfig =
-            json.parseRaw(string.concat(".", network, ".tokensToApprove"));
-        address[] memory tokensToApprove = abi.decode(rawConfig, (address[]));
+        address[] memory tokensToApprove = _readTokensToApprove();
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -28,5 +23,14 @@ contract DeployScript is UpdateScriptBase {
         facets = loupe.facetAddresses();
 
         vm.stopBroadcast();
+    }
+
+    function _readTokensToApprove() internal returns (address[] memory) {
+        path = string.concat(root, "/config/across.json");
+        json = vm.readFile(path);
+
+        return json.readAddressArray(
+            string.concat(".", network, ".tokensToApprove")
+        );
     }
 }

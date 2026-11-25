@@ -1,5 +1,6 @@
 {
   "extends": "solhint:recommended",
+  "plugins": ["lifi"],
   "rules": {
     "avoid-call-value": "off",
     "avoid-low-level-calls": "off",
@@ -29,6 +30,7 @@
     "import-path-check": "off",
     "imports-on-top": "error",
     "interface-starts-with-i": "off",
+    "lifi/no-untyped-json-decode": "error",
     "max-states-count": ["error", 15],
     "no-empty-blocks": "off",
     "no-global-import": "error",

@@ -37,6 +37,7 @@
     "prettier": "3.9.10",
     "prettier-plugin-solidity": "1.4.3",
     "solhint": "6.2.5",
+    "solhint-plugin-lifi": "file:./script/solhint-plugin-lifi",
     "tsc-files": "^1.1.4",
     "tsx": "4.23.13",
     "typechain": "^8.0.0",

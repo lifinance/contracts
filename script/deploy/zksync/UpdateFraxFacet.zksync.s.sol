@@ -2,11 +2,13 @@
 pragma solidity ^0.8.17;
 
 import { UpdateScriptBase } from "./utils/UpdateScriptBase.sol";
-import { stdJson } from "forge-std/StdJson.sol";
 import { FraxFacet } from "lifi/Facets/FraxFacet.sol";
 
 contract DeployScript is UpdateScriptBase {
-    using stdJson for string;
+    /// @dev FraxFacet.ChainIdConfig's fields in declared order, under a name no struct
+    ///      declares: `forge test` would take the field order from a struct of the same name
+    string internal constant CHAIN_ID_ROW_TYPE =
+        "FraxChainIdRow(uint256 chainId,uint32 lzEid)";
 
     function run()
         public
@@ -26,9 +28,10 @@ contract DeployScript is UpdateScriptBase {
     function getCallData() internal override returns (bytes memory) {
         path = string.concat(root, "/config/frax.json");
         json = vm.readFile(path);
-        bytes memory rawMappings = json.parseRaw(".mappings");
-        FraxFacet.ChainIdConfig[] memory chainIdConfigs =
-            abi.decode(rawMappings, (FraxFacet.ChainIdConfig[]));
+        FraxFacet.ChainIdConfig[] memory chainIdConfigs = abi.decode(
+            vm.parseJsonTypeArray(json, ".mappings", CHAIN_ID_ROW_TYPE),
+            (FraxFacet.ChainIdConfig[])
+        );
 
         return
             abi.encodeWithSelector(FraxFacet.initFrax.selector, chainIdConfigs);
