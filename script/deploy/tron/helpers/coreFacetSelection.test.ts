@@ -1,7 +1,7 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
-import { planUnnamedDiamond, selectCoreContracts } from './coreFacetSelection'
+import { selectCoreContracts } from './coreFacetSelection'
 
 const CORE = ['DiamondCutFacet', 'DiamondLoupeFacet', 'OwnershipFacet']
 
@@ -53,26 +53,5 @@ describe('selectCoreContracts', () => {
     expect(() => selectCoreContracts(CORE, [])).toThrow(
       '--only names no contract'
     )
-  })
-})
-
-describe('planUnnamedDiamond', () => {
-  it('keeps a recorded diamond, with or without --only', () => {
-    for (const onlyGiven of [true, false])
-      expect(
-        planUnnamedDiamond({ onlyGiven, recordedAddress: 'TDiamond' })
-      ).toEqual({ action: 'reuse', address: 'TDiamond' })
-  })
-
-  it('skips the diamond when --only leaves it out and none is recorded', () => {
-    expect(
-      planUnnamedDiamond({ onlyGiven: true, recordedAddress: null })
-    ).toEqual({ action: 'skip' })
-  })
-
-  it('deploys the diamond in a full run on a network without one', () => {
-    expect(
-      planUnnamedDiamond({ onlyGiven: false, recordedAddress: null })
-    ).toEqual({ action: 'deploy' })
   })
 })

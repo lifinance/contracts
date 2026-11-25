@@ -111,6 +111,15 @@ export async function checkIsDeployedTron(
 }
 
 /**
+ * The `checkExistingDeployment` mode for a governance-critical contract (LiFiDiamond,
+ * LiFiTimelockController) that the run does not name in `--only`: the recorded one is kept.
+ */
+export const KEEP_UNLESS_NAMED: ExistingDeploymentMode = {
+  kind: 'keepRecorded',
+  reason: 'redeployed only when --only names it',
+}
+
+/**
  * The `checkExistingDeployment` mode for a Tron deploy-and-register script.
  *
  * In propose-only mode the recorded address must hold this checkout's build: the cut's
@@ -138,6 +147,12 @@ export function tronExistingDeploymentMode(
     throw new Error(
       '--proposeOnly cannot be combined with FORCE_REDEPLOY=true; unset FORCE_REDEPLOY'
     )
+  const readRuntimeCode = (address: string) =>
+    retryWithRateLimit(
+      () => tronRuntimeCodeReader(tronWeb)(address),
+      MAX_RETRIES,
+      RETRY_DELAY
+    )
   if (!proposeOnly)
     return forceRedeploy
       ? { kind: 'redeploy', reason: 'FORCE_REDEPLOY=true' }
@@ -147,12 +162,7 @@ export function tronExistingDeploymentMode(
             describeDeployedCodeMismatch({
               name: contract,
               address,
-              readRuntimeCode: (codeAddress) =>
-                retryWithRateLimit(
-                  () => tronRuntimeCodeReader(tronWeb)(codeAddress),
-                  MAX_RETRIES,
-                  RETRY_DELAY
-                ),
+              readRuntimeCode,
               outRoot,
             }),
         }
@@ -161,7 +171,7 @@ export function tronExistingDeploymentMode(
     assertThisBuild: (address) =>
       assertFacetCodeMatchesArtifacts({
         facets: { [contract]: address },
-        readRuntimeCode: tronRuntimeCodeReader(tronWeb),
+        readRuntimeCode,
         outRoot,
       }),
   }

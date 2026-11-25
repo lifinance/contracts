@@ -43,7 +43,7 @@ import {
 async function deployAndRegisterEcoFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
-  skipConfirmation?: boolean
+  skipConfirmation: boolean
 }) {
   consola.start('TRON EcoFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -140,7 +140,7 @@ async function deployAndRegisterEcoFacet(options: {
     const contracts = ['EcoFacet']
 
     confirmDeployment(environment, network, contracts, {
-      skipConfirmation: options.skipConfirmation ?? false,
+      skipConfirmation: options.skipConfirmation,
       dryRun,
     })
 

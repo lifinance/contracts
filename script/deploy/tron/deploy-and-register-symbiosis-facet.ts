@@ -48,7 +48,7 @@ import {
 async function deployAndRegisterSymbiosisFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
-  skipConfirmation?: boolean
+  skipConfirmation: boolean
 }) {
   consola.start('TRON SymbiosisFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -217,9 +217,8 @@ async function deployAndRegisterSymbiosisFacet(options: {
     // Prepare deployment plan
     const contracts = ['SymbiosisFacet']
 
-    // Use new utility for confirmation
     confirmDeployment(environment, network, contracts, {
-      skipConfirmation: options.skipConfirmation ?? false,
+      skipConfirmation: options.skipConfirmation,
       dryRun,
     })
 

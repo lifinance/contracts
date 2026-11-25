@@ -50,7 +50,7 @@ import {
 async function deployAndRegisterAllBridgeFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
-  skipConfirmation?: boolean
+  skipConfirmation: boolean
 }) {
   consola.start('TRON AllBridgeFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -153,9 +153,8 @@ async function deployAndRegisterAllBridgeFacet(options: {
     // Prepare deployment plan
     const contracts = ['AllBridgeFacet']
 
-    // Use new utility for confirmation
     confirmDeployment(environment, network, contracts, {
-      skipConfirmation: options.skipConfirmation ?? false,
+      skipConfirmation: options.skipConfirmation,
       dryRun,
     })
 

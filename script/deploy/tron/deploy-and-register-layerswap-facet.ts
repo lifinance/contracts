@@ -58,7 +58,7 @@ import {
 async function deployAndRegisterLayerSwapFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
-  skipConfirmation?: boolean
+  skipConfirmation: boolean
 }) {
   consola.start('TRON LayerSwapFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -156,7 +156,7 @@ async function deployAndRegisterLayerSwapFacet(options: {
     const contracts = ['LayerSwapFacet']
 
     confirmDeployment(environment, network, contracts, {
-      skipConfirmation: options.skipConfirmation ?? false,
+      skipConfirmation: options.skipConfirmation,
       dryRun,
     })
 

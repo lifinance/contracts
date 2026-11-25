@@ -1075,6 +1075,39 @@ describe('checkExistingDeployment', () => {
     })
   })
 
+  const KEEP = { kind: 'keepRecorded' as const, reason: 'kept' }
+
+  it('keeps a recorded address without reading its code', async () => {
+    await withLogs(
+      true,
+      { 'tron.json': { LiFiDiamond: ADDRESS } },
+      async () => {
+        expect(
+          await checkExistingDeployment('tron', 'LiFiDiamond', KEEP)
+        ).toEqual({ exists: true, address: ADDRESS, shouldRedeploy: false })
+      }
+    )
+  })
+
+  it.each([
+    ['nothing is recorded', 'tron' as const, true, {}],
+    [
+      'only the tron.json fallback records one',
+      'tronshasta' as const,
+      false,
+      { LiFiDiamond: ADDRESS },
+    ],
+  ])(
+    'deploys instead of keeping when %s',
+    async (_, network, production, log) => {
+      await withLogs(production, { 'tron.json': log }, async () => {
+        expect(
+          await checkExistingDeployment(network, 'LiFiDiamond', KEEP)
+        ).toEqual({ exists: false, address: null, shouldRedeploy: true })
+      })
+    }
+  )
+
   it('stops rather than deploys when the recorded code cannot be read', async () => {
     await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
       await expectRejects(

@@ -618,7 +618,8 @@ export async function getFacetSelectors(
  * @param network - the network being deployed to
  * @param contractName - the contract to look up
  * @param mode - `codeMatch` reuses a recorded address holding this checkout's
- *   build and deploys otherwise; `redeploy` always deploys; `proposeOnly` never
+ *   build and deploys otherwise; `keepRecorded` reuses any address recorded for
+ *   the network and deploys only when none is; `redeploy` always deploys; `proposeOnly` never
  *   deploys and returns the recorded address for the caller to propose
  * @returns the recorded address, if any, and whether to deploy
  * @throws in `proposeOnly` mode when no address is recorded for `network`, when
@@ -656,6 +657,11 @@ export async function checkExistingDeployment(
       : `no address recorded for ${network}`
     consola.info(`${contractName}: deploying (${reason})`)
     return { exists: false, address: null, shouldRedeploy: true }
+  }
+
+  if (mode.kind === 'keepRecorded') {
+    consola.info(`${contractName}: reusing ${found.address} (${mode.reason})`)
+    return { exists: true, address: found.address, shouldRedeploy: false }
   }
 
   const mismatch = await mode.describeMismatch(found.address)

@@ -41,12 +41,10 @@ import {
   DIAMOND_CONSTRUCTOR_PARAMS,
   type DiamondConstructorArgs,
 } from './helpers/coreFacetConstructorArgs'
-import {
-  planUnnamedDiamond,
-  selectCoreContracts,
-} from './helpers/coreFacetSelection'
+import { DIAMOND, selectCoreContracts } from './helpers/coreFacetSelection'
 import {
   deployContractWithLogging,
+  KEEP_UNLESS_NAMED,
   tronExistingDeploymentMode,
   validateBalance,
   waitBetweenDeployments,
@@ -55,7 +53,8 @@ import type { TDiamondPlan } from './types'
 
 /**
  * Decides what the run does with LiFiDiamond: a named diamond is reused or redeployed like
- * any other contract; an unnamed one is never replaced.
+ * any other contract; an unnamed one is never replaced, and a run whose `--only` leaves it
+ * out deploys none.
  */
 async function planDiamond(
   network: SupportedChain,
@@ -63,33 +62,20 @@ async function planDiamond(
   onlyGiven: boolean,
   tronWeb: TronWeb
 ): Promise<TDiamondPlan> {
-  const diamondName = 'LiFiDiamond'
-  if (named) {
-    const existing = await checkExistingDeployment(
-      network,
-      diamondName,
-      tronExistingDeploymentMode(false, diamondName, tronWeb)
-    )
-    return existing.exists && existing.address && !existing.shouldRedeploy
-      ? { action: 'reuse', address: existing.address }
-      : { action: 'deploy' }
+  if (onlyGiven && !named) {
+    const recorded = await findContractAddress(network, DIAMOND)
+    if (!recorded || recorded.fromOtherNetwork) return { action: 'skip' }
   }
-
-  const recorded = await findContractAddress(network, diamondName)
-  const plan = planUnnamedDiamond({
-    onlyGiven,
-    recordedAddress:
-      recorded && !recorded.fromOtherNetwork ? recorded.address : null,
-  })
-  if (plan.action === 'reuse')
-    consola.info(
-      `${diamondName}: reusing ${plan.address} (redeployed only when --only names it)`
-    )
-  if (plan.action === 'deploy')
-    consola.info(
-      `${diamondName}: deploying (no address recorded for ${network})`
-    )
-  return plan
+  const existing = await checkExistingDeployment(
+    network,
+    DIAMOND,
+    named
+      ? tronExistingDeploymentMode(false, DIAMOND, tronWeb)
+      : KEEP_UNLESS_NAMED
+  )
+  return existing.exists && existing.address && !existing.shouldRedeploy
+    ? { action: 'reuse', address: existing.address }
+    : { action: 'deploy' }
 }
 
 /**
@@ -103,7 +89,6 @@ async function deployCoreFacetsImpl(options: {
   onlyContracts: string[] | undefined
 }) {
   consola.start('TRON Core Facets Deployment')
-  const diamondName = 'LiFiDiamond'
   const { facets: coreFacets, diamondNamed } = selectCoreContracts(
     getCoreFacets({ exclude: ['GasZipFacet'] }),
     options.onlyContracts
@@ -189,7 +174,7 @@ async function deployCoreFacetsImpl(options: {
     network,
     [
       ...coreFacets,
-      ...(diamondNamed || !options.onlyContracts ? [diamondName] : []),
+      ...(diamondNamed || !options.onlyContracts ? [DIAMOND] : []),
     ],
     { skipConfirmation: options.skipConfirmation, dryRun: options.dryRun }
   )
@@ -244,7 +229,7 @@ async function deployCoreFacetsImpl(options: {
   // surfaces only once they have all been paid for.
   if (diamondPlan.action === 'deploy')
     await assertDiamondConstructorShape(
-      diamondName,
+      DIAMOND,
       network,
       DIAMOND_CONSTRUCTOR_PARAMS.length
     )
@@ -325,13 +310,13 @@ async function deployCoreFacetsImpl(options: {
 
   if (diamondPlan.action === 'skip')
     consola.info(
-      `\n⏭️  Skipping ${diamondName} (not named in --only and none recorded for ${network})`
+      `\n⏭️  Skipping ${DIAMOND} (not named in --only and none recorded for ${network})`
     )
   else if (diamondPlan.action === 'reuse') {
-    consola.info(`\n⏭️  Skipping ${diamondName} (already deployed)`)
-    const version = await getContractVersion(diamondName)
+    consola.info(`\n⏭️  Skipping ${DIAMOND} (already deployed)`)
+    const version = await getContractVersion(DIAMOND)
     deploymentResults.push({
-      contract: diamondName,
+      contract: DIAMOND,
       address: diamondPlan.address,
       version,
       txId: '',
@@ -340,7 +325,7 @@ async function deployCoreFacetsImpl(options: {
     })
   } else
     try {
-      consola.info(`\n💎 Deploying ${diamondName}...`)
+      consola.info(`\n💎 Deploying ${DIAMOND}...`)
       // Get owner address (deployer address)
       const ownerAddress = networkInfo.address
       const ownerHex = tronAddressToHex(tronWeb, ownerAddress)
@@ -348,7 +333,7 @@ async function deployCoreFacetsImpl(options: {
       const diamondCutFacet = facetAddresses['DiamondCutFacet']
       if (!diamondCutFacet)
         throw new Error(
-          `${diamondName} takes the DiamondCutFacet address, but DiamondCutFacet has no address in this run — its deployment failed, or --only did not name it. The diamond cannot be assembled without it.`
+          `${DIAMOND} takes the DiamondCutFacet address, but DiamondCutFacet has no address in this run — its deployment failed, or --only did not name it. The diamond cannot be assembled without it.`
         )
 
       const diamondCutFacetHex = tronAddressToHex(
@@ -371,7 +356,7 @@ async function deployCoreFacetsImpl(options: {
       // Deploy the Diamond
       const result = await deployContractWithLogging(
         deployer,
-        diamondName,
+        DIAMOND,
         DIAMOND_CONSTRUCTOR_PARAMS.map((param) => diamondArgs[param]),
         options.dryRun,
         network
@@ -398,9 +383,9 @@ async function deployCoreFacetsImpl(options: {
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error)
-      consola.error(`Failed to deploy ${diamondName}: ${errorMessage}`)
+      consola.error(`Failed to deploy ${DIAMOND}: ${errorMessage}`)
       deploymentResults.push({
-        contract: diamondName,
+        contract: DIAMOND,
         address: '',
         version: '',
         txId: '',

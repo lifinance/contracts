@@ -210,6 +210,11 @@ export type ExistingDeploymentMode =
       reason: string
     }
   | {
+      kind: 'keepRecorded'
+      /** Why an address recorded for the network is reused whatever its code. */
+      reason: string
+    }
+  | {
       kind: 'proposeOnly'
       /** Throws unless the code at `address` is this checkout's build of the contract. */
       assertThisBuild: (address: string) => Promise<void>

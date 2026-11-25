@@ -1,11 +1,9 @@
 /**
- * Narrows `deploy-core-facets.ts` to the contracts its `--only` flag names and decides what
- * happens to LiFiDiamond, which is redeployed only when named.
+ * Narrows `deploy-core-facets.ts` to the contracts its `--only` flag names, including
+ * whether LiFiDiamond, which is redeployed only when named, is among them.
  */
 
-import type { TDiamondPlan } from '../types'
-
-const DIAMOND = 'LiFiDiamond'
+export const DIAMOND = 'LiFiDiamond'
 const DIAMOND_CUT_FACET = 'DiamondCutFacet'
 
 /**
@@ -45,22 +43,4 @@ export function selectCoreContracts(
     facets: coreFacets.filter((facet) => only.includes(facet)),
     diamondNamed,
   }
-}
-
-/**
- * Decides LiFiDiamond's fate when `--only` does not name it: a diamond recorded for the
- * network is kept, since replacing it would orphan every facet cut into it.
- *
- * @param options.onlyGiven - Whether `--only` was passed at all.
- * @param options.recordedAddress - LiFiDiamond's address in this network's own log, if any.
- * @returns `reuse` for a recorded diamond, `skip` when `--only` leaves it out and none is
- *   recorded, `deploy` for a full run on a network without one.
- */
-export function planUnnamedDiamond(options: {
-  onlyGiven: boolean
-  recordedAddress: string | null
-}): TDiamondPlan {
-  if (options.recordedAddress)
-    return { action: 'reuse', address: options.recordedAddress }
-  return options.onlyGiven ? { action: 'skip' } : { action: 'deploy' }
 }

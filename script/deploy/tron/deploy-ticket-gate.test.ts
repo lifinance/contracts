@@ -251,12 +251,13 @@ describe('deploy-and-register-periphery.ts redeploy decisions', () => {
   })
 
   it('keeps a recorded timelock unless --only names it', () => {
-    const keep = calls.filter((c) => c.name === 'keepRecordedTimelock')
-    expect(keep).toHaveLength(1)
-    const conditional = (keep[0] as ICall).node.parent.parent
-    expect(ts.isConditionalExpression(conditional)).toBe(true)
-    expect(
-      (conditional as ts.ConditionalExpression).condition.getText()
-    ).toMatch(/onlyContracts\?\.includes\(\s*'LiFiTimelockController'\s*\)/)
+    const timelock = argsOf('checkExistingDeployment').filter(
+      (args) => args[1] === "'LiFiTimelockController'"
+    )
+    expect(timelock).toHaveLength(1)
+    const mode = (timelock[0] as string[])[2] ?? ''
+    expect(mode).toMatch(
+      /^onlyContracts\?\.includes\(\s*'LiFiTimelockController'\s*\)\s*\?[\s\S]*:\s*KEEP_UNLESS_NAMED$/
+    )
   })
 })

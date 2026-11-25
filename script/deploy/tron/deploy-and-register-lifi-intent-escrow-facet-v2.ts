@@ -45,7 +45,7 @@ const CONTRACT_NAME = 'LiFiIntentEscrowFacetV2'
 async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
   dryRun?: boolean
   proposeOnly?: boolean
-  skipConfirmation?: boolean
+  skipConfirmation: boolean
 }) {
   consola.start(`TRON ${CONTRACT_NAME} Deployment & Registration`)
   const dryRun = options.dryRun ?? false
@@ -134,7 +134,7 @@ async function deployAndRegisterLiFiIntentEscrowFacetV2(options: {
     const contracts = [CONTRACT_NAME]
 
     confirmDeployment(environment, network, contracts, {
-      skipConfirmation: options.skipConfirmation ?? false,
+      skipConfirmation: options.skipConfirmation,
       dryRun,
     })
 
