@@ -82,7 +82,7 @@ Every check below runs against `HEAD_OID`.
 - **Unresolved threads, failing CI or Aikido not scanned on a ready PR** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
 - **CI in progress, nothing failing** → tell the user; default to waiting.
 - **Draft + clean** (judged without the Aikido row, which is `SKIPPED` on drafts) → offer `gh pr ready <N> --repo <REPO>`; confirm first. After it, wait in the background (at most 30 min) for the ready-only runs, since `gh pr checks` still shows the draft's `SKIPPED` rows until they start:
-  - Aikido: the newest run by `started_at` of `gh api "repos/<REPO>/commits/<HEAD_OID>/check-runs?check_name=Aikido%20Security%3A%20check%20code"` is `completed` and not `skipped`.
+  - Every check that was `SKIPPED` on the draft (unit tests, `version-control`, `verify-signed-commits`, Aikido…) has a run on `HEAD_OID` that started after `gh pr ready` and is `completed`: read the newest by `started_at` from `gh api "repos/<REPO>/commits/<HEAD_OID>/check-runs?check_name=<URL-encoded name>"`. Aikido's must not be `skipped`.
   - CI: none in progress, and the set from `gh pr checks` unchanged across two polls 30 s apart.
 
   Then rerun step 2 and this gate before confirming. At the bound, report what hasn't settled and don't post.
