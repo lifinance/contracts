@@ -43,6 +43,7 @@ import {
 } from './assertTronToolchain'
 import {
   assertFacetCodeMatchesArtifacts,
+  describeDeployedCodeMismatch,
   tronRuntimeCodeReader,
 } from './helpers/assertFacetCodeMatchesArtifact'
 import {
@@ -115,12 +116,16 @@ export async function checkIsDeployedTron(
  * In propose-only mode the recorded address must hold this checkout's build: the cut's
  * selectors and the logged `@custom:version` both come from `out/`, so an older facet left
  * in the log by a failed deploy would be proposed under the wrong selectors and version.
+ * Otherwise the same comparison decides whether the recorded address is reused, unless
+ * `FORCE_REDEPLOY=true` asks for a fresh deploy.
  *
  * @param proposeOnly - the script's `--proposeOnly` flag
  * @param contract - the contract the script deploys
- * @param tronWeb - reads the recorded address's runtime code in propose-only mode
+ * @param tronWeb - reads the recorded address's runtime code
  * @param outRoot - Forge output directory holding the contract's artifact
- * @returns `proposeOnly` with an on-chain artifact match, else `prompt`
+ * @returns `proposeOnly` when the flag is on, `redeploy` under `FORCE_REDEPLOY=true`,
+ *   else `codeMatch`; the first and last compare on-chain code with the artifact
+ * @throws when `--proposeOnly` and `FORCE_REDEPLOY=true` are both set
  */
 export function tronExistingDeploymentMode(
   proposeOnly: boolean,
@@ -128,7 +133,24 @@ export function tronExistingDeploymentMode(
   tronWeb: TronWeb,
   outRoot: string = join(process.cwd(), 'out')
 ): ExistingDeploymentMode {
-  if (!proposeOnly) return { kind: 'prompt' }
+  const forceRedeploy = process.env.FORCE_REDEPLOY === 'true'
+  if (proposeOnly && forceRedeploy)
+    throw new Error(
+      '--proposeOnly cannot be combined with FORCE_REDEPLOY=true; unset FORCE_REDEPLOY'
+    )
+  if (!proposeOnly)
+    return forceRedeploy
+      ? { kind: 'redeploy' }
+      : {
+          kind: 'codeMatch',
+          describeMismatch: (address) =>
+            describeDeployedCodeMismatch({
+              name: contract,
+              address,
+              readRuntimeCode: tronRuntimeCodeReader(tronWeb),
+              outRoot,
+            }),
+        }
   return {
     kind: 'proposeOnly',
     assertThisBuild: (address) =>

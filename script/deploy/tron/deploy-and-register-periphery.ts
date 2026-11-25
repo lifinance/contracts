@@ -9,7 +9,6 @@ import {
   createTronWeb,
   evmHexToTronBase58,
   loadForgeArtifact,
-  promptEnergyRentalReminder,
   tronAddressLikeToBase58,
   tronAddressToHex,
   tronRegistrationAddressToEvmHex,
@@ -30,6 +29,7 @@ import { redactUrls } from '../../utils/redactUrls'
 import {
   getEnvVar,
   getRPCEnvVarName,
+  assertDeploymentConfirmed,
   checkExistingDeployment,
   getContractAddress,
   getEnvironment,
@@ -48,12 +48,14 @@ import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import {
   proposeTronPeripheryRegistrations,
+  readTronWhitelistedSelectors,
   tronHasCode,
 } from './propose-periphery-registrations.js'
 import {
   assertTronDeploymentRecordable,
   getTronWallet,
   recordTronDeployment,
+  tronExistingDeploymentMode,
 } from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
@@ -122,16 +124,6 @@ async function ensureExecutorAuthorizedOnErc20Proxy(
     .send({ feeLimit: 10_000_000, shouldPollResponse: true })
   consola.success(`Executor authorized on ERC20Proxy (tx: ${tx})`)
 }
-
-const TRON_WHITELIST_READ_ABI = [
-  {
-    name: 'getWhitelistedSelectorsForContract',
-    type: 'function' as const,
-    inputs: [{ name: '_contract', type: 'address' }],
-    outputs: [{ name: 'selectors', type: 'bytes4[]' }],
-    stateMutability: 'view',
-  },
-] as const
 
 /**
  * Deploy and register periphery contracts to Tron
@@ -289,7 +281,15 @@ async function deployAndRegisterPeripheryImpl(options: {
         '9. Register periphery contracts with PeripheryRegistryFacet\n'
       )
 
-      if (!dryRun) await promptEnergyRentalReminder()
+      if (!dryRun)
+        consola.info(
+          'Tip: renting energy (e.g. from Zinergy.ag for 1 hour) reduces the TRX burned by the deploy.'
+        )
+
+      assertDeploymentConfirmed(environment, network, {
+        skipConfirmation: options.skipConfirmation,
+        dryRun,
+      })
     } else {
       consola.info(
         '\n Register-only mode: will register contract(s) from deployments file with the Diamond.\n'
@@ -299,40 +299,8 @@ async function deployAndRegisterPeripheryImpl(options: {
     // Delay before first RPC to avoid 429 rate limits
     if (!dryRun) await sleep(10000)
 
-    if (!dryRun && !options.skipConfirmation && !options.registerOnly)
-      if (environment === EnvironmentEnum.production) {
-        consola.warn(
-          ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
-        )
-        const shouldContinue = await consola.prompt(
-          'Do you want to continue?',
-          {
-            type: 'confirm',
-            initial: false,
-          }
-        )
-
-        if (!shouldContinue) {
-          consola.info('Deployment cancelled')
-          process.exit(0)
-        }
-      } else {
-        consola.warn('This will deploy contracts to Tron mainnet in STAGING!')
-        const shouldContinue = await consola.prompt(
-          'Do you want to continue?',
-          {
-            type: 'confirm',
-            initial: true,
-          }
-        )
-
-        if (!shouldContinue) {
-          consola.info('Deployment cancelled')
-          process.exit(0)
-        }
-      }
-
     const deployedContracts: Record<string, string> = {}
+    const simulatedDeploys = new Set<string>()
     const deploymentResults: Array<{
       contract: string
       address: string
@@ -374,7 +342,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const erc20Deployment = await checkExistingDeployment(
             network,
             'ERC20Proxy',
-            dryRun
+            tronExistingDeploymentMode(false, 'ERC20Proxy', tronWeb)
           )
 
           if (
@@ -427,6 +395,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['ERC20Proxy'] = result.contractAddress
+            if (dryRun) simulatedDeploys.add('ERC20Proxy')
             deploymentResults.push({
               contract: 'ERC20Proxy',
               address: result.contractAddress,
@@ -478,7 +447,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const executorDeployment = await checkExistingDeployment(
             network,
             'Executor',
-            dryRun
+            tronExistingDeploymentMode(false, 'Executor', tronWeb)
           )
 
           if (
@@ -541,6 +510,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['Executor'] = result.contractAddress
+            if (dryRun) simulatedDeploys.add('Executor')
             deploymentResults.push({
               contract: 'Executor',
               address: result.contractAddress,
@@ -617,7 +587,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const feeCollectorDeployment = await checkExistingDeployment(
             network,
             'FeeCollector',
-            dryRun
+            tronExistingDeploymentMode(false, 'FeeCollector', tronWeb)
           )
 
           if (
@@ -668,6 +638,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['FeeCollector'] = result.contractAddress
+            if (dryRun) simulatedDeploys.add('FeeCollector')
             deploymentResults.push({
               contract: 'FeeCollector',
               address: result.contractAddress,
@@ -725,7 +696,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const feeForwarderDeployment = await checkExistingDeployment(
             network,
             'FeeForwarder',
-            dryRun
+            tronExistingDeploymentMode(false, 'FeeForwarder', tronWeb)
           )
 
           if (
@@ -778,6 +749,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['FeeForwarder'] = result.contractAddress
+            if (dryRun) simulatedDeploys.add('FeeForwarder')
             deploymentResults.push({
               contract: 'FeeForwarder',
               address: result.contractAddress,
@@ -858,7 +830,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             const tokenWrapperDeployment = await checkExistingDeployment(
               network,
               'TokenWrapper',
-              dryRun
+              tronExistingDeploymentMode(false, 'TokenWrapper', tronWeb)
             )
 
             if (
@@ -953,6 +925,7 @@ async function deployAndRegisterPeripheryImpl(options: {
               )
 
               deployedContracts['TokenWrapper'] = result.contractAddress
+              if (dryRun) simulatedDeploys.add('TokenWrapper')
               deploymentResults.push({
                 contract: 'TokenWrapper',
                 address: result.contractAddress,
@@ -1009,7 +982,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const outputValidatorDeployment = await checkExistingDeployment(
             network,
             'OutputValidator',
-            dryRun
+            tronExistingDeploymentMode(false, 'OutputValidator', tronWeb)
           )
 
           if (
@@ -1059,6 +1032,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['OutputValidator'] = result.contractAddress
+            if (dryRun) simulatedDeploys.add('OutputValidator')
             deploymentResults.push({
               contract: 'OutputValidator',
               address: result.contractAddress,
@@ -1115,7 +1089,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const receiverOIFDeployment = await checkExistingDeployment(
             network,
             'ReceiverOIF',
-            dryRun
+            tronExistingDeploymentMode(false, 'ReceiverOIF', tronWeb)
           )
 
           if (
@@ -1202,6 +1176,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['ReceiverOIF'] = result.contractAddress
+            if (dryRun) simulatedDeploys.add('ReceiverOIF')
             deploymentResults.push({
               contract: 'ReceiverOIF',
               address: result.contractAddress,
@@ -1262,7 +1237,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             const timelockDeployment = await checkExistingDeployment(
               network,
               'LiFiTimelockController',
-              dryRun
+              tronExistingDeploymentMode(
+                false,
+                'LiFiTimelockController',
+                tronWeb
+              )
             )
 
             if (
@@ -1422,17 +1401,17 @@ async function deployAndRegisterPeripheryImpl(options: {
         ([, address]) =>
           address && address !== 'FAILED' && address !== 'SKIPPED'
       )
-      .map(([name, address]) => ({ name, address }))
+      .map(([name, address]) => ({
+        name,
+        address,
+        simulated: simulatedDeploys.has(name),
+      }))
 
     const toEvm = (value: string) =>
       normalizeAddressForNetwork(
         tvmKey,
         tronAddressLikeToBase58(tronWeb, value)
       )
-    const whitelistManager = tronWeb.contract(
-      TRON_WHITELIST_READ_ABI,
-      diamondAddress
-    )
     const withRateLimit = <T>(read: () => Promise<T>) =>
       retryWithRateLimit(read, 3, REGISTRATION_RPC_DELAY_MS, (attempt, delay) =>
         consola.warn(
@@ -1463,11 +1442,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         },
         readWhitelistedSelectors: (contract) =>
           withRateLimit(() =>
-            whitelistManager
-              .getWhitelistedSelectorsForContract(
-                evmHexToTronBase58(tronWeb, contract)
-              )
-              .call()
+            readTronWhitelistedSelectors(tronWeb, diamondAddress, contract)
           ),
         hasCode: tronHasCode(async (address) => {
           const contract = await withRateLimit(() =>

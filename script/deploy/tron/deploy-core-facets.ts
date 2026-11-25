@@ -13,6 +13,7 @@ import {
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import type { TronWeb } from 'tronweb'
 
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
@@ -24,11 +25,12 @@ import {
   getEnvironment,
   checkExistingDeployment,
   confirmDeployment,
+  findContractAddress,
   printDeploymentSummary,
   displayNetworkInfo,
   updateDiamondJsonBatch,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
@@ -40,10 +42,55 @@ import {
   type DiamondConstructorArgs,
 } from './helpers/coreFacetConstructorArgs'
 import {
+  planUnnamedDiamond,
+  selectCoreContracts,
+  type TDiamondPlan,
+} from './helpers/coreFacetSelection'
+import {
   deployContractWithLogging,
+  tronExistingDeploymentMode,
   validateBalance,
   waitBetweenDeployments,
 } from './tronUtils.js'
+
+/**
+ * Decides what the run does with LiFiDiamond: a named diamond is reused or redeployed like
+ * any other contract; an unnamed one is never replaced.
+ */
+async function planDiamond(
+  network: SupportedChain,
+  named: boolean,
+  onlyGiven: boolean,
+  tronWeb: TronWeb
+): Promise<TDiamondPlan> {
+  const diamondName = 'LiFiDiamond'
+  if (named) {
+    const existing = await checkExistingDeployment(
+      network,
+      diamondName,
+      tronExistingDeploymentMode(false, diamondName, tronWeb)
+    )
+    return existing.exists && existing.address && !existing.shouldRedeploy
+      ? { action: 'reuse', address: existing.address }
+      : { action: 'deploy' }
+  }
+
+  const recorded = await findContractAddress(network, diamondName)
+  const plan = planUnnamedDiamond({
+    onlyGiven,
+    recordedAddress:
+      recorded && !recorded.fromOtherNetwork ? recorded.address : null,
+  })
+  if (plan.action === 'reuse')
+    consola.info(
+      `${diamondName}: reusing ${plan.address} (redeployed only when --only names it)`
+    )
+  if (plan.action === 'deploy')
+    consola.info(
+      `${diamondName}: deploying (no address recorded for ${network})`
+    )
+  return plan
+}
 
 /**
  * Deploy core facets implementation
@@ -52,8 +99,15 @@ async function deployCoreFacetsImpl(options: {
   dryRun: boolean
   verbose: boolean
   delaySeconds: number
+  skipConfirmation: boolean
+  onlyContracts: string[] | undefined
 }) {
   consola.start('TRON Core Facets Deployment')
+  const diamondName = 'LiFiDiamond'
+  const { facets: coreFacets, diamondNamed } = selectCoreContracts(
+    getCoreFacets({ exclude: ['GasZipFacet'] }),
+    options.onlyContracts
+  )
   buildForgeArtifactsOrThrow()
 
   const environment = getEnvironment()
@@ -130,22 +184,15 @@ async function deployCoreFacetsImpl(options: {
   // Validate balance
   await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-  // Get core facets list
-  const coreFacets = getCoreFacets({ exclude: ['GasZipFacet'] })
-
-  // Add LiFiDiamond to the contracts list for confirmation
-  const allContracts = [...coreFacets, 'LiFiDiamond']
-
-  // Confirm deployment FIRST
-  const shouldContinue = await confirmDeployment(
+  confirmDeployment(
     environment,
     network,
-    allContracts
+    [
+      ...coreFacets,
+      ...(diamondNamed || !options.onlyContracts ? [diamondName] : []),
+    ],
+    { skipConfirmation: options.skipConfirmation, dryRun: options.dryRun }
   )
-  if (!shouldContinue) {
-    consola.info('Deployment cancelled')
-    process.exit(0)
-  }
 
   // Now check for existing deployments (sequentially to avoid event listener warnings)
   consola.info(`\nCore facets to deploy: ${coreFacets.length}`)
@@ -162,7 +209,7 @@ async function deployCoreFacetsImpl(options: {
     const deployment = await checkExistingDeployment(
       network,
       facet,
-      options.dryRun
+      tronExistingDeploymentMode(false, facet, tronWeb)
     )
     existingDeployments.push(deployment)
   }
@@ -186,21 +233,15 @@ async function deployCoreFacetsImpl(options: {
     networksConfig
   )
 
-  const diamondName = 'LiFiDiamond'
-  const existingDiamond = await checkExistingDeployment(
+  const diamondPlan = await planDiamond(
     network,
-    diamondName,
-    options.dryRun
+    diamondNamed,
+    options.onlyContracts !== undefined,
+    tronWeb
   )
-  const deployedDiamondAddress =
-    existingDiamond.exists &&
-    existingDiamond.address &&
-    !existingDiamond.shouldRedeploy
-      ? existingDiamond.address
-      : null
   // The diamond is deployed after every facet, so a mismatch in its constructor
   // surfaces only once they have all been paid for.
-  if (deployedDiamondAddress === null)
+  if (diamondPlan.action === 'deploy')
     await assertDiamondConstructorShape(
       diamondName,
       network,
@@ -281,15 +322,16 @@ async function deployCoreFacetsImpl(options: {
     }
   }
 
-  // Deploy LiFiDiamond
-  consola.info(`\n💎 Deploying ${diamondName}...`)
-
-  if (deployedDiamondAddress !== null) {
-    consola.info(`⏭️  Skipping ${diamondName} (already deployed)`)
+  if (diamondPlan.action === 'skip')
+    consola.info(
+      `\n⏭️  Skipping ${diamondName} (not named in --only and none recorded for ${network})`
+    )
+  else if (diamondPlan.action === 'reuse') {
+    consola.info(`\n⏭️  Skipping ${diamondName} (already deployed)`)
     const version = await getContractVersion(diamondName)
     deploymentResults.push({
       contract: diamondName,
-      address: deployedDiamondAddress,
+      address: diamondPlan.address,
       version,
       txId: '',
       cost: 0,
@@ -297,6 +339,7 @@ async function deployCoreFacetsImpl(options: {
     })
   } else
     try {
+      consola.info(`\n💎 Deploying ${diamondName}...`)
       // Get owner address (deployer address)
       const ownerAddress = networkInfo.address
       const ownerHex = tronAddressToHex(tronWeb, ownerAddress)
@@ -304,7 +347,7 @@ async function deployCoreFacetsImpl(options: {
       const diamondCutFacet = facetAddresses['DiamondCutFacet']
       if (!diamondCutFacet)
         throw new Error(
-          `${diamondName} takes the DiamondCutFacet address, but DiamondCutFacet has no address in this run — its deployment failed. The diamond cannot be assembled without it.`
+          `${diamondName} takes the DiamondCutFacet address, but DiamondCutFacet has no address in this run — its deployment failed, or --only did not name it. The diamond cannot be assembled without it.`
         )
 
       const diamondCutFacetHex = tronAddressToHex(
@@ -366,7 +409,7 @@ async function deployCoreFacetsImpl(options: {
     }
 
   // If diamond already existed, still update the diamond JSON with facet addresses
-  if (existingDiamond.exists && existingDiamond.address && !options.dryRun) {
+  if (diamondPlan.action === 'reuse' && !options.dryRun) {
     // Update diamond JSON files
     const facetEntries = Object.entries(facetAddresses).map(([name, data]) => ({
       name,
@@ -402,6 +445,16 @@ const deployCommand = defineCommand({
     delaySeconds: {
       type: 'string',
       description: 'Number of seconds to wait between deployments (default: 5)',
+    },
+    skipConfirmation: {
+      type: 'boolean',
+      description:
+        'Confirm a production deploy up front; production refuses to broadcast without it',
+    },
+    only: {
+      type: 'string',
+      description:
+        'Comma-separated core facets to deploy (e.g. DiamondLoupeFacet). LiFiDiamond is redeployed only when named here.',
     },
   },
   async run({ args }) {
@@ -444,6 +497,14 @@ const deployCommand = defineCommand({
         dryRun,
         verbose,
         delaySeconds,
+        skipConfirmation: readBooleanFlag(process.argv, {
+          camel: 'skipConfirmation',
+          kebab: 'skip-confirmation',
+        }),
+        onlyContracts: args.only
+          ?.split(',')
+          .map((name) => name.trim())
+          .filter(Boolean),
       })
     } catch (error: unknown) {
       const errorMessage =

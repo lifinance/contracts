@@ -492,7 +492,7 @@ export async function getContractAddress(
  * @returns the address and `fromOtherNetwork`, or null when no log records it
  * @throws when `network` would resolve outside `deployments/`
  */
-async function findContractAddress(
+export async function findContractAddress(
   network: NetworkKey,
   contract: string
 ): Promise<{ address: string; fromOtherNetwork: boolean } | null> {
@@ -617,26 +617,27 @@ export async function getFacetSelectors(
  *
  * @param network - the network being deployed to
  * @param contractName - the contract to look up
- * @param dryRun - only changes the prompt's wording
- * @param mode - `prompt` asks before redeploying a recorded address; `redeploy`
- *   deploys without asking; `proposeOnly` never deploys and returns the recorded
- *   address for the caller to propose
+ * @param mode - `codeMatch` reuses a recorded address holding this checkout's
+ *   build and deploys otherwise; `redeploy` always deploys; `proposeOnly` never
+ *   deploys and returns the recorded address for the caller to propose
  * @returns the recorded address, if any, and whether to deploy
  * @throws in `proposeOnly` mode when no address is recorded for `network`, when
- *   the only record is another network's log, or when `hasCode` finds no code
+ *   the only record is another network's log, or when the build check fails; in
+ *   `codeMatch` mode when the recorded address's code cannot be read
  */
 export async function checkExistingDeployment(
   network: SupportedChain,
   contractName: string,
-  dryRun = false,
-  mode: ExistingDeploymentMode = { kind: 'prompt' }
+  mode: ExistingDeploymentMode
 ): Promise<{
   exists: boolean
   address: string | null
   shouldRedeploy: boolean
 }> {
-  if (mode.kind === 'redeploy')
+  if (mode.kind === 'redeploy') {
+    consola.info(`${contractName}: deploying (FORCE_REDEPLOY=true)`)
     return { exists: false, address: null, shouldRedeploy: true }
+  }
 
   if (mode.kind === 'proposeOnly') {
     const address = await recordedAddressOfThisBuild(
@@ -648,32 +649,27 @@ export async function checkExistingDeployment(
     return { exists: true, address, shouldRedeploy: false }
   }
 
-  const existingAddress = await getContractAddress(network, contractName)
+  const found = await findContractAddress(network, contractName)
+  if (!found || found.fromOtherNetwork) {
+    const reason = found
+      ? `recorded for ${network} only through another network's log (${found.address})`
+      : `no address recorded for ${network}`
+    consola.info(`${contractName}: deploying (${reason})`)
+    return { exists: false, address: null, shouldRedeploy: true }
+  }
 
-  if (existingAddress) {
-    // Always prompt user whether to redeploy (same behavior in both dryRun and non-dryRun)
-    consola.warn(`${contractName} is already deployed at: ${existingAddress}`)
-    const dryRunSuffix = dryRun ? ' (DRY RUN - will simulate)' : ''
-    const shouldRedeploy = await consola.prompt(
-      `Redeploy ${contractName}?${dryRunSuffix}`,
-      {
-        type: 'confirm',
-        initial: false,
-      }
+  const mismatch = await mode.describeMismatch(found.address)
+  if (mismatch) {
+    consola.warn(
+      `${contractName}: deploying (recorded ${found.address} is not this checkout's build: ${mismatch})`
     )
-
-    return {
-      exists: true,
-      address: existingAddress,
-      shouldRedeploy,
-    }
+    return { exists: true, address: found.address, shouldRedeploy: true }
   }
 
-  return {
-    exists: false,
-    address: null,
-    shouldRedeploy: true,
-  }
+  consola.info(
+    `${contractName}: reusing ${found.address} (runtime code matches this checkout's build)`
+  )
+  return { exists: true, address: found.address, shouldRedeploy: false }
 }
 
 async function recordedAddressOfThisBuild(
@@ -1019,17 +1015,51 @@ export async function updateDiamondJsonPeriphery(
 }
 
 /**
- * Display deployment confirmation prompt
+ * Warns which environment a deploy targets and refuses a production broadcast the
+ * operator has not confirmed with `--skipConfirmation`. Never prompts, so a run
+ * without a terminal cannot hang on it.
+ *
+ * @param environment - the environment the run deploys to
+ * @param network - the network the run deploys to
+ * @param options.skipConfirmation - the run's `--skipConfirmation` flag
+ * @param options.dryRun - true when nothing is broadcast, which needs no confirmation
+ * @throws on a production run that broadcasts without `--skipConfirmation`
  */
-export async function confirmDeployment(
+export function assertDeploymentConfirmed(
   environment: EnvironmentEnum,
   network: SupportedChain,
-  contracts: string[]
-): Promise<boolean> {
-  const isProduction = environment === EnvironmentEnum.production
+  options: { skipConfirmation: boolean; dryRun: boolean }
+): void {
   const networkName = network.includes('shasta') ? 'Shasta Testnet' : 'Mainnet'
+  if (environment !== EnvironmentEnum.production) {
+    consola.warn(`This will deploy to ${network} ${networkName} in STAGING!`)
+    return
+  }
 
-  // Use consola.box for deployment plan
+  consola.warn(
+    `WARNING: This will deploy to ${network} ${networkName} in PRODUCTION!`
+  )
+  if (options.dryRun || options.skipConfirmation) return
+  throw new Error(
+    `Refusing to broadcast to ${network} in PRODUCTION without --skipConfirmation. Re-run with --skipConfirmation once the plan above is the one you mean to deploy.`
+  )
+}
+
+/**
+ * Prints the deployment plan, then applies `assertDeploymentConfirmed`.
+ *
+ * @param environment - the environment the run deploys to
+ * @param network - the network the run deploys to
+ * @param contracts - the contracts in the plan
+ * @param options - the run's `--skipConfirmation` and dry-run flags
+ * @throws on a production run that broadcasts without `--skipConfirmation`
+ */
+export function confirmDeployment(
+  environment: EnvironmentEnum,
+  network: SupportedChain,
+  contracts: string[],
+  options: { skipConfirmation: boolean; dryRun: boolean }
+): void {
   const planContent = contracts
     .map((contract, index) => `${index + 1}. ${contract}`)
     .join('\n')
@@ -1042,23 +1072,7 @@ export async function confirmDeployment(
     },
   })
 
-  if (isProduction)
-    consola.warn(
-      `WARNING: This will deploy to ${network} ${networkName} in PRODUCTION!`
-    )
-  else consola.warn(`This will deploy to ${network} ${networkName} in STAGING!`)
-
-  const shouldContinue = await consola.prompt('Do you want to continue?', {
-    type: 'confirm',
-    initial: !isProduction,
-  })
-
-  if (!shouldContinue) {
-    consola.info('Deployment cancelled')
-    return false
-  }
-
-  return true
+  assertDeploymentConfirmed(environment, network, options)
 }
 
 /**

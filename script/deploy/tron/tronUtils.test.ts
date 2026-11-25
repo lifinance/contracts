@@ -51,7 +51,9 @@ describe('tronExistingDeploymentMode', () => {
   }
 
   const proposeOnlyMode = (tronWeb: TronWeb) => {
-    const mode = tronExistingDeploymentMode(true, 'EcoFacet', tronWeb, OUT_ROOT)
+    const mode = withForceRedeploy(undefined, () =>
+      tronExistingDeploymentMode(true, 'EcoFacet', tronWeb, OUT_ROOT)
+    )
     if (mode.kind !== 'proposeOnly') throw new Error(`got ${mode.kind}`)
     return mode
   }
@@ -65,12 +67,79 @@ describe('tronExistingDeploymentMode', () => {
     throw new Error('expected a rejection')
   }
 
-  it('prompts when --proposeOnly is off', () => {
+  /** Runs `action` with FORCE_REDEPLOY set to `value` (unset when undefined), then restores it. */
+  const withForceRedeploy = <T>(
+    value: string | undefined,
+    action: () => T
+  ): T => {
+    const previous = process.env.FORCE_REDEPLOY
+    if (value === undefined) {
+      delete process.env.FORCE_REDEPLOY
+    } else {
+      process.env.FORCE_REDEPLOY = value
+    }
+    try {
+      return action()
+    } finally {
+      if (previous === undefined) {
+        delete process.env.FORCE_REDEPLOY
+      } else {
+        process.env.FORCE_REDEPLOY = previous
+      }
+    }
+  }
+
+  const codeMatchMode = (tronWeb: TronWeb) => {
+    const mode = withForceRedeploy(undefined, () =>
+      tronExistingDeploymentMode(false, 'EcoFacet', tronWeb, OUT_ROOT)
+    )
+    if (mode.kind !== 'codeMatch') throw new Error(`got ${mode.kind}`)
+    return mode
+  }
+
+  it('reuses a recorded address holding this checkout build when --proposeOnly is off', async () => {
+    const { asked, tronWeb } = fakeTronWeb(async () => ({
+      runtimecode: THIS_BUILD,
+    }))
+
+    expect(await codeMatchMode(tronWeb).describeMismatch(ADDR)).toBeUndefined()
+    expect(asked).toEqual([ADDR])
+  })
+
+  it('names why a recorded address holding an older build is redeployed', async () => {
+    const { tronWeb } = fakeTronWeb(async () => ({ runtimecode: OLDER_BUILD }))
+
+    expect(await codeMatchMode(tronWeb).describeMismatch(ADDR)).toBe(
+      'on-chain code differs'
+    )
+  })
+
+  it('names why a recorded address with no code is redeployed', async () => {
+    const { tronWeb } = fakeTronWeb(async () => ({}))
+
+    expect(await codeMatchMode(tronWeb).describeMismatch(ADDR)).toBe(
+      'no code at that address'
+    )
+  })
+
+  it('redeploys under FORCE_REDEPLOY=true', () => {
     const { tronWeb } = fakeTronWeb(async () => null)
 
-    expect(tronExistingDeploymentMode(false, 'EcoFacet', tronWeb)).toEqual({
-      kind: 'prompt',
-    })
+    expect(
+      withForceRedeploy('true', () =>
+        tronExistingDeploymentMode(false, 'EcoFacet', tronWeb)
+      )
+    ).toEqual({ kind: 'redeploy' })
+  })
+
+  it('refuses --proposeOnly together with FORCE_REDEPLOY=true', () => {
+    const { tronWeb } = fakeTronWeb(async () => null)
+
+    expect(() =>
+      withForceRedeploy('true', () =>
+        tronExistingDeploymentMode(true, 'EcoFacet', tronWeb)
+      )
+    ).toThrow(/--proposeOnly cannot be combined with FORCE_REDEPLOY=true/)
   })
 
   it('accepts a recorded address holding this checkout build', async () => {

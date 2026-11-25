@@ -199,7 +199,11 @@ export interface IDeploymentResult {
 
 /** How a deploy script treats a contract already recorded for its network. */
 export type ExistingDeploymentMode =
-  | { kind: 'prompt' }
+  | {
+      kind: 'codeMatch'
+      /** Why the code at `address` is not this checkout's build, or undefined when it is. */
+      describeMismatch: (address: string) => Promise<string | undefined>
+    }
   | { kind: 'redeploy' }
   | {
       kind: 'proposeOnly'

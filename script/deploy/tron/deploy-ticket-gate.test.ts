@@ -173,6 +173,39 @@ describe('Tron deploy-and-register scripts check the ticket first', () => {
     }
   )
 
+  it.each([...FACET_SCRIPTS, 'deploy-core-facets.ts'])(
+    '%s hands confirmDeployment the --skipConfirmation flag, read strictly',
+    (script) => {
+      const calls = callsIn(script)
+      const [confirmation] = calls.filter((c) => c.name === 'confirmDeployment')
+      const options = confirmation?.node.arguments[3]
+      expect(options?.getText()).toMatch(
+        /skipConfirmation: options\.skipConfirmation/
+      )
+
+      const reads = calls.filter(({ name, node }) => {
+        const { parent } = node
+        return (
+          name === 'readBooleanFlag' &&
+          ts.isPropertyAssignment(parent) &&
+          parent.name.getText() === 'skipConfirmation'
+        )
+      })
+      expect(reads).toHaveLength(1)
+      expect((reads[0] as ICall).node.arguments[1]?.getText()).toContain(
+        "camel: 'skipConfirmation'"
+      )
+    }
+  )
+
+  it.each([...SCRIPTS, 'deploy-core-facets.ts'])(
+    '%s never waits on a prompt',
+    (script) => {
+      const source = readFileSync(join(import.meta.dir, script), 'utf8')
+      expect(source).not.toMatch(/consola\.prompt|promptEnergyRentalReminder/)
+    }
+  )
+
   it.each(FACET_SCRIPTS)(
     '%s passes --proposeOnly to the deployment-mode check for the facet it deploys',
     (script) => {

@@ -58,6 +58,7 @@ import {
 async function deployAndRegisterLayerSwapFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
+  skipConfirmation?: boolean
 }) {
   consola.start('TRON LayerSwapFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -154,8 +155,10 @@ async function deployAndRegisterLayerSwapFacet(options: {
 
     const contracts = ['LayerSwapFacet']
 
-    if (!(await confirmDeployment(environment, network, contracts)))
-      process.exit(0)
+    confirmDeployment(environment, network, contracts, {
+      skipConfirmation: options.skipConfirmation ?? false,
+      dryRun,
+    })
 
     const deploymentResults: IDeploymentResult[] = []
 
@@ -164,7 +167,6 @@ async function deployAndRegisterLayerSwapFacet(options: {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'LayerSwapFacet',
-      dryRun,
       tronExistingDeploymentMode(proposeOnly, 'LayerSwapFacet', tronWeb)
     )
 
@@ -263,6 +265,11 @@ const main = defineCommand({
       description:
         'Skip the deploy and propose the address recorded for the network',
     },
+    skipConfirmation: {
+      type: 'boolean',
+      description:
+        'Confirm a production deploy up front; production refuses to broadcast without it',
+    },
   },
   async run({ args }) {
     await deployAndRegisterLayerSwapFacet({
@@ -270,6 +277,10 @@ const main = defineCommand({
       proposeOnly: readBooleanFlag(process.argv, {
         camel: 'proposeOnly',
         kebab: 'propose-only',
+      }),
+      skipConfirmation: readBooleanFlag(process.argv, {
+        camel: 'skipConfirmation',
+        kebab: 'skip-confirmation',
       }),
     })
   },
