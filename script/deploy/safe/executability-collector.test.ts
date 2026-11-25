@@ -1636,6 +1636,12 @@ describe('a Tron scheduleBatch simulated through java-tron', () => {
     data: '0x277d76f8',
   }
   const METHOD_NOT_FOUND = { code: -32601, message: 'method not found' }
+  // `FunctionDoesNotExist()`: the diamond's fallback for a selector no facet serves.
+  const FUNCTION_DOES_NOT_EXIST = {
+    code: -32000,
+    message: 'REVERT opcode executed',
+    data: '0xa9ad62f8',
+  }
 
   const word = (address: Address): Hex =>
     `0x${address.slice(2).toLowerCase().padStart(64, '0')}`
@@ -1660,6 +1666,7 @@ describe('a Tron scheduleBatch simulated through java-tron', () => {
                   ? (ZERO_ADDRESS as Address)
                   : PREVIOUS_FACET
               )
+            if (ADDED.has(selector)) throw FUNCTION_DOES_NOT_EXIST
             if (selector === DIAMOND_CUT_SELECTOR && cutReverts)
               throw ONLY_CONTRACT_OWNER
             return '0x'
@@ -1708,6 +1715,50 @@ describe('a Tron scheduleBatch simulated through java-tron', () => {
     const reds = executabilityDefiniteReds(verdict)
     expect(reds.length).toBeGreaterThan(0)
     expect(reds.every((red) => red.gate === 'I')).toBe(true)
+  })
+
+  // A call to a function the same batch adds reverts on its own, and java-tron
+  // cannot run the batch in order, so the call is left undecided rather than
+  // refused or cleared.
+  it('leaves a call the batch adds undecided, with no definite red', async () => {
+    const [added] = ADDED
+    const addCut = encodeFunctionData({
+      abi: DIAMOND_CUT_ABI,
+      functionName: 'diamondCut',
+      args: [
+        [
+          {
+            facetAddress: ECO_FACET,
+            action: 0,
+            functionSelectors: [added as Hex],
+          },
+        ],
+        ZERO_ADDRESS as Address,
+        '0x' as Hex,
+      ],
+    })
+    const setter = `${added}${'00'.repeat(31)}01` as Hex
+
+    const verdict = evaluateExecutability(
+      await collectExecutabilityInput(
+        {
+          network: 'tron',
+          safeAddress: TRON_SAFE,
+          to: TRON_TIMELOCK,
+          data: scheduleBatch([TRON_DIAMOND, TRON_DIAMOND], [addCut, setter]),
+        },
+        createExecutabilityChainReader(javaTron(false))
+      )
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.refuses).toBe(false)
+    expect(
+      verdict.findings.some(
+        (finding) => finding.code === 'composed-call-not-simulated'
+      )
+    ).toBe(true)
+    expect(executabilityDefiniteReds(verdict)).toEqual([])
   })
 })
 
