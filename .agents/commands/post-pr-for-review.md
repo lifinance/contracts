@@ -74,14 +74,18 @@ Every check below runs against `HEAD_OID`.
 - **Aikido** (blocking) — CI scans every PR: the `Aikido Security: check code` row of the Failing CI call, whose findings are review threads started by `aikido-pr-checks` (GraphQL drops the `[bot]` suffix).
   - Row absent or `SKIPPED` → not scanned; block. Drafts always report `SKIPPED` (see the Gate).
   - Any Aikido thread among the unresolved threads above blocks, even on `SUCCESS`: Aikido concludes `success` with MEDIUM findings.
-  - `FAILURE` (already blocking under Failing CI) with no open Aikido thread → the findings were ignored or fixed, but Aikido doesn't refresh a finished run after `@AikidoSec ignore:` replies: say so, and tell the user to push or re-run the check.
-  - To clear findings, point to `/drive-pr <N>` (`lifinance/contracts` only) or `/aikido-address-findings`. Run the latter from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR.
+  - `FAILURE` (already blocking under Failing CI) with no open Aikido thread → likely the findings were ignored or fixed, since Aikido doesn't refresh a finished run after `@AikidoSec ignore:` replies: say so with the check's link, so the user can confirm it isn't a scan error, and tell them to push or re-run the check.
+  - To clear findings, point to `/drive-pr <N>` (`lifinance/contracts` only) or `/aikido-address-findings`. Run the latter from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR. It doesn't resolve threads: ignored ones close after Aikido's confirmation, but a fixed one still blocks until the user resolves it, unless the fix made it outdated.
 
 ### 3. Gate
 
-- **Unresolved threads, failing CI or Aikido not scanned** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
+- **Unresolved threads, failing CI or Aikido not scanned on a ready PR** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
 - **CI in progress, nothing failing** → tell the user; default to waiting.
-- **Draft + clean** (judged without the Aikido row, which is `SKIPPED` on drafts) → offer `gh pr ready <N> --repo <REPO>`; confirm first. After it, wait in the background (at most 30 min) until the Aikido row on `HEAD_OID` is complete and not `SKIPPED`, then rerun step 2 and this gate before confirming.
+- **Draft + clean** (judged without the Aikido row, which is `SKIPPED` on drafts) → offer `gh pr ready <N> --repo <REPO>`; confirm first. After it, wait in the background (at most 30 min) for the ready-only runs, since `gh pr checks` still shows the draft's `SKIPPED` rows until they start:
+  - Aikido: the newest run by `started_at` of `gh api "repos/<REPO>/commits/<HEAD_OID>/check-runs?check_name=Aikido%20Security%3A%20check%20code"` is `completed` and not `skipped`.
+  - CI: none in progress, and the set from `gh pr checks` unchanged across two polls 30 s apart.
+
+  Then rerun step 2 and this gate before confirming. At the bound, report what hasn't settled and don't post.
 
 ### 4. Confirm
 
