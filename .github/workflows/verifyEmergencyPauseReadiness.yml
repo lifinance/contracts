@@ -17,8 +17,10 @@
 #   skips) when HEXAGATE_PAUSER_PAT is unset. No workflow is triggered by these checks.
 # - Bot PAT check: runs the emergency-pause gate's own lookup (gh api on the diamondpauser team
 #   membership of a known active member) with GIT_ACTIONS_BOT_PAT_CLASSIC, the token the gate
-#   uses. Passes only on state "active"; anything else fails, and the log names the cause (the
-#   token cannot read the team, or the known member left it). Never skipped.
+#   uses. Passes only on state "active" with more than 8 days before the token expires; anything
+#   else fails, and the log names the cause (expired/revoked token, SSO not authorized, missing
+#   read:org, GitHub API down after a retry, expiry close, or the known member left the team).
+#   Never skipped.
 # - Funds check (scheduled/manual only): script/utils/checkPauserFunds.sh audits whether the pauser
 #   wallet can afford pauseDiamond() on every production EVM chain, and reports the TOP-UP needed to
 #   reach OK — in the chain's native/gas asset, or in its fee token on chains with no native currency
@@ -109,39 +111,78 @@ jobs:
 
       # Same lookup, same token as the diamondEmergencyPause.yml membership gate, for a member
       # known to be active. A 404 is ambiguous (not a member, or the token cannot see the team),
-      # so on a 404 the team itself is read to name the cause.
+      # so on a 404 the team itself is read to name the cause. The check runs weekly, so it
+      # also fails while the token has MIN_DAYS_LEFT days or fewer before it expires.
       - name: Verify bot PAT can read diamondpauser membership
         id: bot_pat
         if: ${{ !cancelled() }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }}
-          KNOWN_MEMBER: lifi-hexagate-pauser
+          KNOWN_MEMBER: lifi-hexagate-pauser # the account Hexagate dispatches with
+          MIN_DAYS_LEFT: 8
         run: |
           set -euo pipefail
-          TOKEN_CAUSE="GIT_ACTIONS_BOT_PAT_CLASSIC cannot read the diamondpauser team (expired, revoked or missing read:org): the pause gate rejects every dispatch"
-          MEMBER_CAUSE="$KNOWN_MEMBER is not an active diamondpauser member: update KNOWN_MEMBER in this step"
-          if [[ -z "$GH_TOKEN" ]]; then
-            echo -e "\033[31mGIT_ACTIONS_BOT_PAT_CLASSIC is not set: the pause gate rejects every dispatch\033[0m"
+          fail() {
+            echo -e "\033[31m$1\033[0m"
             exit 1
+          }
+          [[ -n "$GH_TOKEN" ]] || fail "GIT_ACTIONS_BOT_PAT_CLASSIC is not set: the pause gate rejects every dispatch"
+          HEADERS=$(mktemp)
+          BODY=$(mktemp)
+          header() {
+            grep -i "^$1:" "$HEADERS" | tail -n 1 | cut -d: -f2- | tr -d '\r' | sed 's/^ *//' || true
+          }
+          isTransient() {
+            [[ "$STATUS" == "000" || "$STATUS" == 5* || "$STATUS" == "429" ]] \
+              || [[ "$STATUS" == "403" && "$(header x-ratelimit-remaining)" == "0" ]]
+          }
+          # Sets STATUS; retries once on a network error, a 5xx or a rate limit
+          apiGet() {
+            for ATTEMPT in 1 2; do
+              STATUS=$(curl -sS -o "$BODY" -D "$HEADERS" -w '%{http_code}' \
+                -H "Authorization: token $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/$1") || STATUS="000"
+              isTransient || return 0
+              if [[ "$ATTEMPT" == "1" ]]; then
+                echo "GET $1 returned HTTP $STATUS, retrying in 15s"
+                sleep 15
+              fi
+            done
+          }
+          # Names the cause for any answer that is not a readable team or membership
+          tokenCause() {
+            if isTransient; then
+              echo "GitHub API unavailable (HTTP $STATUS) after a retry: readiness unknown, re-run this workflow"
+            elif [[ "$STATUS" == "401" ]]; then
+              echo "GIT_ACTIONS_BOT_PAT_CLASSIC is expired or revoked (HTTP 401): rotate it, the pause gate rejects every dispatch"
+            elif [[ "$STATUS" == "403" && "$(header x-github-sso)" == required* ]]; then
+              echo "GIT_ACTIONS_BOT_PAT_CLASSIC is not SSO-authorized for lifinance (HTTP 403): re-authorize it at github.com/settings/tokens as its owner"
+            else
+              echo "GIT_ACTIONS_BOT_PAT_CLASSIC cannot read the diamondpauser team (HTTP $STATUS, likely missing read:org): the pause gate rejects every dispatch"
+            fi
+          }
+          MEMBER_CAUSE="$KNOWN_MEMBER is not an active diamondpauser member, so Hexagate dispatches are rejected: re-add it to the team or accept its pending invite"
+
+          apiGet "orgs/lifinance/teams/diamondpauser/memberships/$KNOWN_MEMBER"
+          if [[ "$STATUS" == "404" ]]; then
+            apiGet "orgs/lifinance/teams/diamondpauser"
+            [[ "$STATUS" == "200" ]] && fail "$MEMBER_CAUSE"
+            fail "$(tokenCause)"
           fi
-          # On a non-2xx answer gh exits non-zero and prints the error body to stdout
-          RESPONSE=$(gh api "orgs/lifinance/teams/diamondpauser/memberships/$KNOWN_MEMBER" --jq '.state') || true
-          if [[ "$RESPONSE" == "active" ]]; then
-            echo -e "\033[32mBot PAT reads diamondpauser membership: $KNOWN_MEMBER is active\033[0m"
-            exit 0
+          [[ "$STATUS" == "200" ]] || fail "$(tokenCause)"
+          STATE=$(jq -r '.state // empty' "$BODY")
+          [[ "$STATE" == "active" ]] || fail "$MEMBER_CAUSE (state: ${STATE:-unknown})"
+
+          EXPIRY=$(header github-authentication-token-expiration)
+          if [[ -n "$EXPIRY" ]]; then
+            EXPIRY_TS=$(date -u -d "$EXPIRY" +%s) || fail "Cannot parse the token expiry header: '$EXPIRY'"
+            DAYS_LEFT=$(((EXPIRY_TS - $(date -u +%s)) / 86400))
+            if ((DAYS_LEFT <= MIN_DAYS_LEFT)); then
+              fail "GIT_ACTIONS_BOT_PAT_CLASSIC expires $EXPIRY ($DAYS_LEFT days left): rotate it before the next weekly run"
+            fi
           fi
-          echo "API response: ${RESPONSE:-none}"
-          STATUS=$(jq -r '.status // empty' <<<"$RESPONSE" 2>/dev/null) || STATUS=""
-          if [[ "$RESPONSE" == "pending" ]]; then
-            CAUSE="$MEMBER_CAUSE"
-          elif [[ "$STATUS" == "404" ]] && gh api "orgs/lifinance/teams/diamondpauser" --silent; then
-            CAUSE="$MEMBER_CAUSE"
-          else
-            CAUSE="$TOKEN_CAUSE"
-          fi
-          echo -e "\033[31m$CAUSE\033[0m"
-          exit 1
+          echo -e "\033[32mBot PAT reads diamondpauser membership: $KNOWN_MEMBER is active (token expiry: ${EXPIRY:-none})\033[0m"
 
       # Funding is live operational state (independent of the code in a PR), so this runs on
       # scheduled / manual runs only. checkPauserFunds.sh is read-only and needs no pauser
