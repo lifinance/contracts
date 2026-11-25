@@ -649,30 +649,39 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
 })
 
 /**
- * The Tron executability scope note reaches the recorder.
+ * Gate I runs on Tron too, with no stand-down note beside its verdict.
  *
- * It is what turns an unmade simulation into a named, acknowledgeable limit; a
- * note that stopped reaching `proposalCheckResults` would silently fall back
- * to "no simulation was attempted", which is the row this exists to replace.
+ * A Tron term in the simulation's guard, or an out-of-scope reason handed to
+ * the recorder, would turn Tron's simulation back into an acknowledgeable
+ * limit instead of a graded verdict.
  */
-describe('the Tron scope note reaches the recorder', () => {
-  it('passes the executability out-of-scope reason beside the verdicts', () => {
+describe('gate I simulates Tron like any other network', () => {
+  it('guards the simulation on an endpoint alone', () => {
+    const body = perProposal()
+    const call = body.indexOf('collectExecutabilityInput(')
+    expect(call).toBeGreaterThan(-1)
+    const guard = body.lastIndexOf('let executability', call)
+    expect(guard).toBeGreaterThan(-1)
+    expect(body.slice(guard, call)).toContain('if (primaryEndpoint)')
+    expect(body.slice(guard, call)).not.toContain('isTronNetworkKey(')
+  })
+
+  it('passes no out-of-scope reason beside the verdicts', () => {
     const body = perProposal()
     const call = body.indexOf('proposalCheckResults({')
     expect(call).toBeGreaterThan(-1)
     const end = body.indexOf('proposalChecks.push', call)
     expect(end).toBeGreaterThan(call)
     const args = body.slice(call, end)
-    expect(args).toContain('executabilityOutOfScope:')
-    expect(args).not.toContain('rpcQuorumOutOfScope')
+    expect(args).not.toContain('OutOfScope')
   })
 })
 
 /**
  * Gate J runs on Tron too, reading the code at `latest` there.
  *
- * Tron is not simulated, so a quorum read left behind the simulator's guard
- * would never run there and the row would fall back to "no read was made".
+ * A quorum read left behind the simulator's endpoint guard would share its
+ * fate, so it is guarded on the endpoint list alone.
  */
 describe('gate J reads Tron at latest', () => {
   it('guards the quorum read on endpoints alone and picks latest for Tron', () => {
@@ -680,7 +689,7 @@ describe('gate J reads Tron at latest', () => {
     const call = body.indexOf('readCodeQuorumPastTipReorgs(')
     expect(call).toBeGreaterThan(-1)
     const guard = body.lastIndexOf('if (', call)
-    expect(body.slice(guard, call)).not.toContain('evmSimulatable')
+    expect(body.slice(guard, call)).not.toContain('primaryEndpoint')
     const args = body.slice(call, body.indexOf('catch', call))
     expect(args).toContain('isTronNetworkKey(')
     expect(args).toContain("'latest'")

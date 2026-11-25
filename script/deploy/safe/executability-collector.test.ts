@@ -36,6 +36,7 @@ import {
   summariseRpcError,
   type IExecutabilityChainReader,
 } from './executability-collector'
+import { executabilityDefiniteReds } from './definite-red-gate'
 import { evaluateExecutability } from './executability-simulation'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -1448,6 +1449,21 @@ describe('revert bodies captured from live nodes', () => {
         data: BURN_REASON,
       },
     ],
+    // Recorded 2026-11-25. java-tron answers a revert on -32000, never 3.
+    [
+      'tron · api.trongrid.io/jsonrpc · TRON/v4.8.2.4 · custom error',
+      {
+        code: -32000,
+        message: 'REVERT opcode executed',
+        data: '0x277d76f8',
+      },
+    ],
+    // A bare `revert()` (a timelock called with an unknown selector) carries
+    // `{}` as data, so only the wording says it reverted.
+    [
+      'tron · api.trongrid.io/jsonrpc · TRON/v4.8.2.4 · bare revert',
+      { code: -32000, message: 'REVERT opcode executed', data: '{}' },
+    ],
   ]
 
   // The same reverting calls, refused by the endpoint instead of answered.
@@ -1478,6 +1494,12 @@ describe('revert bodies captured from live nodes', () => {
       'ethereum · eth.llamarpc.com · Cloudflare 525 page',
       525,
       '<!DOCTYPE html><html><head><title>llamarpc.com | 525: SSL handshake failed</title></head></html>',
+    ],
+    // Recorded 2026-11-25 from a keyless client.
+    [
+      'tron · api.trongrid.io/jsonrpc · throttled without an API key',
+      429,
+      '{"Error":"request credit rate exceeded the allowed_credit(300 credits\\/s), and the query server is suspended for 5 s. To obtain higher request quotas and a more stable service, it is recommended to authenticate with an API Key. Please refer to the documentation: https:\\/\\/developers.tron.network\\/reference\\/select-network#how-to-get-an-api-key"}',
     ],
   ]
 
@@ -1540,6 +1562,153 @@ describe('revert bodies captured from live nodes', () => {
         )
       })
     })
+
+  // An owner call that returns nothing: an empty `diamondCut` from the timelock.
+  it('reads tron · api.trongrid.io/jsonrpc · empty result as succeeded', async () => {
+    await serving(
+      200,
+      '{"jsonrpc":"2.0","id":1,"result":"0x"}',
+      async (endpoint) => {
+        expect((await simulate([endpoint])).outcome).toBe('succeeded')
+      }
+    )
+  })
+})
+
+/**
+ * A real Tron proposal, simulated end to end over java-tron-shaped answers.
+ *
+ * The calldata is the `scheduleBatch` the Tron Safe signed at nonce 38 for the
+ * EcoFacet v3.0.0 rollout (EXSC-1282, tx 6f84d460…f9f3): one `diamondCut`
+ * adding two selectors, replacing one and removing two. java-tron serves
+ * `eth_call` with `from` on `/jsonrpc`, answers a revert with `-32000
+ * "REVERT opcode executed"` and has no `eth_simulateV1`.
+ */
+describe('a Tron scheduleBatch simulated through java-tron', () => {
+  const TRON_SAFE = '0x43761F2fB70C8cAbD94707cb34D0a012f5857936' as Address
+  const TRON_TIMELOCK = '0x161f35951702E93ffeE662ED16fb538C283462A5' as Address
+  const TRON_DIAMOND = '0xc6594CD50C39bA5F23538fDC3B8492c95EDb6FE1' as Address
+  const ECO_FACET = '0xe7b7AD30E0771f46DFa5124D5d96a101506178CA' as Address
+  const PREVIOUS_FACET = '0x2222222222222222222222222222222222222222' as Address
+  const ADDED = new Set(['0x05c54990', '0x8352664c'])
+
+  const NONCE_38_SCHEDULE_BATCH = `0x${[
+    '8f2a0bb000000000000000000000000000000000000000000000000000000000000000c000000000',
+    '00000000000000000000000000000000000000000000000000000100000000000000000000000000',
+    '00000000000000000000000000000000000001400000000000000000000000000000000000000000',
+    '000000000000000000000000f9009e2fc296d972aa5b950949e88e496aa8cdb037d90dbeeddd91cf',
+    'a1732b1c0000000000000000000000000000000000000000000000000000000000002a3000000000',
+    '00000000000000000000000000000000000000000000000000000001000000000000000000000000',
+    'c6594cd50c39ba5f23538fdc3b8492c95edb6fe10000000000000000000000000000000000000000',
+    '00000000000000000000000100000000000000000000000000000000000000000000000000000000',
+    '00000000000000000000000000000000000000000000000000000000000000000000000100000000',
+    '00000000000000000000000000000000000000000000000000000020000000000000000000000000',
+    '00000000000000000000000000000000000003241f931c1c00000000000000000000000000000000',
+    '00000000000000000000000000000060000000000000000000000000000000000000000000000000',
+    '00000000000000000000000000000000000000000000000000000000000000000000000000000300',
+    '00000000000000000000000000000000000000000000000000000000000000030000000000000000',
+    '00000000000000000000000000000000000000000000006000000000000000000000000000000000',
+    '00000000000000000000000000000120000000000000000000000000000000000000000000000000',
+    '00000000000001c0000000000000000000000000e7b7ad30e0771f46dfa5124d5d96a101506178ca',
+    '00000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    '00000000000000000000000000000000000000000000006000000000000000000000000000000000',
+    '0000000000000000000000000000000205c549900000000000000000000000000000000000000000',
+    '00000000000000008352664c00000000000000000000000000000000000000000000000000000000',
+    '000000000000000000000000e7b7ad30e0771f46dfa5124d5d96a101506178ca0000000000000000',
+    '00000000000000000000000000000000000000000000000100000000000000000000000000000000',
+    '00000000000000000000000000000060000000000000000000000000000000000000000000000000',
+    '00000000000000010ff754ea00000000000000000000000000000000000000000000000000000000',
+    '00000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    '00000000000000000000000000000000000000000000000200000000000000000000000000000000',
+    '00000000000000000000000000000060000000000000000000000000000000000000000000000000',
+    '0000000000000002bff90b6100000000000000000000000000000000000000000000000000000000',
+    '762aea18000000000000000000000000000000000000000000000000000000000000000000000000',
+    '00000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    '000000000000000000000000',
+  ].join('')}` as Hex
+
+  const OWNER_SELECTOR = '0x8da5cb5b'
+  const FACET_ADDRESS_SELECTOR = '0xcdffacc6'
+  const DIAMOND_CUT_SELECTOR = '0x1f931c1c'
+  const ONLY_CONTRACT_OWNER = {
+    code: -32000,
+    message: 'REVERT opcode executed',
+    data: '0x277d76f8',
+  }
+  const METHOD_NOT_FOUND = { code: -32601, message: 'method not found' }
+
+  const word = (address: Address): Hex =>
+    `0x${address.slice(2).toLowerCase().padStart(64, '0')}`
+
+  /**
+   * Answers the way java-tron does: `eth_call` at `latest`, a revert as a
+   * thrown `-32000`, and no `eth_simulateV1`.
+   */
+  const javaTron = (cutReverts: boolean): PublicClient =>
+    createPublicClient({
+      transport: custom(
+        {
+          request: async ({ method, params }) => {
+            if (method === 'eth_getCode') return '0x6080604052'
+            if (method !== 'eth_call') throw METHOD_NOT_FOUND
+            const [{ data }] = params as [{ data: Hex }]
+            const selector = data.slice(0, 10)
+            if (selector === OWNER_SELECTOR) return word(TRON_TIMELOCK)
+            if (selector === FACET_ADDRESS_SELECTOR)
+              return word(
+                ADDED.has(`0x${data.slice(10, 18)}`)
+                  ? (ZERO_ADDRESS as Address)
+                  : PREVIOUS_FACET
+              )
+            if (selector === DIAMOND_CUT_SELECTOR && cutReverts)
+              throw ONLY_CONTRACT_OWNER
+            return '0x'
+          },
+        },
+        { retryCount: 0 }
+      ),
+    }) as unknown as PublicClient
+
+  const simulate = async (cutReverts: boolean) => {
+    const client = javaTron(cutReverts)
+    return evaluateExecutability(
+      await collectExecutabilityInput(
+        {
+          network: 'tron',
+          safeAddress: TRON_SAFE,
+          to: TRON_TIMELOCK,
+          data: NONCE_38_SCHEDULE_BATCH,
+        },
+        createExecutabilityChainReader(client)
+      )
+    )
+  }
+
+  it('decodes the cut the rollout carried', () => {
+    expect(NONCE_38_SCHEDULE_BATCH.slice(0, 10)).toBe('0x8f2a0bb0')
+    for (const address of [TRON_DIAMOND, ECO_FACET])
+      expect(NONCE_38_SCHEDULE_BATCH.toLowerCase()).toContain(
+        address.slice(2).toLowerCase()
+      )
+  })
+
+  it('passes when every payload executes', async () => {
+    const verdict = await simulate(false)
+
+    expect(verdict.error).toBe(false)
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.calls.length).toBeGreaterThan(1)
+    expect(executabilityDefiniteReds(verdict)).toEqual([])
+  })
+
+  it('gives a definite red when the cut reverts', async () => {
+    const verdict = await simulate(true)
+
+    expect(verdict.refuses).toBe(true)
+    const reds = executabilityDefiniteReds(verdict)
+    expect(reds.length).toBeGreaterThan(0)
+    expect(reds.every((red) => red.gate === 'I')).toBe(true)
+  })
 })
 
 describe('createExecutabilityChainReader simulateInOrder', () => {

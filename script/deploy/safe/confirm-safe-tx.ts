@@ -958,13 +958,6 @@ const processTxs = async (
   const endpoints = chain.rpcUrls.default.http
   const primaryEndpoint = rpcUrl ?? endpoints[0]
 
-  // Two different reasons not to simulate, graded differently below. Tron is
-  // reached through its own executor rather than `eth_call`, so the EVM
-  // simulator does not cover it at all — a declared limit, recorded as an
-  // acknowledgement. A network it does cover but has no endpoint for is a
-  // read that should have happened and did not, which stays unverified.
-  const evmSimulatable = !isTronNetworkKey(network) && Boolean(primaryEndpoint)
-
   /**
    * One proposal's chain-read evidence: every verdict that costs a read, and
    * nothing that depends on what the signer does.
@@ -1164,8 +1157,11 @@ const processTxs = async (
 
     mark('integrity asserts')
 
+    // Tron included: the simulation is plain `eth_call` with a `from`, which
+    // java-tron serves on its `/jsonrpc` endpoint. A network with no endpoint
+    // leaves this undefined, which the ledger records as unverified.
     let executability: IExecutabilityVerdict | undefined
-    if (evmSimulatable && primaryEndpoint)
+    if (primaryEndpoint)
       try {
         // Every endpoint the chain has, in priority order, rather than the
         // primary alone: one throttled provider must not be the reason a
@@ -1831,14 +1827,6 @@ const processTxs = async (
       targetState,
       peripheryAllowlist,
       executability,
-      // Only a chain the simulator was never written for is out of scope. An
-      // EVM network it does cover but could not reach is a read that should
-      // have happened and did not, so it is left to record as unverified.
-      ...(isTronNetworkKey(network)
-        ? {
-            executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
-          }
-        : {}),
       rpcQuorum,
     })
     // From the same entries, simulation, quorum read and codehash gate the rows
