@@ -43,8 +43,8 @@ Read `title`, `url`, `headRefName`, `isDraft`, and record `HEAD_OID` / `BASE_REF
 - **Aikido** (blocking): CI's `Aikido Security: check code` row; its findings are threads started by `aikido-pr-checks` (GraphQL drops `[bot]`).
   - Absent or `SKIPPED` → not scanned.
   - An open Aikido thread blocks even on `SUCCESS` (Aikido passes with MEDIUM findings).
-  - `FAILURE` with no open Aikido thread → likely ignored or fixed findings, since Aikido doesn't refresh a finished run after `@AikidoSec ignore:` replies. Say so with the check's link and tell the user to push or re-run the check.
-  - To clear findings: `/drive-pr <N>` (contracts only), or `/aikido-address-findings` from a clone checked out on the PR's head (it reads the PR from the checkout). The latter doesn't resolve threads: a fixed finding's thread blocks until resolved or outdated.
+  - `FAILURE` with no open Aikido thread → likely findings ignored or fixed and their threads resolved, since Aikido doesn't refresh a finished run after `@AikidoSec ignore:` replies. Say so with the check's link and tell the user to push or re-run the check.
+  - To clear findings: `/drive-pr <N>` (contracts only), or `/aikido-address-findings` from a clone checked out on the PR's head (it reads the PR from the checkout). The latter never resolves threads: after it, resolve the thread of every ignored finding, and of every fixed one once the fix is pushed, as `/drive-pr` step 5 does. Until then they block.
 
 ### 3. Gate
 
