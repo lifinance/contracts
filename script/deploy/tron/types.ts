@@ -32,3 +32,9 @@ export interface ITronSafeTemp {
   safeSingletonAddress?: string
   safeProxyFactoryAddress?: string
 }
+
+/** What `deploy-core-facets.ts` does with LiFiDiamond. */
+export type TDiamondPlan =
+  | { action: 'deploy' }
+  | { action: 'reuse'; address: string }
+  | { action: 'skip' }

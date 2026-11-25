@@ -44,7 +44,6 @@ import {
 import {
   planUnnamedDiamond,
   selectCoreContracts,
-  type TDiamondPlan,
 } from './helpers/coreFacetSelection'
 import {
   deployContractWithLogging,
@@ -52,6 +51,7 @@ import {
   validateBalance,
   waitBetweenDeployments,
 } from './tronUtils.js'
+import type { TDiamondPlan } from './types'
 
 /**
  * Decides what the run does with LiFiDiamond: a named diamond is reused or redeployed like

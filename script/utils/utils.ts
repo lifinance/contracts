@@ -635,7 +635,7 @@ export async function checkExistingDeployment(
   shouldRedeploy: boolean
 }> {
   if (mode.kind === 'redeploy') {
-    consola.info(`${contractName}: deploying (FORCE_REDEPLOY=true)`)
+    consola.info(`${contractName}: deploying (${mode.reason})`)
     return { exists: false, address: null, shouldRedeploy: true }
   }
 

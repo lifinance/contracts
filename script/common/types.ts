@@ -204,7 +204,11 @@ export type ExistingDeploymentMode =
       /** Why the code at `address` is not this checkout's build, or undefined when it is. */
       describeMismatch: (address: string) => Promise<string | undefined>
     }
-  | { kind: 'redeploy' }
+  | {
+      kind: 'redeploy'
+      /** Why the contract is deployed even if a recorded address holds this build. */
+      reason: string
+    }
   | {
       kind: 'proposeOnly'
       /** Throws unless the code at `address` is this checkout's build of the contract. */

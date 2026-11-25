@@ -140,7 +140,7 @@ export function tronExistingDeploymentMode(
     )
   if (!proposeOnly)
     return forceRedeploy
-      ? { kind: 'redeploy' }
+      ? { kind: 'redeploy', reason: 'FORCE_REDEPLOY=true' }
       : {
           kind: 'codeMatch',
           describeMismatch: (address) =>

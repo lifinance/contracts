@@ -19,7 +19,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 
-import type { SupportedChain } from '../../common/types'
+import type { ExistingDeploymentMode, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhitelist'
@@ -31,6 +31,7 @@ import {
   getRPCEnvVarName,
   assertDeploymentConfirmed,
   checkExistingDeployment,
+  findContractAddress,
   getContractAddress,
   getEnvironment,
   getNetworkConfig,
@@ -123,6 +124,27 @@ async function ensureExecutorAuthorizedOnErc20Proxy(
     .setAuthorizedCaller(executorBase58, true)
     .send({ feeLimit: 10_000_000, shouldPollResponse: true })
   consola.success(`Executor authorized on ERC20Proxy (tx: ${tx})`)
+}
+
+/**
+ * The timelock holds governance roles, so a run that does not name it keeps the one recorded
+ * for the network whatever its code, and deploys one only when none is recorded.
+ */
+async function keepRecordedTimelock(network: SupportedChain): Promise<{
+  exists: boolean
+  address: string | null
+  shouldRedeploy: boolean
+}> {
+  const name = 'LiFiTimelockController'
+  const found = await findContractAddress(network, name)
+  if (found && !found.fromOtherNetwork) {
+    consola.info(
+      `${name}: reusing ${found.address} (redeployed only when --only names it)`
+    )
+    return { exists: true, address: found.address, shouldRedeploy: false }
+  }
+  consola.info(`${name}: deploying (no address recorded for ${network})`)
+  return { exists: false, address: null, shouldRedeploy: true }
 }
 
 /**
@@ -300,7 +322,19 @@ async function deployAndRegisterPeripheryImpl(options: {
     if (!dryRun) await sleep(10000)
 
     const deployedContracts: Record<string, string> = {}
-    const simulatedDeploys = new Set<string>()
+    const freshDeploys = new Set<string>()
+    // Immutables are masked in the code match, so a reused contract can still hold the
+    // address of a dependency this run replaced; such a contract is deployed again.
+    const modeAfterDependency = (
+      contract: string,
+      dependency: string
+    ): ExistingDeploymentMode =>
+      freshDeploys.has(dependency)
+        ? {
+            kind: 'redeploy',
+            reason: `${dependency} was deployed in this run and ${contract} is built against it`,
+          }
+        : tronExistingDeploymentMode(false, contract, tronWeb)
     const deploymentResults: Array<{
       contract: string
       address: string
@@ -395,7 +429,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['ERC20Proxy'] = result.contractAddress
-            if (dryRun) simulatedDeploys.add('ERC20Proxy')
+            freshDeploys.add('ERC20Proxy')
             deploymentResults.push({
               contract: 'ERC20Proxy',
               address: result.contractAddress,
@@ -447,7 +481,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const executorDeployment = await checkExistingDeployment(
             network,
             'Executor',
-            tronExistingDeploymentMode(false, 'Executor', tronWeb)
+            modeAfterDependency('Executor', 'ERC20Proxy')
           )
 
           if (
@@ -510,7 +544,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['Executor'] = result.contractAddress
-            if (dryRun) simulatedDeploys.add('Executor')
+            freshDeploys.add('Executor')
             deploymentResults.push({
               contract: 'Executor',
               address: result.contractAddress,
@@ -638,7 +672,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['FeeCollector'] = result.contractAddress
-            if (dryRun) simulatedDeploys.add('FeeCollector')
+            freshDeploys.add('FeeCollector')
             deploymentResults.push({
               contract: 'FeeCollector',
               address: result.contractAddress,
@@ -749,7 +783,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['FeeForwarder'] = result.contractAddress
-            if (dryRun) simulatedDeploys.add('FeeForwarder')
+            freshDeploys.add('FeeForwarder')
             deploymentResults.push({
               contract: 'FeeForwarder',
               address: result.contractAddress,
@@ -925,7 +959,7 @@ async function deployAndRegisterPeripheryImpl(options: {
               )
 
               deployedContracts['TokenWrapper'] = result.contractAddress
-              if (dryRun) simulatedDeploys.add('TokenWrapper')
+              freshDeploys.add('TokenWrapper')
               deploymentResults.push({
                 contract: 'TokenWrapper',
                 address: result.contractAddress,
@@ -1032,7 +1066,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['OutputValidator'] = result.contractAddress
-            if (dryRun) simulatedDeploys.add('OutputValidator')
+            freshDeploys.add('OutputValidator')
             deploymentResults.push({
               contract: 'OutputValidator',
               address: result.contractAddress,
@@ -1089,7 +1123,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const receiverOIFDeployment = await checkExistingDeployment(
             network,
             'ReceiverOIF',
-            tronExistingDeploymentMode(false, 'ReceiverOIF', tronWeb)
+            modeAfterDependency('ReceiverOIF', 'Executor')
           )
 
           if (
@@ -1176,7 +1210,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
 
             deployedContracts['ReceiverOIF'] = result.contractAddress
-            if (dryRun) simulatedDeploys.add('ReceiverOIF')
+            freshDeploys.add('ReceiverOIF')
             deploymentResults.push({
               contract: 'ReceiverOIF',
               address: result.contractAddress,
@@ -1234,15 +1268,19 @@ async function deployAndRegisterPeripheryImpl(options: {
         if (safeAddress) {
           try {
             // Check if already deployed
-            const timelockDeployment = await checkExistingDeployment(
-              network,
-              'LiFiTimelockController',
-              tronExistingDeploymentMode(
-                false,
-                'LiFiTimelockController',
-                tronWeb
-              )
+            const timelockDeployment = onlyContracts?.includes(
+              'LiFiTimelockController'
             )
+              ? await checkExistingDeployment(
+                  network,
+                  'LiFiTimelockController',
+                  tronExistingDeploymentMode(
+                    false,
+                    'LiFiTimelockController',
+                    tronWeb
+                  )
+                )
+              : await keepRecordedTimelock(network)
 
             if (
               timelockDeployment.exists &&
@@ -1404,7 +1442,7 @@ async function deployAndRegisterPeripheryImpl(options: {
       .map(([name, address]) => ({
         name,
         address,
-        simulated: simulatedDeploys.has(name),
+        simulated: dryRun && freshDeploys.has(name),
       }))
 
     const toEvm = (value: string) =>

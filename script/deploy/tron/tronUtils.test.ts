@@ -141,7 +141,7 @@ describe('tronExistingDeploymentMode', () => {
       withForceRedeploy('true', () =>
         tronExistingDeploymentMode(false, 'EcoFacet', tronWeb)
       )
-    ).toEqual({ kind: 'redeploy' })
+    ).toEqual({ kind: 'redeploy', reason: 'FORCE_REDEPLOY=true' })
   })
 
   it('refuses --proposeOnly together with FORCE_REDEPLOY=true', () => {

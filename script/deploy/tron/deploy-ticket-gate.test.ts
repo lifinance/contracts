@@ -232,3 +232,31 @@ describe('Tron deploy-and-register scripts check the ticket first', () => {
     }
   )
 })
+
+describe('deploy-and-register-periphery.ts redeploy decisions', () => {
+  const calls = callsIn('deploy-and-register-periphery.ts')
+  const argsOf = (name: string) =>
+    calls
+      .filter((c) => c.name === name)
+      .map((c) => c.node.arguments.map((arg) => arg.getText()))
+
+  it('deploys Executor and ReceiverOIF again when this run replaced what they are built against', () => {
+    expect(argsOf('modeAfterDependency')).toEqual([
+      ["'Executor'", "'ERC20Proxy'"],
+      ["'ReceiverOIF'", "'Executor'"],
+    ])
+    const direct = argsOf('tronExistingDeploymentMode').map((args) => args[1])
+    expect(direct).not.toContain("'Executor'")
+    expect(direct).not.toContain("'ReceiverOIF'")
+  })
+
+  it('keeps a recorded timelock unless --only names it', () => {
+    const keep = calls.filter((c) => c.name === 'keepRecordedTimelock')
+    expect(keep).toHaveLength(1)
+    const conditional = (keep[0] as ICall).node.parent.parent
+    expect(ts.isConditionalExpression(conditional)).toBe(true)
+    expect(
+      (conditional as ts.ConditionalExpression).condition.getText()
+    ).toMatch(/onlyContracts\?\.includes\(\s*'LiFiTimelockController'\s*\)/)
+  })
+})

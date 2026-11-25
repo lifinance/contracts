@@ -983,6 +983,7 @@ describe('checkExistingDeployment', () => {
     await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
       const result = await checkExistingDeployment('tron', 'EcoFacet', {
         kind: 'redeploy',
+        reason: 'FORCE_REDEPLOY=true',
       })
 
       expect(result).toEqual({

@@ -3,14 +3,10 @@
  * happens to LiFiDiamond, which is redeployed only when named.
  */
 
+import type { TDiamondPlan } from '../types'
+
 const DIAMOND = 'LiFiDiamond'
 const DIAMOND_CUT_FACET = 'DiamondCutFacet'
-
-/** What `deploy-core-facets.ts` does with LiFiDiamond. */
-export type TDiamondPlan =
-  | { action: 'deploy' }
-  | { action: 'reuse'; address: string }
-  | { action: 'skip' }
 
 /**
  * The core facets a run deploys, and whether `--only` names LiFiDiamond.
