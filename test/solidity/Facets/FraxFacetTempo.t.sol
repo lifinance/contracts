@@ -523,7 +523,7 @@ contract FraxFacetTempoTest is Test {
     }
 
     /// @dev Tempo has no native token and rejects value transfers before the diamond runs,
-    ///      so the facet's msg.value guard is unreachable here; this pins the chain's revert.
+    ///      so the facet has no msg.value guard of its own; this pins the chain's revert.
     function testRevert_WhenNativeValueSent() public {
         ILiFi.BridgeData memory bridgeData =
             _bridgeData(CHAIN_FRAXTAL, receiver);

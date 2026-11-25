@@ -239,14 +239,9 @@ contract FraxFacet is
             _fraxData
         );
 
-        // On standard chains the LayerZero fee is the only native outflow and must come from
-        // msg.value, never from stray diamond balance. On Tempo the fee is taken from the
-        // bridged token, so no native should be sent at all.
-        if (address(FRAX_TEMPO_WRAPPER) == address(0)) {
-            if (_fraxData.nativeFee > msg.value) {
-                revert InvalidCallData();
-            }
-        } else if (msg.value != 0) {
+        // The native LayerZero fee is the only native outflow and must come from msg.value,
+        // never from stray diamond balance.
+        if (_nativeFee(_fraxData) > msg.value) {
             revert InvalidCallData();
         }
 
@@ -282,12 +277,6 @@ contract FraxFacet is
             _fraxData
         );
 
-        // On Tempo no native is ever consumed; reject stray msg.value here too (symmetric with
-        // the non-swap path) so it fails fast instead of being silently refunded late.
-        if (address(FRAX_TEMPO_WRAPPER) != address(0) && msg.value != 0) {
-            revert InvalidCallData();
-        }
-
         // The final swap output must be the bridged asset: _depositAndSwap measures the
         // slippage floor in the last swap's receivingAssetId, while _startBridge floors,
         // approves and bridges _bridgeData.sendingAssetId. A mismatch would validate one token
@@ -301,16 +290,14 @@ contract FraxFacet is
         }
 
         // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
-        // non-swap path): on standard chains the fee may be funded by an ERC20->native
-        // pre-swap whose output the nativeReserve below keeps in the diamond. On Tempo the
-        // fee comes out of the bridged token and there is no native reserve. Positive
-        // slippage raises minAmount, and with it the Tempo floor minAmount - nativeFee.
+        // non-swap path): the fee may be funded by an ERC20->native pre-swap whose output
+        // the nativeReserve below keeps in the diamond.
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(_fraxData.refundRecipient),
-            address(FRAX_TEMPO_WRAPPER) == address(0) ? _fraxData.nativeFee : 0
+            _nativeFee(_fraxData)
         );
 
         _startBridge(_bridgeData, _fraxData);
@@ -479,11 +466,27 @@ contract FraxFacet is
         }
     }
 
+    /// Tempo ///
+
+    /// @dev The native LayerZero fee a call pays: FraxData.nativeFee on standard chains, zero
+    ///      on Tempo, where the fee comes out of the bridged token and nativeFee is its cap.
+    ///      Tempo itself rejects any msg.value, so the facet does not guard against it.
+    /// @param _fraxData Data specific to Frax HopV2
+    /// @return fee The native amount the send forwards as msg.value
+    function _nativeFee(
+        FraxData calldata _fraxData
+    ) internal view returns (uint256 fee) {
+        fee = address(FRAX_TEMPO_WRAPPER) == address(0)
+            ? _fraxData.nativeFee
+            : 0;
+    }
+
     /// @dev Tempo send path. EndpointV2Alt charges the LayerZero fee in an ERC20, so the
     ///      wrapper pulls the gross minAmount, swaps the fee out of the bridged token, bridges
     ///      the dust-floored rest and refunds its residual to the diamond, which forwards it
     ///      to refundRecipient. _fraxData.nativeFee caps the fee: the wrapper reverts
-    ///      InsufficientNetAmount if it would bridge less than minAmount - nativeFee.
+    ///      InsufficientNetAmount if it would bridge less than minAmount - nativeFee, where
+    ///      minAmount is the post-swap amount on the swap path.
     /// @param _bridgeData The core information needed for bridging
     /// @param _fraxData Data specific to Frax HopV2
     /// @param _recipient bytes32-encoded destination recipient

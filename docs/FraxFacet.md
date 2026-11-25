@@ -225,8 +225,8 @@ token, to the Diamond) and **`msg.value == 0`**.
   facet passes `minNet = minAmount - nativeFee` to `sendOFTFeeInclusive`, and the wrapper
   reverts `InsufficientNetAmount` if it would bridge less. `nativeFee >= minAmount` reverts
   `InvalidCallData`. BE sets `nativeFee = fromAmount - minNetAmountLd` from Frax's quote.
-- **No native.** Both entrypoints revert `InvalidCallData` on any `msg.value` on Tempo. In
-  practice the chain rejects a value-carrying tx before the facet runs.
+- **No native.** Tempo has no native token: the chain rejects a value-carrying tx before
+  the facet runs, so the facet carries no `msg.value` guard for it.
 - **Emitted amount.** `LiFiTransferStarted.minAmount` is the **net amount bridged** (after
   the fee and dust floor), read from the wrapper's `quoteFeeInclusive` in the same
   transaction.

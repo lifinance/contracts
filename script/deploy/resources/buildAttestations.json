@@ -911,7 +911,7 @@
         "contractName": "FraxFacet",
         "sourceId": "src/Facets/FraxFacet.sol",
         "version": "2.0.0",
-        "closureHash": "0xd086ddaf84c499fabdbbc816ec9b3fa905ac017f6486823a799521f5c0a0097d",
+        "closureHash": "0xe4c1e30380ad54016e2d0fccb8bf6948e1df9a7efb2ca5d92a5645df6466503d",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -931,9 +931,9 @@
           }
         }
       },
-      "maskedHash": "0xe04262342a1ba57b68a879498de12a012565c7df40ea568ec6ac535e5489785e",
+      "maskedHash": "0xca84468200b3fe60c075df07450d29df991b6e7e3a21aada7036276a785a513e",
       "lineage": "FraxFacet@2.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 12877,
+      "rawByteLength": 12654,
       "immutableOffsets": [
         {
           "start": 244,
@@ -944,47 +944,39 @@
           "length": 32
         },
         {
-          "start": 1061,
+          "start": 4277,
           "length": 32
         },
         {
-          "start": 1394,
+          "start": 4744,
           "length": 32
         },
         {
-          "start": 3090,
+          "start": 5392,
           "length": 32
         },
         {
-          "start": 4578,
+          "start": 7030,
           "length": 32
         },
         {
-          "start": 5614,
+          "start": 7313,
           "length": 32
         },
         {
-          "start": 7253,
+          "start": 7373,
           "length": 32
         },
         {
-          "start": 7536,
+          "start": 7743,
           "length": 32
         },
         {
-          "start": 7596,
+          "start": 8011,
           "length": 32
         },
         {
-          "start": 7966,
-          "length": 32
-        },
-        {
-          "start": 8234,
-          "length": 32
-        },
-        {
-          "start": 8294,
+          "start": 8071,
           "length": 32
         }
       ]
