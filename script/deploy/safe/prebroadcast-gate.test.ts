@@ -14,6 +14,10 @@ import {
   type IGateDependencies,
   type IGateOperation,
 } from './prebroadcast-gate'
+import {
+  createPinnedBlobReader,
+  type IPinnedStateGit,
+} from './pinned-target-state'
 
 const DIAMOND = '0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'
 const FACET = '0x00000000000000000000000000000000000000aa'
@@ -278,6 +282,91 @@ describe('runPreBroadcastGate — the stored record cannot move the verdict', ()
       dependencies(chain, { signTimeRecord: null })
     )
     expect(result.disposition).toBe('BLOCK')
+  })
+})
+
+describe('runPreBroadcastGate — the owner expectation at execute time', () => {
+  const NETWORK = 'arbitrum'
+  const PINNED_PATH = `deployments/${NETWORK}.json`
+
+  /** A clone whose `origin/main` holds exactly these blobs. */
+  const pinnedGit = (blobs: Record<string, string>): IPinnedStateGit => ({
+    remoteUrl: async () => 'git@github.com:lifinance/contracts.git',
+    fetch: async () => undefined,
+    revParse: async () => 'abc1234\n',
+    show: async (revSpec) => {
+      const blob = blobs[revSpec.split(':')[1] ?? '']
+      if (blob === undefined) throw new Error('no such path')
+      return blob
+    },
+  })
+
+  /**
+   * Runs the gate with its dependencies wired as the executor wires them: the
+   * branch's own deploy log as `deployments`, and the pinned read spread in
+   * only when it succeeded.
+   */
+  const gateAtExecuteTime = async (
+    chain: IChainState,
+    local: Record<string, unknown>,
+    pinnedBlobs: Record<string, string>
+  ): ReturnType<typeof runPreBroadcastGate> => {
+    const readPinnedBlob = createPinnedBlobReader({
+      repoRoot: '/repo',
+      git: pinnedGit(pinnedBlobs),
+    })
+    const pinned = await readPinnedBlob(PINNED_PATH)
+    const { pinnedDeployments: _default, ...rest } = dependencies(chain, {
+      deployments: local,
+    })
+    return runPreBroadcastGate(OPERATION, {
+      ...rest,
+      ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
+    })
+  }
+
+  const ownerFindings = (findings: readonly string[]): string[] =>
+    findings.filter((finding) => finding.startsWith('LiFiDiamond.owner()'))
+
+  // The branch's log names whatever the live owner is, so any case below that
+  // reads it instead of main would pass or block for the wrong reason.
+  const branchDeclaring = (timelock: string): Record<string, unknown> => ({
+    ...DEPLOYMENTS,
+    LiFiTimelockController: timelock,
+  })
+
+  it('finds nothing on the owner when it is the timelock main declares', async () => {
+    const result = await gateAtExecuteTime(
+      healthyChain(),
+      branchDeclaring(ATTACKER),
+      { [PINNED_PATH]: JSON.stringify(DEPLOYMENTS) }
+    )
+    expect(ownerFindings(result.findings)).toEqual([])
+    expect(result.disposition).toBe('PROCEED')
+  })
+
+  it('blocks an owner that is not the timelock main declares, whatever the branch says', async () => {
+    const chain = healthyChain()
+    chain.authorities[`${DIAMOND}:owner`] = ATTACKER
+    const result = await gateAtExecuteTime(chain, branchDeclaring(ATTACKER), {
+      [PINNED_PATH]: JSON.stringify(DEPLOYMENTS),
+    })
+    expect(result.disposition).toBe('BLOCK')
+    expect(ownerFindings(result.findings)).toEqual([
+      `LiFiDiamond.owner(): holds ${ATTACKER} on chain where main declares ${TIMELOCK}`,
+    ])
+  })
+
+  it('holds when main cannot be read, rather than judging against the branch', async () => {
+    const result = await gateAtExecuteTime(
+      healthyChain(),
+      branchDeclaring(TIMELOCK),
+      {}
+    )
+    expect(result.disposition).toBe('HOLD')
+    expect(ownerFindings(result.findings)).toEqual([
+      `LiFiDiamond.owner(): main declares no expected value, so the live ${TIMELOCK} cannot be judged`,
+    ])
   })
 })
 

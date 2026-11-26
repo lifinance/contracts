@@ -62,6 +62,7 @@ import {
   viemGateReaders,
   viemScheduledAtReader,
 } from './prebroadcast-gate'
+import { createPinnedBlobReader, PINNED_REF } from './pinned-target-state'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { fetchSignedSetRecord } from './signed-set-record'
 import {
@@ -95,6 +96,10 @@ import {
 } from './timelock-rebroadcast'
 
 // TimelockController ABI for the functions we need
+// One fetch of `origin/main` for the whole run, however many networks it
+// executes on, and every network's expectation read from that one commit.
+const readPinnedBlob = createPinnedBlobReader()
+
 const TIMELOCK_ABI = parseAbi([
   'function getMinDelay() view returns (uint256)',
   'function getTimestamp(bytes32 id) view returns (uint256)',
@@ -1901,6 +1906,14 @@ async function enforcePreBroadcastGateOrAbort(
   // with nobody told, which is worse than either verdict.
   let result: Awaited<ReturnType<typeof runPreBroadcastGate>>
   try {
+    // Never filled from the branch's own `deployments` on a failed read: the
+    // pinned side exists so a proposer cannot write the value their operation
+    // is judged against. Left out, the expectations it sources hold instead.
+    const pinned = await readPinnedBlob(`deployments/${networkName}.json`)
+    if (!pinned.ok)
+      consola.warn(
+        `${networkPrefix} ⚠️  Pre-broadcast gate: deployments/${networkName}.json could not be read at ${PINNED_REF} (${pinned.reason}), so expectations main declares there cannot be judged`
+      )
     result = await runPreBroadcastGate(
       {
         operationId: operation.id,
@@ -1910,6 +1923,7 @@ async function enforcePreBroadcastGateOrAbort(
       {
         ...viemGateReaders(publicClient),
         deployments,
+        ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
         globalConfig: globalConfig as unknown as Record<string, unknown>,
         signTimeRecord,
         readScheduledAt: viemScheduledAtReader(

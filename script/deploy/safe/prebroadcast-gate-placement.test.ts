@@ -144,6 +144,40 @@ describe('pre-broadcast gate placement', () => {
     }
   })
 
+  // EXSC-1397: without the pinned side, `LiFiDiamond.owner()` has nothing to
+  // be compared against and every diamond operation holds. With it filled from
+  // the branch's own log instead, a proposer writes the value their operation
+  // is judged against.
+  describe('the pinned deployment record', () => {
+    const gateTry = body.slice(
+      body.lastIndexOf('try {', body.indexOf('runPreBroadcastGate(')),
+      body.indexOf('runPreBroadcastGate(')
+    )
+    const gateCall = body.slice(
+      body.indexOf('runPreBroadcastGate('),
+      body.indexOf('} catch', body.indexOf('runPreBroadcastGate('))
+    )
+
+    it('is read from main for this network inside the guarded call', () => {
+      // Inside the try, so a throw out of the read reaches abortUnverified
+      // rather than escaping the gate.
+      expect(gateTry).toMatch(
+        /readPinnedBlob\(`deployments\/\$\{networkName\}\.json`\)/u
+      )
+    })
+
+    it('is passed only when the read succeeded', () => {
+      expect(gateCall).toContain(
+        '...(pinned.ok ? { pinnedDeployments: pinned.value } : {})'
+      )
+    })
+
+    it('is never taken from the branch', () => {
+      expect([...body.matchAll(/pinnedDeployments\s*:/gu)]).toHaveLength(1)
+      expect(body).not.toMatch(/pinnedDeployments\s*:\s*deployments\b/u)
+    })
+  })
+
   // The alert channels are not interchangeable: a gap says nothing was checked,
   // a failure says an operation failed. Shadow mode has not failed anything.
   it('reports an unverified operation as a gap, not a failure', () => {
