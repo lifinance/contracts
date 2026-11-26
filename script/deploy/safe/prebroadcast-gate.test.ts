@@ -324,9 +324,9 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
   const gateAtExecuteTime = async (
     chain: IChainState,
     local: Record<string, unknown>,
-    pinnedBlobs: Record<string, string>
+    git: IPinnedStateGit
   ): ReturnType<typeof runPreBroadcastGate> => {
-    const pinned = await pinnedReader(pinnedGit(pinnedBlobs))(NETWORK)
+    const pinned = await pinnedReader(git)(NETWORK)
     const { pinnedDeployments: _default, ...rest } = dependencies(chain, {
       deployments: local,
     })
@@ -346,11 +346,14 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
     LiFiTimelockController: timelock,
   })
 
+  const mainHolding = (deployments: Record<string, unknown>): IPinnedStateGit =>
+    pinnedGit({ [PINNED_PATH]: JSON.stringify(deployments) })
+
   it('finds nothing on the owner when it is the timelock main declares', async () => {
     const result = await gateAtExecuteTime(
       healthyChain(),
       branchDeclaring(ATTACKER),
-      { [PINNED_PATH]: JSON.stringify(DEPLOYMENTS) }
+      mainHolding(DEPLOYMENTS)
     )
     expect(ownerFindings(result.findings)).toEqual([])
     expect(result.disposition).toBe('PROCEED')
@@ -359,25 +362,37 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
   it('blocks an owner that is not the timelock main declares, whatever the branch says', async () => {
     const chain = healthyChain()
     chain.authorities[`${DIAMOND}:owner`] = ATTACKER
-    const result = await gateAtExecuteTime(chain, branchDeclaring(ATTACKER), {
-      [PINNED_PATH]: JSON.stringify(DEPLOYMENTS),
-    })
+    const result = await gateAtExecuteTime(
+      chain,
+      branchDeclaring(ATTACKER),
+      mainHolding(DEPLOYMENTS)
+    )
     expect(result.disposition).toBe('BLOCK')
     expect(ownerFindings(result.findings)).toEqual([
       `LiFiDiamond.owner(): holds ${ATTACKER} on chain where main declares ${TIMELOCK}`,
     ])
   })
 
-  it('holds when main cannot be read, rather than judging against the branch', async () => {
+  const unjudgedOwner = `LiFiDiamond.owner(): main declares no expected value, so the live ${TIMELOCK} cannot be judged`
+
+  it('holds when the fetch of main fails, rather than judging against the branch', async () => {
     const result = await gateAtExecuteTime(
       healthyChain(),
       branchDeclaring(TIMELOCK),
-      {}
+      pinnedGit({ [PINNED_PATH]: JSON.stringify(DEPLOYMENTS) }, undefined, true)
     )
     expect(result.disposition).toBe('HOLD')
-    expect(ownerFindings(result.findings)).toEqual([
-      `LiFiDiamond.owner(): main declares no expected value, so the live ${TIMELOCK} cannot be judged`,
-    ])
+    expect(ownerFindings(result.findings)).toEqual([unjudgedOwner])
+  })
+
+  it('holds when main has no file for the network, rather than judging against the branch', async () => {
+    const result = await gateAtExecuteTime(
+      healthyChain(),
+      branchDeclaring(TIMELOCK),
+      pinnedGit({})
+    )
+    expect(result.disposition).toBe('HOLD')
+    expect(ownerFindings(result.findings)).toEqual([unjudgedOwner])
   })
 
   it('tries an unreachable remote once per run, not once per operation', async () => {
@@ -390,6 +405,25 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
     for (const each of reads)
       expect(each).toEqual({ ok: false, reason: 'fetch-failed' })
     expect(counts.fetch).toBe(1)
+  })
+
+  it('asks again after an origin that could not be read', async () => {
+    let remoteReads = 0
+    const git: IPinnedStateGit = {
+      ...mainHolding(DEPLOYMENTS),
+      remoteUrl: async () => {
+        remoteReads += 1
+        if (remoteReads === 1) throw new Error('git exited 128')
+        return 'git@github.com:lifinance/contracts.git'
+      },
+    }
+    const read = pinnedReader(git)
+
+    expect(await read(NETWORK)).toEqual({
+      ok: false,
+      reason: 'remote-unreadable',
+    })
+    expect(await read(NETWORK)).toEqual({ ok: true, value: DEPLOYMENTS })
   })
 
   it('keeps reading other networks when one network has no file on main', async () => {

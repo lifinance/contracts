@@ -144,10 +144,8 @@ describe('pre-broadcast gate placement', () => {
     }
   })
 
-  // EXSC-1397: without the pinned side, `LiFiDiamond.owner()` has nothing to
-  // be compared against and every diamond operation holds. With it filled from
-  // the branch's own log instead, a proposer writes the value their operation
-  // is judged against.
+  // Filled from the branch's own log, the owner expectation would be one a
+  // proposer can write.
   describe('the pinned deployment record', () => {
     const gateTry = body.slice(
       body.lastIndexOf('try {', body.indexOf('runPreBroadcastGate(')),

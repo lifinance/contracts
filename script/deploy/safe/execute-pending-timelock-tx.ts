@@ -1916,7 +1916,7 @@ async function enforcePreBroadcastGateOrAbort(
     const pinned = await readPinnedDeployments(networkName)
     if (!pinned.ok)
       consola.warn(
-        `${networkPrefix} ⚠️  Pre-broadcast gate: deployments/${networkName}.json could not be read at ${PINNED_REF} (${pinned.reason}), so the diamond owner cannot be judged and the operation holds.${
+        `${networkPrefix} ⚠️  Pre-broadcast gate: deployments/${networkName}.json could not be read at ${PINNED_REF} (${pinned.reason}), so the diamond owner cannot be judged.${
           pinned.reason === 'remote-unexpected'
             ? ` Run from a clone whose origin is ${REPO_CONTRACTS}.`
             : ''
