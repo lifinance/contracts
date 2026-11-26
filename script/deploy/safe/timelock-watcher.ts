@@ -127,7 +127,7 @@ import {
   tronDeploymentsAsHex,
   tronHex,
   withTronWallets,
-} from './timelock-watcher-tron'
+} from './tron-gate-addresses'
 import {
   buildWatcherCancelInput,
   classifyOperation,

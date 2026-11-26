@@ -1,12 +1,14 @@
 /**
- * Tron spellings for the timelock watcher: main names Tron contracts and wallets
- * in base58, while the chain's logs, its reads and every watcher check compare
- * 20-byte hex. Imported by the watcher when it watches a Tron network.
+ * Tron spellings for the integrity gates: main names Tron contracts and wallets
+ * in base58, while the chain's logs, its reads and every gate check compare
+ * 20-byte hex. Imported by the timelock watcher, the sign-time storage-authority
+ * observation and the pre-broadcast gate when they read a Tron network.
  */
 
 import {
   evm20HexStringToTronBase58,
   getTronWebCodecOnlyForNetwork,
+  isTronNetworkKey,
 } from '@lifi/tron-devkit'
 import { getAddress, type Address } from 'viem'
 
@@ -88,4 +90,44 @@ export const withTronWallets = (
     overlay[name] = tronHex(network, tron)
   }
   return { ...globalConfig, ...overlay }
+}
+
+/** The address inputs the storage-authority gate compares against. */
+export interface IGateAddressInputs {
+  deployments: Record<string, unknown>
+  pinnedDeployments?: Record<string, unknown>
+  globalConfig: Record<string, unknown>
+}
+
+/**
+ * The gate's address inputs spelled as 20-byte hex on every network: on Tron the
+ * deployments are converted from base58 and the wallets replaced by
+ * `tronWallets`; on any other network the inputs are returned unchanged.
+ *
+ * A base58 entry that dropped out instead of converting would shrink the set of
+ * addresses the gate recognises, so a failed conversion throws rather than
+ * yielding a smaller set.
+ *
+ * @param network - Network name as it appears in `config/networks.json`.
+ * @param inputs - Deployments, optional pinned deployments and the global config.
+ * @returns The same inputs in the spelling the gate compares.
+ * @throws When a Tron address fails to convert or `tronWallets` is incomplete.
+ */
+export const gateAddressInputsForNetwork = (
+  network: string,
+  inputs: IGateAddressInputs
+): IGateAddressInputs => {
+  if (!isTronNetworkKey(network)) return inputs
+  return {
+    deployments: tronDeploymentsAsHex(network, inputs.deployments),
+    ...(inputs.pinnedDeployments
+      ? {
+          pinnedDeployments: tronDeploymentsAsHex(
+            network,
+            inputs.pinnedDeployments
+          ),
+        }
+      : {}),
+    globalConfig: withTronWallets(network, inputs.globalConfig),
+  }
 }

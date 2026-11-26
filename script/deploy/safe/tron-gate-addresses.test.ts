@@ -2,10 +2,11 @@ import { describe, expect, it } from 'bun:test'
 import { getAddress } from 'viem'
 
 import {
+  gateAddressInputsForNetwork,
   tronDeploymentsAsHex,
   tronHex,
   withTronWallets,
-} from './timelock-watcher-tron'
+} from './tron-gate-addresses'
 
 const TIMELOCK_BASE58 = 'TBzBFjsCh3LJh9avAKy9oF3StZMn4hUBhu'
 const TIMELOCK_HEX = '0x161f35951702e93ffee662ed16fb538c283462a5'
@@ -101,5 +102,46 @@ describe('withTronWallets', () => {
         tronWallets: { refundWallet: OTHER_VERSION_BASE58 },
       })
     ).toThrow('version byte is not 0x41')
+  })
+})
+
+describe('gateAddressInputsForNetwork', () => {
+  const EVM_WALLET = '0x0000000000000000000000000000000000000001'
+
+  it('returns EVM inputs unchanged', () => {
+    const inputs = {
+      deployments: { LiFiDiamond: TIMELOCK_HEX },
+      pinnedDeployments: { LiFiDiamond: TIMELOCK_HEX },
+      globalConfig: { refundWallet: EVM_WALLET },
+    }
+    expect(gateAddressInputsForNetwork('mainnet', inputs)).toBe(inputs)
+  })
+
+  it('spells every Tron input as hex, with the Tron wallets', () => {
+    const converted = gateAddressInputsForNetwork('tron', {
+      deployments: { LiFiTimelockController: TIMELOCK_BASE58 },
+      pinnedDeployments: { LiFiTimelockController: TIMELOCK_BASE58 },
+      globalConfig: {
+        refundWallet: EVM_WALLET,
+        tronWallets: { refundWallet: REFUND_BASE58 },
+      },
+    })
+    expect(converted.deployments['LiFiTimelockController']).toBe(
+      getAddress(TIMELOCK_HEX)
+    )
+    expect(converted.pinnedDeployments?.['LiFiTimelockController']).toBe(
+      getAddress(TIMELOCK_HEX)
+    )
+    expect(converted.globalConfig['refundWallet']).toBe(getAddress(REFUND_HEX))
+  })
+
+  // A missing pinned read must stay missing: filling it would let the branch's
+  // own record decide the expectation the pinned side exists to hold.
+  it('leaves an absent pinned record absent on Tron', () => {
+    const converted = gateAddressInputsForNetwork('tron', {
+      deployments: { LiFiTimelockController: TIMELOCK_BASE58 },
+      globalConfig: { tronWallets: {} },
+    })
+    expect('pinnedDeployments' in converted).toBe(false)
   })
 })

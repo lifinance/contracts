@@ -4,12 +4,12 @@
  * may run.
  *
  * Import `runPreBroadcastGate` from the executor immediately before the point
- * where it would broadcast, and `observeCalldata` from `confirm-safe-tx.ts` to
- * build a signer's record. Every dependency that touches the network or MongoDB
- * is injected, so the whole path can be driven in a test without a chain.
+ * where it would broadcast, and `observeCalldata` from
+ * `sign-time-authority-observation.ts` to build a signer's record. Every
+ * dependency that touches the network or MongoDB is injected, so the whole path
+ * can be driven in a test without a chain.
  */
 
-import { isTronNetworkKey } from '@lifi/tron-devkit'
 import {
   keccak256,
   parseAbi,
@@ -36,26 +36,6 @@ import {
   evaluatePreBroadcastGate,
   type IPreBroadcastGateResult,
 } from './prebroadcast-rederive'
-
-/**
- * Which chains this gate reads code on.
- *
- * `uncovered-tron` is a deliberate member of the set that may proceed, not an
- * oversight: a Tron code read needs a TronWeb client the executor does not
- * carry here, so the gate would otherwise hold every Tron operation forever.
- * The executor prints the gap rather than a verdict, and it is tracked as its
- * own ticket.
- */
-export type GateCoverage = 'covered' | 'uncovered-tron'
-
-/**
- * Whether the gate can read code on a network.
- *
- * @param network - Network name as it appears in `config/networks.json`.
- * @returns The coverage class.
- */
-export const resolveGateCoverage = (network: string): GateCoverage =>
-  isTronNetworkKey(network) ? 'uncovered-tron' : 'covered'
 
 /**
  * What one pass over the calldata needs. Split out from the full dependency

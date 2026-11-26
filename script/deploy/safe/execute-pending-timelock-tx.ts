@@ -58,7 +58,6 @@ import {
   createPinnedDeploymentsReader,
   isPreBroadcastGateEnforcing,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
-  resolveGateCoverage,
   runPreBroadcastGate,
   unverifiedGateOutcome,
   viemGateReaders,
@@ -96,6 +95,7 @@ import {
   createExecutorRpc,
   type IChainEndpoints,
 } from './timelock-rebroadcast'
+import { gateAddressInputsForNetwork } from './tron-gate-addresses'
 
 // One fetch of `origin/main` for the whole run, however many networks it
 // executes on, and every network's expectation read from that one commit.
@@ -1829,13 +1829,6 @@ async function enforcePreBroadcastGateOrAbort(
     await slackNotifier?.sendNotificationWithRetry({ text: message })
   }
 
-  if (resolveGateCoverage(networkName) === 'uncovered-tron') {
-    const gap = `the gate does not cover this chain — no authority verdict was produced for ${operation.id} (EXSC-954)`
-    consola.warn(`${networkPrefix} ⚠️  Pre-broadcast integrity gate: ${gap}`)
-    await alertGap([gap])
-    return 'ok'
-  }
-
   const alertShadowRefusal = async (
     disposition: string,
     findings: readonly string[]
@@ -1854,10 +1847,10 @@ async function enforcePreBroadcastGateOrAbort(
     if (!isDryRun) await notifyFailure(publishableGuardError(error))
   }
 
-  // Shadow mode reports what could not be checked and clears the operation,
-  // exactly as the uncovered-chain path does; see {@link unverifiedGateOutcome}
-  // for why a throw must not refuse here. A throw out of an alert is caught at
-  // the call site rather than relied upon not to happen.
+  // Shadow mode reports what could not be checked and clears the operation;
+  // see {@link unverifiedGateOutcome} for why a throw must not refuse here.
+  // A throw out of an alert is caught at the call site rather than relied upon
+  // not to happen.
   const abortUnverified = async (
     gap: string,
     error: unknown
@@ -1930,9 +1923,14 @@ async function enforcePreBroadcastGateOrAbort(
       },
       {
         ...viemGateReaders(publicClient),
-        deployments,
-        ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
-        globalConfig: globalConfig as unknown as Record<string, unknown>,
+        // On Tron a base58 address that fails to convert throws here, so the
+        // operation goes through `abortUnverified` rather than being graded
+        // against a smaller address set.
+        ...gateAddressInputsForNetwork(networkName, {
+          deployments,
+          ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
+          globalConfig: globalConfig as unknown as Record<string, unknown>,
+        }),
         signTimeRecord,
         readScheduledAt: viemScheduledAtReader(
           publicClient,

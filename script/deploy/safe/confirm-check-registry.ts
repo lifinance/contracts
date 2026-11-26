@@ -1460,10 +1460,9 @@ export interface IProposalCheckVerdicts {
   /**
    * Why `storageAuthority` is absent, when the caller knows.
    *
-   * Three absences that must not grade alike: a chain this gate was never
-   * written to read is a declared limit the signer acknowledges, an
-   * observation that could not be made at all (the envelope would not decode,
-   * no client could be built, the deployment file would not load) is
+   * Two absences that must not grade alike: an observation that could not be
+   * made at all (the envelope would not decode, no client could be built, the
+   * deployment file would not load, a Tron address would not convert) is
    * unverified and blocks with the failure on the row, and calldata that
    * schedules no timelock batch gives the gate nothing to observe — which is
    * nothing to grade only if the codehash gate found nothing installed
@@ -1475,18 +1474,6 @@ export interface IProposalCheckVerdicts {
 }
 
 export type TStorageAuthorityAbsence =
-  | {
-      kind: 'out-of-scope'
-      reason: string
-      /**
-       * Whether the calldata installs anything, read from the calldata itself.
-       * A proposal that installs nothing has no authority to read on any chain
-       * and stands down as not applicable; only one that does install asks the
-       * signer to take the coverage gap on. Not read from the codehash gate,
-       * which on the same chain also compared nothing.
-       */
-      installs: boolean
-    }
   | { kind: 'read-failed'; reason: string }
   | { kind: 'not-scheduled' }
 
@@ -1510,30 +1497,6 @@ const storageAuthorityAbsenceResult = (
   codehash: ICodehashSignGate,
   network: string
 ): ICheckResult => {
-  // `A-DOCUMENTED`, not `A-UNRESOLVED`: the gap is a reviewed statement of
-  // which chains this gate reads (`resolveGateCoverage`), and that is what the
-  // signer is asked to take on. An integrity check's `needs-ack` survives only
-  // on an anchor a human can decide about.
-  if (absence?.kind === 'out-of-scope')
-    return !absence.installs
-      ? {
-          checkId: STORAGE_AUTHORITY_CHECK_ID,
-          network,
-          status: 'not-applicable',
-          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
-          actual:
-            'this proposal installs no contract, so there is no authority to read',
-          anchor: 'A-LOCAL',
-        }
-      : {
-          checkId: STORAGE_AUTHORITY_CHECK_ID,
-          network,
-          status: 'needs-ack',
-          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
-          actual: absence.reason,
-          anchor: 'A-DOCUMENTED',
-        }
-
   if (absence?.kind === 'read-failed')
     return unresolved(
       STORAGE_AUTHORITY_CHECK_ID,

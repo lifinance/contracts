@@ -9,7 +9,6 @@ import {
   isPreBroadcastGateEnforcing,
   observeCalldata,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
-  resolveGateCoverage,
   runPreBroadcastGate,
   unverifiedGateOutcome,
   type IGateDependencies,
@@ -436,17 +435,6 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
       reason: 'blob-unreadable',
     })
     expect(await read('base')).toEqual({ ok: true, value: DEPLOYMENTS })
-  })
-})
-
-describe('resolveGateCoverage', () => {
-  it('covers an EVM network', () => {
-    expect(resolveGateCoverage('mainnet')).toBe('covered')
-    expect(resolveGateCoverage('arbitrum')).toBe('covered')
-  })
-
-  it('names Tron as uncovered rather than reporting a verdict for it', () => {
-    expect(resolveGateCoverage('tron')).toBe('uncovered-tron')
   })
 })
 

@@ -10,6 +10,7 @@ import {
   type Transport,
 } from 'viem'
 
+import { normalizeRpcUrlForNetwork } from '../../mongoDb/rpcEndpoints'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { getSignTimeTransportConfig } from './sign-time-transport'
@@ -80,7 +81,8 @@ const buildCappedFallbackTransport = (
  * unauthenticated and answer 401.
  *
  * @param network - The network key, as `config/networks.json` spells it.
- * @param rpcUrl - One endpoint to use instead of the configured set.
+ * @param rpcUrl - One endpoint to use instead of the configured set. A TronGrid
+ *   override is routed to its `/jsonrpc` path, as the configured endpoints are.
  * @param options - `signal` bounds every request the client makes, retries
  *   included; without it an endpoint that never answers costs viem's full retry
  *   budget before the caller hears about it.
@@ -96,7 +98,9 @@ export function buildReadOnlyClient(
   return createPublicClient({
     chain,
     transport: buildCappedFallbackTransport(
-      rpcUrl ? [rpcUrl] : chain.rpcUrls.default.http,
+      rpcUrl
+        ? [normalizeRpcUrlForNetwork(network, rpcUrl)]
+        : chain.rpcUrls.default.http,
       options
     ),
   }) as PublicClient
