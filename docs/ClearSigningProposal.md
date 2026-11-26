@@ -118,9 +118,9 @@ The `display.formats` entries carried over from the registry descriptor, re-auth
 
 `swapTokensGeneric` (the deprecated GenericSwapFacet) has no entry: the sync drops it from the registry as a retired LI.FI function.
 
-#### Upstream-maintained: `UPSTREAM_MAINTAINED_FUNCTIONS`
+#### Upstream-maintained: `UPSTREAM_MAINTAINED_SIGNATURES`
 
-`swapTokensMultipleV3ERC20ToERC20` and `swapTokensMultipleV3ERC20ToNative` have no entry either: the EF registry maintainers reverted both to a first-step-only display in [ethereum/clear-signing-erc7730-registry#3217](https://github.com/ethereum/clear-signing-erc7730-registry/pull/3217), pending a multi-step swap display agreed with LI.FI. The generator skips every function in `UPSTREAM_MAINTAINED_FUNCTIONS` (and logs each skip), so the sync's merge keeps the registry's version. Their cases in `config/clearSigningTests.json` (`Swap - chain 1 (1)` and `(2)`) are copies of the registry's, because the sync pushes our cases over the registry's tests file. A name in the set that matches no diamond function fails the build. To take a format back, add its `SWAP_TEMPLATES` entry, remove the name from the set and update its test cases.
+`swapTokensMultipleV3ERC20ToERC20` and `swapTokensMultipleV3ERC20ToNative` have no entry either: the EF registry maintainers reverted both to a first-step-only display in [ethereum/clear-signing-erc7730-registry#3217](https://github.com/ethereum/clear-signing-erc7730-registry/pull/3217), pending a multi-step swap display agreed with LI.FI. The generator skips every function whose full signature is in `UPSTREAM_MAINTAINED_SIGNATURES` (and logs each skip), so the sync's merge keeps the registry's version. Their cases in `config/clearSigningTests.json` (`Swap - chain 1 (1)` and `(2)`) are copies of the registry's, because the sync pushes our cases over the registry's tests file. A signature in the set that matches no diamond function fails the build, and so does a changed signature (it has no `SWAP_TEMPLATES` entry), so the new selector never ships without a format. To take a format back, add its `SWAP_TEMPLATES` entry, remove its signature from the set and update its test cases.
 
 ## Conventions & deliberate choices
 

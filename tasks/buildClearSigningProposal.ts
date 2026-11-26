@@ -1573,16 +1573,19 @@ function isKnownNonUserFacing(fn: IAbiFn): boolean {
   return false
 }
 
+const MULTIPLE_V3_SWAP_PARAMS =
+  '(bytes32 _transactionId, string _integrator, string _referrer, address _receiver, uint256 _minAmountOut, (address callTo, address approveTo, address sendingAssetId, address receivingAssetId, uint256 fromAmount, bytes callData, bool requiresDeposit)[] _swapData)'
+
 // The EF registry maintainers own these formats: the proposal emits no entry,
 // so the sync's merge keeps the registry's version instead of replacing it.
-// EF reverted both to a first-step-only display in
-// ethereum/clear-signing-erc7730-registry#3217 pending a design agreed with
-// LI.FI (EXSC-1396); remove a name here once that design lands in
-// SWAP_TEMPLATES. The sync also reuses our `config/clearSigningTests.json`
-// cases for these selectors, so they must equal the registry's cases.
-export const UPSTREAM_MAINTAINED_FUNCTIONS: ReadonlySet<string> = new Set([
-  'swapTokensMultipleV3ERC20ToERC20',
-  'swapTokensMultipleV3ERC20ToNative',
+// Keyed on the full signature: the registry's entry is, so a changed signature
+// must fail the build rather than leave the new selector without a format.
+// Remove an entry once its format is agreed with EF and back in SWAP_TEMPLATES.
+// The sync reuses our `config/clearSigningTests.json` cases for these
+// selectors, so they must equal the registry's cases.
+export const UPSTREAM_MAINTAINED_SIGNATURES: ReadonlySet<string> = new Set([
+  `swapTokensMultipleV3ERC20ToERC20${MULTIPLE_V3_SWAP_PARAMS}`,
+  `swapTokensMultipleV3ERC20ToNative${MULTIPLE_V3_SWAP_PARAMS}`,
 ])
 
 export interface IBuildResult {
@@ -1594,13 +1597,13 @@ export interface IBuildResult {
 /**
  * Templates a display format for every user-facing function, skipping the
  * non-user-facing ones, `*Packed` / `*Min` bridge variants and
- * {@link UPSTREAM_MAINTAINED_FUNCTIONS}.
+ * {@link UPSTREAM_MAINTAINED_SIGNATURES}.
  *
  * Hard-fails (via `failures`) on any user-facing function the generator can't
  * confidently template: a silent skip would let a new facet land with no
  * clear-signing, or with a template whose paths resolve to the wrong field.
- * Also fails on an upstream-maintained name that matches no function, so a
- * renamed or removed function cannot leave a stale entry behind.
+ * Also fails on an upstream-maintained signature that matches no function, so
+ * a changed or removed function cannot leave a stale entry behind.
  *
  * @param fns - Diamond functions, as collected from the Foundry artifacts
  * @returns The formats keyed by signature, the failures, and the signatures
@@ -1631,7 +1634,7 @@ export function buildFormats(fns: IAbiFn[]): IBuildResult {
     // (EXSC-926)
     if (PACKED_OR_MIN_BRIDGE_VARIANT.test(fn.name)) continue
     const sig = signature(fn)
-    if (UPSTREAM_MAINTAINED_FUNCTIONS.has(fn.name)) {
+    if (UPSTREAM_MAINTAINED_SIGNATURES.has(sig)) {
       upstreamMaintained.push(sig)
       continue
     }
@@ -1679,11 +1682,10 @@ export function buildFormats(fns: IAbiFn[]): IBuildResult {
       )
   }
 
-  const fnNames = new Set(fns.map((fn) => fn.name))
-  for (const name of UPSTREAM_MAINTAINED_FUNCTIONS)
-    if (!fnNames.has(name))
+  for (const sig of UPSTREAM_MAINTAINED_SIGNATURES)
+    if (!upstreamMaintained.includes(sig))
       failures.push(
-        `${name}\n      reason: listed in UPSTREAM_MAINTAINED_FUNCTIONS but no diamond function has this name\n      fix:    remove it from UPSTREAM_MAINTAINED_FUNCTIONS in tasks/buildClearSigningProposal.ts, or restore the function.`
+        `${sig}\n      reason: listed in UPSTREAM_MAINTAINED_SIGNATURES but no diamond function has this signature\n      fix:    if the signature changed, agree the new format with the EF registry maintainers and template it in SWAP_TEMPLATES, or update the entry; if the function is gone, remove the entry.`
       )
 
   return { formats, failures, upstreamMaintained }
