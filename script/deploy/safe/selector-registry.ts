@@ -88,6 +88,11 @@ const WELL_KNOWN_SIGNATURES: readonly string[] = [
   'startBridgeTokensViaAcrossV4NativePacked()',
   'startBridgeTokensViaAcrossV4ERC20Min((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes),bytes32,uint256)',
   'startBridgeTokensViaAcrossV4NativeMin((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes))',
+  // GenericSwapFacetV3 functions whose display format the EF registry
+  // maintains, so the proposal carries no entry for them
+  // (UPSTREAM_MAINTAINED_SIGNATURES in tasks/buildClearSigningProposal.ts).
+  'swapTokensMultipleV3ERC20ToERC20(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool)[])',
+  'swapTokensMultipleV3ERC20ToNative(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool)[])',
 ]
 
 function normalizeSelector(selector: string): string {

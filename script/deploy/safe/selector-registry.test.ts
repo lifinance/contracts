@@ -80,6 +80,22 @@ describe('getLocalSelectorInfo', () => {
     }
   })
 
+  it('resolves the swap functions whose format the EF registry maintains', () => {
+    // The proposal carries no entry for these, so the well-known list covers
+    // them. Selectors match the registry's test cases for these functions.
+    const expected: Record<string, string> = {
+      '0x5fd9ae2e':
+        'swapTokensMultipleV3ERC20ToERC20(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool)[])',
+      '0x2c57e884':
+        'swapTokensMultipleV3ERC20ToNative(bytes32,string,string,address,uint256,(address,address,address,address,uint256,bytes,bool)[])',
+    }
+    for (const [selector, signature] of Object.entries(expected)) {
+      const info = getLocalSelectorInfo(selector)
+      expect(info?.name).toBe(signature.slice(0, signature.indexOf('(')))
+      expect(info?.signature).toBe(signature)
+    }
+  })
+
   it('is case-insensitive on the selector', () => {
     const info = getLocalSelectorInfo(TRANSFER_SELECTOR.toUpperCase())
     expect(info?.name).toBe('transfer')
