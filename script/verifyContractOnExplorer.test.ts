@@ -128,10 +128,26 @@ describe('verifyContractOnExplorer', () => {
     expect(call).not.toContain('api-key')
   })
 
-  for (const [network, keyName] of [
-    ['mainnet', 'MAINNET_ETHERSCAN_API_KEY'],
-    ['pharos', 'PHAROS_SOCIALSCAN_API_KEY'],
+  for (const [network, keyName, keyFlags] of [
+    [
+      'mainnet',
+      'MAINNET_ETHERSCAN_API_KEY',
+      '--verifier etherscan --etherscan-api-key',
+    ],
+    [
+      'pharos',
+      'PHAROS_SOCIALSCAN_API_KEY',
+      '--verifier custom --verifier-api-key',
+    ],
   ] as const) {
+    it(`passes a set ${keyName} to forge for ${network} under set -u`, () => {
+      const result = run(network, { [keyName]: 'dummy-key' }, { strict: true })
+
+      expect(result.status).toBe(0)
+      expect(result.forgeCalls).toHaveLength(1)
+      expect(result.forgeCalls[0]).toContain(`${keyFlags} dummy-key`)
+    })
+
     it(`reports an unset ${keyName} for ${network} under set -u instead of aborting`, () => {
       const result = run(network, {}, { strict: true, unset: [keyName] })
 
