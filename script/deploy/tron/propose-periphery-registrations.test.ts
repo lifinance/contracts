@@ -24,8 +24,10 @@ import {
   type CallExpression,
   type Node,
 } from 'typescript'
+import { createTronWebReadOnly } from '@lifi/tron-devkit'
 import {
   decodeFunctionData,
+  encodeAbiParameters,
   getAddress,
   parseAbi,
   type Address,
@@ -36,6 +38,7 @@ import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhit
 
 import {
   proposeTronPeripheryRegistrations,
+  readTronWhitelistedSelectors,
   tronHasCode,
   type ITronPeripheryRegistrationDeps,
 } from './propose-periphery-registrations'
@@ -96,7 +99,9 @@ const harness = (
   const proposals: IProposal[] = []
   const recorded: string[] = []
   const errors: string[] = []
+  const infos: string[] = []
   const reads: string[] = []
+  const registrationReads: string[] = []
   const deps: ITronPeripheryRegistrationDeps = {
     network: 'tron',
     diamond: TRON.diamond,
@@ -109,6 +114,7 @@ const harness = (
       return evm
     },
     readRegistered: async (name) => {
+      registrationReads.push(name)
       if (options.unreadable === name) throw new Error('429 forever')
       return options.registered?.[name]
     },
@@ -127,12 +133,12 @@ const harness = (
       recorded.push(`${name}@${address}`)
     },
     log: {
-      info: () => undefined,
+      info: (message) => infos.push(message),
       warn: () => undefined,
       error: (message) => errors.push(message),
     },
   }
-  return { deps, proposals, recorded, errors, reads }
+  return { deps, proposals, recorded, errors, infos, reads, registrationReads }
 }
 
 async function expectRejects(promise: Promise<unknown>, match: RegExp) {
@@ -374,6 +380,91 @@ describe('proposeTronPeripheryRegistrations', () => {
     )
     expect(outcome.failed).toEqual(['FeeCollector', 'TokenWrapper'])
     expect(h.errors.join('\n')).toContain('store down')
+  })
+})
+
+describe('proposeTronPeripheryRegistrations on a dry run that would deploy', () => {
+  it('reads and proposes nothing when every candidate is a simulated deploy', async () => {
+    const h = harness(replacing)
+    h.deps.dryRun = true
+    const outcome = await proposeTronPeripheryRegistrations(
+      [
+        {
+          name: 'TokenWrapper',
+          address: 'T' + 'X'.repeat(33),
+          simulated: true,
+        },
+        {
+          name: 'FeeCollector',
+          address: 'T' + 'X'.repeat(33),
+          simulated: true,
+        },
+      ],
+      h.deps
+    )
+    expect(outcome).toEqual({ proposed: [], failed: [] })
+    expect(h.proposals).toEqual([])
+    expect(h.registrationReads).toEqual([])
+    expect(h.infos).toEqual([
+      '[DRY RUN] would propose registration of TokenWrapper (+ whitelist pairs) after deploy',
+      '[DRY RUN] would propose registration of FeeCollector after deploy',
+    ])
+  })
+
+  it('still runs the real pass for a contract reused from the log', async () => {
+    const h = harness(replacing)
+    h.deps.dryRun = true
+    const outcome = await proposeTronPeripheryRegistrations(
+      [
+        {
+          name: 'FeeCollector',
+          address: 'T' + 'X'.repeat(33),
+          simulated: true,
+        },
+        { name: 'TokenWrapper', address: TRON.newWrapper },
+      ],
+      h.deps
+    )
+    expect(outcome.proposed).toEqual(['TokenWrapper'])
+    expect(h.registrationReads).not.toContain('FeeCollector')
+    expect(h.proposals).toHaveLength(1)
+  })
+})
+
+describe('readTronWhitelistedSelectors', () => {
+  const DIAMOND_BASE58 = 'TDCo8wrqwRVC7HaRAAsuCdbnS4AdAdtcn9'
+
+  /** A TronWeb whose constant calls answer with `bytes4[]` ABI-encoded, as a node returns it. */
+  const tronWebAnswering = (selectors: Hex[]) => {
+    const tronWeb = createTronWebReadOnly({
+      rpcUrl: 'http://127.0.0.1:1',
+      networkKey: 'tron',
+    })
+    const encoded = encodeAbiParameters([{ type: 'bytes4[]' }], [selectors])
+    tronWeb.transactionBuilder.triggerSmartContract = (async () => ({
+      constant_result: [encoded.slice(2)],
+    })) as unknown as typeof tronWeb.transactionBuilder.triggerSmartContract
+    return tronWeb
+  }
+
+  it('hands the registration pass a flat selector list straight from TronWeb', async () => {
+    const tronWeb = tronWebAnswering([DEPOSIT, WITHDRAW])
+    const h = harness(replacing)
+    h.deps.readWhitelistedSelectors = (contract) =>
+      readTronWhitelistedSelectors(tronWeb, DIAMOND_BASE58, contract)
+
+    const outcome = await proposeTronPeripheryRegistrations(
+      [{ name: 'TokenWrapper', address: TRON.newWrapper }],
+      h.deps
+    )
+
+    expect(outcome.proposed).toEqual(['TokenWrapper'])
+    const [, remove] = h.proposals[0]?.calls ?? []
+    expect(remove?.args).toEqual([
+      [EVM[TRON.oldWrapper], EVM[TRON.oldWrapper]],
+      [DEPOSIT, WITHDRAW],
+      false,
+    ])
   })
 })
 

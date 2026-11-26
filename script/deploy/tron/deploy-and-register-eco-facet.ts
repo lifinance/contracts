@@ -43,6 +43,8 @@ import {
 async function deployAndRegisterEcoFacet(options: {
   dryRun?: boolean
   proposeOnly?: boolean
+  skipConfirmation: boolean
+  forceRedeploy: boolean
 }) {
   consola.start('TRON EcoFacet Deployment & Registration')
   const dryRun = options.dryRun ?? false
@@ -138,8 +140,10 @@ async function deployAndRegisterEcoFacet(options: {
 
     const contracts = ['EcoFacet']
 
-    if (!(await confirmDeployment(environment, network, contracts)))
-      process.exit(0)
+    confirmDeployment(environment, network, contracts, {
+      skipConfirmation: options.skipConfirmation,
+      broadcasts: !dryRun && !proposeOnly,
+    })
 
     const deploymentResults: IDeploymentResult[] = []
 
@@ -148,8 +152,11 @@ async function deployAndRegisterEcoFacet(options: {
     const { exists, address, shouldRedeploy } = await checkExistingDeployment(
       network,
       'EcoFacet',
-      dryRun,
-      tronExistingDeploymentMode(proposeOnly, 'EcoFacet', tronWeb)
+      tronExistingDeploymentMode(
+        { proposeOnly, forceRedeploy: options.forceRedeploy },
+        'EcoFacet',
+        tronWeb
+      )
     )
 
     let facetAddress: string
@@ -241,6 +248,16 @@ const main = defineCommand({
       description:
         'Skip the deploy and propose the address recorded for the network',
     },
+    skipConfirmation: {
+      type: 'boolean',
+      description:
+        'Confirm a production deploy up front; production refuses to broadcast without it',
+    },
+    forceRedeploy: {
+      type: 'boolean',
+      description:
+        'Deploy even when the recorded address holds this build, e.g. after a constructor argument changed',
+    },
   },
   async run({ args }) {
     await deployAndRegisterEcoFacet({
@@ -248,6 +265,14 @@ const main = defineCommand({
       proposeOnly: readBooleanFlag(process.argv, {
         camel: 'proposeOnly',
         kebab: 'propose-only',
+      }),
+      skipConfirmation: readBooleanFlag(process.argv, {
+        camel: 'skipConfirmation',
+        kebab: 'skip-confirmation',
+      }),
+      forceRedeploy: readBooleanFlag(process.argv, {
+        camel: 'forceRedeploy',
+        kebab: 'force-redeploy',
       }),
     })
   },

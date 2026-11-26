@@ -593,11 +593,11 @@ Run these from a `contracts-tron` checkout, not this repo:
 # anything else → tronshasta + PRIVATE_KEY (both read from .env). NETWORK is ignored.
 export PRODUCTION=true  # or PRODUCTION=false for tronshasta
 
-# Deploy in order
-bunx tsx script/deploy/tron/deploy-core-facets.ts
+# Deploy in order. --skipConfirmation is required on production and ignored on tronshasta.
+bunx tsx script/deploy/tron/deploy-core-facets.ts --skipConfirmation
 bunx tsx script/deploy/tron/register-facets-to-diamond.ts
-bunx tsx script/deploy/tron/deploy-and-register-periphery.ts
-bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts
+bunx tsx script/deploy/tron/deploy-and-register-periphery.ts --skipConfirmation
+bunx tsx script/deploy/tron/deploy-and-register-symbiosis-facet.ts --skipConfirmation
 ```
 
 Each `deploy-and-register-*.ts` script proposes what it deploys, so it refuses to start
@@ -607,6 +607,18 @@ When a facet is deployed but its proposal is missing, re-run its script with
 refuses when none is recorded, when a `tronshasta` run would take it from `tron.json`, or
 when the code there is not this checkout's build of the facet. Production rollouts run
 these through `/multisig-rollout`.
+
+None of the scripts above prompts. A contract already recorded for the network is reused
+when its on-chain runtime code matches this checkout's artifact in `out/`, and deployed
+when it differs, has no code or is not recorded. The comparison ignores constructor
+arguments, so after changing one pass `--forceRedeploy` (with `--only` to limit it).
+Executor and ReceiverOIF are also redeployed when the ERC20Proxy or Executor they store is
+not the one recorded for the network. A recorded LiFiDiamond or LiFiTimelockController that
+`--only` does not name is kept, and the run stops if no code is deployed at it.
+Each decision is logged with its reason before anything is broadcast. On production
+(`PRODUCTION=true`) a run that broadcasts refuses to start without `--skipConfirmation`;
+`--dryRun` needs no flag. `deploy-core-facets.ts --only <Facet,...>` deploys only the
+named core facets and keeps a recorded `LiFiDiamond` unless `--only` names it.
 
 `deploy-core-facets.ts` and `register-facets-to-diamond.ts` only bootstrap a new diamond
 the deployer still owns: `register-facets-to-diamond.ts` sends `diamondCut` from the

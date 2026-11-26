@@ -8,6 +8,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   assertFacetCodeMatchesArtifacts,
   describeCodeMismatch,
+  describeDeployedCodeMismatch,
   type IRuntimeArtifact,
 } from './assertFacetCodeMatchesArtifact'
 
@@ -202,5 +203,36 @@ describe('assertFacetCodeMatchesArtifacts', () => {
       outRoot: outWith([]),
     })
     expect(reads).toEqual([])
+  })
+
+  it('describes one deployed contract without throwing on a mismatch', async () => {
+    const outRoot = outWith(['A'])
+    const readRuntimeCode = chain({
+      TA: ARTIFACT.deployedBytecode?.object ?? '',
+      TB: `0x${body('0')}ff${trailer('11')}`,
+    })
+    const mismatch = (address: string, name = 'A') =>
+      describeDeployedCodeMismatch({ name, address, readRuntimeCode, outRoot })
+
+    expect(await mismatch('TA')).toBeUndefined()
+    expect(await mismatch('TB')).toStartWith('on-chain code is')
+    expect(await mismatch('TC')).toBe('no code at that address')
+    expect(await mismatch('TA', 'Missing')).toStartWith(
+      'artifact not found at '
+    )
+  })
+
+  it('passes a failed read through rather than reading it as missing code', async () => {
+    await expectRejects(
+      describeDeployedCodeMismatch({
+        name: 'A',
+        address: 'TA',
+        readRuntimeCode: async () => {
+          throw new Error('503 Service Unavailable')
+        },
+        outRoot: outWith(['A']),
+      }),
+      /503 Service Unavailable/
+    )
   })
 })

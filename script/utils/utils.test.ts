@@ -47,7 +47,9 @@ mock.module('fs', () => ({
 }))
 
 const {
+  assertDeploymentConfirmed,
   checkExistingDeployment,
+  confirmDeployment,
   displayNetworkInfo,
   getContractAddress,
   getFacetAddressFromDiamondLog,
@@ -911,12 +913,7 @@ describe('checkExistingDeployment', () => {
     await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
       const { checked, mode } = proposeOnly()
 
-      const result = await checkExistingDeployment(
-        'tron',
-        'EcoFacet',
-        false,
-        mode
-      )
+      const result = await checkExistingDeployment('tron', 'EcoFacet', mode)
 
       expect(result).toEqual({
         exists: true,
@@ -938,7 +935,6 @@ describe('checkExistingDeployment', () => {
         const result = await checkExistingDeployment(
           'tronshasta',
           'EcoFacet',
-          false,
           proposeOnly().mode
         )
 
@@ -952,7 +948,7 @@ describe('checkExistingDeployment', () => {
       const { checked, mode } = proposeOnly()
 
       await expectRejects(
-        checkExistingDeployment('tron', 'EcoFacet', false, mode),
+        checkExistingDeployment('tron', 'EcoFacet', mode),
         '--proposeOnly: no EcoFacet address is recorded for tron'
       )
       expect(checked).toEqual([])
@@ -964,7 +960,7 @@ describe('checkExistingDeployment', () => {
       const { checked, mode } = proposeOnly()
 
       await expectRejects(
-        checkExistingDeployment('tronshasta', 'EcoFacet', false, mode),
+        checkExistingDeployment('tronshasta', 'EcoFacet', mode),
         /recorded for tronshasta only through another network's log/
       )
       expect(checked).toEqual([])
@@ -976,17 +972,18 @@ describe('checkExistingDeployment', () => {
       const { checked, mode } = proposeOnly(new Error('on-chain code differs'))
 
       await expectRejects(
-        checkExistingDeployment('tron', 'EcoFacet', false, mode),
+        checkExistingDeployment('tron', 'EcoFacet', mode),
         `--proposeOnly: could not confirm that EcoFacet at ${ADDRESS} on tron is this checkout's build, so nothing was proposed. on-chain code differs`
       )
       expect(checked).toEqual([ADDRESS])
     })
   })
 
-  it('deploys without asking in redeploy mode', async () => {
-    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
-      const result = await checkExistingDeployment('tron', 'EcoFacet', false, {
+  it('deploys a recorded contract in redeploy mode, even one whose code matches', async () => {
+    await withLogs(true, { 'tron.json': { Executor: ADDRESS } }, async () => {
+      const result = await checkExistingDeployment('tron', 'Executor', {
         kind: 'redeploy',
+        reason: 'ERC20Proxy was deployed in this run',
       })
 
       expect(result).toEqual({
@@ -995,5 +992,233 @@ describe('checkExistingDeployment', () => {
         shouldRedeploy: true,
       })
     })
+  })
+
+  /** A code-match mode answering `mismatch` (or throwing it when an Error), recording each address. */
+  const codeMatch = (mismatch?: string | Error) => {
+    const checked: string[] = []
+    return {
+      checked,
+      mode: {
+        kind: 'codeMatch' as const,
+        describeMismatch: async (address: string) => {
+          checked.push(address)
+          if (mismatch instanceof Error) throw mismatch
+          return mismatch
+        },
+      },
+    }
+  }
+
+  it('reuses a recorded address whose code matches this build', async () => {
+    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const { checked, mode } = codeMatch()
+
+      const result = await checkExistingDeployment('tron', 'EcoFacet', mode)
+
+      expect(result).toEqual({
+        exists: true,
+        address: ADDRESS,
+        shouldRedeploy: false,
+      })
+      expect(checked).toEqual([ADDRESS])
+    })
+  })
+
+  it.each(['on-chain code differs', 'no code at that address'])(
+    'deploys over a recorded address when %s',
+    async (reason) => {
+      await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+        const result = await checkExistingDeployment(
+          'tron',
+          'EcoFacet',
+          codeMatch(reason).mode
+        )
+
+        expect(result).toEqual({
+          exists: true,
+          address: ADDRESS,
+          shouldRedeploy: true,
+        })
+      })
+    }
+  )
+
+  it('deploys without reading the chain when nothing is recorded', async () => {
+    await withLogs(true, { 'tron.json': {} }, async () => {
+      const { checked, mode } = codeMatch()
+
+      const result = await checkExistingDeployment('tron', 'EcoFacet', mode)
+
+      expect(result).toEqual({
+        exists: false,
+        address: null,
+        shouldRedeploy: true,
+      })
+      expect(checked).toEqual([])
+    })
+  })
+
+  it('deploys on tronshasta when only the tron.json fallback records an address', async () => {
+    await withLogs(false, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      const { checked, mode } = codeMatch()
+
+      const result = await checkExistingDeployment(
+        'tronshasta',
+        'EcoFacet',
+        mode
+      )
+
+      expect(result.shouldRedeploy).toBe(true)
+      expect(result.exists).toBe(false)
+      expect(checked).toEqual([])
+    })
+  })
+
+  /** A keep-recorded mode whose code check answers `hasCode`, recording each address. */
+  const keepRecorded = (hasCode = true) => {
+    const checked: string[] = []
+    return {
+      checked,
+      mode: {
+        kind: 'keepRecorded' as const,
+        reason: 'kept',
+        hasCode: async (address: string) => {
+          checked.push(address)
+          return hasCode
+        },
+      },
+    }
+  }
+  const KEEP = keepRecorded().mode
+
+  it('keeps a recorded address that holds code, whatever the code', async () => {
+    await withLogs(
+      true,
+      { 'tron.json': { LiFiDiamond: ADDRESS } },
+      async () => {
+        const { checked, mode } = keepRecorded()
+        expect(
+          await checkExistingDeployment('tron', 'LiFiDiamond', mode)
+        ).toEqual({ exists: true, address: ADDRESS, shouldRedeploy: false })
+        expect(checked).toEqual([ADDRESS])
+      }
+    )
+  })
+
+  it('refuses to keep a recorded address with no code, rather than deploying', async () => {
+    await withLogs(
+      true,
+      { 'tron.json': { LiFiDiamond: ADDRESS } },
+      async () => {
+        await expectRejects(
+          checkExistingDeployment(
+            'tron',
+            'LiFiDiamond',
+            keepRecorded(false).mode
+          ),
+          `LiFiDiamond: the address recorded for tron (${ADDRESS}) has no code`
+        )
+      }
+    )
+  })
+
+  it.each([
+    ['nothing is recorded', 'tron' as const, true, {}],
+    [
+      'only the tron.json fallback records one',
+      'tronshasta' as const,
+      false,
+      { LiFiDiamond: ADDRESS },
+    ],
+  ])(
+    'deploys instead of keeping when %s',
+    async (_, network, production, log) => {
+      await withLogs(production, { 'tron.json': log }, async () => {
+        expect(
+          await checkExistingDeployment(network, 'LiFiDiamond', KEEP)
+        ).toEqual({ exists: false, address: null, shouldRedeploy: true })
+      })
+    }
+  )
+
+  it('stops rather than deploys when the recorded code cannot be read', async () => {
+    await withLogs(true, { 'tron.json': { EcoFacet: ADDRESS } }, async () => {
+      await expectRejects(
+        checkExistingDeployment(
+          'tron',
+          'EcoFacet',
+          codeMatch(new Error('429 Too Many Requests')).mode
+        ),
+        '429 Too Many Requests'
+      )
+    })
+  })
+})
+
+describe('assertDeploymentConfirmed', () => {
+  const quiet = (action: () => void) => {
+    const realWarn = consola.warn
+    consola.warn = (() => undefined) as unknown as typeof consola.warn
+    try {
+      action()
+    } finally {
+      consola.warn = realWarn
+    }
+  }
+
+  it('never asks on staging, flag or not', () => {
+    quiet(() =>
+      assertDeploymentConfirmed(EnvironmentEnum.staging, 'tronshasta', {
+        skipConfirmation: false,
+        broadcasts: true,
+      })
+    )
+  })
+
+  it('refuses a production broadcast without --skipConfirmation, naming the flag', () => {
+    quiet(() =>
+      expect(() =>
+        assertDeploymentConfirmed(EnvironmentEnum.production, 'tron', {
+          skipConfirmation: false,
+          broadcasts: true,
+        })
+      ).toThrow(/without --skipConfirmation/)
+    )
+  })
+
+  it('lets a production broadcast through with --skipConfirmation', () => {
+    quiet(() =>
+      assertDeploymentConfirmed(EnvironmentEnum.production, 'tron', {
+        skipConfirmation: true,
+        broadcasts: true,
+      })
+    )
+  })
+
+  it('lets a production run through that broadcasts nothing (dry run, propose-only)', () => {
+    quiet(() =>
+      assertDeploymentConfirmed(EnvironmentEnum.production, 'tron', {
+        skipConfirmation: false,
+        broadcasts: false,
+      })
+    )
+  })
+
+  it('applies the same rule after printing the plan in confirmDeployment', () => {
+    const realBox = consola.box
+    consola.box = (() => undefined) as unknown as typeof consola.box
+    try {
+      quiet(() =>
+        expect(() =>
+          confirmDeployment(EnvironmentEnum.production, 'tron', ['EcoFacet'], {
+            skipConfirmation: false,
+            broadcasts: true,
+          })
+        ).toThrow(/without --skipConfirmation/)
+      )
+    } finally {
+      consola.box = realBox
+    }
   })
 })

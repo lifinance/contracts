@@ -199,8 +199,23 @@ export interface IDeploymentResult {
 
 /** How a deploy script treats a contract already recorded for its network. */
 export type ExistingDeploymentMode =
-  | { kind: 'prompt' }
-  | { kind: 'redeploy' }
+  | {
+      kind: 'codeMatch'
+      /** Why the code at `address` is not this checkout's build, or undefined when it is. */
+      describeMismatch: (address: string) => Promise<string | undefined>
+    }
+  | {
+      kind: 'redeploy'
+      /** Why the contract is deployed even if a recorded address holds this build. */
+      reason: string
+    }
+  | {
+      kind: 'keepRecorded'
+      /** Why an address recorded for the network is reused whatever its code. */
+      reason: string
+      /** Whether any code is deployed at `address`; a recorded address without code is refused. */
+      hasCode: (address: string) => Promise<boolean>
+    }
   | {
       kind: 'proposeOnly'
       /** Throws unless the code at `address` is this checkout's build of the contract. */

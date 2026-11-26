@@ -173,6 +173,57 @@ describe('Tron deploy-and-register scripts check the ticket first', () => {
     }
   )
 
+  it.each([...FACET_SCRIPTS, 'deploy-core-facets.ts'])(
+    '%s hands confirmDeployment the --skipConfirmation flag, read strictly',
+    (script) => {
+      const calls = callsIn(script)
+      const [confirmation] = calls.filter((c) => c.name === 'confirmDeployment')
+      const options = confirmation?.node.arguments[3]
+      expect(options?.getText()).toMatch(
+        /skipConfirmation: options\.skipConfirmation/
+      )
+
+      const reads = calls.filter(({ name, node }) => {
+        const { parent } = node
+        return (
+          name === 'readBooleanFlag' &&
+          ts.isPropertyAssignment(parent) &&
+          parent.name.getText() === 'skipConfirmation'
+        )
+      })
+      expect(reads).toHaveLength(1)
+      expect((reads[0] as ICall).node.arguments[1]?.getText()).toContain(
+        "camel: 'skipConfirmation'"
+      )
+    }
+  )
+
+  it.each([...SCRIPTS, 'deploy-core-facets.ts'])(
+    '%s reads --forceRedeploy strictly',
+    (script) => {
+      const reads = callsIn(script).filter(({ name, node }) => {
+        const { parent } = node
+        return (
+          name === 'readBooleanFlag' &&
+          ts.isPropertyAssignment(parent) &&
+          parent.name.getText() === 'forceRedeploy'
+        )
+      })
+      expect(reads).toHaveLength(1)
+      expect((reads[0] as ICall).node.arguments[1]?.getText()).toContain(
+        "camel: 'forceRedeploy'"
+      )
+    }
+  )
+
+  it.each([...SCRIPTS, 'deploy-core-facets.ts'])(
+    '%s never waits on a prompt',
+    (script) => {
+      const source = readFileSync(join(import.meta.dir, script), 'utf8')
+      expect(source).not.toMatch(/consola\.prompt|promptEnergyRentalReminder/)
+    }
+  )
+
   it.each(FACET_SCRIPTS)(
     '%s passes --proposeOnly to the deployment-mode check for the facet it deploys',
     (script) => {
@@ -180,9 +231,16 @@ describe('Tron deploy-and-register scripts check the ticket first', () => {
       const modes = calls.filter((c) => c.name === 'tronExistingDeploymentMode')
 
       expect(modes).toHaveLength(1)
-      const [flag, contract] = (modes[0] as ICall).node.arguments
-      expect(flag?.getText()).toBe('proposeOnly')
+      const [flags, contract] = (modes[0] as ICall).node.arguments
+      expect(flags?.getText().replace(/\s+/g, ' ')).toBe(
+        '{ proposeOnly, forceRedeploy: options.forceRedeploy }'
+      )
       expect(stringValueOf(contract, script)).toBe(FACETS[script])
+
+      const [confirmation] = calls.filter((c) => c.name === 'confirmDeployment')
+      expect(confirmation?.node.arguments[3]?.getText()).toMatch(
+        /broadcasts: !dryRun && !proposeOnly/
+      )
 
       const reads = calls.filter(({ name, node }) => {
         const { parent } = node
@@ -198,4 +256,33 @@ describe('Tron deploy-and-register scripts check the ticket first', () => {
       )
     }
   )
+})
+
+describe('deploy-and-register-periphery.ts redeploy decisions', () => {
+  const calls = callsIn('deploy-and-register-periphery.ts')
+  const argsOf = (name: string) =>
+    calls
+      .filter((c) => c.name === name)
+      .map((c) => c.node.arguments.map((arg) => arg.getText()))
+
+  it('checks the dependency Executor and ReceiverOIF store before reusing them', () => {
+    expect(argsOf('modeAfterDependency')).toEqual([
+      ["'Executor'", "'ERC20Proxy'", "'erc20Proxy'"],
+      ["'ReceiverOIF'", "'Executor'", "'EXECUTOR'"],
+    ])
+    const direct = argsOf('tronExistingDeploymentMode').map((args) => args[1])
+    expect(direct).not.toContain("'Executor'")
+    expect(direct).not.toContain("'ReceiverOIF'")
+  })
+
+  it('keeps a recorded timelock unless --only names it', () => {
+    const timelock = argsOf('checkExistingDeployment').filter(
+      (args) => args[1] === "'LiFiTimelockController'"
+    )
+    expect(timelock).toHaveLength(1)
+    const mode = (timelock[0] as string[])[2] ?? ''
+    expect(mode).toMatch(
+      /^onlyContracts\?\.includes\(\s*'LiFiTimelockController'\s*\)\s*\?[\s\S]*:\s*keepUnlessNamed\(tronWeb\)$/
+    )
+  })
 })

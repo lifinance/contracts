@@ -3,6 +3,8 @@
  * missing on a Tron diamond.
  */
 
+import { evmHexToTronBase58 } from '@lifi/tron-devkit'
+import type { TronWeb } from 'tronweb'
 import type { Address, Hex } from 'viem'
 import { encodeFunctionData, parseAbi } from 'viem'
 
@@ -24,6 +26,41 @@ export interface ITronRegistrationCandidate {
   name: string
   /** As the deploy log holds it (base58). */
   address: string
+  /** True when a dry run only simulated the deploy, so the address is a placeholder. */
+  simulated?: boolean
+}
+
+/**
+ * The whitelist read, with an unnamed output: TronWeb unwraps a single output only when it
+ * is unnamed, so a named one would come back as `[[...selectors]]`.
+ */
+const TRON_WHITELIST_READ_ABI = [
+  {
+    name: 'getWhitelistedSelectorsForContract',
+    type: 'function' as const,
+    inputs: [{ name: '_contract', type: 'address' }],
+    outputs: [{ name: '', type: 'bytes4[]' }],
+    stateMutability: 'view',
+  },
+] as const
+
+/**
+ * Reads `getWhitelistedSelectorsForContract(contract)` from a Tron diamond through TronWeb.
+ *
+ * @param tronWeb - The client to call through.
+ * @param diamond - The diamond, in any address form TronWeb takes.
+ * @param contract - The contract whose whitelisted selectors to read.
+ * @returns The selectors as TronWeb decodes them, one entry per selector.
+ */
+export async function readTronWhitelistedSelectors(
+  tronWeb: TronWeb,
+  diamond: string,
+  contract: Address
+): Promise<readonly unknown[]> {
+  const whitelistManager = tronWeb.contract(TRON_WHITELIST_READ_ABI, diamond)
+  return whitelistManager
+    .getWhitelistedSelectorsForContract(evmHexToTronBase58(tronWeb, contract))
+    .call()
 }
 
 /** What the registration pass reads, writes and logs through. */
@@ -102,7 +139,18 @@ export async function proposeTronPeripheryRegistrations(
   const pending: (IRegistration & { base58: string })[] = []
   const refusals: string[] = []
 
-  for (const candidate of candidates)
+  for (const candidate of candidates) {
+    if (candidate.simulated) {
+      const pairs =
+        deps.pairWithWhitelist &&
+        deps.routeConfig.whitelistPeripheryFunctions?.[candidate.name]
+      log.info(
+        `[DRY RUN] would propose registration of ${candidate.name}${
+          pairs ? ' (+ whitelist pairs)' : ''
+        } after deploy`
+      )
+      continue
+    }
     try {
       const address = deps.toEvm(candidate.address)
       const registered = await deps.readRegistered(candidate.name)
@@ -122,6 +170,7 @@ export async function proposeTronPeripheryRegistrations(
         )}`
       )
     }
+  }
   if (refusals.length)
     throw new Error(
       `[${network}] nothing was proposed:\n  ${refusals.join('\n  ')}`

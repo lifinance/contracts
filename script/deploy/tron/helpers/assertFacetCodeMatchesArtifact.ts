@@ -78,6 +78,35 @@ export const describeCodeMismatch = (
 }
 
 /**
+ * Compares the code at a deployed address with the contract's artifact in `out/`.
+ *
+ * @param options.name - Contract name; its artifact is `<outRoot>/<name>.sol/<name>.json`.
+ * @param options.address - The deployed address to read.
+ * @param options.readRuntimeCode - Reads the address's runtime code from chain.
+ * @param options.outRoot - Forge output directory holding the artifact.
+ * @returns Why they differ, or undefined when they match.
+ * @throws When the runtime code cannot be read.
+ */
+export async function describeDeployedCodeMismatch(options: {
+  name: string
+  address: string
+  readRuntimeCode: TRuntimeCodeReader
+  outRoot: string
+}): Promise<string | undefined> {
+  const path = join(
+    options.outRoot,
+    `${options.name}.sol`,
+    `${options.name}.json`
+  )
+  if (!existsSync(path)) return `artifact not found at ${path}`
+  const artifact = JSON.parse(readFileSync(path, 'utf8')) as IRuntimeArtifact
+  return describeCodeMismatch(
+    await options.readRuntimeCode(options.address),
+    artifact
+  )
+}
+
+/**
  * Refuses unless each facet's on-chain code matches its artifact in `out/`.
  *
  * @param options.facets - Facet name mapped to its deployed address.
@@ -90,22 +119,18 @@ export async function assertFacetCodeMatchesArtifacts(options: {
   readRuntimeCode: TRuntimeCodeReader
   outRoot: string
 }): Promise<void> {
-  const entries = Object.entries(options.facets)
-  const onChain = await Promise.all(
-    entries.map(([, address]) => options.readRuntimeCode(address))
+  const results = await Promise.all(
+    Object.entries(options.facets).map(async ([name, address]) => {
+      const mismatch = await describeDeployedCodeMismatch({
+        name,
+        address,
+        readRuntimeCode: options.readRuntimeCode,
+        outRoot: options.outRoot,
+      })
+      return mismatch && `${name} (${address}): ${mismatch}`
+    })
   )
-
-  const mismatches: string[] = []
-  entries.forEach(([name, address], index) => {
-    const path = join(options.outRoot, `${name}.sol`, `${name}.json`)
-    const mismatch = existsSync(path)
-      ? describeCodeMismatch(
-          onChain[index],
-          JSON.parse(readFileSync(path, 'utf8')) as IRuntimeArtifact
-        )
-      : `artifact not found at ${path}`
-    if (mismatch) mismatches.push(`${name} (${address}): ${mismatch}`)
-  })
+  const mismatches = results.filter((m): m is string => Boolean(m))
 
   if (mismatches.length > 0)
     throw new Error(

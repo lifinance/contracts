@@ -9,7 +9,6 @@ import {
   createTronWeb,
   evmHexToTronBase58,
   loadForgeArtifact,
-  promptEnergyRentalReminder,
   tronAddressLikeToBase58,
   tronAddressToHex,
   tronRegistrationAddressToEvmHex,
@@ -20,7 +19,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 
-import type { SupportedChain } from '../../common/types'
+import type { ExistingDeploymentMode, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import type { IPeripheryRouteConfig } from '../../tasks/proposePeripheryWithWhitelist'
@@ -30,6 +29,7 @@ import { redactUrls } from '../../utils/redactUrls'
 import {
   getEnvVar,
   getRPCEnvVarName,
+  assertDeploymentConfirmed,
   checkExistingDeployment,
   getContractAddress,
   getEnvironment,
@@ -48,12 +48,16 @@ import { buildForgeArtifactsOrThrow } from './assertTronToolchain'
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
 import {
   proposeTronPeripheryRegistrations,
+  readTronWhitelistedSelectors,
   tronHasCode,
 } from './propose-periphery-registrations.js'
 import {
   assertTronDeploymentRecordable,
   getTronWallet,
+  keepUnlessNamed,
   recordTronDeployment,
+  tronExistingDeploymentMode,
+  withTronDependencyCheck,
 } from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
@@ -123,16 +127,6 @@ async function ensureExecutorAuthorizedOnErc20Proxy(
   consola.success(`Executor authorized on ERC20Proxy (tx: ${tx})`)
 }
 
-const TRON_WHITELIST_READ_ABI = [
-  {
-    name: 'getWhitelistedSelectorsForContract',
-    type: 'function' as const,
-    inputs: [{ name: '_contract', type: 'address' }],
-    outputs: [{ name: 'selectors', type: 'bytes4[]' }],
-    stateMutability: 'view',
-  },
-] as const
-
 /**
  * Deploy and register periphery contracts to Tron
  */
@@ -142,6 +136,7 @@ async function deployAndRegisterPeripheryImpl(options: {
   skipConfirmation: boolean
   onlyContracts?: string[]
   registerOnly?: boolean
+  forceRedeploy: boolean
 }) {
   consola.start('TRON Periphery Contracts Deployment & Registration')
   if (!options.dryRun) assertTicketPresent()
@@ -289,7 +284,15 @@ async function deployAndRegisterPeripheryImpl(options: {
         '9. Register periphery contracts with PeripheryRegistryFacet\n'
       )
 
-      if (!dryRun) await promptEnergyRentalReminder()
+      if (!dryRun)
+        consola.info(
+          'Tip: renting energy (e.g. from Zinergy.ag for 1 hour) reduces the TRX burned by the deploy.'
+        )
+
+      assertDeploymentConfirmed(environment, network, {
+        skipConfirmation: options.skipConfirmation,
+        broadcasts: !dryRun,
+      })
     } else {
       consola.info(
         '\n Register-only mode: will register contract(s) from deployments file with the Diamond.\n'
@@ -299,39 +302,6 @@ async function deployAndRegisterPeripheryImpl(options: {
     // Delay before first RPC to avoid 429 rate limits
     if (!dryRun) await sleep(10000)
 
-    if (!dryRun && !options.skipConfirmation && !options.registerOnly)
-      if (environment === EnvironmentEnum.production) {
-        consola.warn(
-          ' WARNING: This will deploy contracts to Tron mainnet in PRODUCTION!'
-        )
-        const shouldContinue = await consola.prompt(
-          'Do you want to continue?',
-          {
-            type: 'confirm',
-            initial: false,
-          }
-        )
-
-        if (!shouldContinue) {
-          consola.info('Deployment cancelled')
-          process.exit(0)
-        }
-      } else {
-        consola.warn('This will deploy contracts to Tron mainnet in STAGING!')
-        const shouldContinue = await consola.prompt(
-          'Do you want to continue?',
-          {
-            type: 'confirm',
-            initial: true,
-          }
-        )
-
-        if (!shouldContinue) {
-          consola.info('Deployment cancelled')
-          process.exit(0)
-        }
-      }
-
     const deployedContracts: Record<string, string> = {}
     const deploymentResults: Array<{
       contract: string
@@ -340,6 +310,39 @@ async function deployAndRegisterPeripheryImpl(options: {
       cost: number
       version: string
     }> = []
+    const deployedThisRun = (contract: string) =>
+      deploymentResults.some(
+        (r) =>
+          r.contract === contract &&
+          !['existing', 'FAILED', 'SKIPPED'].includes(r.txId)
+      )
+    const deployFlags = {
+      proposeOnly: false,
+      forceRedeploy: options.forceRedeploy,
+    }
+    // The code match ignores the dependency address a contract stores, so a reused one is
+    // also checked against the dependency this run uses, and redeployed when it differs.
+    const modeAfterDependency = (
+      contract: string,
+      dependency: string,
+      getter: string
+    ): ExistingDeploymentMode =>
+      deployedThisRun(dependency)
+        ? {
+            kind: 'redeploy',
+            reason: `${dependency} was deployed in this run and ${contract} is built against it`,
+          }
+        : withTronDependencyCheck(
+            tronExistingDeploymentMode(deployFlags, contract, tronWeb),
+            {
+              tronWeb,
+              getter,
+              dependency,
+              expected: async () =>
+                deployedContracts[dependency] ||
+                (await getContractAddress(network, dependency)),
+            }
+          )
 
     if (options.registerOnly) {
       consola.info(
@@ -374,7 +377,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const erc20Deployment = await checkExistingDeployment(
             network,
             'ERC20Proxy',
-            dryRun
+            tronExistingDeploymentMode(deployFlags, 'ERC20Proxy', tronWeb)
           )
 
           if (
@@ -478,7 +481,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const executorDeployment = await checkExistingDeployment(
             network,
             'Executor',
-            dryRun
+            modeAfterDependency('Executor', 'ERC20Proxy', 'erc20Proxy')
           )
 
           if (
@@ -617,7 +620,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const feeCollectorDeployment = await checkExistingDeployment(
             network,
             'FeeCollector',
-            dryRun
+            tronExistingDeploymentMode(deployFlags, 'FeeCollector', tronWeb)
           )
 
           if (
@@ -725,7 +728,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const feeForwarderDeployment = await checkExistingDeployment(
             network,
             'FeeForwarder',
-            dryRun
+            tronExistingDeploymentMode(deployFlags, 'FeeForwarder', tronWeb)
           )
 
           if (
@@ -858,7 +861,7 @@ async function deployAndRegisterPeripheryImpl(options: {
             const tokenWrapperDeployment = await checkExistingDeployment(
               network,
               'TokenWrapper',
-              dryRun
+              tronExistingDeploymentMode(deployFlags, 'TokenWrapper', tronWeb)
             )
 
             if (
@@ -1009,7 +1012,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const outputValidatorDeployment = await checkExistingDeployment(
             network,
             'OutputValidator',
-            dryRun
+            tronExistingDeploymentMode(deployFlags, 'OutputValidator', tronWeb)
           )
 
           if (
@@ -1115,7 +1118,7 @@ async function deployAndRegisterPeripheryImpl(options: {
           const receiverOIFDeployment = await checkExistingDeployment(
             network,
             'ReceiverOIF',
-            dryRun
+            modeAfterDependency('ReceiverOIF', 'Executor', 'EXECUTOR')
           )
 
           if (
@@ -1262,7 +1265,13 @@ async function deployAndRegisterPeripheryImpl(options: {
             const timelockDeployment = await checkExistingDeployment(
               network,
               'LiFiTimelockController',
-              dryRun
+              onlyContracts?.includes('LiFiTimelockController')
+                ? tronExistingDeploymentMode(
+                    deployFlags,
+                    'LiFiTimelockController',
+                    tronWeb
+                  )
+                : keepUnlessNamed(tronWeb)
             )
 
             if (
@@ -1422,17 +1431,17 @@ async function deployAndRegisterPeripheryImpl(options: {
         ([, address]) =>
           address && address !== 'FAILED' && address !== 'SKIPPED'
       )
-      .map(([name, address]) => ({ name, address }))
+      .map(([name, address]) => ({
+        name,
+        address,
+        simulated: dryRun && deployedThisRun(name),
+      }))
 
     const toEvm = (value: string) =>
       normalizeAddressForNetwork(
         tvmKey,
         tronAddressLikeToBase58(tronWeb, value)
       )
-    const whitelistManager = tronWeb.contract(
-      TRON_WHITELIST_READ_ABI,
-      diamondAddress
-    )
     const withRateLimit = <T>(read: () => Promise<T>) =>
       retryWithRateLimit(read, 3, REGISTRATION_RPC_DELAY_MS, (attempt, delay) =>
         consola.warn(
@@ -1463,11 +1472,7 @@ async function deployAndRegisterPeripheryImpl(options: {
         },
         readWhitelistedSelectors: (contract) =>
           withRateLimit(() =>
-            whitelistManager
-              .getWhitelistedSelectorsForContract(
-                evmHexToTronBase58(tronWeb, contract)
-              )
-              .call()
+            readTronWhitelistedSelectors(tronWeb, diamondAddress, contract)
           ),
         hasCode: tronHasCode(async (address) => {
           const contract = await withRateLimit(() =>
@@ -1528,6 +1533,8 @@ async function deployAndRegisterPeripheryImpl(options: {
       consola.info(
         '\n This was a DRY RUN - no contracts were actually deployed'
       )
+    if (failedDeployments.length || registrationOutcome.failed.length)
+      process.exit(1)
   } catch (error: any) {
     consola.error('Deployment failed:', redactUrls(error.message))
     process.exit(1)
@@ -1551,7 +1558,13 @@ const deployCommand = defineCommand({
     },
     skipConfirmation: {
       type: 'boolean',
-      description: 'Skip confirmation prompts',
+      description:
+        'Confirm a production deploy up front; production refuses to broadcast without it',
+    },
+    forceRedeploy: {
+      type: 'boolean',
+      description:
+        'Deploy even when the recorded address holds this build, e.g. after a constructor argument changed; combine with --only',
     },
     only: {
       type: 'string',
@@ -1601,18 +1614,22 @@ const deployCommand = defineCommand({
       await deployAndRegisterPeripheryImpl({
         dryRun,
         verbose,
-        // Strict: on skips the prompt that is the last check before a
-        // production deploy, so an unreadable value must be refused.
+        // Strict: on lets a production broadcast through, so an unreadable
+        // value must be refused.
         skipConfirmation: readBooleanFlag(process.argv, {
           camel: 'skipConfirmation',
           kebab: 'skip-confirmation',
         }),
         onlyContracts,
-        // Strict for the same reason as skipConfirmation: this is the other
-        // flag the production confirmation prompt gates on.
+        // Strict for the same reason: on bypasses the production
+        // confirmation gate.
         registerOnly: readBooleanFlag(process.argv, {
           camel: 'registerOnly',
           kebab: 'register-only',
+        }),
+        forceRedeploy: readBooleanFlag(process.argv, {
+          camel: 'forceRedeploy',
+          kebab: 'force-redeploy',
         }),
       })
     } catch (error: unknown) {
