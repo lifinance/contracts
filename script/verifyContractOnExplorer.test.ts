@@ -146,6 +146,7 @@ describe('verifyContractOnExplorer', () => {
       expect(result.status).toBe(0)
       expect(result.forgeCalls).toHaveLength(1)
       expect(result.forgeCalls[0]).toContain(`${keyFlags} dummy-key`)
+      expect(result.output).not.toContain('dummy-key')
     })
 
     it(`reports an unset ${keyName} for ${network} under set -u instead of aborting`, () => {
