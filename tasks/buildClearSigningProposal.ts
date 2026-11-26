@@ -30,12 +30,12 @@ import { isEntrypoint } from '../script/utils/is-entrypoint'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-interface IAbiParam {
+export interface IAbiParam {
   name: string
   type: string
   components?: IAbiParam[]
 }
-interface IAbiFn {
+export interface IAbiFn {
   type: string
   name: string
   inputs: IAbiParam[]
@@ -1588,6 +1588,20 @@ export const UPSTREAM_MAINTAINED_SIGNATURES: ReadonlySet<string> = new Set([
   `swapTokensMultipleV3ERC20ToNative${MULTIPLE_V3_SWAP_PARAMS}`,
 ])
 
+// Returns the bridge format, or the failure message when the facet's shape or
+// display fields don't match what the templates expect.
+function bridgeFormatOrFailure(fn: IAbiFn, sig: string): IFormatEntry | string {
+  const variant: Variant = fn.name.startsWith('swapAndStart') ? 'swap' : 'start'
+  const err =
+    variant === 'swap' ? validateSwapAndStartFn(fn) : validateStartFn(fn)
+  if (err)
+    return `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData/_swapData struct with LiFi.BridgeData / LibSwap.SwapData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
+  const fieldErr = validateFacetFields(fn, variant)
+  if (fieldErr)
+    return `${sig}\n      reason: bridge-specific display field mismatch — ${fieldErr}\n      fix:    update the BRIDGE_FACET_DISPLAY entry in buildClearSigningProposal.ts to match the facet's current struct.`
+  return buildBridgeFormat(fn, variant)
+}
+
 export interface IBuildResult {
   formats: Record<string, IFormatEntry>
   failures: string[]
@@ -1648,25 +1662,9 @@ export function buildFormats(fns: IAbiFn[]): IBuildResult {
       }
       formats[sig] = tpl
     } else if (/^(swapAndStart|start)BridgeTokensVia/u.test(fn.name)) {
-      const variant: Variant = fn.name.startsWith('swapAndStart')
-        ? 'swap'
-        : 'start'
-      const err =
-        variant === 'swap' ? validateSwapAndStartFn(fn) : validateStartFn(fn)
-      if (err) {
-        failures.push(
-          `${sig}\n      reason: shape mismatch — ${err}\n      fix:    align the facet's _bridgeData/_swapData struct with LiFi.BridgeData / LibSwap.SwapData (canonical), OR teach buildClearSigningProposal.ts about the new shape.`
-        )
-        continue
-      }
-      const fieldErr = validateFacetFields(fn, variant)
-      if (fieldErr) {
-        failures.push(
-          `${sig}\n      reason: bridge-specific display field mismatch — ${fieldErr}\n      fix:    update the BRIDGE_FACET_DISPLAY entry in buildClearSigningProposal.ts to match the facet's current struct.`
-        )
-        continue
-      }
-      formats[sig] = buildBridgeFormat(fn, variant)
+      const bridge = bridgeFormatOrFailure(fn, sig)
+      if (typeof bridge === 'string') failures.push(bridge)
+      else formats[sig] = bridge
     } else {
       failures.push(
         `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min) and isn't in the explicit non-user-facing skip-list.\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts buildFormats(). If not, add it to NON_USER_FACING_NAMES / NON_USER_FACING_PREFIXES with a one-line justification.`

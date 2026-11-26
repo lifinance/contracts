@@ -9,9 +9,11 @@ import { describe, expect, it } from 'bun:test'
 import {
   buildFormats,
   UPSTREAM_MAINTAINED_SIGNATURES,
+  type IAbiFn,
+  type IAbiParam,
 } from './buildClearSigningProposal'
 
-const SWAP_DATA_COMPONENTS = [
+const SWAP_DATA_COMPONENTS: IAbiParam[] = [
   { name: 'callTo', type: 'address' },
   { name: 'approveTo', type: 'address' },
   { name: 'sendingAssetId', type: 'address' },
@@ -21,7 +23,7 @@ const SWAP_DATA_COMPONENTS = [
   { name: 'requiresDeposit', type: 'bool' },
 ]
 
-function swapFn(name: string, multiple: boolean) {
+function swapFn(name: string, multiple: boolean): IAbiFn {
   return {
     type: 'function',
     name,
