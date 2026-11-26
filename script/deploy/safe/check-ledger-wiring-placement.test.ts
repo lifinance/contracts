@@ -720,10 +720,10 @@ describe('gate G is graded before the signature, not after it', () => {
   })
 
   it('hands the recorder why the set is absent, so the absences grade apart', () => {
-    // The three ways the read produces nothing — a chain outside coverage, a
-    // failed read, calldata that schedules nothing — reach the ledger only if
-    // the evidence bundle carries the reason to the recorder. Dropping it
-    // collapses all three back into one blocking row.
+    // The two ways the read produces nothing — a failed read, calldata that
+    // schedules nothing — reach the ledger only if the evidence bundle carries
+    // the reason to the recorder. Dropping it collapses both back into one
+    // blocking row.
     const body = perProposal()
     expect(body).toContain('storageAuthorityAbsence')
     expect(bodyOfFunction('computeProposalEvidence')).toContain(
