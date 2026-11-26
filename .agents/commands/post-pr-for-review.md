@@ -5,19 +5,13 @@ description: Posts a `lifinance/contracts` or `lifinance/contracts-tron` PR to `
 
 # Post PR for Review (Smart Contracts)
 
-Scope: `lifinance/contracts` and `lifinance/contracts-tron` → `#dev-sc-review` only. For any other repo, stop and tell the user which skill or channel to use — never guess a channel, and don't extend this skill to other repos.
+Only `lifinance/contracts` and `lifinance/contracts-tron` PRs, only to `#dev-sc-review` (`C088UJWC8PR`). Any other repo → stop and tell the user; never guess a channel. `<REPO>` is the PR's own `owner/repo`; every `gh` call targets it.
 
-`<REPO>` below is the PR's own `owner/repo` (`<OWNER>` / `<NAME>` its parts). Every `gh` call, the GraphQL query and the Aikido fetch target it — never hard-code `lifinance/contracts` for a contracts-tron PR.
+Input: a PR URL, else the current branch's PR (`gh pr view`); none → ask.
 
-## Inputs
+## Tag
 
-PR URL (optional). Else resolve from the current branch with `gh pr view --json url,title,body,number,headRefName,isDraft`; if no PR exists, ask for the URL.
-
-## Channel and tag
-
-Channel: `#dev-sc-review` (`C088UJWC8PR`).
-
-The tag follows the `main protection` ruleset, which has the same `required_reviewers` in both repos: every PR needs one API Expansion approval; PRs touching SC-critical paths also need one from Smart Contract Core. Classify from the PR's files:
+Classify from the PR's files, renames' `previous_filename` included:
 
 ```bash
 files=$(gh api repos/<REPO>/pulls/<N>/files --paginate \
@@ -25,109 +19,75 @@ files=$(gh api repos/<REPO>/pulls/<N>/files --paginate \
 grep -qE '^(src/|script/deploy/safe/|script/emergency/)' <<<"$files" && echo critical || echo routine
 ```
 
-`previous_filename` counts, so a file renamed out of a critical path still routes to SC Core. A failed lookup stops the post — never default to `routine`. The endpoint lists at most 3,000 files, so the post also stops when `gh pr view <N> --repo <REPO> --json changedFiles` exceeds that (routing and the Aikido scan both read this list).
+A failed lookup, or `changedFiles` over 3,000 (the endpoint's limit), stops the post; never default to `routine`.
 
-| Result     | Group                  | Thread tag (`GROUP_TAG`) |
-| ---------- | ---------------------- | ------------------------ |
-| `critical` | `@smartcontract_core`  | `<!subteam^S096X6MCB0C>` |
-| `routine`  | `@api_expansion-squad` | `<!subteam^S0ADCJQC9F0>` |
+| Result     | `GROUP_TAG`                                       |
+| ---------- | ------------------------------------------------- |
+| `critical` | `<!subteam^S096X6MCB0C>` (`@smartcontract_core`)  |
+| `routine`  | `<!subteam^S0ADCJQC9F0>` (`@api_expansion-squad`) |
 
-A `critical` PR tags SC Core alone: every SC Core member is also in `api-expansion`, so one SC Core approval meets both rules. If that stops holding (`gh api orgs/lifinance/teams/<slug>/members`), tag both groups. Keep the patterns in sync with the ruleset's `required_reviewers` (`gh api repos/<REPO>/rulesets`); if the two repos' rulesets diverge, classify per repo. Tags must use `<!subteam^…>` form — plain `@…` does not notify.
-
-## Post format
-
-Top-level (no prefix, no decorative emoji): `<PR_URL> << <PR_TITLE>`
-
-Thread reply, sent immediately after: `<GROUP_TAG> please review 🙏`
+This mirrors the `main protection` ruleset's `required_reviewers` (`gh api repos/<REPO>/rulesets`): every PR needs API Expansion, critical paths also SC Core, and every SC Core member is in API Expansion, so SC Core alone covers both. If either stops holding, update the patterns or tag both. Plain `@…` doesn't notify; use `<!subteam^…>`.
 
 ## Workflow
 
-### 1. Resolve PR
+### 1. Resolve
 
-Parse `owner/repo/pull/N` into `<REPO>` and `<N>`; extract `title`, `url`, `number`, `headRefName`, `isDraft` (`gh pr view <N> --repo <REPO> --json …`). Apply the scope guard. Record `HEAD_OID` and `BASE_REF` (`gh pr view <N> --repo <REPO> --json headRefOid,baseRefName`), then pick `GROUP_TAG` with the files lookup and 3,000-file check in "Channel and tag". Re-read both values after the lookup; if either changed, record the new values and redo the lookup, so the tag matches the recorded PR state.
+Read `title`, `url`, `headRefName`, `isDraft`, and record `HEAD_OID` / `BASE_REF` (`headRefOid`, `baseRefName`). Pick `GROUP_TAG`. If `HEAD_OID` or `BASE_REF` changed during the lookup, record them again and redo it.
 
-### 2. Pre-flight
+### 2. Pre-flight (on `HEAD_OID`)
 
-Every check below runs against `HEAD_OID`, even when the Aikido scan is skipped.
-
-- **Unresolved review threads** (blocking) — REST lacks `isResolved`; use GraphQL:
-
-  ```bash
-  gh api graphql -f query='
-    query($owner:String!,$repo:String!,$num:Int!){
-      repository(owner:$owner,name:$repo){
-        pullRequest(number:$num){
-          reviewThreads(first:100){
-            nodes{ isResolved isOutdated
-              comments(first:1){ nodes{ author{login} body url path } } } } } } }' \
-    -f owner=<OWNER> -f repo=<NAME> -F num=<N> \
-    --jq '.data.repository.pullRequest.reviewThreads.nodes
-          | map(select(.isResolved == false and .isOutdated == false))'
-  ```
-
-  Group by author; CodeRabbit is `coderabbitai` / `coderabbitai[bot]`. If GraphQL fails, fall back to `gh pr view <N> --repo <REPO> --json reviewDecision,comments` and treat resolution state as unknown: don't post unless the user explicitly says to go ahead.
-
-- **Failing CI** (blocking, `gh pr checks <N> --repo <REPO> --json name,state,link`): a check passes only on `SUCCESS` / `SKIPPED` / `NEUTRAL` and is in progress only on `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`; any other state (`FAILURE`, `STARTUP_FAILURE`, `CANCELLED`, an unknown one…) blocks. Ignore checks whose name ends in `(pull_request_review)` — they fire only once the PR is posted, so blocking on them is circular. Match the suffix only: `version-control` and some `protect-*` checks exist in both push and `(pull_request_review)` forms, and only the latter is exempt. Surface unfamiliar checks; don't silently widen the allowlist.
-
-- **Audit checks are non-blocking** — `audit-verification` / `audit-*` failing or pending, in either form and in either repo, does not block: peer review precedes the audit (rule `503-sc-feature-pr-lifecycle`).
-
-- **Aikido scan** (soft gate):
-  1. Probe with `aikido-mcp:aikido_full_scan` on `[{ relativeFilePath: "test.js", content: "// test" }]`.
-  2. Unavailable → print `⚠ Aikido scan skipped — MCP not configured. Run /aikido:setup to enable security pre-flight.` and continue.
-  3. Available → scan the PR's files, skipping deletions (`gh api repos/<REPO>/pulls/<N>/files --paginate --jq '.[] | select(.status != "removed") | .filename'`), with their contents at the exact PR head: read `gh pr view <N> --repo <REPO> --json headRefOid` before and after the file list and retry until both match, so the list and the contents come from the same head — at most two retries, then stop and ask the user; then `git fetch https://github.com/<REPO>.git pull/<N>/head` (works for fork PRs too, and from a checkout whose `origin` is the other repo), then `git show <headRefOid>:<path>` — never the local checkout or a same-named branch. Filter against `.agents/references/aikido-false-positive-catalog.md`. If the file list, the fetch or any `git show` fails, the scan result is unknown: don't post, and report which step failed.
-  4. Real findings remain → stop; don't post until clean. Run `/aikido-address-findings` from a clone of `<REPO>` checked out on the PR's head branch (`gh pr checkout <N>` in that clone; ask before switching a checkout with uncommitted work): it resolves the PR and the repo from the current checkout, so elsewhere it triages the wrong PR. It reads only the PR's `aikido-pr-checks[bot]` comments, so a finding the MCP scan reports without a matching bot comment must be fixed by hand.
+- **Unresolved threads** (blocking): GraphQL `reviewThreads(first:100)` with `isResolved`, `isOutdated` and the first comment's `author{login} url`; keep `isResolved == false and isOutdated == false`, grouped by author. GraphQL fails → thread state is unknown: don't post; report it.
+- **Failing CI** (blocking): `gh pr checks <N> --repo <REPO> --json name,state,link,event`. Pass: `SUCCESS` / `SKIPPED` / `NEUTRAL`. In progress: `QUEUED` / `IN_PROGRESS` / `PENDING` / `WAITING` / `REQUESTED`. Anything else blocks.
+  - Ignore checks whose `event` is `pull_request_review`: they run once a reviewer acts. Filter on `event`, not the name; a same-named check with another `event` (e.g. `protect_audit_labels` on `pull_request`) still counts.
+  - Ignore `audit-*`: peer review precedes the audit.
+- **Aikido** (blocking): CI's `Aikido Security: check code` row; its findings are threads started by `aikido-pr-checks` (GraphQL drops `[bot]`).
+  - Absent or `SKIPPED` → not scanned.
+  - An open Aikido thread blocks even on `SUCCESS` (Aikido passes with MEDIUM findings).
+  - `FAILURE` with no open Aikido thread → likely findings ignored or fixed and their threads resolved, since Aikido doesn't refresh a finished run after `@AikidoSec ignore:` replies. Say so with the check's link and tell the user to push or re-run the check.
+  - To clear findings: `/drive-pr <N>` (contracts only), or `/aikido-address-findings` from a clone checked out on the PR's head (it reads the PR from the checkout). The latter never resolves threads: after it, resolve the thread of every ignored finding, and of every fixed one once the fix is pushed, as `/drive-pr` step 5 does. Until then they block.
 
 ### 3. Gate
 
-- **Unresolved threads or failing CI** → don't post and don't auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`) and ask the user to re-run after fixing.
-- **CI in progress, nothing failing** → tell the user; default to waiting.
-- **Draft + clean** → offer `gh pr ready <N> --repo <REPO>`; confirm first.
+- **Unresolved threads, failing CI, or Aikido not scanned on a ready PR** → don't post or auto-fix. List them (`<author> (count): <urls>`, `<check>: <state> — <link>`).
+- **CI in progress, nothing failing** → wait.
+- **Draft, otherwise clean** (Aikido skips drafts) → offer `gh pr ready <N> --repo <REPO>`, confirming first. Then wait in the background, up to 30 min, until every non-ignored check the draft skipped has a newer `completed` run on `HEAD_OID` (newest by `started_at` from `repos/<REPO>/commits/<HEAD_OID>/check-runs?check_name=<name>`; Aikido's not `skipped`) and the `gh pr checks` set is stable across two polls 30 s apart. Re-run step 2 and the gate. Not settled by then → report and don't post.
 
 ### 4. Confirm
 
-Skip if the invoking message already says to post ("post for review", "ship it", "send it", "post to dev-sc-review", "move to ready and push"). Otherwise show the planned top-level + thread text and wait for go.
+Skip when the request already says to post ("post for review", "ship it", "send it", "move to ready and push"). Otherwise show both messages and wait for go.
 
 ### 5. Post
 
-Re-read `gh pr view <N> --repo <REPO> --json headRefOid,baseRefName` first. If either differs from `HEAD_OID` / `BASE_REF` (a push or base change during the checks, the gate or the confirm wait), redo step 1's recording and `GROUP_TAG` classification, step 2 and the gate on the new state, then compare again. Post only when both equal the values the last step 1 recorded; if either changes again on the second rerun, stop and ask the user instead of posting. If the rerun changed `GROUP_TAG`, show the new thread text and wait for go again, even when step 4 was skipped.
+Re-read `headRefOid` / `baseRefName`. Changed → redo steps 1–3; changed again → stop and ask. A new `GROUP_TAG` needs a fresh go.
 
-`slack_send_message` to `C088UJWC8PR` (if it fails, confirm the non-archived channel via `slack_search_channels` — it may have been renamed) with the top-level text; capture `ts`. Then `slack_send_message` with `thread_ts = <ts>` and the thread reply.
+`slack_send_message` to `C088UJWC8PR`: `<PR_URL> << <PR_TITLE>` (no prefix or emoji); capture `ts`. Then reply in that thread: `<GROUP_TAG> please review 🙏`. A send fails → check the channel with `slack_search_channels` (it may have been renamed).
 
 ### 6. Auto-merge
 
-Only after both sends succeeded; otherwise skip it and report. Check merge state first — `--auto` merges a fully-approved green PR immediately, before reviewers act on the post:
+Only after both sends succeed. `MERGE_FLAG` is `--merge` for a contracts-tron sync PR (`headRefName` starts with `sync/upstream-`; squashing breaks the fork's merge-base, `docs/TronFork.md`), else `--squash`.
 
-```bash
-state=$(gh pr view <N> --repo <REPO> \
-  --json mergeStateStatus --jq '.mergeStateStatus')
-```
-
-A contracts-tron sync PR (`<REPO>` is `lifinance/contracts-tron` and `headRefName` starts with `sync/upstream-`) must merge with a merge commit, never squash, or the fork's merge-base falls behind upstream (`docs/TronFork.md`). `MERGE_FLAG` is `--merge` for a sync PR, else `--squash`.
-
-- Sync PR, checked first and regardless of `state` → read `gh pr view <N> --repo <REPO> --json autoMergeRequest --jq '.autoMergeRequest.mergeMethod'`. If it is `SQUASH`, run `gh pr merge <N> --repo <REPO> --disable-auto` (tell the user it was on and is now off). Then continue below with `MERGE_FLAG=--merge`; the "Otherwise" branch asks the user to skip auto-merge or enable it, instead of enabling it directly.
-- `CLEAN` → don't enable; tell the user "PR is already mergeable; not enabling auto-merge so reviewers can still see it. Merge now instead?" — on yes, `gh pr merge <N> --repo <REPO> <MERGE_FLAG>`.
-- Otherwise → `gh pr merge <N> --repo <REPO> --auto <MERGE_FLAG>`.
-
-Already enabled → no-op (a sync PR's squash auto-merge was already turned off above). "Auto-merge is not enabled for this repository" → skip with a one-line note. Any other error → surface verbatim and ask.
+- Sync PR with squash auto-merge on → `gh pr merge <N> --repo <REPO> --disable-auto` and tell the user. For a sync PR, ask before enabling auto-merge.
+- `mergeStateStatus` is `CLEAN` → don't enable (`--auto` would merge before reviewers see it); offer to merge now with `MERGE_FLAG`.
+- Otherwise → `gh pr merge <N> --repo <REPO> --auto <MERGE_FLAG>`. Already on → no-op; "not enabled for this repository" → skip with a note; other errors → show and ask.
 
 ### 7. Report
 
-`Posted to #<channel> ✓ — auto-merge: <enabled (<squash | merge>) | already on | skipped: <reason>>` only when both sends succeeded; append `; squash auto-merge disabled` when step 6 turned one off. If the thread reply failed, report `Parent posted, thread reply (reviewer tag) failed: <error> — auto-merge was not changed by this run` with the parent link instead.
+`Posted to #<channel> ✓ — auto-merge: <enabled (squash | merge) | already on | skipped: <reason>>`, plus `; squash auto-merge disabled` when step 6 turned it off. Thread reply failed → report that with the parent link; auto-merge untouched.
 
 ### 8. Clean up
 
-Once posted, check the session's worktree (if one was used) with `git status --porcelain --untracked-files=all` and `git log HEAD --not --remotes` (commits on no remote branch). Both empty → remove it, so the next session starts clean. Otherwise list the uncommitted files and unpushed commits and ask the user; never discard them.
+A worktree used for this session with no uncommitted files and no unpushed commits → remove it. Otherwise list them and ask; never discard.
 
-## Failure modes
+## Failures
 
-- **Slack MCP not connected** → ask the user to connect it. Never fall back to webhooks — the MCP posts as the user, which reviewers need for attribution and thread notifications.
-- **`gh` missing / unauthenticated** → stop: tag routing, pre-flight and auto-merge all need it; ask the user to install `gh` (or fix `PATH`) if it is missing, or run `gh auth login` if it is unauthenticated.
+- No Slack MCP → ask the user to connect it; never use webhooks (reviewers need the post to come from the user).
+- No `gh` or not authenticated → stop and say which.
 
 ## Variations
 
-- "also @ <person>" → append `@<person>` after the group tag in the thread reply.
-- "add context: <msg>" → a second thread reply, never the top-level.
-- "quiet ping" → drop the 🙏; keep the subteam syntax.
-- "tag SC core" → `<!subteam^S096X6MCB0C>` even for a routine PR.
-- "without auto-merge" / "no auto-merge" / "manual merge" → skip step 6.
-- Explicit channel override → resolve its ID with `slack_search_channels` and use it instead of `C088UJWC8PR` for both sends and the report; keep the post shape unless overridden too.
+- "also @ <person>" → append to the thread reply.
+- "add context: <msg>" → a second thread reply.
+- "quiet ping" → drop the 🙏.
+- "tag SC core" → SC Core tag regardless.
+- "no auto-merge" / "manual merge" → skip step 6.
+- Named channel → resolve its ID with `slack_search_channels` and use it throughout.
