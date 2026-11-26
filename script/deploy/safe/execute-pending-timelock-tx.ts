@@ -33,6 +33,7 @@ import {
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
+import { REPO_CONTRACTS } from '../shared/repo-identity'
 
 import { flagIsOn, readBooleanFlag } from './cli-flags'
 import { NOT_ON_CHAIN_REASON } from './confirm-timelock-execution'
@@ -54,6 +55,7 @@ import {
 import {
   buildGateGapAlert,
   buildShadowRefusalAlert,
+  createPinnedDeploymentsReader,
   isPreBroadcastGateEnforcing,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
   resolveGateCoverage,
@@ -95,11 +97,13 @@ import {
   type IChainEndpoints,
 } from './timelock-rebroadcast'
 
-// TimelockController ABI for the functions we need
 // One fetch of `origin/main` for the whole run, however many networks it
 // executes on, and every network's expectation read from that one commit.
-const readPinnedBlob = createPinnedBlobReader()
+const readPinnedDeployments = createPinnedDeploymentsReader(
+  createPinnedBlobReader()
+)
 
+// TimelockController ABI for the functions we need
 const TIMELOCK_ABI = parseAbi([
   'function getMinDelay() view returns (uint256)',
   'function getTimestamp(bytes32 id) view returns (uint256)',
@@ -1909,10 +1913,14 @@ async function enforcePreBroadcastGateOrAbort(
     // Never filled from the branch's own `deployments` on a failed read: the
     // pinned side exists so a proposer cannot write the value their operation
     // is judged against. Left out, the expectations it sources hold instead.
-    const pinned = await readPinnedBlob(`deployments/${networkName}.json`)
+    const pinned = await readPinnedDeployments(networkName)
     if (!pinned.ok)
       consola.warn(
-        `${networkPrefix} ⚠️  Pre-broadcast gate: deployments/${networkName}.json could not be read at ${PINNED_REF} (${pinned.reason}), so expectations main declares there cannot be judged`
+        `${networkPrefix} ⚠️  Pre-broadcast gate: deployments/${networkName}.json could not be read at ${PINNED_REF} (${pinned.reason}), so the diamond owner cannot be judged and the operation holds.${
+          pinned.reason === 'remote-unexpected'
+            ? ` Run from a clone whose origin is ${REPO_CONTRACTS}.`
+            : ''
+        }`
       )
     result = await runPreBroadcastGate(
       {

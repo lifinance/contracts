@@ -5,6 +5,7 @@ import { keccak256, type Address, type Hex } from 'viem'
 import {
   buildGateGapAlert,
   buildShadowRefusalAlert,
+  createPinnedDeploymentsReader,
   isPreBroadcastGateEnforcing,
   observeCalldata,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
@@ -290,9 +291,16 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
   const PINNED_PATH = `deployments/${NETWORK}.json`
 
   /** A clone whose `origin/main` holds exactly these blobs. */
-  const pinnedGit = (blobs: Record<string, string>): IPinnedStateGit => ({
+  const pinnedGit = (
+    blobs: Record<string, string>,
+    counts = { fetch: 0 },
+    fetchFails = false
+  ): IPinnedStateGit => ({
     remoteUrl: async () => 'git@github.com:lifinance/contracts.git',
-    fetch: async () => undefined,
+    fetch: async () => {
+      counts.fetch += 1
+      if (fetchFails) throw new Error('remote timed out')
+    },
     revParse: async () => 'abc1234\n',
     show: async (revSpec) => {
       const blob = blobs[revSpec.split(':')[1] ?? '']
@@ -300,6 +308,13 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
       return blob
     },
   })
+
+  const pinnedReader = (
+    git: IPinnedStateGit
+  ): ReturnType<typeof createPinnedDeploymentsReader> =>
+    createPinnedDeploymentsReader(
+      createPinnedBlobReader({ repoRoot: '/repo', git })
+    )
 
   /**
    * Runs the gate with its dependencies wired as the executor wires them: the
@@ -311,11 +326,7 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
     local: Record<string, unknown>,
     pinnedBlobs: Record<string, string>
   ): ReturnType<typeof runPreBroadcastGate> => {
-    const readPinnedBlob = createPinnedBlobReader({
-      repoRoot: '/repo',
-      git: pinnedGit(pinnedBlobs),
-    })
-    const pinned = await readPinnedBlob(PINNED_PATH)
+    const pinned = await pinnedReader(pinnedGit(pinnedBlobs))(NETWORK)
     const { pinnedDeployments: _default, ...rest } = dependencies(chain, {
       deployments: local,
     })
@@ -367,6 +378,30 @@ describe('runPreBroadcastGate — the owner expectation at execute time', () => 
     expect(ownerFindings(result.findings)).toEqual([
       `LiFiDiamond.owner(): main declares no expected value, so the live ${TIMELOCK} cannot be judged`,
     ])
+  })
+
+  it('tries an unreachable remote once per run, not once per operation', async () => {
+    const counts = { fetch: 0 }
+    const read = pinnedReader(pinnedGit({}, counts, true))
+
+    const reads = await Promise.all(['arbitrum', 'base', 'optimism'].map(read))
+    await read('arbitrum')
+
+    for (const each of reads)
+      expect(each).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(counts.fetch).toBe(1)
+  })
+
+  it('keeps reading other networks when one network has no file on main', async () => {
+    const read = pinnedReader(
+      pinnedGit({ 'deployments/base.json': JSON.stringify(DEPLOYMENTS) })
+    )
+
+    expect(await read('arbitrum')).toEqual({
+      ok: false,
+      reason: 'blob-unreadable',
+    })
+    expect(await read('base')).toEqual({ ok: true, value: DEPLOYMENTS })
   })
 })
 

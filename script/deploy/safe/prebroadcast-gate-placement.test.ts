@@ -161,9 +161,7 @@ describe('pre-broadcast gate placement', () => {
     it('is read from main for this network inside the guarded call', () => {
       // Inside the try, so a throw out of the read reaches abortUnverified
       // rather than escaping the gate.
-      expect(gateTry).toMatch(
-        /readPinnedBlob\(`deployments\/\$\{networkName\}\.json`\)/u
-      )
+      expect(gateTry).toContain('readPinnedDeployments(networkName)')
     })
 
     it('is passed only when the read succeeded', () => {
