@@ -33,6 +33,7 @@ import {
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
+import { REPO_CONTRACTS } from '../shared/repo-identity'
 
 import { flagIsOn, readBooleanFlag } from './cli-flags'
 import { NOT_ON_CHAIN_REASON } from './confirm-timelock-execution'
@@ -54,6 +55,7 @@ import {
 import {
   buildGateGapAlert,
   buildShadowRefusalAlert,
+  createPinnedDeploymentsReader,
   isPreBroadcastGateEnforcing,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
   resolveGateCoverage,
@@ -62,6 +64,7 @@ import {
   viemGateReaders,
   viemScheduledAtReader,
 } from './prebroadcast-gate'
+import { createPinnedBlobReader, PINNED_REF } from './pinned-target-state'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
 import { fetchSignedSetRecord } from './signed-set-record'
 import {
@@ -93,6 +96,12 @@ import {
   createExecutorRpc,
   type IChainEndpoints,
 } from './timelock-rebroadcast'
+
+// One fetch of `origin/main` for the whole run, however many networks it
+// executes on, and every network's expectation read from that one commit.
+const readPinnedDeployments = createPinnedDeploymentsReader(
+  createPinnedBlobReader()
+)
 
 // TimelockController ABI for the functions we need
 const TIMELOCK_ABI = parseAbi([
@@ -1901,6 +1910,18 @@ async function enforcePreBroadcastGateOrAbort(
   // with nobody told, which is worse than either verdict.
   let result: Awaited<ReturnType<typeof runPreBroadcastGate>>
   try {
+    // Never filled from the branch's own `deployments` on a failed read: the
+    // pinned side exists so a proposer cannot write the value their operation
+    // is judged against. Left out, the expectations it sources hold instead.
+    const pinned = await readPinnedDeployments(networkName)
+    if (!pinned.ok)
+      consola.warn(
+        `${networkPrefix} ⚠️  Pre-broadcast gate: deployments/${networkName}.json could not be read at ${PINNED_REF} (${pinned.reason}), so the diamond owner cannot be judged.${
+          pinned.reason === 'remote-unexpected'
+            ? ` Run from a clone whose origin is ${REPO_CONTRACTS}.`
+            : ''
+        }`
+      )
     result = await runPreBroadcastGate(
       {
         operationId: operation.id,
@@ -1910,6 +1931,7 @@ async function enforcePreBroadcastGateOrAbort(
       {
         ...viemGateReaders(publicClient),
         deployments,
+        ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
         globalConfig: globalConfig as unknown as Record<string, unknown>,
         signTimeRecord,
         readScheduledAt: viemScheduledAtReader(

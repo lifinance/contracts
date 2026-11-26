@@ -21,6 +21,7 @@ import {
 import { redactErrorReason, redactUrls } from '../../utils/redactUrls'
 import { strip0x } from '../codehash/hex'
 
+import type { PinnedJsonRead } from './pinned-target-state'
 import {
   AUTHORITY_ABI,
   DECLARED_STORAGE_AUTHORITIES,
@@ -80,6 +81,40 @@ export interface IObservationDependencies {
   pinnedDeployments?: Record<string, unknown>
   /** Parsed `config/global.json`. */
   globalConfig: Record<string, unknown>
+}
+
+/**
+ * Anchor failures kept for the reader's lifetime: a fetch that failed or timed
+ * out, and the two the anchor itself already treats as final. An `origin` that
+ * could not be read is left retryable, as the anchor leaves it.
+ */
+const RUN_LEVEL_FAILURES: ReadonlySet<string> = new Set([
+  'fetch-failed',
+  'remote-unexpected',
+  'revision-unresolvable',
+])
+
+/**
+ * Builds the execute-time read of `deployments/<network>.json` as `origin/main`
+ * has it, for the gate's `pinnedDeployments`.
+ *
+ * A failed fetch is remembered for the reader's lifetime: every network reads
+ * from the same anchor, and retrying a fetch per operation lets one slow remote
+ * spend a whole executor run on git timeouts. The next run tries again.
+ *
+ * @param readPinnedBlob - Reader of JSON blobs at the pinned `origin/main`.
+ * @returns A reader taking a network name.
+ */
+export const createPinnedDeploymentsReader = (
+  readPinnedBlob: (repoPath: string) => Promise<PinnedJsonRead>
+): ((network: string) => Promise<PinnedJsonRead>) => {
+  let anchorFailure: PinnedJsonRead | undefined
+  return async (network: string): Promise<PinnedJsonRead> => {
+    if (anchorFailure) return anchorFailure
+    const read = await readPinnedBlob(`deployments/${network}.json`)
+    if (!read.ok && RUN_LEVEL_FAILURES.has(read.reason)) anchorFailure = read
+    return read
+  }
 }
 
 /** Everything the gate reaches the outside world through. */

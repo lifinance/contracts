@@ -5,6 +5,7 @@ import { keccak256, type Address, type Hex } from 'viem'
 import {
   buildGateGapAlert,
   buildShadowRefusalAlert,
+  createPinnedDeploymentsReader,
   isPreBroadcastGateEnforcing,
   observeCalldata,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
@@ -14,6 +15,10 @@ import {
   type IGateDependencies,
   type IGateOperation,
 } from './prebroadcast-gate'
+import {
+  createPinnedBlobReader,
+  type IPinnedStateGit,
+} from './pinned-target-state'
 
 const DIAMOND = '0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'
 const FACET = '0x00000000000000000000000000000000000000aa'
@@ -278,6 +283,159 @@ describe('runPreBroadcastGate — the stored record cannot move the verdict', ()
       dependencies(chain, { signTimeRecord: null })
     )
     expect(result.disposition).toBe('BLOCK')
+  })
+})
+
+describe('runPreBroadcastGate — the owner expectation at execute time', () => {
+  const NETWORK = 'arbitrum'
+  const PINNED_PATH = `deployments/${NETWORK}.json`
+
+  /** A clone whose `origin/main` holds exactly these blobs. */
+  const pinnedGit = (
+    blobs: Record<string, string>,
+    counts = { fetch: 0 },
+    fetchFails = false
+  ): IPinnedStateGit => ({
+    remoteUrl: async () => 'git@github.com:lifinance/contracts.git',
+    fetch: async () => {
+      counts.fetch += 1
+      if (fetchFails) throw new Error('remote timed out')
+    },
+    revParse: async () => 'abc1234\n',
+    show: async (revSpec) => {
+      const blob = blobs[revSpec.split(':')[1] ?? '']
+      if (blob === undefined) throw new Error('no such path')
+      return blob
+    },
+  })
+
+  const pinnedReader = (
+    git: IPinnedStateGit
+  ): ReturnType<typeof createPinnedDeploymentsReader> =>
+    createPinnedDeploymentsReader(
+      createPinnedBlobReader({ repoRoot: '/repo', git })
+    )
+
+  /**
+   * Runs the gate with its dependencies wired as the executor wires them: the
+   * branch's own deploy log as `deployments`, and the pinned read spread in
+   * only when it succeeded.
+   */
+  const gateAtExecuteTime = async (
+    chain: IChainState,
+    local: Record<string, unknown>,
+    git: IPinnedStateGit
+  ): ReturnType<typeof runPreBroadcastGate> => {
+    const pinned = await pinnedReader(git)(NETWORK)
+    const { pinnedDeployments: _default, ...rest } = dependencies(chain, {
+      deployments: local,
+    })
+    return runPreBroadcastGate(OPERATION, {
+      ...rest,
+      ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
+    })
+  }
+
+  const ownerFindings = (findings: readonly string[]): string[] =>
+    findings.filter((finding) => finding.startsWith('LiFiDiamond.owner()'))
+
+  // The branch's log names whatever the live owner is, so any case below that
+  // reads it instead of main would pass or block for the wrong reason.
+  const branchDeclaring = (timelock: string): Record<string, unknown> => ({
+    ...DEPLOYMENTS,
+    LiFiTimelockController: timelock,
+  })
+
+  const mainHolding = (deployments: Record<string, unknown>): IPinnedStateGit =>
+    pinnedGit({ [PINNED_PATH]: JSON.stringify(deployments) })
+
+  it('finds nothing on the owner when it is the timelock main declares', async () => {
+    const result = await gateAtExecuteTime(
+      healthyChain(),
+      branchDeclaring(ATTACKER),
+      mainHolding(DEPLOYMENTS)
+    )
+    expect(ownerFindings(result.findings)).toEqual([])
+    expect(result.disposition).toBe('PROCEED')
+  })
+
+  it('blocks an owner that is not the timelock main declares, whatever the branch says', async () => {
+    const chain = healthyChain()
+    chain.authorities[`${DIAMOND}:owner`] = ATTACKER
+    const result = await gateAtExecuteTime(
+      chain,
+      branchDeclaring(ATTACKER),
+      mainHolding(DEPLOYMENTS)
+    )
+    expect(result.disposition).toBe('BLOCK')
+    expect(ownerFindings(result.findings)).toEqual([
+      `LiFiDiamond.owner(): holds ${ATTACKER} on chain where main declares ${TIMELOCK}`,
+    ])
+  })
+
+  const unjudgedOwner = `LiFiDiamond.owner(): main declares no expected value, so the live ${TIMELOCK} cannot be judged`
+
+  it('holds when the fetch of main fails, rather than judging against the branch', async () => {
+    const result = await gateAtExecuteTime(
+      healthyChain(),
+      branchDeclaring(TIMELOCK),
+      pinnedGit({ [PINNED_PATH]: JSON.stringify(DEPLOYMENTS) }, undefined, true)
+    )
+    expect(result.disposition).toBe('HOLD')
+    expect(ownerFindings(result.findings)).toEqual([unjudgedOwner])
+  })
+
+  it('holds when main has no file for the network, rather than judging against the branch', async () => {
+    const result = await gateAtExecuteTime(
+      healthyChain(),
+      branchDeclaring(TIMELOCK),
+      pinnedGit({})
+    )
+    expect(result.disposition).toBe('HOLD')
+    expect(ownerFindings(result.findings)).toEqual([unjudgedOwner])
+  })
+
+  it('tries an unreachable remote once per run, not once per operation', async () => {
+    const counts = { fetch: 0 }
+    const read = pinnedReader(pinnedGit({}, counts, true))
+
+    const reads = await Promise.all(['arbitrum', 'base', 'optimism'].map(read))
+    await read('arbitrum')
+
+    for (const each of reads)
+      expect(each).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(counts.fetch).toBe(1)
+  })
+
+  it('asks again after an origin that could not be read', async () => {
+    let remoteReads = 0
+    const git: IPinnedStateGit = {
+      ...mainHolding(DEPLOYMENTS),
+      remoteUrl: async () => {
+        remoteReads += 1
+        if (remoteReads === 1) throw new Error('git exited 128')
+        return 'git@github.com:lifinance/contracts.git'
+      },
+    }
+    const read = pinnedReader(git)
+
+    expect(await read(NETWORK)).toEqual({
+      ok: false,
+      reason: 'remote-unreadable',
+    })
+    expect(await read(NETWORK)).toEqual({ ok: true, value: DEPLOYMENTS })
+  })
+
+  it('keeps reading other networks when one network has no file on main', async () => {
+    const read = pinnedReader(
+      pinnedGit({ 'deployments/base.json': JSON.stringify(DEPLOYMENTS) })
+    )
+
+    expect(await read('arbitrum')).toEqual({
+      ok: false,
+      reason: 'blob-unreadable',
+    })
+    expect(await read('base')).toEqual({ ok: true, value: DEPLOYMENTS })
   })
 })
 
