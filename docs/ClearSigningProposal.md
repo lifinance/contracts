@@ -114,10 +114,13 @@ The `display.formats` entries carried over from the registry descriptor, re-auth
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SingleV3ERC20ToERC20` / `SingleV3ERC20ToNative`     | `Swap {_swapData.fromAmount} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                          |
 | `SingleV3NativeToERC20`                              | `Swap {@.value} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                                       |
-| `MultipleV3ERC20ToERC20` / `MultipleV3ERC20ToNative` | `Swap for at least {_minAmountOut} to {_receiver}` (every deposited input is its own `_swapData.[].fromAmount` field)                                                                                                                              |
 | `MultipleV3NativeToERC20`                            | `Swap {@.value} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                                       |
 
 `swapTokensGeneric` (the deprecated GenericSwapFacet) has no entry: the sync drops it from the registry as a retired LI.FI function.
+
+#### Upstream-maintained: `UPSTREAM_MAINTAINED_FUNCTIONS`
+
+`swapTokensMultipleV3ERC20ToERC20` and `swapTokensMultipleV3ERC20ToNative` have no entry either: the EF registry maintainers reverted both to a first-step-only display in [ethereum/clear-signing-erc7730-registry#3217](https://github.com/ethereum/clear-signing-erc7730-registry/pull/3217), pending a multi-step swap display agreed with LI.FI. The generator skips every function in `UPSTREAM_MAINTAINED_FUNCTIONS` (and logs each skip), so the sync's merge keeps the registry's version. Their cases in `config/clearSigningTests.json` (`Swap - chain 1 (1)` and `(2)`) are copies of the registry's, because the sync pushes our cases over the registry's tests file. A name in the set that matches no diamond function fails the build. To take a format back, add its `SWAP_TEMPLATES` entry, remove the name from the set and update its test cases.
 
 ## Conventions & deliberate choices
 

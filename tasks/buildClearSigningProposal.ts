@@ -19,11 +19,13 @@
  * the sync workflow can trust the file as current.
  *
  * Strict-by-default: exits non-zero on any user-facing function whose shape
- * does not match a known template. See main() for failure-mode details.
+ * does not match a known template. See buildFormats() for failure-mode details.
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import { isEntrypoint } from '../script/utils/is-entrypoint'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -131,9 +133,9 @@ function collectFns(): IAbiFn[] {
       abi: IAbiFn[]
     }
     // No name-prefix allow-list here: collect every public function the facet
-    // exposes, and let main() classify. If a new user-facing entry-point lands
+    // exposes, and let buildFormats() classify. If a new user-facing entry-point lands
     // (e.g. `executeIntent`) without a matching template AND without a matching
-    // skip-list entry, the unrecognized-prefix branch in main() fires and CI
+    // skip-list entry, the unrecognized-prefix branch in buildFormats() fires and CI
     // fails loudly — instead of silently shipping a descriptor that omits the
     // new selector. (Previously the allow-list `^(startBridgeTokensVia|...)`
     // here silently dropped any unrecognized name before classification,
@@ -188,7 +190,7 @@ interface IFormatEntry {
 // wallets — i.e., clear-signing that shows wrong information.
 //
 // These tables encode the shapes the templates rely on. validateTuple checks
-// real ABI inputs against them. main() aborts on any mismatch.
+// real ABI inputs against them. buildFormats() reports on any mismatch.
 
 const BRIDGE_DATA_FIELDS: Record<string, string> = {
   transactionId: 'bytes32',
@@ -1382,8 +1384,6 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
   },
   swapTokensSingleV3ERC20ToNative: undefined as unknown as IFormatEntry,
   swapTokensSingleV3NativeToERC20: undefined as unknown as IFormatEntry,
-  swapTokensMultipleV3ERC20ToERC20: undefined as unknown as IFormatEntry,
-  swapTokensMultipleV3ERC20ToNative: undefined as unknown as IFormatEntry,
   swapTokensMultipleV3NativeToERC20: undefined as unknown as IFormatEntry,
 }
 // Derivation: same as ERC20ToERC20 but for Native variants the `fromAmount`
@@ -1460,53 +1460,6 @@ SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
     },
   ],
 }
-// `GenericSwapFacetV3._depositMultipleERC20Tokens` pulls every entry with
-// `requiresDeposit`, so the sentence cannot name one input amount.
-SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
-  intent: 'Swap',
-  interpolatedIntent: 'Swap for at least {_minAmountOut} to {_receiver}',
-  fields: [
-    // One line per step; a step without requiresDeposit swaps the previous
-    // step's output, so only the first steps' amounts leave the wallet.
-    ...SWAP_INPUT_FIELDS,
-    {
-      path: '_minAmountOut',
-      label: 'Minimum to Receive',
-      format: 'tokenAmount',
-      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
-      visible: 'always',
-    },
-    {
-      path: '_receiver',
-      label: 'Recipient',
-      format: 'addressName',
-      params: { types: ['eoa', 'contract'], sources: ['local', 'ens'] },
-      visible: 'always',
-    },
-    { path: '_transactionId', label: 'Transaction Id', visible: 'never' },
-    { path: '_integrator', label: 'Integrator', visible: 'never' },
-    { path: '_referrer', label: 'Referrer', visible: 'never' },
-    {
-      path: '_swapData.[].callData',
-      label: 'Swap Data Call Data',
-      visible: 'never',
-    },
-    {
-      path: '_swapData.[].callTo',
-      label: 'Swap Data Call To',
-      visible: 'never',
-    },
-    {
-      path: '_swapData.[].approveTo',
-      label: 'Swap Data Approve To',
-      visible: 'never',
-    },
-  ],
-}
-// See notes on the SingleV3 variant above re. the cast and the native output.
-SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToNative = withNativeMinAmountOut(
-  SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 as IFormatEntry
-)
 SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
   intent: 'Swap',
   interpolatedIntent:
@@ -1556,7 +1509,7 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
 // Functions on the diamond that intentionally don't carry a clear-signing entry.
 // Explicit, not pattern-coincidental: a new user-facing verb (e.g. `executeIntent`)
 // must either get a template above OR be added here with a justification.
-// Anything that matches neither hits the unrecognized-prefix failure in main()
+// Anything that matches neither hits the unrecognized-prefix failure in buildFormats()
 // and blocks the PR via verifyClearSigning.yml.
 const NON_USER_FACING_PREFIXES = [
   'init', // initCelerCircleBridge, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
@@ -1620,16 +1573,43 @@ function isKnownNonUserFacing(fn: IAbiFn): boolean {
   return false
 }
 
-function main() {
-  const fns = collectFns()
-  const out: Record<string, IFormatEntry> = {}
-  // Hard-fail on any user-facing function the generator can't confidently
-  // template. Silent skips would let a new facet land with no clear-signing,
-  // or worse, with the wrong template silently emitting paths that resolve to
-  // the wrong field. Either is the exact failure mode ERC-7730 is meant to
-  // prevent. The CI gate (see .github/workflows/verifyClearSigning.yml) wires
-  // this exit code into the PR-merge gate.
+// The EF registry maintainers own these formats: the proposal emits no entry,
+// so the sync's merge keeps the registry's version instead of replacing it.
+// EF reverted both to a first-step-only display in
+// ethereum/clear-signing-erc7730-registry#3217 pending a design agreed with
+// LI.FI (EXSC-1396); remove a name here once that design lands in
+// SWAP_TEMPLATES. The sync also reuses our `config/clearSigningTests.json`
+// cases for these selectors, so they must equal the registry's cases.
+export const UPSTREAM_MAINTAINED_FUNCTIONS: ReadonlySet<string> = new Set([
+  'swapTokensMultipleV3ERC20ToERC20',
+  'swapTokensMultipleV3ERC20ToNative',
+])
+
+export interface IBuildResult {
+  formats: Record<string, IFormatEntry>
+  failures: string[]
+  upstreamMaintained: string[]
+}
+
+/**
+ * Templates a display format for every user-facing function, skipping the
+ * non-user-facing ones, `*Packed` / `*Min` bridge variants and
+ * {@link UPSTREAM_MAINTAINED_FUNCTIONS}.
+ *
+ * Hard-fails (via `failures`) on any user-facing function the generator can't
+ * confidently template: a silent skip would let a new facet land with no
+ * clear-signing, or with a template whose paths resolve to the wrong field.
+ * Also fails on an upstream-maintained name that matches no function, so a
+ * renamed or removed function cannot leave a stale entry behind.
+ *
+ * @param fns - Diamond functions, as collected from the Foundry artifacts
+ * @returns The formats keyed by signature, the failures, and the signatures
+ *   of the upstream-maintained functions that were skipped
+ */
+export function buildFormats(fns: IAbiFn[]): IBuildResult {
+  const formats: Record<string, IFormatEntry> = {}
   const failures: string[] = []
+  const upstreamMaintained: string[] = []
 
   for (const fn of fns) {
     // Skip known non-user-facing functions explicitly (admin, init, view,
@@ -1651,6 +1631,10 @@ function main() {
     // (EXSC-926)
     if (PACKED_OR_MIN_BRIDGE_VARIANT.test(fn.name)) continue
     const sig = signature(fn)
+    if (UPSTREAM_MAINTAINED_FUNCTIONS.has(fn.name)) {
+      upstreamMaintained.push(sig)
+      continue
+    }
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
       if (!tpl) {
@@ -1659,7 +1643,7 @@ function main() {
         )
         continue
       }
-      out[sig] = tpl
+      formats[sig] = tpl
     } else if (/^(swapAndStart|start)BridgeTokensVia/u.test(fn.name)) {
       const variant: Variant = fn.name.startsWith('swapAndStart')
         ? 'swap'
@@ -1679,15 +1663,15 @@ function main() {
         )
         continue
       }
-      out[sig] = buildBridgeFormat(fn, variant)
+      formats[sig] = buildBridgeFormat(fn, variant)
     } else {
       failures.push(
-        `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min) and isn't in the explicit non-user-facing skip-list.\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts main(). If not, add it to NON_USER_FACING_NAMES / NON_USER_FACING_PREFIXES at the top of main() with a one-line justification.`
+        `${sig}\n      reason: unrecognized prefix — function name "${fn.name}" doesn't match any classifier (startBridgeTokensVia / swapAndStartBridgeTokensVia / swapTokens / *Packed / *Min) and isn't in the explicit non-user-facing skip-list.\n      fix:    if this is a user-facing entry-point, add a new classifier branch in buildClearSigningProposal.ts buildFormats(). If not, add it to NON_USER_FACING_NAMES / NON_USER_FACING_PREFIXES with a one-line justification.`
       )
     }
   }
 
-  for (const [sig, entry] of Object.entries(out)) {
+  for (const [sig, entry] of Object.entries(formats)) {
     const intentErr = validateIntentPlaceholders(entry)
     if (intentErr)
       failures.push(
@@ -1695,6 +1679,24 @@ function main() {
       )
   }
 
+  const fnNames = new Set(fns.map((fn) => fn.name))
+  for (const name of UPSTREAM_MAINTAINED_FUNCTIONS)
+    if (!fnNames.has(name))
+      failures.push(
+        `${name}\n      reason: listed in UPSTREAM_MAINTAINED_FUNCTIONS but no diamond function has this name\n      fix:    remove it from UPSTREAM_MAINTAINED_FUNCTIONS in tasks/buildClearSigningProposal.ts, or restore the function.`
+      )
+
+  return { formats, failures, upstreamMaintained }
+}
+
+function main() {
+  const { formats, failures, upstreamMaintained } = buildFormats(collectFns())
+
+  for (const sig of upstreamMaintained)
+    console.log(`Skipped (maintained in the EF registry): ${sig}`)
+
+  // The CI gate (see .github/workflows/verifyClearSigning.yml) wires this
+  // exit code into the PR-merge gate.
   if (failures.length > 0) {
     console.error(
       `\n❌ buildClearSigningProposal: ${failures.length} function(s) could not be templated.\n`
@@ -1709,8 +1711,8 @@ function main() {
   const payload = {
     $note:
       'ERC-7730 display.formats entries for the LIFI Diamond, generated by tasks/buildClearSigningProposal.ts from Foundry artifacts. Source of truth for clear-signing UX strings. Consumed by tasks/generateLedgerClearSigning.ts during the sync workflow: entries here are merged into the registry payload pushed to ethereum/clear-signing-erc7730-registry.',
-    $count: Object.keys(out).length,
-    formats: out,
+    $count: Object.keys(formats).length,
+    formats,
   }
   // Deliberately no `$generatedAt`: git already records when the file changed,
   // and an embedded timestamp would churn the file on every re-run with no
@@ -1718,7 +1720,7 @@ function main() {
 
   fs.mkdirSync(path.dirname(TARGET), { recursive: true })
   fs.writeFileSync(TARGET, `${JSON.stringify(payload, null, 2)}\n`)
-  console.log(`Wrote ${Object.keys(out).length} entries to ${TARGET}`)
+  console.log(`Wrote ${Object.keys(formats).length} entries to ${TARGET}`)
 }
 
-main()
+if (isEntrypoint(import.meta.url)) main()
