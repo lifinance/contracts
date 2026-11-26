@@ -23,11 +23,6 @@
       "Glob",
       "Grep"
     ],
-    "ask": [
-      "Bash(cast send *)",
-      "Bash(forge script * --broadcast*)",
-      "Bash(forge script * --resume*)"
-    ],
     "deny": [
       "Read(/.env)",
       "Read(**/.env)",
@@ -46,6 +41,11 @@
       "Bash(lifi-connect prod*)",
       "Bash(aws sso login*)",
       "Bash(op *)"
+    ],
+    "ask": [
+      "Bash(cast send *)",
+      "Bash(forge script * --broadcast*)",
+      "Bash(forge script * --resume*)"
     ]
   },
   "hooks": {
