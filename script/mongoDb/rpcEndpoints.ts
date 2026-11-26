@@ -94,7 +94,7 @@ export function hostOf(url: string): string {
 }
 
 /** Whether a host belongs to TronGrid, whose root is a native HTTP API rather than JSON-RPC. */
-const isTronGridHost = (hostname: string): boolean =>
+export const isTronGridHost = (hostname: string): boolean =>
   hostname === 'trongrid.io' || hostname.endsWith('.trongrid.io')
 
 /**

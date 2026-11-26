@@ -12,11 +12,13 @@ import { readFileSync } from 'fs'
 import { join } from 'path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { createPublicClient, http } from 'viem'
 
 import networksConfig from '../../../config/networks.json'
 import { getTransportConfigFromRpcUrl } from '../../utils/viemScriptHelpers'
@@ -25,6 +27,7 @@ import {
   getSignTimeTransportConfig,
   SIGN_TIME_RETRY_COUNT,
   SIGN_TIME_RETRY_DELAY_MS,
+  TRONGRID_SIGN_TIME_RETRY_DELAY_MS,
 } from './sign-time-transport'
 
 /**
@@ -70,13 +73,15 @@ describe('getSignTimeTransportConfig', () => {
     const capped = getSignTimeTransportConfig(TRONGRID_RPC ?? '')
 
     expect(capped.retryCount).toBe(SIGN_TIME_RETRY_COUNT)
-    expect(capped.retryDelay).toBe(SIGN_TIME_RETRY_DELAY_MS)
+    expect(capped.retryDelay).toBe(TRONGRID_SIGN_TIME_RETRY_DELAY_MS)
 
+    // Wider than other hosts to outlast TronGrid's suspension, and still a
+    // small fraction of the 510s the endpoint profile would spend.
     const backoffMs = Array.from(
       { length: capped.retryCount },
       (_unused, count) => (1 << count) * capped.retryDelay
     ).reduce((total, wait) => total + wait, 0)
-    expect(backoffMs).toBe(3_000)
+    expect(backoffMs).toBe(18_000)
   })
 
   // Pinned by value, not by the symbol: an assertion written as
@@ -178,4 +183,86 @@ describe('sign-time reads carry the cap', () => {
     )
     expect(walletTransport).toBeGreaterThan(publicClientRead)
   })
+})
+
+/**
+ * TronGrid's keyless throttle, driven for real against a local endpoint that
+ * answers 429 for the whole suspension and serves the read afterwards. Only the
+ * retry profile comes from the TronGrid config; the url is the local one.
+ */
+describe('a TronGrid read throttled for its 5s suspension', () => {
+  // TronGrid's own 429 body, as recorded on 2026-11-25.
+  const SUSPENDED_BODY =
+    '{"Error":"request credit rate exceeded the allowed_credit(300 credits\\/s), and the query server is suspended for 5 s."}'
+  const SUSPENSION_MS = 5_000 // 5 seconds, from the body above
+  const DEPLOYED_CODE = '0x6080604052'
+
+  const servers: { stop: () => void }[] = []
+  afterEach(() => {
+    for (const server of servers.splice(0)) server.stop()
+  })
+
+  const suspendedEndpoint = (): string => {
+    const suspendedUntil = Date.now() + SUSPENSION_MS
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request) {
+        const { id } = (await request.json()) as { id: number }
+        if (Date.now() < suspendedUntil)
+          return new Response(SUSPENDED_BODY, { status: 429 })
+        return Response.json({ jsonrpc: '2.0', id, result: DEPLOYED_CODE })
+      },
+    })
+    servers.push(server)
+    return `http://localhost:${server.port}`
+  }
+
+  const readCode = (
+    url: string,
+    { retryCount, retryDelay }: { retryCount: number; retryDelay: number }
+  ) =>
+    createPublicClient({
+      transport: http(url, { retryCount, retryDelay }),
+    }).getCode({ address: '0x0000000000000000000000000000000000000001' })
+
+  it('spaces the first retry past the suspension on a TronGrid host', () => {
+    const { retryDelay } = getSignTimeTransportConfig(TRONGRID_RPC ?? '')
+
+    expect(retryDelay).toBe(6_000)
+    expect(retryDelay).toBeGreaterThan(SUSPENSION_MS)
+  })
+
+  it('keeps the 1s spacing everywhere else', () => {
+    expect(
+      getSignTimeTransportConfig('https://rpc.example/v1').retryDelay
+    ).toBe(1_000)
+  })
+
+  it(
+    'answers once the suspension lifts',
+    async () => {
+      const profile = getSignTimeTransportConfig(TRONGRID_RPC ?? '')
+
+      expect(await readCode(suspendedEndpoint(), profile)).toBe(DEPLOYED_CODE)
+    },
+    { timeout: 20_000 }
+  )
+
+  // The control: the default spacing spends both retries inside the
+  // suspension, which is the failure the TronGrid spacing exists for.
+  it(
+    'fails inside the suspension at the default spacing',
+    async () => {
+      const profile = getSignTimeTransportConfig('https://rpc.example/v1')
+
+      let rejected: unknown
+      try {
+        await readCode(suspendedEndpoint(), profile)
+      } catch (error) {
+        rejected = error
+      }
+      expect(String(rejected)).toContain('429')
+    },
+    { timeout: 20_000 }
+  )
 })
