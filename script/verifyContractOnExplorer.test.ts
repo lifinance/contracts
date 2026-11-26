@@ -1,7 +1,9 @@
 /**
  * Tests the forge command verifyContractOnExplorer (script/helperFunctions.sh)
  * builds from the real config/networks.json and foundry.toml for the networks
- * typed `oklink` and `blockscout`. forge is a PATH stub that records its argv.
+ * typed `oklink` and `blockscout`, and that the `etherscan` and `custom`
+ * branches report a missing key under `set -u`. forge is a PATH stub that
+ * records its argv.
  */
 import { spawnSync } from 'child_process'
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
@@ -28,11 +30,22 @@ interface IRun {
   forgeCalls: string[]
 }
 
+interface IRunOptions {
+  strict?: boolean
+  unset?: string[]
+}
+
 /**
- * Runs verifyContractOnExplorer for `network`. `keys` are assigned after
- * helperFunctions.sh has sourced the repo .env, so they replace its values.
+ * Runs verifyContractOnExplorer for `network`. `keys` are assigned and
+ * `options.unset` names unset after helperFunctions.sh has sourced the repo
+ * .env, so they replace its values. `options.strict` runs the call under
+ * `set -euo pipefail`, as a strict-mode caller would.
  */
-function run(network: string, keys: Record<string, string>): IRun {
+function run(
+  network: string,
+  keys: Record<string, string>,
+  options: IRunOptions = {}
+): IRun {
   const dir = mkdtempSync(join(tmpdir(), 'explorer-verify-'))
   const forgeLog = join(dir, 'forge.log')
   writeFileSync(forgeLog, '')
@@ -52,6 +65,8 @@ function run(network: string, keys: Record<string, string>): IRun {
     NETWORKS_JSON_FILE_PATH="config/networks.json"
     MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION=1
     ${assignments}
+    ${(options.unset ?? []).map((name) => `unset ${name}`).join('\n')}
+    ${options.strict ? 'set -euo pipefail' : ''}
     getContractFilePath() { echo "src/Facets/DiamondCutFacet.sol"; }
     verifyContractOnExplorer "$@"
   `
@@ -112,4 +127,20 @@ describe('verifyContractOnExplorer', () => {
     expect(call).toContain('--chain-id 13371')
     expect(call).not.toContain('api-key')
   })
+
+  for (const [network, keyName] of [
+    ['mainnet', 'MAINNET_ETHERSCAN_API_KEY'],
+    ['pharos', 'PHAROS_SOCIALSCAN_API_KEY'],
+  ] as const) {
+    it(`reports an unset ${keyName} for ${network} under set -u instead of aborting`, () => {
+      const result = run(network, {}, { strict: true, unset: [keyName] })
+
+      expect(result.status).toBe(1)
+      expect(result.output).toContain(
+        `Could not find API key for network ${network} (environment variable ${keyName}`
+      )
+      expect(result.output).not.toContain('unbound variable')
+      expect(result.forgeCalls).toHaveLength(0)
+    })
+  }
 })
