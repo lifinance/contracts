@@ -32,19 +32,27 @@ describe('tronHex', () => {
 })
 
 describe('tronDeploymentsAsHex', () => {
-  it('spells every base58 address as hex and leaves other values alone', () => {
+  it('spells every base58 address as hex and leaves hex alone', () => {
     const hex = tronDeploymentsAsHex('tron', {
       LiFiTimelockController: TIMELOCK_BASE58,
       Already: REFUND_HEX,
-      Version: 3,
-      Label: 'Timelock',
     })
     expect(String(hex['LiFiTimelockController']).toLowerCase()).toBe(
       TIMELOCK_HEX
     )
     expect(hex['Already']).toBe(REFUND_HEX)
-    expect(hex['Version']).toBe(3)
-    expect(hex['Label']).toBe('Timelock')
+  })
+
+  // A value passed through would drop out of the gate's address index, so the
+  // contract it names would go unread rather than fail.
+  it.each([
+    ['a truncated base58 address', TIMELOCK_BASE58.slice(0, -1)],
+    ['a non-address string', 'Timelock'],
+    ['a number', 3],
+  ])('throws on %s', (_what, value) => {
+    expect(() => tronDeploymentsAsHex('tron', { LiFiDiamond: value })).toThrow(
+      'LiFiDiamond is not a Tron or hex address'
+    )
   })
 
   it('throws on a base58-shaped value whose checksum fails', () => {

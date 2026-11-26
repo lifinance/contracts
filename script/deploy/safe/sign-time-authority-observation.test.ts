@@ -238,6 +238,15 @@ describe('observeSignTimeSet on Tron', () => {
       },
     ],
     [
+      'a malformed diamond address',
+      {
+        loadDeployments: async () => ({
+          ...DEPLOYMENTS_BASE58,
+          LiFiDiamond: DEPLOYMENTS_BASE58.LiFiDiamond.slice(0, -1),
+        }),
+      },
+    ],
+    [
       'a pinned deployment',
       {
         readPinnedDeployments: async () => ({

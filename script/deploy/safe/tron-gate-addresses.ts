@@ -44,20 +44,29 @@ export const tronHex = (network: string, address: string): Address => {
 /**
  * A deployments file with every base58 address spelled as hex.
  *
+ * Every entry of a deployments file is a contract address, so a value that is
+ * neither base58 nor hex is malformed. It throws rather than passing through:
+ * a passed-through value drops out of the gates' address index, and the
+ * contract it names would go unchecked instead of failing.
+ *
  * @param network - Tron network name.
  * @param deployments - Main's parsed `deployments/<network>.json`.
- * @returns A copy whose base58 addresses are checksummed hex; other values unchanged.
- * @throws When a base58-shaped value fails its checksum or is not a Tron account.
+ * @returns A copy whose base58 addresses are checksummed hex; hex values unchanged.
+ * @throws When a value is not an address, a base58 checksum fails, or a
+ *   base58 address is not a Tron account.
  */
 export const tronDeploymentsAsHex = (
   network: string,
   deployments: Record<string, unknown>
 ): Record<string, unknown> =>
   Object.fromEntries(
-    Object.entries(deployments).map(([name, value]) => [
-      name,
-      isBase58(value) ? tronHex(network, value) : value,
-    ])
+    Object.entries(deployments).map(([name, value]) => {
+      if (isBase58(value)) return [name, tronHex(network, value)]
+      if (typeof value === 'string' && EVM_HEX.test(value)) return [name, value]
+      throw new Error(
+        `deployments/${network}.json ${name} is not a Tron or hex address`
+      )
+    })
   )
 
 /**
