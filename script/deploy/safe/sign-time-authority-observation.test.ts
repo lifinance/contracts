@@ -22,7 +22,7 @@ import {
   type ISignTimeSetDependencies,
   type TSetObservation,
 } from './sign-time-authority-observation'
-import { gateAddressInputsForNetwork, tronHex } from './tron-gate-addresses'
+import { gateAddressInputsForNetwork } from './tron-gate-addresses'
 
 const NETWORK = 'tron'
 
@@ -53,13 +53,14 @@ const GLOBAL_CONFIG = {
   },
 }
 
-const DIAMOND = tronHex(NETWORK, DEPLOYMENTS_BASE58.LiFiDiamond).toLowerCase()
-const TIMELOCK = tronHex(
-  NETWORK,
-  DEPLOYMENTS_BASE58.LiFiTimelockController
-).toLowerCase()
-const FACET = tronHex(NETWORK, DEPLOYMENTS_BASE58.OwnershipFacet).toLowerCase()
-const TRON_PAUSER = tronHex(NETWORK, TRON_PAUSER_BASE58).toLowerCase()
+/**
+ * The same addresses as hex, written out rather than derived with the code
+ * under test, so a conversion that maps consistently but wrongly still fails.
+ */
+const DIAMOND = '0xc6594cd50c39ba5f23538fdc3b8492c95edb6fe1'
+const TIMELOCK = '0x161f35951702e93ffee662ed16fb538c283462a5'
+const FACET = '0xd994c03cfbbe1bec29df139680f6785547c41c6e'
+const TRON_PAUSER = '0xf9d8ba34a51750cf6abfa9de7acd37f182081a4a'
 
 const DIAMOND_CUT = encodeFunctionData({
   abi: parseAbi([

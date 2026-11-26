@@ -75,7 +75,11 @@ describe('buildReadOnlyClient', () => {
           .url
       ).toBe('https://override.trongrid.io/jsonrpc')
     } finally {
-      process.env[tronPrimary] = original ?? 'https://override.trongrid.io'
+      if (original === undefined) {
+        delete process.env[tronPrimary] // spawn-env: in-process test, restores the unset state it found
+      } else {
+        process.env[tronPrimary] = original
+      }
     }
   })
 

@@ -412,10 +412,10 @@ export const viemScheduledAtReader =
  *
  * The gate's own dispositions are already carried by the caller's failure path.
  * What this covers is the quieter case: the gate said PROCEED while naming a
- * gap in what it could check, the network is one it cannot cover at all, or —
- * under shadow mode — the gate never reached a disposition, because a read it
- * needed or the gate itself threw. In an operator's shell those reach a reader
- * through the console. The ten-minute cron has no reader, so a gap that only
+ * gap in what it could check, or — under shadow mode — the gate never reached
+ * a disposition, because a read it needed or the gate itself threw. In an
+ * operator's shell those reach a reader through the console. The ten-minute
+ * cron has no reader, so a gap that only
  * reaches the log is a gap nobody ever learns about — which is how the audit
  * trail of a skipped sign-time record comes to look identical to a verified
  * one.
