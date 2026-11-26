@@ -2170,21 +2170,21 @@ function verifyContractOnExplorer() {
       VERIFY_CMD+=("--verifier" "sourcify")
     elif [[ "$VERIFICATION_TYPE" = "etherscan" ]]; then
       # Use etherscan verifier (foundry.toml may also set verifier = "etherscan" for this network)
-      if [ -z "${!API_KEY}" ]; then
+      if [ -z "${!API_KEY:-}" ]; then
         echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
         return 1
       fi
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
     elif [[ "$VERIFICATION_TYPE" = "custom" ]]; then
       # Custom verifier requires --verifier-api-key instead of --etherscan-api-key
       VERIFY_CMD+=("--verifier" "custom")
       if [[ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]]; then
         # make sure API key is not empty (check the actual value, not the variable name)
-        if [ -z "${!API_KEY}" ]; then
+        if [ -z "${!API_KEY:-}" ]; then
           echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
           return 1
         fi
-        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
+        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY:-}")
       fi
     elif [[ "$VERIFICATION_TYPE" = "oklink" ]]; then
       # forge does not read `verifier` from foundry.toml; without this flag it falls back to Sourcify
@@ -2194,18 +2194,18 @@ function verifyContractOnExplorer() {
         return 1
       fi
       if [ -n "${!API_KEY:-}" ]; then
-        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY}")
+        VERIFY_CMD+=("--verifier-api-key" "${!API_KEY:-}")
       fi
     elif [ "$API_KEY" = "MAINNET_ETHERSCAN_API_KEY" ]; then
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
     elif [ "$API_KEY" != "NO_ETHERSCAN_API_KEY_REQUIRED" ]; then
       # make sure API key is not empty (check the actual value, not the variable name)
-      if [ -z "${!API_KEY}" ]; then
+      if [ -z "${!API_KEY:-}" ]; then
         echo "Error: Could not find API key for network $NETWORK (environment variable $API_KEY is empty or not set)"
         return 1
       fi
       # Custom etherscan-compatible API key
-      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY}")
+      VERIFY_CMD+=("--verifier" "etherscan" "--etherscan-api-key" "${!API_KEY:-}")
     fi
   fi
 
