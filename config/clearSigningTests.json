@@ -62,24 +62,11 @@
       "txHash": "0x6cf0a5130b01feea85621148b7a6193c775d8516b1aa3628f37828bc5c12a5c8",
       "expected": {
         "intent": "Swap",
-        "interpolatedIntent": "Swap for at least 93522914967.046437151086561198 XEN to 0x78b59874BF0Fb404D88D9e688fdC56eE3E085e6b",
         "owner": "LI.FI",
         "fields": [
           {
-            "label": "Swap Step Input",
+            "label": "Amount to Send",
             "value": "500000 XPR"
-          },
-          {
-            "label": "Swap Step Input",
-            "value": "495000 XPR"
-          },
-          {
-            "label": "Swap Step Taken From Wallet",
-            "value": "true"
-          },
-          {
-            "label": "Swap Step Taken From Wallet",
-            "value": "false"
           },
           {
             "label": "Minimum to Receive",
@@ -98,31 +85,18 @@
       "txHash": "0xdd05df1178e2c9becfa70eb62d8524b6940b3c3e5d478e40b41323370ff24e1d",
       "expected": {
         "intent": "Swap",
-        "interpolatedIntent": "Swap for at least 0.007538051138939978 ETH to 0xA368825594237F98cD05803027E841Aeca7e8F52",
         "owner": "LI.FI",
         "fields": [
           {
-            "label": "Swap Step Input",
+            "label": "Amount to Send",
             "value": "56 TRX"
-          },
-          {
-            "label": "Swap Step Input",
-            "value": "55.3 TRX"
-          },
-          {
-            "label": "Swap Step Taken From Wallet",
-            "value": "true"
-          },
-          {
-            "label": "Swap Step Taken From Wallet",
-            "value": "false"
           },
           {
             "label": "Minimum to Receive",
             "value": "0.007538051138939978 ETH"
           },
           {
-            "label": "Recipient",
+            "label": "Receiver",
             "value": "0xA368825594237F98cD05803027E841Aeca7e8F52"
           }
         ]
