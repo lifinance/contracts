@@ -26,14 +26,12 @@ import {
 import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { normalizeRpcUrlForNetwork } from '../../mongoDb/rpcEndpoints'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { redactUrls } from '../../utils/redactUrls'
 import { getRPCEnvVarName } from '../../utils/utils'
-import {
-  buildExplorerAddressUrl,
-  getFallbackTransportForChain,
-} from '../../utils/viemScriptHelpers'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { createTronAddressSpellings } from '../shared/tron-address-spellings'
@@ -958,13 +956,6 @@ const processTxs = async (
   const endpoints = chain.rpcUrls.default.http
   const primaryEndpoint = rpcUrl ?? endpoints[0]
 
-  // Two different reasons not to simulate, graded differently below. Tron is
-  // reached through its own executor rather than `eth_call`, so the EVM
-  // simulator does not cover it at all — a declared limit, recorded as an
-  // acknowledgement. A network it does cover but has no endpoint for is a
-  // read that should have happened and did not, which stays unverified.
-  const evmSimulatable = !isTronNetworkKey(network) && Boolean(primaryEndpoint)
-
   /**
    * One proposal's chain-read evidence: every verdict that costs a read, and
    * nothing that depends on what the signer does.
@@ -1055,9 +1046,8 @@ const processTxs = async (
    * signer is looking at.
    *
    * That holds for what this function says, not for what the shared helpers it
-   * calls say — `getFallbackTransportForChain` and `SafeClient`'s own read
-   * errors write to the console directly, and they have call sites that are not
-   * this run.
+   * calls say — `SafeClient`'s own read errors write to the console directly,
+   * and it has call sites that are not this run.
    */
   async function computeProposalEvidence(
     tx: IAugmentedSafeTxDocument
@@ -1164,8 +1154,10 @@ const processTxs = async (
 
     mark('integrity asserts')
 
+    // Tron included: the simulation is plain `eth_call` with a `from`, which
+    // java-tron serves on its `/jsonrpc` endpoint.
     let executability: IExecutabilityVerdict | undefined
-    if (evmSimulatable && primaryEndpoint)
+    if (primaryEndpoint)
       try {
         // Every endpoint the chain has, in priority order, rather than the
         // primary alone: one throttled provider must not be the reason a
@@ -1173,29 +1165,31 @@ const processTxs = async (
         // below record `error`, which blocks — the signer investigates rather
         // than signing on a simulation nobody made.
         //
-        // The override is kept outside the chain transport's own construction,
-        // which throws when every configured endpoint is unusable: built inline
-        // that throw would discard a `--rpcUrl` that works, in exactly the case
-        // an override exists for.
-        const overrideEndpoints = rpcUrl ? [rpcUrl] : []
+        // Every transport here takes the sign-time retry budget rather than
+        // the endpoint's own profile, the diamond reads included: TronGrid's
+        // deploy-time profile spends about ten minutes on one throttled read,
+        // with the signer waiting on the prompt. The same config also carries
+        // an endpoint's credentials, without which a `--rpcUrl` holding them is
+        // queried unauthenticated and its 401 recorded as unreadable state.
+        const signTimeHttp = (endpointUrl: string): Transport => {
+          const { url, fetchOptions, retryCount, retryDelay } =
+            getSignTimeTransportConfig(endpointUrl)
+          return http(url, {
+            ...(fetchOptions ? { fetchOptions } : {}),
+            retryCount,
+            retryDelay,
+          })
+        }
 
-        // Resolved before the chain transport, so the fallback message below
-        // can say what is actually left. Through the same transport config as
-        // the simulators further down, for the same reason: a `--rpcUrl`
-        // carrying credentials is queried unauthenticated when it is handed to
-        // `http()` bare, and the 401 that comes back is recorded as chain state
-        // that could not be read.
+        // A TronGrid override names the host, as the chain config does; the
+        // JSON-RPC route is added the same way it is for the configured ones.
+        const overrideEndpoints = rpcUrl
+          ? [normalizeRpcUrlForNetwork(network, rpcUrl)]
+          : []
+
         const overrideTransports = overrideEndpoints.flatMap((endpointUrl) => {
           try {
-            const { url, fetchOptions, retryCount, retryDelay } =
-              getSignTimeTransportConfig(endpointUrl)
-            return [
-              http(url, {
-                ...(fetchOptions ? { fetchOptions } : {}),
-                retryCount,
-                retryDelay,
-              }),
-            ]
+            return [signTimeHttp(endpointUrl)]
           } catch (error) {
             log.warn(
               `    Executability: the supplied --rpcUrl cannot be used on ${network} — ${redactUrls(
@@ -1206,22 +1200,29 @@ const processTxs = async (
           }
         })
 
-        let chainTransport: Transport | undefined
-        try {
-          chainTransport = getFallbackTransportForChain(chain)
-        } catch (error) {
-          if (overrideTransports.length === 0) throw error
-          log.warn(
-            `    Executability: no endpoint from the chain config is usable on ${network}; simulating through the supplied override alone — ${redactUrls(
+        const rejections: string[] = []
+        const chainTransports = endpoints.flatMap((endpointUrl) => {
+          try {
+            return [signTimeHttp(endpointUrl)]
+          } catch (error) {
+            // An endpoint this chain cannot use, which the remaining ones are
+            // there to cover.
+            rejections.push(
               error instanceof Error ? error.message : String(error)
-            )}`
+            )
+            return []
+          }
+        })
+        if (rejections.length > 0)
+          log.warn(
+            `    Executability: ignoring ${rejections.length} unusable RPC endpoint(s) on ${network}${
+              chainTransports.length === 0 && overrideTransports.length > 0
+                ? '; simulating through the supplied override alone'
+                : ''
+            } — ${redactUrls(rejections.join('; '))}`
           )
-        }
 
-        const transports = [
-          ...overrideTransports,
-          ...(chainTransport ? [chainTransport] : []),
-        ]
+        const transports = [...overrideTransports, ...chainTransports]
         const [onlyTransport] = transports
         if (!onlyTransport)
           throw new Error(
@@ -1236,31 +1237,19 @@ const processTxs = async (
         // One client per endpoint for the simulation itself. A fallback
         // transport decides revert-versus-unreachable by the node's wording, so
         // the payload's own answer has to be read endpoint by endpoint instead.
-        //
-        // Built through the same transport config the rest of the run uses, not
-        // from the bare URL: that is where an endpoint's auth headers and retry
-        // policy come from, and a simulator missing them fails to authenticate
-        // on every endpoint — which this gate would then read as a proposal
-        // nobody could simulate rather than as its own misconfiguration.
+        // An endpoint whose transport could not be built is dropped rather
+        // than simulated against, so its own unusability is never reported as
+        // the proposal's verdict.
         const simulators = [...overrideEndpoints, ...endpoints].flatMap(
           (endpointUrl) => {
             try {
-              const { url, fetchOptions, retryCount, retryDelay } =
-                getSignTimeTransportConfig(endpointUrl)
               return [
                 createPublicClient({
                   chain,
-                  transport: http(url, {
-                    ...(fetchOptions ? { fetchOptions } : {}),
-                    retryCount,
-                    retryDelay,
-                  }),
+                  transport: signTimeHttp(endpointUrl),
                 }),
               ]
             } catch {
-              // An endpoint this chain cannot use, which the remaining ones are
-              // there to cover. Dropped rather than simulated against, so its
-              // own unusability is never reported as the proposal's verdict.
               return []
             }
           }
@@ -1831,14 +1820,6 @@ const processTxs = async (
       targetState,
       peripheryAllowlist,
       executability,
-      // Only a chain the simulator was never written for is out of scope. An
-      // EVM network it does cover but could not reach is a read that should
-      // have happened and did not, so it is left to record as unverified.
-      ...(isTronNetworkKey(network)
-        ? {
-            executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
-          }
-        : {}),
       rpcQuorum,
     })
     // From the same entries, simulation, quorum read and codehash gate the rows

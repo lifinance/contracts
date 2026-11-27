@@ -5,6 +5,7 @@
  * broadcast paths keep the endpoint's own profile, which is what it was tuned for.
  */
 
+import { isTronGridHost } from '../../mongoDb/rpcEndpoints'
 import { getTransportConfigFromRpcUrl } from '../../utils/viemScriptHelpers'
 
 /**
@@ -27,6 +28,26 @@ export const SIGN_TIME_RETRY_COUNT = 2
 export const SIGN_TIME_RETRY_DELAY_MS = 1_000
 
 /**
+ * 6 seconds on TronGrid.
+ *
+ * A throttled TronGrid client is suspended for 5s (its 429 body says so), so
+ * both retries at the default spacing land inside the suspension and the read
+ * fails. The first retry at this spacing clears it; the two cost at most
+ * 6+12 = 18s of backoff.
+ */
+export const TRONGRID_SIGN_TIME_RETRY_DELAY_MS = 6_000 // 6 seconds
+
+const retryDelayFor = (url: string): number => {
+  try {
+    return isTronGridHost(new URL(url).hostname)
+      ? TRONGRID_SIGN_TIME_RETRY_DELAY_MS
+      : SIGN_TIME_RETRY_DELAY_MS
+  } catch {
+    return SIGN_TIME_RETRY_DELAY_MS
+  }
+}
+
+/**
  * Resolves an endpoint to a transport config with a sign-time retry budget.
  *
  * Keeps everything `getTransportConfigFromRpcUrl` resolves about *reaching* the
@@ -42,7 +63,8 @@ export const SIGN_TIME_RETRY_DELAY_MS = 1_000
  * refusal waiting behind it.
  *
  * The replacement is unconditional, not TronGrid-only: every network's
- * sign-time reads get this budget in place of viem's own 3 retries at 150ms.
+ * sign-time reads get this budget in place of viem's own 3 retries at 150ms,
+ * with TronGrid's spacing widened to outlast its suspension.
  *
  * @param rpcUrl - The endpoint to read from.
  * @returns The transport config, with the retry profile capped.
@@ -61,6 +83,6 @@ export const getSignTimeTransportConfig = (
     url,
     ...(fetchOptions ? { fetchOptions } : {}),
     retryCount: SIGN_TIME_RETRY_COUNT,
-    retryDelay: SIGN_TIME_RETRY_DELAY_MS,
+    retryDelay: retryDelayFor(url),
   }
 }

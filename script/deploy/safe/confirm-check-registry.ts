@@ -1411,17 +1411,6 @@ export interface IProposalCheckVerdicts {
   peripheryAllowlist: IPeripheryAllowlistVerdict | undefined
   /** Absent when the simulation was never attempted. */
   executability: IExecutabilityVerdict | undefined
-  /**
-   * Why this network is outside the simulator's declared scope, when it is.
-   *
-   * Distinct from an absent verdict on a network the simulator does cover: that
-   * is a read which should have happened and did not, so it is unverified and
-   * blocks. A chain the EVM simulator was never written for — Tron, reached
-   * through its own executor — is a known limit, so the signer is asked to
-   * acknowledge that it was not simulated rather than being refused a signature
-   * the simulator was never going to authorise.
-   */
-  executabilityOutOfScope?: string
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
   /**
@@ -1708,22 +1697,12 @@ export const proposalCheckResults = (
     peripheryAllowlistCheckResult(verdicts.peripheryAllowlist, network),
     verdicts.executability
       ? executabilityCheckResult(verdicts.executability, network)
-      : verdicts.executabilityOutOfScope
-        ? {
-            checkId: EXECUTABILITY_CHECK_ID,
-            network,
-            status: 'needs-ack',
-            expected:
-              'every payload simulated against the state it will execute in',
-            actual: verdicts.executabilityOutOfScope,
-            anchor: 'A-DOCUMENTED',
-          }
-        : unresolved(
-            EXECUTABILITY_CHECK_ID,
-            network,
-            'every payload simulated against the state it will execute in',
-            'no simulation was attempted for this proposal'
-          ),
+      : unresolved(
+          EXECUTABILITY_CHECK_ID,
+          network,
+          'every payload simulated against the state it will execute in',
+          'no simulation was attempted for this proposal'
+        ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
       : {

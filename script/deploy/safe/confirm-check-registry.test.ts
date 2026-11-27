@@ -1567,54 +1567,21 @@ describe('rpcQuorumCheckResult', () => {
   })
 })
 
-describe('a chain the simulator does not cover', () => {
-  // The Tron path. Distinct from a simulation that failed on a chain the
-  // simulator does cover: a declared limit is acknowledgeable, an unmade read
-  // is not, and grading them the same way would either block every Tron
-  // rollout or let a failed EVM read pass as reviewed.
-  it('is acknowledgeable rather than unverified', () => {
-    const ledger = runLedger()
-    recordInto(
-      ledger,
-      verdicts({
-        executability: undefined,
-        executabilityOutOfScope: 'tron runs through its own chain executor',
-      })
-    )
+describe('a Tron proposal whose simulation could not run', () => {
+  // Tron is simulated like any EVM network, so an unmade simulation there is
+  // graded the same way: an unverified read, not a declared limit.
+  it('is unverified and blocks, as on an unreachable EVM network', () => {
+    const ledger = createCheckLedger({
+      expectedNetworks: ['tron'],
+      checks: [...CONFIRM_CHECK_DEFINITIONS],
+    })
+    recordInto(ledger, verdicts({ network: 'tron', executability: undefined }))
 
     const row = ledger.results.find(
       (result) => result.checkId === EXECUTABILITY_CHECK_ID
     )
-    expect(row?.status).toBe('needs-ack')
-    expect(row?.anchor).toBe('A-DOCUMENTED')
-    expect(row?.actual).toContain('tron')
-
-    const verdict = summariseLedger(ledger)
-    expect(verdict.hardBlocked).toBe(false)
-    expect(
-      verdict.requiresAcknowledgement.map((result) => result.checkId)
-    ).toContain(EXECUTABILITY_CHECK_ID)
-  })
-
-  // The scope note must never rescue a simulation that genuinely ran and
-  // could not decide — that one is unverified and blocks.
-  it('does not soften a simulation that ran and errored', () => {
-    const ledger = runLedger()
-    recordInto(
-      ledger,
-      verdicts({
-        executability: executabilityVerdict({
-          error: true,
-          errors: ['chain state could not be read'],
-        }),
-        executabilityOutOfScope: 'tron runs through its own chain executor',
-      })
-    )
-
-    expect(
-      ledger.results.find((result) => result.checkId === EXECUTABILITY_CHECK_ID)
-        ?.status
-    ).toBe('error')
+    expect(row?.status).toBe('error')
+    expect(row?.anchor).toBe('A-UNRESOLVED')
     expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
 })

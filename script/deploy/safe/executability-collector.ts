@@ -657,10 +657,13 @@ const REVERT_DATA_CODES: ReadonlySet<unknown> = new Set([-32000, -32015])
 /**
  * The whole node string, not a word inside it: geth's `execution reverted`
  * with an optional reason, Nethermind's `revert` / `Reverted 0x…`, Ganache and
- * Hardhat's `VM Exception …: revert`, and an invalid opcode.
+ * Hardhat's `VM Exception …: revert`, java-tron's `REVERT opcode executed`,
+ * and an invalid opcode. java-tron answers a bare `revert()` with that string
+ * on `-32000` and `data: "{}"`, so the wording is the only revert evidence it
+ * carries.
  */
 const REVERT_WORDING =
-  /^(?:execution reverted(?::.*)?|revert(?:ed)?(?: 0x[0-9a-f]*)?|vm exception while processing transaction: revert.*|invalid opcode\b.*)$/isu
+  /^(?:execution reverted(?::.*)?|revert(?:ed)?(?: 0x[0-9a-f]*)?|revert opcode executed|vm exception while processing transaction: revert.*|invalid opcode\b.*)$/isu
 
 /**
  * Throttling and caching; a node without the state at the pinned block, which
