@@ -204,7 +204,7 @@ export class CachedDeploymentQuerier {
    * Force refresh cache from MongoDB
    */
   public async refreshCache(): Promise<void> {
-    await this.cache.refresh(this.environment)
+    await this.cache.refresh(this.environment, { force: true })
   }
 
   /**
