@@ -2,8 +2,17 @@
  * Tests for DeploymentCache refresh semantics (forced vs TTL-driven).
  * MongoDB is mocked, so no network connection is opened.
  */
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test'
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+} from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import * as realMongo from 'mongodb'
 import { tmpdir } from 'os'
 import path from 'path'
 
@@ -12,6 +21,7 @@ let mongoShouldFail = false
 let connectCount = 0
 
 mock.module('mongodb', () => ({
+  ...realMongo,
   MongoClient: class {
     public async connect(): Promise<void> {
       connectCount++
@@ -38,6 +48,10 @@ const makeRecord = (contractName: string): Record<string, unknown> => ({
   timestamp: new Date(0).toISOString(),
   createdAt: new Date(0).toISOString(),
   updatedAt: new Date(0).toISOString(),
+})
+
+afterAll(() => {
+  mock.module('mongodb', () => realMongo)
 })
 
 describe('DeploymentCache refresh', () => {
