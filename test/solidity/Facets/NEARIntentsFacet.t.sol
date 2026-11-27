@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { TestBaseFacet, LibSwap } from "../utils/TestBaseFacet.sol";
 import {
     TestWhitelistManagerBase
@@ -260,6 +261,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // approval
         usdc.approve(address(diamond), amountIn);
+        uint256 depositBalanceBefore = TEST_DEPOSIT_ADDRESS.balance;
 
         //prepare check for events
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -278,6 +280,11 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         // execute call in child contract
         initiateSwapAndBridgeTxWithFacet(false);
+
+        assertEq(
+            TEST_DEPOSIT_ADDRESS.balance,
+            depositBalanceBefore + bridgeData.minAmount
+        );
     }
 
     /// Happy Path Tests ///
@@ -379,7 +386,51 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
     }
 
+    function test_ERC20PulledFromUserStraightToDepositAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(diamond), bridgeData.minAmount);
+        uint256 diamondBalanceBefore = usdc.balanceOf(address(diamond));
+
+        vm.expectEmit(true, true, true, true, ADDRESS_USDC);
+        emit IERC20.Transfer(
+            USER_SENDER, TEST_DEPOSIT_ADDRESS, bridgeData.minAmount
+        );
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData, validNearData
+        );
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(address(diamond)), diamondBalanceBefore);
+    }
+
     /// Validation Revert Tests ///
+
+    function testRevert_NativeMsgValueBelowMinAmount() public {
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = defaultNativeAmount;
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            defaultNativeAmount - (defaultNativeAmount / 100)
+        );
+        vm.deal(address(diamond), defaultNativeAmount);
+
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents{
+            value: defaultNativeAmount - 1
+        }(
+            bridgeData, validNearData
+        );
+
+        vm.stopPrank();
+    }
 
     function testRevert_QuoteAlreadyConsumed() public {
         // Mark quote as consumed
@@ -395,7 +446,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_QuoteAlreadyConsumed_Swap() public {
+    function testRevert_QuoteAlreadyConsumedOnSwapEntrypoint() public {
         bridgeData.hasSourceSwaps = true;
         nearIntentsFacet.setQuoteConsumed(validNearData.quoteId);
 
@@ -432,7 +483,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_QuoteExpired_Swap() public {
+    function testRevert_QuoteExpiredOnSwapEntrypoint() public {
         bridgeData.hasSourceSwaps = true;
 
         // Move time forward past deadline
@@ -884,7 +935,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         vm.stopPrank();
     }
 
-    function testRevert_InvalidNonEVMReceiver_Swap() public {
+    function testRevert_InvalidNonEVMReceiverOnSwapEntrypoint() public {
         bridgeData.receiver = NON_EVM_ADDRESS;
         bridgeData.hasSourceSwaps = true;
 
