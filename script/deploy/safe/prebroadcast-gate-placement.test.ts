@@ -174,6 +174,37 @@ describe('pre-broadcast gate placement', () => {
     })
   })
 
+  // On Tron the record and the wallets are base58; handed to the gate unconverted
+  // they drop out of its address index and nothing is read. The conversion has
+  // to sit inside the guarded call so a throw out of it reaches abortUnverified.
+  it('spells every address input as hex for the network, inside the guarded call', () => {
+    const gateCall = body.slice(
+      body.indexOf('runPreBroadcastGate('),
+      body.indexOf('} catch', body.indexOf('runPreBroadcastGate('))
+    )
+    const start = gateCall.indexOf(
+      '...gateAddressInputsForNetwork(networkName, {'
+    )
+    expect(start).toBeGreaterThan(-1)
+    // Up to the call's own closing line; an inline `{})` inside it is not one.
+    const end = gateCall.slice(start).search(/\n\s*\}\),/u)
+    expect(end).toBeGreaterThan(-1)
+    const inputs = gateCall.slice(start, start + end)
+    const outside = gateCall.replace(inputs, '')
+
+    // Each address input reaches the gate only through the conversion.
+    for (const input of [
+      /\bdeployments,/u,
+      /\bpinnedDeployments:/u,
+      /\bglobalConfig:/u,
+    ]) {
+      expect(inputs).toMatch(input)
+      expect(outside).not.toMatch(input)
+    }
+    // And no Tron branch skips the gate before it runs.
+    expect(body).not.toMatch(/isTronNetworkKey\(networkName\)/u)
+  })
+
   // The alert channels are not interchangeable: a gap says nothing was checked,
   // a failure says an operation failed. Shadow mode has not failed anything.
   it('reports an unverified operation as a gap, not a failure', () => {
