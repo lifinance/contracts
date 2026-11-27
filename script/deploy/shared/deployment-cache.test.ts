@@ -12,13 +12,15 @@ import {
   mock,
 } from 'bun:test'
 import { mkdtempSync, rmSync, writeFileSync } from 'fs'
-import * as realMongo from 'mongodb'
 import { tmpdir } from 'os'
 import path from 'path'
 
 let mongoDocs: Record<string, unknown>[] = []
 let mongoShouldFail = false
 let connectCount = 0
+
+// Snapshot: the module namespace is live and mock.module patches it in place
+const realMongo = { ...(await import('mongodb')) }
 
 mock.module('mongodb', () => ({
   ...realMongo,
