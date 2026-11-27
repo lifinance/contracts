@@ -2382,7 +2382,7 @@ const main = defineCommand({
             databaseName: 'contract-deployments',
             batchSize: 100,
           })
-            .refresh('production')
+            .refresh('production', { force: true })
             .then(() => undefined)
             .catch((error) => {
               consola.debug(`Deployment cache refresh skipped: ${error}`)

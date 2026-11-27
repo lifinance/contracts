@@ -358,7 +358,7 @@ export class DeploymentCache {
     // Check if force refresh is requested
     if (options.forceRefresh) {
       consola.debug('Force refresh requested, fetching from MongoDB')
-      return this.refresh(environment)
+      return this.refresh(environment, { force: true })
     }
 
     // Read metadata to check if cache is valid
@@ -405,22 +405,25 @@ export class DeploymentCache {
   /**
    * Refreshes the cache from MongoDB
    * @param environment - The deployment environment
+   * @param options - `force` skips the post-lock freshness double-check and always fetches from MongoDB
    * @returns Updated array of deployment records
    *
    * @example
    * ```typescript
    * const cache = new DeploymentCache(config)
    * await cache.refresh('production')
+   * await cache.refresh('production', { force: true })
    * ```
    */
   public async refresh(
-    environment: keyof typeof EnvironmentEnum
+    environment: keyof typeof EnvironmentEnum,
+    options: { force?: boolean } = {}
   ): Promise<IDeploymentRecord[]> {
     return this.withLock(environment, async () => {
       // Double-check if cache is still stale after acquiring lock
       // Another process may have refreshed it while we were waiting
       const metadata = this.readMetadata(environment)
-      if (metadata && !this.isStale(metadata.lastRefresh)) {
+      if (!options.force && metadata && !this.isStale(metadata.lastRefresh)) {
         const cachedRecords = this.readCache(environment)
         if (cachedRecords && cachedRecords.length === metadata.recordCount) {
           consola.debug(
