@@ -307,6 +307,7 @@ const NON_EVM_FACETS = new Set([
   'AcrossV4',
   'AcrossV4Swap',
   'AllBridge',
+  'CCTP',
   'Chainflip',
   'DeBridgeDln',
   'Eco',
@@ -658,6 +659,37 @@ const BRIDGE_FACET_DISPLAY: Record<string, IFacetDisplay> = {
         format: 'unit',
         params: { base: 'gwei', decimals: 9 },
       }),
+    ],
+  },
+  CCTP: {
+    fields: [
+      // On Stellar and Solana the account paid is in hookData / the ATA; this
+      // one is the owner (Solana) or only emitted for tracking (Stellar).
+      field(
+        '_cctpData.nonEVMReceiver',
+        'bytes32',
+        'Reported Recipient (not checked; payee below)',
+        { visible: unlessZero('bytes32') }
+      ),
+      // CCTP mints here on Solana.
+      field(
+        '_cctpData.solanaReceiverATA',
+        'bytes32',
+        'Solana Token Account (receives USDC)',
+        { visible: unlessZero('bytes32') }
+      ),
+      // Stellar: the forwarder pays the strkey at [32:] (ASCII). HyperCore:
+      // the recipient at [32:52], checked against `_bridgeData.receiver`.
+      // Elsewhere: a Circle delivery request; the mint recipient is unchanged.
+      field(
+        '_cctpData.hookData',
+        'bytes',
+        'Forwarder Hook (Stellar strkey / HyperCore recipient from byte 32; else delivery request)',
+        { visible: unlessZero('bytes') }
+      ),
+      // A ceiling on the CCTP fee, including Circle's forwarding fee.
+      bridgedTokenField('_cctpData.maxCCTPFee', 'Max Destination Fee'),
+      refundField('_cctpData.refundRecipient'),
     ],
   },
   CelerCircleBridge: {
@@ -1559,7 +1591,7 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
 // Anything that matches neither hits the unrecognized-prefix failure in main()
 // and blocks the PR via verifyClearSigning.yml.
 const NON_USER_FACING_PREFIXES = [
-  'init', // initCelerCircleBridge, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
+  'init', // initCCTP, initCelerCircleBridge, initPolymerCCTP, initDeBridgeDln, initMegaETH, initOptimism — owner-only one-shot setup
   'register', // registerOptimismBridge, registerMegaETHBridge, registerPeripheryContract — owner-only config
   'set', // setApprovalFor*, setCanExecute, setContractSelectorWhitelist, setDeBridgeChainId — owner/admin config
   'unset', // unsetChainIdToDomainId — owner/admin config (inverse of set*)

@@ -47,3 +47,16 @@ export function redactErrorReason(message: string): string {
     ? `${redacted.slice(0, MAX_REASON_LENGTH)}…`
     : redacted
 }
+
+/**
+ * Renders a caught error for logging with every endpoint redacted: viem and ethers errors embed
+ * the RPC URL, which can carry a provider key in its path or query.
+ *
+ * @param error - The caught value.
+ * @returns The error's stack (or string form) with `scheme://…` tokens replaced.
+ */
+export function redactedError(error: unknown): string {
+  return redactUrls(
+    error instanceof Error ? (error.stack ?? error.message) : String(error)
+  )
+}
