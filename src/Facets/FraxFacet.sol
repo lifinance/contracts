@@ -2,7 +2,8 @@
 pragma solidity ^0.8.17;
 
 import { ILiFi } from "../Interfaces/ILiFi.sol";
-import { IFraxHopV2, IFraxOFT, ITipFeeManager } from "../Interfaces/IFraxHopV2.sol";
+import { IFraxHopV2, IFraxOFT } from "../Interfaces/IFraxHopV2.sol";
+import { ITempoFeeInclusiveWrapper } from "../Interfaces/ITempoFeeInclusiveWrapper.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibBytes } from "../Libraries/LibBytes.sol";
 import { LibDiamond } from "../Libraries/LibDiamond.sol";
@@ -27,8 +28,10 @@ import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidNonEVMRecei
 ///      the left-padded bridgeData.receiver. The NON_EVM_ADDRESS sentinel and the
 ///      destination kind are cross-checked in both directions (see docs/FraxFacet.md).
 /// @dev Trust assumption: the facet grants HopV2 — an upgradeable proxy — a standing
-///      unlimited ERC20 allowance via LibAsset.maxApproveERC20 (see docs/FraxFacet.md).
-/// @custom:version 1.0.0
+///      unlimited ERC20 allowance via LibAsset.maxApproveERC20 (see docs/FraxFacet.md). On
+///      Tempo that allowance goes to Frax's TempoFeeInclusiveWrapper instead, an immutable
+///      ownerless contract that only pulls from msg.sender and forwards to the same HopV2.
+/// @custom:version 2.0.0
 contract FraxFacet is
     ILiFi,
     LiFiData,
@@ -47,16 +50,12 @@ contract FraxFacet is
     ///         This is also the token approval target ("approvalAddress").
     IFraxHopV2 public immutable FRAX_HOP;
 
-    /// @notice The Tempo TIP20 fee manager. Non-zero ONLY on Tempo, whose LayerZero
+    /// @notice Frax's TempoFeeInclusiveWrapper. Non-zero ONLY on Tempo, whose LayerZero
     ///         EndpointV2Alt rejects native msg.value and charges the messaging fee in an
-    ///         ERC20 gas token instead. Zero on every standard chain, which selects the
-    ///         native-fee path. This single immutable is what lets one FraxFacet source
-    ///         serve every chain (see docs/FraxFacet.md).
-    address public immutable FRAX_TIP_FEE_MANAGER;
-
-    /// @notice The default Tempo gas token (PATH_USD) used when the diamond has not opted
-    ///         into a specific TIP20 gas token. Set only on Tempo; zero elsewhere.
-    address public immutable FRAX_PATH_USD;
+    ///         ERC20; the wrapper takes that fee out of the bridged token itself. Zero on
+    ///         every standard chain, which selects the native-fee path. This single
+    ///         immutable is what lets one FraxFacet source serve every chain.
+    ITempoFeeInclusiveWrapper public immutable FRAX_TEMPO_WRAPPER;
 
     /// Types ///
 
@@ -79,11 +78,14 @@ contract FraxFacet is
     ///        ERC20 that HopV2 pulls and that must equal bridgeData.sendingAssetId)
     /// @param dstEid The LayerZero endpoint ID of the destination chain. Cross-checked
     ///        against the EID configured for bridgeData.destinationChainId.
-    /// @param nativeFee The native LayerZero fee forwarded to HopV2 as msg.value on standard
-    ///        chains; ignored on Tempo (fee is paid in the TIP20 gas token)
+    /// @param nativeFee On standard chains, the native LayerZero fee forwarded to HopV2 as
+    ///        msg.value. On Tempo, the maximum fee (in the bridged token) the caller accepts
+    ///        being deducted from bridgeData.minAmount: the bridged amount must be at least
+    ///        minAmount - nativeFee, else the wrapper reverts InsufficientNetAmount.
     /// @param refundRecipient Address that receives pre-bridge swap leftovers, the dust
-    ///        remainder that HopV2 does not bridge, and any excess native that HopV2 refunds
-    ///        to the diamond mid-call. Must accept plain native transfers.
+    ///        remainder that HopV2 does not bridge, any excess native that HopV2 refunds to
+    ///        the diamond mid-call, and on Tempo the residual the wrapper hands back. Must
+    ///        accept plain native transfers.
     /// @param nonEVMReceiver The bytes32 recipient on a non-EVM destination (e.g. a Solana
     ///        pubkey). Required (non-zero) when bridgeData.receiver is NON_EVM_ADDRESS, and
     ///        MUST be bytes32(0) for EVM destinations so the two receiver fields can never
@@ -111,21 +113,19 @@ contract FraxFacet is
 
     /// @notice Initializes the FraxFacet
     /// @param _hop The Frax HopV2 contract on this chain
-    /// @param _tipFeeManager The Tempo TIP20 fee manager (address(0) on non-Tempo chains)
-    /// @param _pathUsd The default Tempo gas token PATH_USD (address(0) on non-Tempo chains)
-    constructor(IFraxHopV2 _hop, address _tipFeeManager, address _pathUsd) {
-        // The Tempo fee-token path needs both the fee manager and a default gas token; they
-        // are either both set (Tempo) or both zero (every standard chain). A half-configured
-        // deployment would revert deep inside the Tempo branch at bridge time.
+    /// @param _tempoWrapper Frax's TempoFeeInclusiveWrapper (address(0) on non-Tempo chains)
+    constructor(IFraxHopV2 _hop, ITempoFeeInclusiveWrapper _tempoWrapper) {
+        if (address(_hop) == address(0)) revert InvalidConfig();
+        // _validateFraxData checks OFT approval against FRAX_HOP, so the wrapper must forward
+        // to that same hop or the validation would vouch for a different contract.
         if (
-            address(_hop) == address(0) ||
-            ((_tipFeeManager == address(0)) != (_pathUsd == address(0)))
+            address(_tempoWrapper) != address(0) &&
+            _tempoWrapper.HOP() != address(_hop)
         ) {
             revert InvalidConfig();
         }
         FRAX_HOP = _hop;
-        FRAX_TIP_FEE_MANAGER = _tipFeeManager;
-        FRAX_PATH_USD = _pathUsd;
+        FRAX_TEMPO_WRAPPER = _tempoWrapper;
     }
 
     /// Admin Methods ///
@@ -239,14 +239,9 @@ contract FraxFacet is
             _fraxData
         );
 
-        // On standard chains the LayerZero fee is the only native outflow and must come from
-        // msg.value, never from stray diamond balance. On Tempo the fee is an ERC20, so no
-        // native should be sent at all (EndpointV2Alt would revert on non-zero msg.value).
-        if (FRAX_TIP_FEE_MANAGER == address(0)) {
-            if (_fraxData.nativeFee > msg.value) {
-                revert InvalidCallData();
-            }
-        } else if (msg.value != 0) {
+        // The native LayerZero fee is the only native outflow and must come from msg.value,
+        // never from stray diamond balance.
+        if (_nativeFee(_fraxData) > msg.value) {
             revert InvalidCallData();
         }
 
@@ -282,13 +277,6 @@ contract FraxFacet is
             _fraxData
         );
 
-        // On Tempo the fee is an ERC20 and no native is ever consumed; reject stray msg.value
-        // here too (symmetric with the non-swap path) so it fails fast instead of being
-        // silently refunded late.
-        if (FRAX_TIP_FEE_MANAGER != address(0) && msg.value != 0) {
-            revert InvalidCallData();
-        }
-
         // The final swap output must be the bridged asset: _depositAndSwap measures the
         // slippage floor in the last swap's receivingAssetId, while _startBridge floors,
         // approves and bridges _bridgeData.sendingAssetId. A mismatch would validate one token
@@ -302,15 +290,14 @@ contract FraxFacet is
         }
 
         // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
-        // non-swap path): on standard chains the fee may be funded by an ERC20->native
-        // pre-swap whose output the nativeReserve below keeps in the diamond. On Tempo the
-        // fee is an ERC20 and there is no native reserve.
+        // non-swap path): the fee may be funded by an ERC20->native pre-swap whose output
+        // the nativeReserve below keeps in the diamond.
         _bridgeData.minAmount = _depositAndSwap(
             _bridgeData.transactionId,
             _bridgeData.minAmount,
             _swapData,
             payable(_fraxData.refundRecipient),
-            FRAX_TIP_FEE_MANAGER == address(0) ? _fraxData.nativeFee : 0
+            _nativeFee(_fraxData)
         );
 
         _startBridge(_bridgeData, _fraxData);
@@ -409,23 +396,6 @@ contract FraxFacet is
         // NOTE: oft.token() == sendingAssetId and FRAX_HOP.approvedOft(oft) are enforced in
         // _validateFraxData, before any deposit or swap.
 
-        // HopV2 floors the amount to the OFT's dust granularity and only pulls the floored
-        // amount. Compute it up front so we approve and bridge exactly that, and can return
-        // the un-bridged dust to the user instead of leaving it stranded in the diamond.
-        uint256 flooredAmount = FRAX_HOP.removeDust(
-            _fraxData.oft,
-            _bridgeData.minAmount
-        );
-        if (flooredAmount == 0) {
-            revert InvalidCallData();
-        }
-
-        LibAsset.maxApproveERC20(
-            IERC20(_bridgeData.sendingAssetId),
-            address(FRAX_HOP),
-            flooredAmount
-        );
-
         // On a non-EVM destination the recipient is the raw bytes32 pubkey; on EVM it is the
         // left-padded 20-byte receiver. _validateFraxData has already bound the sentinel and
         // the destination kind together, so exactly one of these is populated.
@@ -442,26 +412,51 @@ contract FraxFacet is
             );
         }
 
-        if (FRAX_TIP_FEE_MANAGER == address(0)) {
-            FRAX_HOP.sendOFT{ value: _fraxData.nativeFee }(
-                _fraxData.oft,
-                _fraxData.dstEid,
-                recipient,
-                flooredAmount,
-                0,
-                ""
-            );
-        } else {
-            _sendViaTempo(
-                _fraxData,
-                _bridgeData.sendingAssetId,
-                recipient,
-                flooredAmount
-            );
+        // Emit the amount actually bridged so downstream accounting matches what arrives on dst
+        _bridgeData.minAmount = address(FRAX_TEMPO_WRAPPER) == address(0)
+            ? _sendViaHop(_bridgeData, _fraxData, recipient)
+            : _sendViaTempo(_bridgeData, _fraxData, recipient);
+
+        emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Standard-chain send path: the LayerZero fee is native and forwarded as msg.value.
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _fraxData Data specific to Frax HopV2
+    /// @param _recipient bytes32-encoded destination recipient
+    /// @return bridgedAmount The dust-floored amount HopV2 bridged
+    function _sendViaHop(
+        ILiFi.BridgeData memory _bridgeData,
+        FraxData calldata _fraxData,
+        bytes32 _recipient
+    ) internal returns (uint256 bridgedAmount) {
+        // HopV2 floors the amount to the OFT's dust granularity and only pulls the floored
+        // amount. Compute it up front so we approve and bridge exactly that, and can return
+        // the un-bridged dust to the user instead of leaving it stranded in the diamond.
+        bridgedAmount = FRAX_HOP.removeDust(
+            _fraxData.oft,
+            _bridgeData.minAmount
+        );
+        if (bridgedAmount == 0) {
+            revert InvalidCallData();
         }
 
-        // Return the dust that HopV2 did not bridge to the user (never leave it in the diamond)
-        uint256 dust = _bridgeData.minAmount - flooredAmount;
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(FRAX_HOP),
+            bridgedAmount
+        );
+
+        FRAX_HOP.sendOFT{ value: _fraxData.nativeFee }(
+            _fraxData.oft,
+            _fraxData.dstEid,
+            _recipient,
+            bridgedAmount,
+            0,
+            ""
+        );
+
+        uint256 dust = _bridgeData.minAmount - bridgedAmount;
         if (dust != 0) {
             LibAsset.transferAsset(
                 _bridgeData.sendingAssetId,
@@ -469,86 +464,84 @@ contract FraxFacet is
                 dust
             );
         }
-
-        // Emit the amount actually bridged so downstream accounting matches what arrives on dst
-        _bridgeData.minAmount = flooredAmount;
-
-        emit LiFiTransferStarted(_bridgeData);
     }
 
-    /// @dev Tempo (EndpointV2Alt) send path: the LayerZero fee is a TIP20 ERC20, not native.
-    ///      The facet pulls _fraxData.nativeFee of the fee token from the caller, approves HopV2,
-    ///      and HopV2 requotes and pulls its actual fee on sendOFT (msg.value is 0); any unpulled
-    ///      remainder is swept to refundRecipient. The fee token is
-    ///      FRAX_TIP_FEE_MANAGER.userTokens(diamond), else FRAX_PATH_USD, and must differ from
-    ///      the bridged asset (reverts InformationMismatch on collision).
+    /// Tempo ///
+
+    /// @dev The native LayerZero fee a call pays: FraxData.nativeFee on standard chains, zero
+    ///      on Tempo, where the fee comes out of the bridged token and nativeFee is its cap.
+    ///      Tempo itself rejects any msg.value, so the facet does not guard against it.
     /// @param _fraxData Data specific to Frax HopV2
-    /// @param _sendingAssetId The bridged ERC20 (bridgeData.sendingAssetId)
+    /// @return fee The native amount the send forwards as msg.value
+    function _nativeFee(
+        FraxData calldata _fraxData
+    ) internal view returns (uint256 fee) {
+        fee = address(FRAX_TEMPO_WRAPPER) == address(0)
+            ? _fraxData.nativeFee
+            : 0;
+    }
+
+    /// @dev Tempo send path. EndpointV2Alt charges the LayerZero fee in an ERC20, so the
+    ///      wrapper pulls the gross minAmount, swaps the fee out of the bridged token, bridges
+    ///      the dust-floored rest and refunds its residual to the diamond, which forwards it
+    ///      to refundRecipient. _fraxData.nativeFee caps the fee: the wrapper reverts
+    ///      InsufficientNetAmount if it would bridge less than minAmount - nativeFee, where
+    ///      minAmount is the post-swap amount on the swap path.
+    /// @param _bridgeData The core information needed for bridging
+    /// @param _fraxData Data specific to Frax HopV2
     /// @param _recipient bytes32-encoded destination recipient
-    /// @param _amount The dust-floored amount to bridge
+    /// @return bridgedAmount The net amount the wrapper bridged after the fee
     function _sendViaTempo(
+        ILiFi.BridgeData memory _bridgeData,
         FraxData calldata _fraxData,
-        address _sendingAssetId,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal {
-        address feeToken = ITipFeeManager(FRAX_TIP_FEE_MANAGER).userTokens(
-            address(this)
-        );
-        if (feeToken == address(0)) {
-            feeToken = FRAX_PATH_USD;
+        bytes32 _recipient
+    ) internal returns (uint256 bridgedAmount) {
+        uint256 grossAmount = _bridgeData.minAmount;
+        if (_fraxData.nativeFee >= grossAmount) {
+            revert InvalidCallData();
         }
 
-        // The unused-fee sweep below tracks the fee token by a balance delta taken after the
-        // bridged token has already been deposited. If the fee token were the same ERC20 we
-        // are bridging, that delta would conflate the two flows and could strand the bridged
-        // amount in the diamond. A Frax gas token is never the bridged OFT, so reject the
-        // collision rather than mis-account for it.
-        if (feeToken == _sendingAssetId) {
-            revert InformationMismatch();
-        }
-
-        // Snapshot before the deposit so any fee token HopV2 does not pull can be returned to
-        // the caller without touching a pre-existing diamond balance. HopV2 requotes and pulls
-        // in the same tx; the diamond holds only the just-deposited nativeFee, so HopV2 can pull
-        // at most that - a higher fee reverts on HopV2's transferFrom.
-        uint256 feeTokenBalanceBefore = IERC20(feeToken).balanceOf(
-            address(this)
-        );
-
-        if (_fraxData.nativeFee != 0) {
-            LibAsset.depositAsset(feeToken, _fraxData.nativeFee);
-            LibAsset.maxApproveERC20(
-                IERC20(feeToken),
-                address(FRAX_HOP),
-                _fraxData.nativeFee
-            );
-        }
-
-        FRAX_HOP.sendOFT(
+        // The quote runs the exact derivation sendOFTFeeInclusive checks against, on the same
+        // state in the same tx, so its netAmount is the amount the send bridges.
+        (, , bridgedAmount) = FRAX_TEMPO_WRAPPER.quoteFeeInclusive(
             _fraxData.oft,
             _fraxData.dstEid,
             _recipient,
-            _amount,
+            grossAmount,
             0,
             ""
         );
 
-        // Sweep the fee token HopV2 did not pull back to the caller. Guard the subtraction: if
-        // the diamond held an incidental pre-existing feeToken balance an over-pull could push
-        // the post-send balance below the baseline; degrade to "no refund" rather than revert an
-        // otherwise-valid bridge with an arithmetic panic.
-        uint256 feeTokenBalanceAfter = IERC20(feeToken).balanceOf(
-            address(this)
+        uint256 balanceBefore = LibAsset.getOwnBalance(
+            _bridgeData.sendingAssetId
         );
-        uint256 unusedFee = feeTokenBalanceAfter > feeTokenBalanceBefore
-            ? feeTokenBalanceAfter - feeTokenBalanceBefore
-            : 0;
-        if (unusedFee != 0) {
+
+        LibAsset.maxApproveERC20(
+            IERC20(_bridgeData.sendingAssetId),
+            address(FRAX_TEMPO_WRAPPER),
+            grossAmount
+        );
+
+        FRAX_TEMPO_WRAPPER.sendOFTFeeInclusive(
+            _fraxData.oft,
+            _fraxData.dstEid,
+            _recipient,
+            grossAmount,
+            grossAmount - _fraxData.nativeFee,
+            0,
+            ""
+        );
+
+        // The wrapper pulls exactly grossAmount and returns its residual, so the residual is
+        // the balance above (balanceBefore - grossAmount); a pre-existing diamond balance is
+        // never part of it.
+        uint256 residual = LibAsset.getOwnBalance(_bridgeData.sendingAssetId) -
+            (balanceBefore - grossAmount);
+        if (residual != 0) {
             LibAsset.transferAsset(
-                feeToken,
+                _bridgeData.sendingAssetId,
                 payable(_fraxData.refundRecipient),
-                unusedFee
+                residual
             );
         }
     }

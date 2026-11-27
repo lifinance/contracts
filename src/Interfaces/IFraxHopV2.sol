@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 /// @title IFraxHopV2
 /// @notice Minimal interface for Frax's HopV2 bridge (LayerZero V2 OFT hub-and-spoke)
 /// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
+/// @custom:version 2.0.0
 /// @dev Shadows FraxFinance HopV2/RemoteHopV2 (src/contracts/hop/HopV2.sol)
 interface IFraxHopV2 {
     /// @notice Bridges an OFT to a destination chain (plain transfer, no compose)
@@ -72,18 +72,6 @@ interface IFraxHopV2 {
         address oft,
         uint256 amountLD
     ) external view returns (uint256 flooredAmountLD);
-}
-
-/// @title ITipFeeManager
-/// @notice Tempo TIP20 fee-manager precompile: resolves a caller's preferred gas token
-/// @author LI.FI (https://li.fi)
-/// @custom:version 1.0.0
-/// @dev Tempo precompile at 0xfeEC000000000000000000000000000000000000
-interface ITipFeeManager {
-    /// @notice The gas token a user has opted into (address(0) if unset → PATH_USD default)
-    /// @param user The account whose preferred gas token to read
-    /// @return token The preferred TIP20 gas token, or address(0) if none set
-    function userTokens(address user) external view returns (address token);
 }
 
 /// @title IFraxOFT

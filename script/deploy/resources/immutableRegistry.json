@@ -128,14 +128,10 @@
       "configData": "_hop",
       "authorityBearing": true
     },
-    "FRAX_TIP_FEE_MANAGER": {
+    "FRAX_TEMPO_WRAPPER": {
       "source": "config",
-      "configData": "_tipFeeManager",
+      "configData": "_tempoWrapper",
       "authorityBearing": true
-    },
-    "FRAX_PATH_USD": {
-      "source": "config",
-      "configData": "_pathUsd"
     }
   },
   "GardenFacet": {

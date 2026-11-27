@@ -5,6 +5,9 @@ import { DeployScriptBase } from "./utils/DeployScriptBase.sol";
 import { stdJson } from "forge-std/Script.sol";
 import { FraxFacet } from "lifi/Facets/FraxFacet.sol";
 import { IFraxHopV2 } from "lifi/Interfaces/IFraxHopV2.sol";
+import {
+    ITempoFeeInclusiveWrapper
+} from "lifi/Interfaces/ITempoFeeInclusiveWrapper.sol";
 
 contract DeployScript is DeployScriptBase {
     using stdJson for string;
@@ -26,15 +29,15 @@ contract DeployScript is DeployScriptBase {
         address hop =
             _getConfigContractAddress(path, string.concat(".hop.", network));
 
-        // tipFeeManager and pathUsd are non-zero only on Tempo (precompile addresses, no bytecode);
-        // frax.json lists only those networks, so every other chain reads address(0) here.
-        address tipFeeManager = _getOptionalConfigContractAddress(
-            path, string.concat(".tipFeeManager.", network)
-        );
-        address pathUsd = _getOptionalConfigContractAddress(
-            path, string.concat(".pathUsd.", network)
+        // tempoFeeInclusiveWrapper is non-zero only on Tempo; frax.json lists only that network,
+        // so every other chain reads address(0) here.
+        address tempoWrapper = _getOptionalConfigContractAddress(
+            path, string.concat(".tempoFeeInclusiveWrapper.", network)
         );
 
-        return abi.encode(IFraxHopV2(hop), tipFeeManager, pathUsd);
+        return
+            abi.encode(
+                IFraxHopV2(hop), ITempoFeeInclusiveWrapper(tempoWrapper)
+            );
     }
 }

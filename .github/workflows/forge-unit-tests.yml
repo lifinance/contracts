@@ -1,6 +1,8 @@
 # - Run (Foundry) Unit Test Suite
 # - will make sure that all tests pass
-# - Sharded across five parallel runners (Libraries, Facets, Periphery, Gas, misc)
+# - Sharded across six parallel runners (Libraries, Facets, Periphery, Gas, misc, tempo)
+# - The tempo shard runs the Tempo fork suite with `--network tempo` and opts in via
+#   FRAX_TEMPO_REQUIRE_FORK; the facets shard compiles it too but skips it without forking
 # - Path-gated: heavy job runs only when files that can affect test outcome change.
 #   A `unit-tests-required` aggregator job always reports a final status so this
 #   workflow can remain a required check on `main` branch protection even when
@@ -60,6 +62,7 @@ jobs:
               - '.github/workflows/forge-unit-tests.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'
+              - 'config/networks.json'
 
   run-unit-tests:
     # Runs on PRs (once out of draft) and on push/workflow_dispatch.
@@ -78,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [libraries, facets, periphery, gas, misc]
+        shard: [libraries, facets, periphery, gas, misc, tempo]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,6 +115,8 @@ jobs:
         run: forge install
 
       - name: Fetch RPC endpoints from MongoDB
+        # The Tempo suite forks the public RPC from config/networks.json and needs no secrets.
+        if: ${{ matrix.shard != 'tempo' }}
         uses: ./.github/actions/fetch-rpcs
         with:
           mongodb-uri: ${{ secrets.MONGODB_URI }}
@@ -133,6 +138,10 @@ jobs:
             periphery) FORGE_ARGS=(--match-path "test/solidity/Periphery/**") ;;
             gas)       FORGE_ARGS=(--match-path "test/solidity/Gas/**") ;;
             misc)      FORGE_ARGS=(--no-match-path "test/solidity/{Libraries,Facets,Periphery,Gas}/**") ;;
+            tempo)
+              FORGE_ARGS=(--network tempo --match-path "test/solidity/Facets/FraxFacetTempo.t.sol")
+              export FRAX_TEMPO_REQUIRE_FORK=true
+              ;;
             *) echo "Unknown shard: ${{ matrix.shard }}" >&2; exit 1 ;;
           esac
 

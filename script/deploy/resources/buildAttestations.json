@@ -910,8 +910,8 @@
       "key": {
         "contractName": "FraxFacet",
         "sourceId": "src/Facets/FraxFacet.sol",
-        "version": "1.0.0",
-        "closureHash": "0xba2e7cc82111a0262251ed79fa907fd33722dcaf21b9c8fee7da96ad42237474",
+        "version": "2.0.0",
+        "closureHash": "0xe4c1e30380ad54016e2d0fccb8bf6948e1df9a7efb2ca5d92a5645df6466503d",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -931,68 +931,52 @@
           }
         }
       },
-      "maskedHash": "0x8d74b9d456236153e82d3018862037cbff6d2383cbb3f5adb48f401a9b4c223b",
-      "lineage": "FraxFacet@1.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 13140,
+      "maskedHash": "0xca84468200b3fe60c075df07450d29df991b6e7e3a21aada7036276a785a513e",
+      "lineage": "FraxFacet@2.0.0 (default: solc 0.8.29, cancun)",
+      "rawByteLength": 12654,
       "immutableOffsets": [
         {
-          "start": 220,
+          "start": 244,
           "length": 32
         },
         {
-          "start": 363,
+          "start": 420,
           "length": 32
         },
         {
-          "start": 497,
+          "start": 4277,
           "length": 32
         },
         {
-          "start": 1138,
+          "start": 4744,
           "length": 32
         },
         {
-          "start": 1471,
+          "start": 5392,
           "length": 32
         },
         {
-          "start": 3167,
+          "start": 7030,
           "length": 32
         },
         {
-          "start": 4655,
+          "start": 7313,
           "length": 32
         },
         {
-          "start": 5549,
+          "start": 7373,
           "length": 32
         },
         {
-          "start": 5817,
+          "start": 7743,
           "length": 32
         },
         {
-          "start": 6020,
+          "start": 8011,
           "length": 32
         },
         {
-          "start": 6100,
-          "length": 32
-        },
-        {
-          "start": 7974,
-          "length": 32
-        },
-        {
-          "start": 8132,
-          "length": 32
-        },
-        {
-          "start": 8439,
-          "length": 32
-        },
-        {
-          "start": 8503,
+          "start": 8071,
           "length": 32
         }
       ]

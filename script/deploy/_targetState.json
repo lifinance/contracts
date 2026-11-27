@@ -55,7 +55,7 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ThorSwapFacet": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "CentrifugeFacet": "latest",
         "UnitFacet": "latest",
         "AttestedBridgeFacet": "latest"
@@ -91,7 +91,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -144,7 +144,7 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "SupersetFacet": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "AttestedBridgeFacet": "latest"
       }
     }
@@ -212,7 +212,7 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ThorSwapFacet": "1.2.0",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "AttestedBridgeFacet": "latest"
       }
     }
@@ -293,7 +293,7 @@
         "SymbiosisFacet": "latest",
         "SupersetFacet": "latest",
         "ThorSwapFacet": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "CentrifugeFacet": "latest",
         "AttestedBridgeFacet": "latest"
       }
@@ -400,7 +400,7 @@
         "SymbiosisFacet": "latest",
         "ThorSwapFacet": "1.2.0",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "AttestedBridgeFacet": "latest"
       }
     }
@@ -523,7 +523,7 @@
         "LayerSwapFacet": "latest",
         "SquidFacet": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -658,7 +658,7 @@
         "PolymerCCTPFacet": "latest",
         "RelayDepositoryFacet": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "AttestedBridgeFacet": "latest"
       }
     }
@@ -727,7 +727,7 @@
         "RelayDepositoryFacet": "latest",
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -798,7 +798,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -972,7 +972,7 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "AttestedBridgeFacet": "latest"
       }
     }
@@ -1021,7 +1021,7 @@
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "AttestedBridgeFacet": "latest"
       }
     }
@@ -1123,7 +1123,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1196,7 +1196,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1242,7 +1242,7 @@
         "SymbiosisFacet": "latest",
         "SupersetFacet": "latest",
         "AllBridgeFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1279,7 +1279,7 @@
         "LayerSwapFacet": "latest",
         "PolymerCCTPFacet": "latest",
         "RelayDepositoryFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1308,7 +1308,7 @@
         "TokenWrapper": "latest",
         "LayerSwapFacet": "latest",
         "NEARIntentsFacet": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "SymbiosisFacet": "latest"
       }
     }
@@ -1372,7 +1372,7 @@
         "LayerSwapFacet": "latest",
         "RelayDepositoryFacet": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1487,7 +1487,7 @@
         "GlacisFacet": "latest",
         "LayerSwapFacet": "latest",
         "ReceiverOIF": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "RelayDepositoryFacet": "latest",
         "SymbiosisFacet": "latest"
       }
@@ -1521,7 +1521,7 @@
         "RelayDepositoryFacet": "latest",
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -1721,7 +1721,7 @@
         "NEARIntentsFacet": "latest",
         "PolymerCCTPFacet": "latest",
         "RelayDepositoryFacet": "latest",
-        "FraxFacet": "latest",
+        "FraxFacet": "1.0.0",
         "UnitFacet": "latest"
       }
     }
@@ -1792,7 +1792,7 @@
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
         "SymbiosisFacet": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
@@ -2155,7 +2155,7 @@
         "RelayDepositoryFacet": "latest",
         "StargateFacetV2": "latest",
         "ReceiverStargateV2": "latest",
-        "FraxFacet": "latest"
+        "FraxFacet": "1.0.0"
       }
     }
   },
