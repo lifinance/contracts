@@ -157,11 +157,7 @@ import {
   renderTargetStateRefusal,
   type ITargetStateVerdict,
 } from './pinned-target-state'
-import {
-  observeCalldata,
-  resolveGateCoverage,
-  viemGateReaders,
-} from './prebroadcast-gate'
+import { viemGateReaders } from './prebroadcast-gate'
 import { asPrintable, printableField, trustedMarkup } from './printable-field'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import {
@@ -176,11 +172,7 @@ import {
   type IExecutionSummaryEntry,
   type IRunSubmissionRecord,
 } from './run-submission-summary'
-import {
-  collectDiamondCutTargets,
-  collectedInstallsSomething,
-  getTargetName,
-} from './safe-decode-utils'
+import { getTargetName } from './safe-decode-utils'
 import {
   buildCalldataTarget,
   buildSafeTxDetailLines,
@@ -253,13 +245,13 @@ import {
   signerTodos,
   viewDefinitions,
 } from './signer-zones'
-import { createSigningFunnels } from './signing-funnels'
 import {
-  computeOperationIdBatch,
-  decodeScheduleBatch,
-  enqueueTimelockOpIfApplicable,
-  isScheduleBatchCalldata,
-} from './timelock-queue'
+  observeSignTimeSet,
+  type IObservedSet,
+  type TSetObservation,
+} from './sign-time-authority-observation'
+import { createSigningFunnels } from './signing-funnels'
+import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 // One set of sign-time codehash dependencies per run: they hold a MongoDB
 // connection and a rebuild cache, and a rebuild repeated per network would
@@ -582,23 +574,6 @@ const processTxs = async (
     await recordSignedSet(txDoc, signedTx)
   }
 
-  /**
-   * What one proposal's calldata declares, read once and kept.
-   *
-   * Split out of `recordSignedSet` because gate G has to be graded before the
-   * signer is asked to sign. A row recorded after the signature can describe
-   * what was signed; it can no longer refuse it. The persistence half still
-   * runs after signing and reads this cache rather than the chain again.
-   *
-   * An absent set carries why it is absent — the calldata was not a schedule
-   * batch, the chain is outside the gate's coverage, or the observation could
-   * not be made — and the ledger grades each of those on its own terms; only a
-   * chain the reader covers whose observation failed still blocks.
-   */
-  interface IObservedSet {
-    operationId: Hex
-    observed: Awaited<ReturnType<typeof observeCalldata>>
-  }
   // Survives a prefetch discard, unlike every other verdict in the bundle.
   //
   // When the anchor moves, `computeProposalEvidence` re-runs and every gate is
@@ -616,89 +591,49 @@ const processTxs = async (
   const observedSets = new Map<string, IObservedSet>()
 
   /**
-   * What one attempt to read the sign-time set produced: the observation, or
-   * why there is none. The three absences reach the ledger as different rows,
-   * so they are named here rather than collapsed into `undefined`.
+   * What one proposal's calldata declares, read once and kept.
+   *
+   * Split out of `recordSignedSet` because gate G has to be graded before the
+   * signer is asked to sign. A row recorded after the signature can describe
+   * what was signed; it can no longer refuse it. The persistence half still
+   * runs after signing and reads this cache rather than the chain again.
+   *
+   * An absent set carries why it is absent — the calldata was not a schedule
+   * batch, or the observation could not be made — and the ledger grades each
+   * on its own terms; a failed observation blocks.
    */
-  type TSetObservation =
-    | { kind: 'observed'; observation: IObservedSet }
-    | { kind: 'absent'; absence: TStorageAuthorityAbsence }
-
   async function observeSetForProposal(
     safeTxHash: string,
     callData: Hex | undefined,
     // Defaults to the terminal; the prefetch passes a deferred console so a
     // line about the next proposal cannot print under this one.
-    log: {
-      info: (message: string) => void
-      warn: (message: string) => void
-    } = consola
+    log: { warn: (message: string) => void } = consola
   ): Promise<TSetObservation> {
     const cached = observedSets.get(safeTxHash)
     if (cached) return { kind: 'observed', observation: cached }
 
-    if (!callData || !isScheduleBatchCalldata(callData))
-      return { kind: 'absent', absence: { kind: 'not-scheduled' } }
-
-    if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
-      const reason = `${network} is read through TronWeb, which the storage-authority reader does not carry, so the contracts this proposal installs were not observed`
-      log.info(`Sign-time set not read: ${reason}`)
-      return {
-        kind: 'absent',
-        absence: {
-          kind: 'out-of-scope',
-          reason,
-          installs: collectedInstallsSomething(
-            collectDiamondCutTargets(callData)
-          ),
-        },
-      }
-    }
-
-    try {
-      const params = decodeScheduleBatch(callData)
-      const operationId = computeOperationIdBatch(
-        params.targets,
-        params.values,
-        params.payloads,
-        params.predecessor,
-        params.salt
-      )
+    const read = await observeSignTimeSet(networkKey, callData, {
       // Without an `--rpcUrl` override this is not a public endpoint: the
       // chain object is built from the network's configured RPC env var,
       // which `getViemChainForNetworkName` throws without, so the record is
       // always the run's own view.
-      const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
-      const pinned = await readPinnedBlob(`deployments/${networkKey}.json`)
-      const observed = await observeCalldata(
-        {
-          operationId,
-          targets: params.targets,
-          payloads: params.payloads,
-        },
-        {
-          ...viemGateReaders(publicClient),
-          deployments: (await getDeployments(
-            networkKey as SupportedChain,
-            EnvironmentEnum.production
-          )) as unknown as Record<string, unknown>,
-          ...(pinned.ok ? { pinnedDeployments: pinned.value } : {}),
-          globalConfig: globalConfig as unknown as Record<string, unknown>,
-        }
-      )
+      readers: () => viemGateReaders(buildReadOnlyClient(networkKey, rpcUrl)),
+      loadDeployments: async () =>
+        (await getDeployments(
+          networkKey as SupportedChain,
+          EnvironmentEnum.production
+        )) as unknown as Record<string, unknown>,
+      readPinnedDeployments: () =>
+        readPinnedBlob(`deployments/${networkKey}.json`),
+      globalConfig: globalConfig as unknown as Record<string, unknown>,
+    })
 
-      const observedSet: IObservedSet = { operationId, observed }
-      observedSets.set(safeTxHash, observedSet)
-      return { kind: 'observed', observation: observedSet }
-    } catch (error) {
-      const reason = redactUrls(
-        error instanceof Error ? error.message : String(error)
-      )
+    if (read.kind === 'observed') observedSets.set(safeTxHash, read.observation)
+    else if (read.absence.kind === 'read-failed')
       log.warn(
-        `Could not read the sign-time set; gate G has nothing to grade and will block: ${reason}`
+        `Could not read the sign-time set; gate G has nothing to grade and will block: ${read.absence.reason}`
       )
-      return { kind: 'absent', absence: { kind: 'read-failed', reason } }
-    }
+    return read
   }
 
   /**

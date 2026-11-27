@@ -1,12 +1,14 @@
 /**
- * Tron spellings for the timelock watcher: main names Tron contracts and wallets
- * in base58, while the chain's logs, its reads and every watcher check compare
- * 20-byte hex. Imported by the watcher when it watches a Tron network.
+ * Tron spellings for the integrity gates: main names Tron contracts and wallets
+ * in base58, while the chain's logs, its reads and every gate check compare
+ * 20-byte hex. Imported by the timelock watcher, the sign-time storage-authority
+ * observation and the pre-broadcast gate when they read a Tron network.
  */
 
 import {
   evm20HexStringToTronBase58,
   getTronWebCodecOnlyForNetwork,
+  isTronNetworkKey,
 } from '@lifi/tron-devkit'
 import { getAddress, type Address } from 'viem'
 
@@ -42,20 +44,29 @@ export const tronHex = (network: string, address: string): Address => {
 /**
  * A deployments file with every base58 address spelled as hex.
  *
+ * Every entry of a deployments file is a contract address, so a value that is
+ * neither base58 nor hex is malformed. It throws rather than passing through:
+ * a passed-through value drops out of the gates' address index, and the
+ * contract it names would go unchecked instead of failing.
+ *
  * @param network - Tron network name.
  * @param deployments - Main's parsed `deployments/<network>.json`.
- * @returns A copy whose base58 addresses are checksummed hex; other values unchanged.
- * @throws When a base58-shaped value fails its checksum or is not a Tron account.
+ * @returns A copy whose base58 addresses are checksummed hex; hex values unchanged.
+ * @throws When a value is not an address, a base58 checksum fails, or a
+ *   base58 address is not a Tron account.
  */
 export const tronDeploymentsAsHex = (
   network: string,
   deployments: Record<string, unknown>
 ): Record<string, unknown> =>
   Object.fromEntries(
-    Object.entries(deployments).map(([name, value]) => [
-      name,
-      isBase58(value) ? tronHex(network, value) : value,
-    ])
+    Object.entries(deployments).map(([name, value]) => {
+      if (isBase58(value)) return [name, tronHex(network, value)]
+      if (typeof value === 'string' && EVM_HEX.test(value)) return [name, value]
+      throw new Error(
+        `deployments/${network}.json ${name} is not a Tron or hex address`
+      )
+    })
   )
 
 /**
@@ -88,4 +99,44 @@ export const withTronWallets = (
     overlay[name] = tronHex(network, tron)
   }
   return { ...globalConfig, ...overlay }
+}
+
+/** The address inputs the storage-authority gate compares against. */
+export interface IGateAddressInputs {
+  deployments: Record<string, unknown>
+  pinnedDeployments?: Record<string, unknown>
+  globalConfig: Record<string, unknown>
+}
+
+/**
+ * The gate's address inputs spelled as 20-byte hex on every network: on Tron the
+ * deployments are converted from base58 and the wallets replaced by
+ * `tronWallets`; on any other network the inputs are returned unchanged.
+ *
+ * A base58 entry that dropped out instead of converting would shrink the set of
+ * addresses the gate recognises, so a failed conversion throws rather than
+ * yielding a smaller set.
+ *
+ * @param network - Network name as it appears in `config/networks.json`.
+ * @param inputs - Deployments, optional pinned deployments and the global config.
+ * @returns The same inputs in the spelling the gate compares.
+ * @throws When a Tron address fails to convert or `tronWallets` is incomplete.
+ */
+export const gateAddressInputsForNetwork = (
+  network: string,
+  inputs: IGateAddressInputs
+): IGateAddressInputs => {
+  if (!isTronNetworkKey(network)) return inputs
+  return {
+    deployments: tronDeploymentsAsHex(network, inputs.deployments),
+    ...(inputs.pinnedDeployments
+      ? {
+          pinnedDeployments: tronDeploymentsAsHex(
+            network,
+            inputs.pinnedDeployments
+          ),
+        }
+      : {}),
+    globalConfig: withTronWallets(network, inputs.globalConfig),
+  }
 }

@@ -63,6 +63,26 @@ describe('buildReadOnlyClient', () => {
     expect(client.transport.url).toBe(OVERRIDE_URL)
   })
 
+  // TronGrid serves `eth_call` and `eth_getCode` only on `/jsonrpc`; a bare
+  // host override would fail every gate read with an unhelpful 404.
+  it('routes a TronGrid override to its JSON-RPC path', () => {
+    const tronPrimary = getRPCEnvVarName('tron')
+    const original = process.env[tronPrimary]
+    process.env[tronPrimary] = 'https://override.trongrid.io'
+    try {
+      expect(
+        buildReadOnlyClient('tron', 'https://override.trongrid.io').transport
+          .url
+      ).toBe('https://override.trongrid.io/jsonrpc')
+    } finally {
+      if (original === undefined) {
+        delete process.env[tronPrimary] // spawn-env: in-process test, restores the unset state it found
+      } else {
+        process.env[tronPrimary] = original
+      }
+    }
+  })
+
   it('carries a caller-supplied abort signal onto the requests it makes', () => {
     const signal = AbortSignal.timeout(1_000)
     const client = buildReadOnlyClient(NETWORK, OVERRIDE_URL, { signal })
