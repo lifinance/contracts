@@ -6,8 +6,8 @@
 #   "Agent Review Request".
 # - Key behaviors: label swap, cross-repo workflow_dispatch via a least-privilege GitHub App
 #   token, and label restore on dispatch failure so the trigger can simply be re-applied.
-# - Known limitations: requires the QA_APP_ID / QA_APP_PRIVATE_KEY secrets and the App
-#   installation to grant Actions:write on lifinance/QA; never touches protected audit labels.
+# - Requires the QA_DISPATCH_APP_ID variable, the QA_DISPATCH_APP_PRIVATE_KEY secret and
+#   Actions:write on lifinance/QA; never touches protected audit labels.
 name: Trigger Zeus QA Review
 
 on:
@@ -31,8 +31,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.QA_APP_ID }}
-          private-key: ${{ secrets.QA_APP_PRIVATE_KEY }}
+          app-id: ${{ vars.QA_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.QA_DISPATCH_APP_PRIVATE_KEY }}
           owner: lifinance
           repositories: QA
           permission-actions: write # least privilege: token only dispatches qa-run.yml
